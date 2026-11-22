@@ -30,6 +30,25 @@ function frame(
   return { data, width, height }
 }
 
+function outline(
+  f: GrayFrame,
+  [bx, by, bw, bh]: [number, number, number, number],
+  gapEvery: number
+) {
+  const data = f.data as Uint8ClampedArray
+  const set = (x: number, y: number, i: number) => {
+    if (i % gapEvery !== 0) data[y * f.width + x] = 255
+  }
+  for (let x = bx; x < bx + bw; x++) {
+    set(x, by, x)
+    set(x, by + bh - 1, x)
+  }
+  for (let y = by; y < by + bh; y++) {
+    set(bx, y, y)
+    set(bx + bw - 1, y, y)
+  }
+}
+
 describe("detectOverlayRect", () => {
   it("finds a static bordered box over changing content", () => {
     const frames = [1, 2, 3, 4, 5, 6].map((seed) =>
@@ -41,6 +60,17 @@ describe("detectOverlayRect", () => {
     expect(found.rect.y).toBeCloseTo(63 / 90, 1)
     expect(found.rect.w).toBeCloseTo(34 / 160, 1)
     expect(found.rect.h).toBeCloseTo(20 / 90, 1)
+  })
+
+  it("ignores a larger static outline elsewhere in the frame", () => {
+    const frames = [1, 2, 3, 4, 5, 6].map((seed) => {
+      const f = frame(160, 120, seed, [6, 88, 40, 26])
+      outline(f, [50, 6, 80, 70], 7)
+      return f
+    })
+    const found = detectOverlayRect(frames)!
+    expect(found.rect.x).toBeCloseTo(6 / 160, 1)
+    expect(found.rect.y).toBeCloseTo(88 / 120, 1)
   })
 
   it("finds nothing convincing in pure noise", () => {
@@ -118,6 +148,12 @@ describe("combineDetection", () => {
   })
 })
 
+const base = {
+  webcamRect: null,
+  gameplayRect: FULL_FRAME,
+  gameplayFocusX: 0.5,
+}
+
 describe("layout geometry", () => {
   it("converts to even pixels inside the frame", () => {
     expect(
@@ -190,6 +226,33 @@ describe("layout geometry", () => {
         1920,
         1080
       )
-    ).toMatchObject({ mode: "no-cam-blur-fill", foregroundHeight: 606 })
+    ).toMatchObject({
+      mode: "no-cam-blur-fill",
+      foreground: { w: 1080, h: 606 },
+    })
+  })
+
+  it("fits tall sources inside the frame in blur-fill", () => {
+    const blur = { ...base, mode: "no-cam-blur-fill" as const }
+    expect(planLayout(blur, 1080, 2400)).toMatchObject({
+      foreground: { w: 864, h: 1920 },
+    })
+    expect(planLayout(blur, 1080, 1920)).toMatchObject({
+      foreground: { w: 1080, h: 1920 },
+    })
+  })
+
+  it("fills the frame with a 9:16 gameplay crop that follows the focus", () => {
+    const fill = { ...base, mode: "no-cam-fill" as const }
+    expect(planLayout({ ...fill, gameplayFocusX: 0.5 }, 1440, 1080)).toEqual({
+      mode: "no-cam-fill",
+      crop: { x: 416, y: 0, w: 606, h: 1080 },
+    })
+    expect(
+      planLayout({ ...fill, gameplayFocusX: 0 }, 1440, 1080)
+    ).toMatchObject({ crop: { x: 0 } })
+    expect(
+      planLayout({ ...fill, gameplayFocusX: 1 }, 1440, 1080)
+    ).toMatchObject({ crop: { x: 834 } })
   })
 })

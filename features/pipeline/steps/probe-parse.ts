@@ -124,9 +124,17 @@ const TOLERANCE = 0.02
 export function classifyAspect(width: number, height: number): SourceAspect {
   if (width <= 0 || height <= 0) return "other"
   const ratio = width / height
-  if (Math.abs(ratio - 16 / 9) / (16 / 9) <= TOLERANCE) return "16:9"
+  const near = (target: number) =>
+    Math.abs(ratio - target) / target <= TOLERANCE
+  if (near(16 / 9)) return "16:9"
+  if (near(16 / 10)) return "16:10"
+  if (near(4 / 3)) return "4:3"
   if (ratio >= 2.33 * (1 - TOLERANCE) && ratio <= 2.4 * (1 + TOLERANCE)) {
     return "21:9"
   }
   return "other"
+}
+
+export function isLandscape(width: number, height: number) {
+  return width >= height * 1.2
 }

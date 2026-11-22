@@ -4,18 +4,18 @@ The product creates **drafts for human review**. Nothing is auto-published. Rend
 
 ## Entities
 
-| Entity       | Key fields                                                                                                                                                                                                            |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Project      | id, name, sourceAssetId, status, failedStep, error, settings snapshot (captionStyle, clipMinMs, clipMaxMs, selectorMode, targetClipCount), createdAt, updatedAt                                                       |
-| Asset        | id, projectId, kind (`source` · `audio` · `thumbnail` · `proxy` · `render` · `subtitle`), storageKey, mime, bytes, durationMs, width, height, fps, codec                                                              |
-| Transcript   | projectId, language, words[] `{text, startMs, endMs, confidence}`, segments[] `{text, startMs, endMs, firstWord, lastWord}`                                                                                           |
-| Signals      | projectId, silences[] `{startMs, endMs}`, loudness[] (LUFS, 1 sample / 250 ms), speechDensity[] (words per second per 10 s window)                                                                                    |
-| Layout       | projectId, sourceAspect (`16:9` · `21:9` · `other`), webcamRect `{x,y,w,h}` normalized 0–1 or null, gameplayRect, gameplayFocusX 0–1, mode (`cam-top` · `no-cam-blur-fill` · `split-50`), confidence, confirmedByUser |
-| LayoutPreset | width, height (unique pair), webcamRect, gameplayRect, mode, gameplayFocusX                                                                                                                                           |
-| Clip         | id, projectId, startMs, endMs, title, hook, reason, score 0–1, status (`candidate` · `approved` · `rejected` · `rendering` · `rendered` · `failed`), captionOverrides, renderAssetId, error                           |
-| CaptionStyle | presetId + overrides (fontFamily, fontSize, primary/highlight color token, outline, position, maxWordsPerPage, maxCharsPerLine, uppercase)                                                                            |
-| Job          | id, projectId, type, payload, status (`queued` · `running` · `succeeded` · `failed` · `cancelled`), attempts, maxAttempts, runAfter, leasedUntil, leaseOwner, progress 0–100, error, timestamps                       |
-| Setting      | key, value (JSON, zod-validated per key)                                                                                                                                                                              |
+| Entity       | Key fields                                                                                                                                                                                                                                              |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Project      | id, name, sourceAssetId, status, failedStep, error, settings snapshot (captionStyle, clipMinMs, clipMaxMs, selectorMode, targetClipCount), createdAt, updatedAt                                                                                         |
+| Asset        | id, projectId, kind (`source` · `audio` · `thumbnail` · `proxy` · `render` · `subtitle`), storageKey, mime, bytes, durationMs, width, height, fps, codec                                                                                                |
+| Transcript   | projectId, language, words[] `{text, startMs, endMs, confidence}`, segments[] `{text, startMs, endMs, firstWord, lastWord}`                                                                                                                             |
+| Signals      | projectId, silences[] `{startMs, endMs}`, loudness[] (LUFS, 1 sample / 250 ms), speechDensity[] (words per second per 10 s window)                                                                                                                      |
+| Layout       | projectId, sourceAspect (`16:9` · `16:10` · `4:3` · `21:9` · `other`), webcamRect `{x,y,w,h}` normalized 0–1 or null, gameplayRect, gameplayFocusX 0–1, mode (`cam-top` · `split-50` · `no-cam-fill` · `no-cam-blur-fill`), confidence, confirmedByUser |
+| LayoutPreset | width, height (unique pair), webcamRect, gameplayRect, mode, gameplayFocusX                                                                                                                                                                             |
+| Clip         | id, projectId, startMs, endMs, title, hook, reason, score 0–1, status (`candidate` · `approved` · `rejected` · `rendering` · `rendered` · `failed`), captionOverrides, renderAssetId, error                                                             |
+| CaptionStyle | presetId + overrides (fontFamily, fontSize, primary/highlight color token, outline, position, maxWordsPerPage, maxCharsPerLine, uppercase)                                                                                                              |
+| Job          | id, projectId, type, payload, status (`queued` · `running` · `succeeded` · `failed` · `cancelled`), attempts, maxAttempts, runAfter, leasedUntil, leaseOwner, progress 0–100, error, timestamps                                                         |
+| Setting      | key, value (JSON, zod-validated per key)                                                                                                                                                                                                                |
 
 ## Project state machine
 
@@ -65,7 +65,7 @@ stateDiagram-v2
 - Accepted containers: mp4, mov, mkv, webm. Must contain at least one video stream and one audio stream. Otherwise fail with a human-readable message ("This file has no audio track").
 - Max upload: `MAX_UPLOAD_BYTES` (default 20 GiB).
 - Aspect classification on display aspect ratio `r = w / h` (after rotation/SAR):
-  - `16:9` when `|r − 16/9| / (16/9) ≤ 0.02`
+  - `16:9`, `16:10`, `4:3` when within 2% of that ratio
   - `21:9` when `r ∈ [2.33 × 0.98, 2.40 × 1.02]` (covers 2.33–2.40 plus 2% tolerance)
   - `other` otherwise
 - Thumbnail at 10% of duration (JPEG, 640 px wide). Proxy: 640 px wide H.264 `-crf 30 -preset veryfast`, AAC 96k, `+faststart`.
@@ -108,7 +108,7 @@ HeuristicSelector score for a window = `0.45·loudnessPeak + 0.30·speechDensity
 
 ### Layout
 
-- `awaiting_layout` is skipped when `sourceAspect = other` (mode defaults to `no-cam-blur-fill`) or a LayoutPreset exists for the exact source resolution (preset applied, `confirmedByUser = true`).
+- Every landscape source (`w ≥ 1.2 h`, whatever its class) goes through `awaiting_layout` with `cam-top` proposed. Square and portrait sources skip it with `no-cam-blur-fill`. A LayoutPreset for the exact source resolution also skips it (preset applied, `confirmedByUser = true`).
 - Detection proposes a rect plus confidence. Below 0.5 confidence or with no face, propose `no-cam-blur-fill`.
 - Keyboard nudge: arrow = 0.5% of the frame, Shift+arrow = 5%.
 
@@ -118,24 +118,25 @@ HeuristicSelector score for a window = `0.45·loudnessPeak + 0.30·speechDensity
 - Vertical profile: 1080×1920, fps = source fps if ≤ 60 else 30 (sources under 24 fps keep theirs), H.264 `-preset veryfast -crf 20`, `yuv420p`, AAC 160k, `+faststart`.
 - `cam-top`: webcam crop covers the top 35% (1080×672), gameplay crop covers the bottom 65% (1080×1248), horizontal focus point `gameplayFocusX` (default 0.5).
 - `split-50`: same as cam-top with a 50/50 split (1080×960 each).
-- `no-cam-blur-fill`: source scaled to cover 1080×1920, boxblur 20, darkened; source scaled to 1080 wide, centered on top.
+- `no-cam-fill`: a 9:16 crop of the gameplay rect scaled to 1080×1920, positioned by `gameplayFocusX`. The usual Shorts look when there's no webcam.
+- `no-cam-blur-fill`: source scaled to cover 1080×1920, boxblur 20, darkened; the whole source fitted inside 1080×1920 (contain), centered on top.
 - Horizontal edit: source resolution, silences longer than 1000 ms removed, 150 ms of padding kept on each side of every cut, subtitles burned in.
 - Disk check: refuse to start a render when free space < 2× the estimated output size (bitrate × duration) + 500 MB.
 
 ### Captions
 
-| Setting                   | Default                                                                                                                        |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| max lines per page        | 2                                                                                                                              |
-| max chars per line        | 28                                                                                                                             |
-| words per page            | 1–4                                                                                                                            |
-| never cross a silence gap | > 600 ms                                                                                                                       |
-| highlight                 | current word                                                                                                                   |
-| safe area (9:16)          | baseline at 72% of the height in cam-top (inside the gameplay area, clear of the webcam band), 80% in no-cam-blur-fill         |
-| page breaks               | after a sentence end (`.`, `!`, `?`, `…`), before a gap > 600 ms, at the word limit, or when the words no longer fit the lines |
-| page timing               | a page stays up until the next page starts or 400 ms after its last word, whichever is first                                   |
-| line breaking             | one line if it fits, otherwise the split that minimizes the widest line; a single word longer than the limit gets its own line |
-| page text edits           | replace the page's words; the new words share the page's time evenly                                                           |
+| Setting                   | Default                                                                                                                                    |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| max lines per page        | 2                                                                                                                                          |
+| max chars per line        | 28                                                                                                                                         |
+| words per page            | 1–4                                                                                                                                        |
+| never cross a silence gap | > 600 ms                                                                                                                                   |
+| highlight                 | current word                                                                                                                               |
+| safe area (9:16)          | baseline at 72% of the height in cam-top (inside the gameplay area, clear of the webcam band), 80% in no-cam-blur-fill, 72% in no-cam-fill |
+| page breaks               | after a sentence end (`.`, `!`, `?`, `…`), before a gap > 600 ms, at the word limit, or when the words no longer fit the lines             |
+| page timing               | a page stays up until the next page starts or 400 ms after its last word, whichever is first                                               |
+| line breaking             | one line if it fits, otherwise the split that minimizes the widest line; a single word longer than the limit gets its own line             |
+| page text edits           | replace the page's words; the new words share the page's time evenly                                                                       |
 
 ### Originality guardrail
 

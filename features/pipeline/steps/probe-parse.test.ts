@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest"
 
-import { classifyAspect, parseProbe, parseRate } from "./probe-parse"
+import {
+  classifyAspect,
+  isLandscape,
+  parseProbe,
+  parseRate,
+} from "./probe-parse"
 
 const probe = (overrides: {
   video?: Record<string, unknown>
@@ -114,11 +119,22 @@ describe("classifyAspect", () => {
     [3440, 1440, "21:9"],
     [3840, 1600, "21:9"],
     [1920, 800, "21:9"],
-    [1440, 1080, "other"],
+    [1440, 1080, "4:3"],
+    [1024, 768, "4:3"],
+    [640, 480, "4:3"],
+    [1920, 1200, "16:10"],
+    [1680, 1050, "16:10"],
     [1080, 1920, "other"],
     [3840, 1080, "other"],
     [0, 1080, "other"],
   ])("%ix%i → %s", (w, h, expected) => {
     expect(classifyAspect(w, h)).toBe(expected)
+  })
+
+  it("treats anything clearly wider than tall as landscape", () => {
+    expect(isLandscape(1440, 1080)).toBe(true)
+    expect(isLandscape(3840, 1080)).toBe(true)
+    expect(isLandscape(1080, 1080)).toBe(false)
+    expect(isLandscape(1080, 1920)).toBe(false)
   })
 })

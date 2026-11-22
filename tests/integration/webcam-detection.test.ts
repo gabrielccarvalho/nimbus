@@ -44,6 +44,7 @@ describe("webcam detection on fixtures", () => {
   it.each([
     [fixtures.wide, 1920, 1080, { x: 1504, y: 832, w: 384, h: 216 }],
     [fixtures.ultrawide, 2560, 1080, { x: 32, y: 32, w: 384, h: 216 }],
+    [fixtures.standard, 1440, 1080, { x: 32, y: 832, w: 384, h: 216 }],
   ])("finds the webcam box in %s", (file, width, height, cam) => {
     const frames = sampleFrames(file, width, height)
     expect(frames.length).toBeGreaterThanOrEqual(6)

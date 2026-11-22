@@ -2,6 +2,7 @@
 
 import {
   CheckIcon,
+  ChecksIcon,
   DownloadSimpleIcon,
   FilmSlateIcon,
   FileZipIcon,
@@ -45,7 +46,10 @@ import {
   VideoPlayerTime,
   VideoPlayerVideo,
 } from "@/components/ui/video-player"
-import { setClipStatusAction } from "@/features/clips/actions"
+import {
+  approveAllCandidatesAction,
+  setClipStatusAction,
+} from "@/features/clips/actions"
 import type { Clip } from "@/features/clips/repository"
 import type { ProjectSnapshot } from "@/features/pipeline/snapshot"
 import type { AudioSummary } from "@/features/projects/queries"
@@ -95,6 +99,7 @@ function ExportPanel({
       (job.status === "running" || job.status === "queued")
   )
   const renderedCount = Object.keys(renders).length
+  const candidates = clips.filter((clip) => clip.status === "candidate").length
 
   const run = (action: () => Promise<Result<unknown>>, message: string) =>
     startTransition(async () => {
@@ -128,6 +133,21 @@ function ExportPanel({
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <div className="flex flex-wrap gap-2">
+          {candidates > 0 && (
+            <Button
+              variant="outline"
+              disabled={pending}
+              onClick={() =>
+                run(
+                  () => approveAllCandidatesAction(projectId),
+                  `Approved ${candidates} ${candidates === 1 ? "clip" : "clips"}`
+                )
+              }
+            >
+              <ChecksIcon data-icon="inline-start" aria-hidden />
+              Approve all ({candidates})
+            </Button>
+          )}
           <Button
             disabled={pending || !layoutConfirmed || approved.length === 0}
             onClick={() =>

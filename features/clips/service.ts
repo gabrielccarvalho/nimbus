@@ -111,3 +111,13 @@ export function updateClip(
     status: clip.status === "rendered" ? "approved" : clip.status,
   })
 }
+
+export function approveAllCandidates(db: Db, projectId: string) {
+  const clips = clipRepository(db)
+  const ids = clips
+    .listForProject(projectId)
+    .filter((clip) => clip.status === "candidate")
+    .map((clip) => clip.id)
+  clips.setStatus(ids, "approved")
+  return ids.length
+}

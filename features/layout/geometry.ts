@@ -1,12 +1,14 @@
-import type { LayoutInput, LayoutMode, Rect } from "./schema"
+import {
+  usesWebcam,
+  type LayoutInput,
+  type Rect,
+  type WebcamLayoutMode,
+} from "./schema"
 
 export const OUTPUT_WIDTH = 1080
 export const OUTPUT_HEIGHT = 1920
 
-export const SPLIT_HEIGHTS: Record<
-  Exclude<LayoutMode, "no-cam-blur-fill">,
-  [number, number]
-> = {
+export const SPLIT_HEIGHTS: Record<WebcamLayoutMode, [number, number]> = {
   "cam-top": [672, 1248],
   "split-50": [960, 960],
 }
@@ -61,9 +63,10 @@ export type LayoutPlan =
   | {
       mode: "no-cam-blur-fill"
       background: PixelRect
-      foregroundHeight: number
+      foreground: { w: number; h: number }
     }
-  | { mode: "cam-top" | "split-50"; regions: [LayoutRegion, LayoutRegion] }
+  | { mode: "no-cam-fill"; crop: PixelRect }
+  | { mode: WebcamLayoutMode; regions: [LayoutRegion, LayoutRegion] }
 
 export function planLayout(
   layout: LayoutInput,
@@ -71,11 +74,22 @@ export function planLayout(
   height: number
 ): LayoutPlan {
   const full = { x: 0, y: 0, w: evenFloor(width), h: evenFloor(height) }
-  if (layout.mode === "no-cam-blur-fill" || !layout.webcamRect) {
+  if (layout.mode === "no-cam-fill") {
+    return {
+      mode: "no-cam-fill",
+      crop: coverCrop(
+        toPixels(layout.gameplayRect, width, height),
+        OUTPUT_WIDTH / OUTPUT_HEIGHT,
+        layout.gameplayFocusX
+      ),
+    }
+  }
+  if (!usesWebcam(layout.mode) || !layout.webcamRect) {
+    const scale = Math.min(OUTPUT_WIDTH / width, OUTPUT_HEIGHT / height)
     return {
       mode: "no-cam-blur-fill",
       background: coverCrop(full, OUTPUT_WIDTH / OUTPUT_HEIGHT),
-      foregroundHeight: even((OUTPUT_WIDTH / width) * height),
+      foreground: { w: even(width * scale), h: even(height * scale) },
     }
   }
   const [top, bottom] = SPLIT_HEIGHTS[layout.mode]

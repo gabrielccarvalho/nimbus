@@ -38,6 +38,17 @@ function staticEdges(frames: readonly GrayFrame[]) {
   return { horizontal, vertical, width, height }
 }
 
+const ENCLOSING_TOLERANCE = 0.01
+
+function encloses(outer: Rect, inner: Rect) {
+  return (
+    outer.x <= inner.x + ENCLOSING_TOLERANCE &&
+    outer.y <= inner.y + ENCLOSING_TOLERANCE &&
+    outer.x + outer.w >= inner.x + inner.w - ENCLOSING_TOLERANCE &&
+    outer.y + outer.h >= inner.y + inner.h - ENCLOSING_TOLERANCE
+  )
+}
+
 function longestRun(length: number, strong: (i: number) => boolean) {
   let best = 0
   let run = 0
@@ -129,9 +140,12 @@ export function detectOverlayRect(
     }
   }
   if (candidates.length === 0) return null
-  const bestScore = Math.max(...candidates.map((c) => c.score))
+  const best = candidates.reduce((a, b) => (b.score > a.score ? b : a))
   const [winner] = candidates
-    .filter((c) => c.score >= bestScore - ENCLOSING_SLACK)
+    .filter(
+      (c) =>
+        c.score >= best.score - ENCLOSING_SLACK && encloses(c.rect, best.rect)
+    )
     .sort((a, b) => b.pixelArea - a.pixelArea)
   return { rect: winner!.rect, score: Math.round(winner!.score * 100) / 100 }
 }

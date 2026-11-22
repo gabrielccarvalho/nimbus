@@ -5,7 +5,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
-const FIXTURES_VERSION = "1"
+const FIXTURES_VERSION = "2"
 
 export const fixturesDir = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -15,6 +15,7 @@ export const fixturesDir = path.resolve(
 export const fixtures = {
   wide: path.join(fixturesDir, "gameplay-16x9.mp4"),
   ultrawide: path.join(fixturesDir, "gameplay-21x9.mp4"),
+  standard: path.join(fixturesDir, "gameplay-4x3.mp4"),
   notVideo: path.join(fixturesDir, "not-a-video.mp4"),
   noAudio: path.join(fixturesDir, "no-audio.mp4"),
 } as const
@@ -130,6 +131,16 @@ export async function makeFixtures({ force = false } = {}) {
         height: 1080,
         cam: { x: 32, y: 32, w: 384, h: 216 },
         out: fixtures.ultrawide,
+      })
+    )
+  }
+  if (needed(fixtures.standard)) {
+    await run(
+      gameplayArgs({
+        width: 1440,
+        height: 1080,
+        cam: { x: 32, y: 1080 - 216 - 32, w: 384, h: 216 },
+        out: fixtures.standard,
       })
     )
   }

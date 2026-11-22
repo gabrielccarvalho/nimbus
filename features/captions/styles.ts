@@ -146,6 +146,7 @@ export const BASELINE = {
   "cam-top": 0.72,
   "split-50": 0.72,
   "no-cam-blur-fill": 0.8,
+  "no-cam-fill": 0.72,
 } as const
 
 export function captionBaseline(

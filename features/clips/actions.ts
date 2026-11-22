@@ -9,6 +9,7 @@ import { parseId, runAction } from "@/lib/server-action"
 import { clipEditSchema, clipStatusSchema } from "./schema"
 import {
   applyManualSelection,
+  approveAllCandidates,
   setClipReviewStatus,
   updateClip,
 } from "./service"
@@ -69,5 +70,14 @@ export async function updateClipAction(
       updateClip(getDb(), project, clip, parsed.data)
     },
     [`/projects/${project}`]
+  )
+}
+
+export async function approveAllCandidatesAction(projectId: unknown) {
+  const id = parseId(projectId, "project id")
+  return runAction(
+    "approveAllCandidates",
+    () => approveAllCandidates(getDb(), id),
+    [`/projects/${id}`]
   )
 }

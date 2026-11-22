@@ -8,7 +8,7 @@ import { FULL_FRAME } from "../../layout/schema"
 import { assetRepository } from "../../projects/repository"
 import { runFfmpeg, runFfprobe } from "../../render/ffmpeg-runner"
 import { beginStep, completeStep, sourceAsset, throwIfAborted } from "./common"
-import { classifyAspect, parseProbe } from "./probe-parse"
+import { classifyAspect, isLandscape, parseProbe } from "./probe-parse"
 
 export const probeStep: JobHandler = async ({
   job,
@@ -106,6 +106,7 @@ export const probeStep: JobHandler = async ({
 
   const layouts = layoutRepository(db)
   const sourceAspect = classifyAspect(info.displayWidth, info.displayHeight)
+  const landscape = isLandscape(info.displayWidth, info.displayHeight)
   const preset = layouts.findPreset(info.displayWidth, info.displayHeight)
   if (preset) {
     layouts.upsert(project.id, {
@@ -123,8 +124,8 @@ export const probeStep: JobHandler = async ({
       webcamRect: null,
       gameplayRect: FULL_FRAME,
       gameplayFocusX: 0.5,
-      mode: sourceAspect === "other" ? "no-cam-blur-fill" : "cam-top",
-      confirmedByUser: sourceAspect === "other",
+      mode: landscape ? "cam-top" : "no-cam-blur-fill",
+      confirmedByUser: !landscape,
     })
   }
 

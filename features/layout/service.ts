@@ -5,7 +5,7 @@ import { AppError } from "@/lib/errors"
 
 import { assetRepository, projectRepository } from "../projects/repository"
 import { layoutRepository } from "./repository"
-import type { LayoutInput } from "./schema"
+import { usesWebcam, type LayoutInput } from "./schema"
 
 export function confirmLayout(
   db: Db,
@@ -21,7 +21,7 @@ export function confirmLayout(
       "Wait for rendering to finish before changing the layout"
     )
   }
-  if (input.mode !== "no-cam-blur-fill" && !input.webcamRect) {
+  if (usesWebcam(input.mode) && !input.webcamRect) {
     throw new AppError(
       "VALIDATION",
       "Mark the webcam before using a webcam layout"

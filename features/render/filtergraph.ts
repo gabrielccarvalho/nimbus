@@ -55,8 +55,15 @@ export function verticalGraph({
     return [
       `${trim},split=2[bgsrc][fg]`,
       `[bgsrc]${crop(plan.background)},scale=${OUTPUT_WIDTH}:${OUTPUT_HEIGHT},boxblur=20:2,eq=brightness=-0.15,setsar=1[bg]`,
-      `[fg]scale=${OUTPUT_WIDTH}:${plan.foregroundHeight},setsar=1[fgs]`,
+      `[fg]scale=${plan.foreground.w}:${plan.foreground.h},setsar=1[fgs]`,
       `[bg][fgs]overlay=(W-w)/2:(H-h)/2,${tail}`,
+      audio,
+    ].join(";\n")
+  }
+
+  if (plan.mode === "no-cam-fill") {
+    return [
+      `${trim},${crop(plan.crop)},scale=${OUTPUT_WIDTH}:${OUTPUT_HEIGHT},setsar=1,${tail}`,
       audio,
     ].join(";\n")
   }

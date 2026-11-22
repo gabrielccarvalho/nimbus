@@ -2,7 +2,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { GET as exportZip } from "@/app/api/projects/[id]/export/route"
 import { clipRepository } from "@/features/clips/repository"
-import { setClipReviewStatus, updateClip } from "@/features/clips/service"
+import {
+  approveAllCandidates,
+  setClipReviewStatus,
+  updateClip,
+} from "@/features/clips/service"
 import { confirmLayout } from "@/features/layout/service"
 import { projectRepository } from "@/features/projects/repository"
 import { startClipRenders } from "@/features/render/service"
@@ -83,6 +87,18 @@ describe("updateClip", () => {
     expect(() => updateClip(env.db, projectId, clip.id, edit())).toThrow(
       /rendering/
     )
+  })
+})
+
+describe("approveAllCandidates", () => {
+  it("approves candidates and leaves rejected clips alone", async () => {
+    const { projectId, clip } = await reviewedProject()
+    setClipReviewStatus(env.db, projectId, clip.id, "rejected")
+    expect(approveAllCandidates(env.db, projectId)).toBe(0)
+    expect(clipRepository(env.db).get(clip.id)?.status).toBe("rejected")
+    setClipReviewStatus(env.db, projectId, clip.id, "candidate")
+    expect(approveAllCandidates(env.db, projectId)).toBe(1)
+    expect(clipRepository(env.db).get(clip.id)?.status).toBe("approved")
   })
 })
 

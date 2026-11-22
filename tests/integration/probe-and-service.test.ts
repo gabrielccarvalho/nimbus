@@ -29,6 +29,7 @@ describe("probe step", () => {
   it.each([
     [fixtures.wide, 1920, 1080, "16:9", "cam-top"],
     [fixtures.ultrawide, 2560, 1080, "21:9", "cam-top"],
+    [fixtures.standard, 1440, 1080, "4:3", "cam-top"],
   ])("probes %s", async (file, width, height, aspect, mode) => {
     const { projectId } = await uploadFixture(file)
     await runJobs(env.db, ["probe"])

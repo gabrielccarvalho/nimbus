@@ -29,14 +29,20 @@ function drawPreview(
     context.filter = "blur(6px) brightness(0.85)"
     context.drawImage(video, x, y, w, h, 0, 0, canvas.width, canvas.height)
     context.filter = "none"
-    const height = plan.foregroundHeight * scale
+    const width = plan.foreground.w * scale
+    const height = plan.foreground.h * scale
     context.drawImage(
       video,
-      0,
+      (canvas.width - width) / 2,
       (canvas.height - height) / 2,
-      canvas.width,
+      width,
       height
     )
+    return
+  }
+  if (plan.mode === "no-cam-fill") {
+    const { x, y, w, h } = plan.crop
+    context.drawImage(video, x, y, w, h, 0, 0, canvas.width, canvas.height)
     return
   }
   let top = 0

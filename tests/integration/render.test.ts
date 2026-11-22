@@ -156,6 +156,35 @@ describe("render_clip", () => {
   })
 })
 
+describe("render_clip from 4:3", () => {
+  it("fills the frame with a gameplay crop", async () => {
+    const { projectId } = await uploadFixture(fixtures.standard)
+    const projects = projectRepository(env.db)
+    projects.updateSettings(projectId, {
+      ...projects.getOrThrow(projectId).settings,
+      captionsEnabled: false,
+    })
+    await runJobs(env.db, ["probe", "transcribe", "analyze", "select"])
+    confirmLayout(env.db, projectId, {
+      webcamRect: null,
+      gameplayRect: { x: 0, y: 0, w: 1, h: 1 },
+      gameplayFocusX: 0.5,
+      mode: "no-cam-fill",
+    })
+    const [clip] = clipRepository(env.db).listForProject(projectId)
+    setClipReviewStatus(env.db, projectId, clip!.id, "approved")
+    startClipRenders(env.db, projectId, [clip!.id])
+    await runJobs(env.db, ["render_clip"])
+    const rendered = clipRepository(env.db).get(clip!.id)!
+    expect(rendered.error).toBeNull()
+    const asset = assetRepository(env.db).get(rendered.renderAssetId!)!
+    const video = probe(getStorage().resolve(asset.storageKey)).streams.find(
+      (s) => s.codec_type === "video"
+    )!
+    expect([video.width, video.height]).toEqual([1080, 1920])
+  })
+})
+
 describe("render_edit", () => {
   it.runIf(hasLibass)(
     "cuts long silences out of the horizontal edit",

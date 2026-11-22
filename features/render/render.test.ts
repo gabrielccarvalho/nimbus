@@ -61,6 +61,26 @@ describe("verticalGraph", () => {
     await expect(graph).toMatchFileSnapshot("./__golden__/split-50.txt")
   })
 
+  it("builds no-cam-fill from a 4:3 source", async () => {
+    const graph = verticalGraph({
+      plan: planLayout(
+        {
+          webcamRect: null,
+          gameplayRect: FULL_FRAME,
+          gameplayFocusX: 0.3,
+          mode: "no-cam-fill",
+        },
+        1440,
+        1080
+      ),
+      startMs: 8000,
+      endMs: 38_000,
+      fps: 30,
+      subtitles,
+    })
+    await expect(graph).toMatchFileSnapshot("./__golden__/fill.txt")
+  })
+
   it("builds no-cam-blur-fill", async () => {
     const graph = verticalGraph({
       plan: planLayout(

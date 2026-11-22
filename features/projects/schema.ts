@@ -51,7 +51,13 @@ export const defaultProjectSettings: ProjectSettings = {
 
 export const projectNameSchema = z.string().trim().min(1).max(120)
 
-export const sourceAspectSchema = z.enum(["16:9", "21:9", "other"])
+export const sourceAspectSchema = z.enum([
+  "16:9",
+  "16:10",
+  "4:3",
+  "21:9",
+  "other",
+])
 export type SourceAspect = z.infer<typeof sourceAspectSchema>
 
 export const assetKinds = [

@@ -169,6 +169,15 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 - [x] 10-minute recording through the real pipeline (2026-11-22): upload to highlights in 30 s (whisper `base.en` + Claude), transcript page with 1,029 words loads in ~0.4 s, three clips rendered in 7 s, zip export 34 MB. The full transcript is sent to Claude (no truncation); with looped speech it returned 3 distinct moments instead of 12 duplicates.
 - [x] Claude API failures fall back to the heuristic with a readable reason (bad key, rate limit, transcript too long, overloaded) instead of the raw SDK message.
 
+### Phase 18: Shorts from any landscape recording
+
+- [x] 4:3 and 16:10 classified; every landscape source goes through webcam detection and the layout step (ADR-0039)
+- [x] `no-cam-fill` layout mode ("Fill, no webcam"): full-screen 9:16 gameplay crop with the focus slider; blur-fill now fits tall sources
+- [x] "Approve all" on the clips page
+- [x] Border heuristic only prefers a larger box when it encloses the best one (a static outline elsewhere used to win)
+- [x] Tests: 4:3 fixture (probe, detection in Node, fill render 1080×1920), fill golden graph, decoy-outline unit test, Shorts e2e (4:3 → Fill → Approve all → render → download)
+- Known issue: on the synthetic 4:3 fixture, browser detection scores the webcam border just under the 0.6 threshold (Node, same frames: 0.66), so it proposes "no webcam". Pixel data matches ffmpeg's closely; the margin is simply thin for this fixture. Real webcams usually get confirmed by face detection; worth re-checking on a real 4:3 recording.
+
 ### Not verified
 
 - MediaPipe face detection on a real face (fixtures have none; the code path is unit tested and the model loads in e2e).

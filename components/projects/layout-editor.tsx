@@ -38,6 +38,7 @@ import {
 import { planLayout } from "@/features/layout/geometry"
 import {
   layoutModeSchema,
+  usesWebcam,
   type LayoutInput,
   type LayoutMode,
   type Rect,
@@ -48,7 +49,8 @@ import { VerticalPreviewCanvas } from "./vertical-preview"
 const MODES: { value: LayoutMode; label: string }[] = [
   { value: "cam-top", label: "Webcam on top" },
   { value: "split-50", label: "Even split" },
-  { value: "no-cam-blur-fill", label: "No webcam" },
+  { value: "no-cam-fill", label: "Fill, no webcam" },
+  { value: "no-cam-blur-fill", label: "Fit, no webcam" },
 ]
 
 const DEFAULT_WEBCAM: Rect = { x: 0.7, y: 0.7, w: 0.25, h: 0.25 }
@@ -75,7 +77,7 @@ function GameplayWindow({
 }) {
   const plan = planLayout(layout, width, height)
   if (plan.mode === "no-cam-blur-fill") return null
-  const { crop } = plan.regions[1]
+  const crop = plan.mode === "no-cam-fill" ? plan.crop : plan.regions[1].crop
   return (
     <div
       aria-hidden
@@ -117,7 +119,7 @@ export function LayoutEditor({
   const [detecting, setDetecting] = React.useState(autoDetect)
   const [savePreset, setSavePreset] = React.useState(false)
   const [pending, startTransition] = React.useTransition()
-  const hasWebcam = layout.mode !== "no-cam-blur-fill"
+  const hasWebcam = usesWebcam(layout.mode)
 
   const applyDetection = React.useCallback((result: WebcamDetection) => {
     setLayout({
@@ -194,7 +196,9 @@ export function LayoutEditor({
                   ? "Looking for the webcam…"
                   : hasWebcam
                     ? "Drag the box over the webcam, or focus it and use the arrow keys. The dashed box is the gameplay area that ends up below it."
-                    : "The whole frame is shown over a blurred copy of itself."}
+                    : layout.mode === "no-cam-fill"
+                      ? "The dashed box is the part of the frame that fills the short. Move it with Gameplay focus."
+                      : "The whole frame is shown over a blurred copy of itself."}
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-5">
@@ -210,10 +214,9 @@ export function LayoutEditor({
                     if (!mode.success) return
                     update({
                       mode: mode.data,
-                      webcamRect:
-                        mode.data === "no-cam-blur-fill"
-                          ? layout.webcamRect
-                          : (layout.webcamRect ?? DEFAULT_WEBCAM),
+                      webcamRect: usesWebcam(mode.data)
+                        ? (layout.webcamRect ?? DEFAULT_WEBCAM)
+                        : layout.webcamRect,
                     })
                   }}
                   disabled={detecting}
@@ -226,7 +229,7 @@ export function LayoutEditor({
                 </ToggleGroup>
               </div>
 
-              {hasWebcam && (
+              {layout.mode !== "no-cam-blur-fill" && (
                 <div className="flex flex-col gap-2">
                   <Label id="gameplay-focus-label">Gameplay focus</Label>
                   <Slider

@@ -13,9 +13,16 @@ export type Rect = z.infer<typeof rectSchema>
 export const layoutModeSchema = z.enum([
   "cam-top",
   "no-cam-blur-fill",
+  "no-cam-fill",
   "split-50",
 ])
 export type LayoutMode = z.infer<typeof layoutModeSchema>
+
+export type WebcamLayoutMode = Extract<LayoutMode, "cam-top" | "split-50">
+
+export function usesWebcam(mode: LayoutMode): mode is WebcamLayoutMode {
+  return mode === "cam-top" || mode === "split-50"
+}
 
 export const FULL_FRAME: Rect = { x: 0, y: 0, w: 1, h: 1 }
 
