@@ -127,9 +127,9 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 
 ### Phase 12: Captions
 
-- [ ] line-breaking + ASS generation + style presets
-- [ ] CaptionPreview
-- [ ] Tests (golden, property-style)
+- [x] line-breaking + ASS generation + style presets
+- [x] CaptionPreview
+- [x] Tests (golden, property-style)
 
 ### Phase 13: Render engine
 

@@ -104,6 +104,25 @@ Horizontal time strip for a whole recording: loudness, silences, clip ranges and
 </Timeline>
 ```
 
+### CaptionPreview (`components/ui/caption-preview.tsx`)
+
+A 9:16 frame that shows the caption page at a given time, styled like the burned-in ASS output.
+
+- Parts: `CaptionPreview` (frame; a size container, so text scales with its width; put a background image or canvas inside), `CaptionPreviewText` (`pages`, `currentMs`, `captionStyle`, `baseline` 0–1 of the height).
+- Sizes are in 1080-wide output pixels and converted with `cqw`, so a 220 px preview matches the 1080 px render. `cssCaptionStyle()` from `features/captions/styles.ts` turns a caption preset into `captionStyle`.
+- The highlight is a color change only (no motion). The text is real DOM text, so it's readable by screen readers.
+
+```tsx
+<CaptionPreview className="w-56">
+  <CaptionPreviewText
+    pages={pages}
+    currentMs={currentMs}
+    captionStyle={cssCaptionStyle(style)}
+    baseline={0.72}
+  />
+</CaptionPreview>
+```
+
 ### CropRegionEditor (`components/ui/crop-region-editor.tsx`)
 
 A movable, resizable rectangle over an image or video, in normalized 0–1 frame coordinates. Used to mark the webcam.

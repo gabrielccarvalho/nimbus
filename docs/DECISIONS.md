@@ -121,3 +121,7 @@ Context: Next 16 streams `generateMetadata` output into `<body>` after the first
 ## ADR-0030: Vision assets served locally
 
 Context: MediaPipe loads its WASM and model at runtime; the default is a CDN. Decision: `pnpm run setup:vision` copies the WASM from the pinned `@mediapipe/tasks-vision` package and downloads `blaze_face_short_range.tflite` once into `public/vendor/mediapipe` (gitignored). Consequences: detection works offline after setup and always matches the installed package version; e2e runs the setup before building.
+
+## ADR-0031: Bundled caption fonts
+
+Context: libass falls back to whatever system font matches, so captions would look different per machine, and the app fonts come from `next/font` at build time, which ffmpeg can't use. Decision: commit static ExtraBold TTFs of the two design-system families (Oxanium, Nunito Sans; SIL OFL, licenses in `assets/fonts/licenses`) and pass `fontsdir`. The preview uses the same families via the `--font-heading`/`--font-sans` variables. Consequences: deterministic renders from a clean clone; ~135 KB in the repo.

@@ -124,14 +124,18 @@ HeuristicSelector score for a window = `0.45·loudnessPeak + 0.30·speechDensity
 
 ### Captions
 
-| Setting                   | Default                                                                                                                |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| max lines per page        | 2                                                                                                                      |
-| max chars per line        | 28                                                                                                                     |
-| words per page            | 1–4                                                                                                                    |
-| never cross a silence gap | > 600 ms                                                                                                               |
-| highlight                 | current word                                                                                                           |
-| safe area (9:16)          | baseline at 72% of the height in cam-top (inside the gameplay area, clear of the webcam band), 80% in no-cam-blur-fill |
+| Setting                   | Default                                                                                                                        |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| max lines per page        | 2                                                                                                                              |
+| max chars per line        | 28                                                                                                                             |
+| words per page            | 1–4                                                                                                                            |
+| never cross a silence gap | > 600 ms                                                                                                                       |
+| highlight                 | current word                                                                                                                   |
+| safe area (9:16)          | baseline at 72% of the height in cam-top (inside the gameplay area, clear of the webcam band), 80% in no-cam-blur-fill         |
+| page breaks               | after a sentence end (`.`, `!`, `?`, `…`), before a gap > 600 ms, at the word limit, or when the words no longer fit the lines |
+| page timing               | a page stays up until the next page starts or 400 ms after its last word, whichever is first                                   |
+| line breaking             | one line if it fits, otherwise the split that minimizes the widest line; a single word longer than the limit gets its own line |
+| page text edits           | replace the page's words; the new words share the page's time evenly                                                           |
 
 ### Originality guardrail
 

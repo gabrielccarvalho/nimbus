@@ -6,9 +6,14 @@ import {
   FolderSimpleIcon,
   UploadSimpleIcon,
 } from "@phosphor-icons/react"
+import * as React from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import {
+  CaptionPreview,
+  CaptionPreviewText,
+} from "@/components/ui/caption-preview"
 import {
   CropRegion,
   CropRegionEditor,
@@ -49,6 +54,54 @@ import {
   StatCardLabel,
   StatCardValue,
 } from "@/components/ui/stat-card"
+import { Slider } from "@/components/ui/slider"
+import { buildCaptionPages } from "@/features/captions/pages"
+import { CAPTION_PRESETS, cssCaptionStyle } from "@/features/captions/styles"
+
+const SAMPLE_PAGES = buildCaptionPages(
+  "Wait what just happened? Did you see that insane clutch"
+    .split(" ")
+    .map((text, i) => ({ text, startMs: i * 350, endMs: i * 350 + 300 })),
+  4000
+)
+
+function CaptionPreviewExample() {
+  const [ms, setMs] = React.useState(500)
+  return (
+    <div className="flex flex-wrap items-start gap-4">
+      {CAPTION_PRESETS.map((preset) => (
+        <figure key={preset.id} className="flex w-40 flex-col gap-1">
+          <CaptionPreview className="bg-[linear-gradient(160deg,var(--color-muted-foreground),var(--color-foreground))]">
+            <CaptionPreviewText
+              pages={SAMPLE_PAGES}
+              currentMs={ms}
+              captionStyle={cssCaptionStyle(preset)}
+              baseline={0.72}
+            />
+          </CaptionPreview>
+          <figcaption className="text-xs text-muted-foreground">
+            {preset.label}
+          </figcaption>
+        </figure>
+      ))}
+      <div className="flex w-full max-w-xs flex-col gap-2">
+        <span id="caption-time" className="text-sm">
+          Time
+        </span>
+        <Slider
+          aria-labelledby="caption-time"
+          min={0}
+          max={4000}
+          step={50}
+          value={[ms]}
+          onValueChange={(value) =>
+            setMs(Array.isArray(value) ? (value[0] ?? 0) : value)
+          }
+        />
+      </div>
+    </div>
+  )
+}
 
 const SAMPLE_LOUDNESS = Array.from({ length: 240 }, (_, i) =>
   i >= 80 && i < 104
@@ -169,6 +222,10 @@ export function ComponentGallery() {
             <TimelineLoudness values={SAMPLE_LOUDNESS} />
           </Timeline>
         </div>
+      </Section>
+
+      <Section title="CaptionPreview">
+        <CaptionPreviewExample />
       </Section>
 
       <Section title="CropRegionEditor">

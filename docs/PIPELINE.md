@@ -134,6 +134,12 @@ Why concat instead of `select`/`aselect`: `aselect` works on whole audio frames 
 
 The runner accepts an `AbortSignal`. Abort sends `SIGTERM`, then `SIGKILL` after 3 s. Per-job timeout defaults: probe 2 min, transcribe 4× media duration (min 10 min), analyze 15 min, render 3× clip duration (min 5 min). The last 4 KB of stderr is stored in `jobs.error` on failure.
 
+## Captions (`features/captions`)
+
+`wordsInRange()` takes the transcript words starting inside the clip (times made relative to the clip start), `buildCaptionPages()` groups them (rules in BUSINESS_LOGIC), `applyPageOverrides()` applies the editor's text edits, and `buildAss()` writes a 1080×1920 ASS file. With highlighting on, each page becomes one `Dialogue` per word, all identical except for a `{\c&H…&}` color override on the current word, positioned with `{\an2\pos(540,Y)}` where Y = baseline × 1920. Text is uppercased per style and `{`, `}` and `\` are replaced with full-width forms so transcript text can't inject override tags.
+
+Presets (`styles.ts`): `punch` (Oxanium ExtraBold 92, uppercase, 7 px outline, 3 words), `clean` (Nunito Sans ExtraBold 72, outline + shadow, 4 words), `boxed` (Nunito Sans ExtraBold 68 on a 75% opaque box). Colors are the `background` (text), `foreground` (outline/box) and `primary` (highlight) tokens. Fonts are static OFL TTFs in `assets/fonts` and passed to libass with `ass=…:fontsdir=assets/fonts`, so renders don't depend on system fonts.
+
 ## Caption burn-in requires libass
 
 `ass=` needs an ffmpeg built with `--enable-libass`. `pnpm run doctor` checks `ffmpeg -filters` for `ass`. Without it, renders fail fast with `DEPENDENCY_MISSING` unless captions are disabled for that render (see PROGRESS → Blockers).
