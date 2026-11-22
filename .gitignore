@@ -37,3 +37,13 @@ pnpm-debug.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+!.env.example
+
+# app data
+/data
+/models
+/tests/fixtures/.generated
+/tests/.e2e-data
+/test-results
+/playwright-report
+/blob-report

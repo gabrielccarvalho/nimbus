@@ -42,7 +42,7 @@ Use `ggml-small.bin` or larger for non-English or better accuracy.
 pnpm install
 cp .env.example .env.local   # then edit
 pnpm db:migrate
-pnpm doctor                  # checks ffmpeg, libass, libx264, whisper, model, env, data dir
+pnpm run doctor                  # checks ffmpeg, libass, libx264, whisper, model, env, data dir
 pnpm dev                     # Next on :3000 + the worker
 ```
 
@@ -50,35 +50,35 @@ pnpm dev                     # Next on :3000 + the worker
 
 See `.env.example` for the full list. The main ones:
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `DATA_DIR` | `./data` | Database, uploads and renders |
-| `FFMPEG_PATH` / `FFPROBE_PATH` | `ffmpeg` / `ffprobe` | Binaries |
-| `WHISPER_BIN` | `whisper-cli` | whisper.cpp CLI |
-| `WHISPER_MODEL` | `./models/ggml-base.en.bin` | Model file |
-| `TRANSCRIBER` | `whisper` | `whisper` or `fake` |
-| `HIGHLIGHT_SELECTOR` | `heuristic` | `anthropic`, `manual` or `heuristic` (default for new projects; overridable in Settings) |
-| `ANTHROPIC_API_KEY` | — | Needed for the `anthropic` selector. Never sent to the browser |
-| `ANTHROPIC_MODEL` | `claude-sonnet-5-5` | Model id |
-| `MAX_UPLOAD_BYTES` | 21474836480 | Upload limit (20 GiB) |
-| `LOG_LEVEL` | `info` | pino level |
+| Variable                       | Default                     | Purpose                                                                                  |
+| ------------------------------ | --------------------------- | ---------------------------------------------------------------------------------------- |
+| `DATA_DIR`                     | `./data`                    | Database, uploads and renders                                                            |
+| `FFMPEG_PATH` / `FFPROBE_PATH` | `ffmpeg` / `ffprobe`        | Binaries                                                                                 |
+| `WHISPER_BIN`                  | `whisper-cli`               | whisper.cpp CLI                                                                          |
+| `WHISPER_MODEL`                | `./models/ggml-base.en.bin` | Model file                                                                               |
+| `TRANSCRIBER`                  | `whisper`                   | `whisper` or `fake`                                                                      |
+| `HIGHLIGHT_SELECTOR`           | `heuristic`                 | `anthropic`, `manual` or `heuristic` (default for new projects; overridable in Settings) |
+| `ANTHROPIC_API_KEY`            | —                           | Needed for the `anthropic` selector. Never sent to the browser                           |
+| `ANTHROPIC_MODEL`              | `claude-sonnet-5-5`         | Model id                                                                                 |
+| `MAX_UPLOAD_BYTES`             | 21474836480                 | Upload limit (20 GiB)                                                                    |
+| `LOG_LEVEL`                    | `info`                      | pino level                                                                               |
 
 ## Scripts
 
-| Script | Purpose |
-| --- | --- |
-| `pnpm dev` | Next + worker |
-| `pnpm build` / `pnpm start` | Production build / server (run `pnpm worker` alongside) |
-| `pnpm worker` | Worker only |
-| `pnpm lint`, `pnpm typecheck`, `pnpm format` | Quality |
-| `pnpm test` | Unit + integration |
-| `pnpm test:unit`, `pnpm test:integration`, `pnpm test:watch` | Single layers |
-| `pnpm test:e2e`, `pnpm test:e2e:ui` | Playwright |
-| `pnpm test:heavy` | Real whisper.cpp (skips if missing) |
-| `pnpm test:coverage` | Coverage with thresholds |
-| `pnpm fixtures` | Generate test videos |
-| `pnpm doctor` | Dependency check |
-| `pnpm db:generate`, `pnpm db:migrate` | Drizzle migrations |
+| Script                                                       | Purpose                                                 |
+| ------------------------------------------------------------ | ------------------------------------------------------- |
+| `pnpm dev`                                                   | Next + worker                                           |
+| `pnpm build` / `pnpm start`                                  | Production build / server (run `pnpm worker` alongside) |
+| `pnpm worker`                                                | Worker only                                             |
+| `pnpm lint`, `pnpm typecheck`, `pnpm format`                 | Quality                                                 |
+| `pnpm test`                                                  | Unit + integration                                      |
+| `pnpm test:unit`, `pnpm test:integration`, `pnpm test:watch` | Single layers                                           |
+| `pnpm test:e2e`, `pnpm test:e2e:ui`                          | Playwright                                              |
+| `pnpm test:heavy`                                            | Real whisper.cpp (skips if missing)                     |
+| `pnpm test:coverage`                                         | Coverage with thresholds                                |
+| `pnpm fixtures`                                              | Generate test videos                                    |
+| `pnpm run doctor`                                            | Dependency check                                        |
+| `pnpm db:generate`, `pnpm db:migrate`                        | Drizzle migrations                                      |
 
 ## Docs
 

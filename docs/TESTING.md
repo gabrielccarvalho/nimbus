@@ -1,14 +1,14 @@
 # Testing
 
-| Layer | Tool | What | Where | Run |
-| --- | --- | --- | --- | --- |
-| Unit | Vitest (node) | Pure logic: state machine, ASS, line breaking, filtergraphs, aspect classification, snapping/overlap, heuristic scorer, progress parser, normalization, border heuristic, zod schemas | `**/*.test.ts` beside source | `pnpm test:unit` |
-| Component | Vitest (jsdom) + RTL + user-event | Custom components: variants, controlled/uncontrolled, keyboard, roles | `**/*.test.tsx` | `pnpm test:unit` |
-| Integration | Vitest (node, sequential) | Real SQLite in a temp file, real ffmpeg on generated fixtures, MSW for Anthropic. Repositories, migrations, queue, upload and media routes, pipeline steps, renders | `tests/integration/**/*.test.ts` | `pnpm test:integration` |
-| Contract | Vitest | Every Transcriber / HighlightSelector / StorageAdapter passes one shared suite | `tests/contracts/` | part of integration |
-| E2E | Playwright (Chromium) | Golden path and key flows | `tests/e2e/*.spec.ts` | `pnpm test:e2e` |
-| A11y | `@axe-core/playwright` | No serious/critical violations on every screen | in e2e | |
-| Heavy | Vitest, `@heavy` in the test name | Real whisper.cpp; skipped when binary/model missing | `tests/heavy/` | `pnpm test:heavy` |
+| Layer       | Tool                              | What                                                                                                                                                                                  | Where                            | Run                     |
+| ----------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- | ----------------------- |
+| Unit        | Vitest (node)                     | Pure logic: state machine, ASS, line breaking, filtergraphs, aspect classification, snapping/overlap, heuristic scorer, progress parser, normalization, border heuristic, zod schemas | `**/*.test.ts` beside source     | `pnpm test:unit`        |
+| Component   | Vitest (jsdom) + RTL + user-event | Custom components: variants, controlled/uncontrolled, keyboard, roles                                                                                                                 | `**/*.test.tsx`                  | `pnpm test:unit`        |
+| Integration | Vitest (node, sequential)         | Real SQLite in a temp file, real ffmpeg on generated fixtures, MSW for Anthropic. Repositories, migrations, queue, upload and media routes, pipeline steps, renders                   | `tests/integration/**/*.test.ts` | `pnpm test:integration` |
+| Contract    | Vitest                            | Every Transcriber / HighlightSelector / StorageAdapter passes one shared suite                                                                                                        | `tests/contracts/`               | part of integration     |
+| E2E         | Playwright (Chromium)             | Golden path and key flows                                                                                                                                                             | `tests/e2e/*.spec.ts`            | `pnpm test:e2e`         |
+| A11y        | `@axe-core/playwright`            | No serious/critical violations on every screen                                                                                                                                        | in e2e                           |                         |
+| Heavy       | Vitest, `@heavy` in the test name | Real whisper.cpp; skipped when binary/model missing                                                                                                                                   | `tests/heavy/`                   | `pnpm test:heavy`       |
 
 `pnpm test` runs unit + integration. `pnpm test:coverage` runs both with v8 coverage and enforces thresholds.
 
@@ -27,7 +27,7 @@ Vitest's integration global setup and Playwright's global setup both call the ge
 
 - Integration tests get a fresh temp `DATA_DIR` and SQLite file per file (`tests/utils/test-env.ts`).
 - `server-only` is aliased to an empty module in Vitest.
-- MSW intercepts `https://api.anthropic.com/*`. Unhandled requests fail the test (`onUnhandledRequest: "error"`). Tests never hit the real API.
+- MSW intercepts `https://api.anthropic.com/*`. Unhandled requests fail the test (`onUnhandledFrame: "error"`). Tests never hit the real API.
 - E2E runs with `TRANSCRIBER=fake`, `HIGHLIGHT_SELECTOR=heuristic`, `DATA_DIR=<temp>`, `E2E=1`. With `E2E=1` the layout editor reads the detected rect from `window.__autoClipperTestHooks.detectWebcam` when present, so no MediaPipe/WASM download happens.
 - Render tests that need caption burn-in skip when ffmpeg lacks libass (`tests/utils/ffmpeg-caps.ts`).
 

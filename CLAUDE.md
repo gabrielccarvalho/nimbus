@@ -17,7 +17,7 @@ Local-first web app: upload a long 16:9 / 21:9 recording (gameplay + webcam over
 - A phase is done only when `pnpm lint`, `pnpm typecheck`, `pnpm test` (and from Phase 6, `pnpm test:e2e`) pass.
 - One Conventional Commit per completed task group. Never force-push or rewrite history. No AI attribution trailers.
 - Never commit secrets, `.env*` (except `.env.example`), `data/`, models or generated media.
-- Missing system dependency → add a Blocker entry, implement against the adapter/fake, add a `pnpm doctor` check, move on.
+- Missing system dependency → add a Blocker entry, implement against the adapter/fake, add a `pnpm run doctor` check, move on.
 
 ## Stack (verified versions in docs/PROGRESS.md → Recon)
 
@@ -38,18 +38,18 @@ Next.js 16 App Router · React 19 · TypeScript strict · Tailwind v4 · shadcn 
 
 ## Commands
 
-| Command | Purpose |
-| --- | --- |
-| `pnpm dev` | Next + worker (concurrently) |
-| `pnpm lint` / `pnpm typecheck` | Quality gates |
-| `pnpm test` | Unit + integration |
-| `pnpm test:unit` / `pnpm test:integration` | Single layer |
-| `pnpm test:e2e` | Playwright (fake transcriber, heuristic selector) |
-| `pnpm test:heavy` | Real whisper.cpp (skips if missing) |
-| `pnpm test:coverage` | Coverage with thresholds |
-| `pnpm doctor` | System dependency check |
-| `pnpm db:generate` / `pnpm db:migrate` | Drizzle migrations |
-| `pnpm fixtures` | Generate test videos |
+| Command                                    | Purpose                                           |
+| ------------------------------------------ | ------------------------------------------------- |
+| `pnpm dev`                                 | Next + worker (concurrently)                      |
+| `pnpm lint` / `pnpm typecheck`             | Quality gates                                     |
+| `pnpm test`                                | Unit + integration                                |
+| `pnpm test:unit` / `pnpm test:integration` | Single layer                                      |
+| `pnpm test:e2e`                            | Playwright (fake transcriber, heuristic selector) |
+| `pnpm test:heavy`                          | Real whisper.cpp (skips if missing)               |
+| `pnpm test:coverage`                       | Coverage with thresholds                          |
+| `pnpm run doctor`                          | System dependency check                           |
+| `pnpm db:generate` / `pnpm db:migrate`     | Drizzle migrations                                |
+| `pnpm fixtures`                            | Generate test videos                              |
 
 ## Docs
 

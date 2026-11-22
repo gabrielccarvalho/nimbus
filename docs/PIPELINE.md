@@ -129,4 +129,4 @@ The runner accepts an `AbortSignal`. Abort sends `SIGTERM`, then `SIGKILL` after
 
 ## Caption burn-in requires libass
 
-`ass=` needs an ffmpeg built with `--enable-libass`. `pnpm doctor` checks `ffmpeg -filters` for `ass`. Without it, renders fail fast with `DEPENDENCY_MISSING` unless captions are disabled for that render (see PROGRESS → Blockers).
+`ass=` needs an ffmpeg built with `--enable-libass`. `pnpm run doctor` checks `ffmpeg -filters` for `ass`. Without it, renders fail fast with `DEPENDENCY_MISSING` unless captions are disabled for that render (see PROGRESS → Blockers).

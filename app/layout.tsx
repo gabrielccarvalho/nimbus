@@ -1,12 +1,15 @@
-import { Geist, Geist_Mono, Nunito_Sans, Oxanium } from "next/font/google"
+import { Geist_Mono, Nunito_Sans, Oxanium } from "next/font/google"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils"
 
-const oxaniumHeading = Oxanium({subsets:['latin'],variable:'--font-heading'});
+const oxaniumHeading = Oxanium({
+  subsets: ["latin"],
+  variable: "--font-heading",
+})
 
-const nunitoSans = Nunito_Sans({subsets:['latin'],variable:'--font-sans'})
+const nunitoSans = Nunito_Sans({ subsets: ["latin"], variable: "--font-sans" })
 
 const fontMono = Geist_Mono({
   subsets: ["latin"],
@@ -22,7 +25,13 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={cn("antialiased", fontMono.variable, "font-sans", nunitoSans.variable, oxaniumHeading.variable)}
+      className={cn(
+        "antialiased",
+        fontMono.variable,
+        "font-sans",
+        nunitoSans.variable,
+        oxaniumHeading.variable
+      )}
     >
       <body>
         <ThemeProvider>{children}</ThemeProvider>
