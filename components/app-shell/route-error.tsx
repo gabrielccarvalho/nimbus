@@ -12,7 +12,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 
-export function RouteError({ reset }: { reset: () => void }) {
+export function RouteError({ retry }: { retry: () => void }) {
   return (
     <Empty>
       <EmptyHeader>
@@ -25,7 +25,7 @@ export function RouteError({ reset }: { reset: () => void }) {
         </EmptyDescription>
       </EmptyHeader>
       <EmptyContent>
-        <Button onClick={reset}>Try again</Button>
+        <Button onClick={retry}>Try again</Button>
       </EmptyContent>
     </Empty>
   )

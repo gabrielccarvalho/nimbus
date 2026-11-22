@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest"
 
 import { planLayout } from "../layout/geometry"
 import { FULL_FRAME } from "../layout/schema"
-import { estimateRenderBytes, hasRoomFor } from "./disk"
+import { hasRoomFor } from "@/lib/storage/disk"
+
+import { estimateRenderBytes } from "./disk"
 import { editedDuration, keepRanges, remapToEdit } from "./edit"
 import {
   chooseEncoder,

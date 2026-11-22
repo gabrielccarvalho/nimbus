@@ -1,7 +1,5 @@
 import "server-only"
 
-import { statfs } from "node:fs/promises"
-
 import { withTransaction, type Db } from "@/lib/db"
 import { AppError } from "@/lib/errors"
 
@@ -10,7 +8,6 @@ import { jobQueue } from "../jobs/queue"
 import { layoutRepository } from "../layout/repository"
 import { enqueueClipRenders } from "../projects/service"
 import { projectRepository } from "../projects/repository"
-import { hasRoomFor } from "./disk"
 
 const RENDERABLE = new Set(["approved", "rendered", "failed"])
 
@@ -71,18 +68,4 @@ export function settleRendering(db: Db, projectId: string) {
     projectId,
     rendered.length > 0 ? "done" : "ready_for_review"
   )
-}
-
-export async function assertDiskSpace(
-  directory: string,
-  estimateBytes: number
-) {
-  const stats = await statfs(directory)
-  const free = stats.bavail * stats.bsize
-  if (!hasRoomFor(free, estimateBytes)) {
-    throw new AppError(
-      "STORAGE",
-      `Not enough free disk space to render (${Math.round(free / 1024 ** 2)} MB free)`
-    )
-  }
 }

@@ -154,13 +154,12 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 
 ### Phase 16: Hardening
 
-- [ ] Investigate `TypeError: Invalid state: ReadableStream is already closed` logged by `next start` during the upload → project page → dashboard e2e. Next catches it, so nothing fails or crashes, but it's noisy. It doesn't reproduce with curl against the upload, SSE or media routes (with or without the worker), so it's likely a browser-side abort of an RSC or image request. Media now uses a pull-based `toWebStream` instead of `Readable.toWeb`, and SSE writes are guarded.
-
-- [ ] Error/empty states, boundaries, toasts
-- [ ] Disk check, temp cleanup, orphan sweeper
-- [ ] Performance + bundle check
-- [ ] A11y pass + manual keyboard walkthrough
-- [ ] Security tests (traversal, limits, secret not in bundle)
+- [x] `ReadableStream is already closed`: reproduced with any rejected upload. Next's body adapter enqueues after cancel; uploads now drain instead of cancelling (ADR-0038, workaround until fixed upstream).
+- [x] Error/empty states: global 404 and `global-error`; boundaries use `retry()` (re-fetches) instead of `reset()`; expected action errors log at debug, real failures at error.
+- [x] Disk check before storing uploads (and renders); orphan sweeper job scheduled by the worker; render work files removed in `finally`.
+- [x] Performance + bundle: largest client chunk is react-dom (71 KB gz); MediaPipe (43 KB gz) loads only on the layout editor; zod (30 KB gz) reaches the client through caption style schemas, acceptable for a local app.
+- [x] A11y: axe on every screen in e2e (dashboard, project, transcript, layout, clips, clip editor, settings, 404); keyboard-only clip approval in e2e.
+- [x] Security: media allowlist (ADR-0037), traversal and upload-limit tests, e2e asserts the configured Anthropic key and `sk-ant-` strings never appear in client chunks.
 
 ### Phase 17: Final QA
 

@@ -13,6 +13,7 @@ import { probeStep } from "./steps/probe"
 import { renderClipStep } from "./steps/render-clip"
 import { renderEditStep } from "./steps/render-edit"
 import { selectStep } from "./steps/select"
+import { sweepStep } from "./steps/sweep"
 import { transcribeStep } from "./steps/transcribe"
 
 export const pipelineHandlers: JobHandlers = {
@@ -22,6 +23,7 @@ export const pipelineHandlers: JobHandlers = {
   select: selectStep,
   render_clip: renderClipStep,
   render_edit: renderEditStep,
+  sweep: sweepStep,
 }
 
 const MINUTE = 60_000

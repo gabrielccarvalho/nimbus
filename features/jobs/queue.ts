@@ -247,6 +247,21 @@ export function jobQueue(db: Db) {
         .all()
     },
 
+    hasActiveOfType(type: JobType): boolean {
+      return Boolean(
+        db
+          .select({ id: jobs.id })
+          .from(jobs)
+          .where(
+            and(
+              eq(jobs.type, type),
+              inArray(jobs.status, ["queued", "running"])
+            )
+          )
+          .get()
+      )
+    },
+
     countActive(projectId: string, types?: readonly JobType[]): number {
       const filters = [
         eq(jobs.projectId, projectId),

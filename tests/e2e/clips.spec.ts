@@ -22,11 +22,17 @@ test("reviews highlight candidates", async ({ page }) => {
     page.getByRole("slider", { name: "Timeline" })
   ).not.toHaveAttribute("aria-valuenow", "0")
 
-  await first.getByRole("button", { name: "Approve" }).click()
+  await first.getByRole("button", { name: "Preview" }).focus()
+  await page.keyboard.press("Tab")
+  await expect(first.getByRole("button", { name: "Approve" })).toBeFocused()
+  await page.keyboard.press("Enter")
   await expect(first.getByRole("button", { name: "Approve" })).toHaveAttribute(
     "aria-pressed",
     "true"
   )
+  await page.keyboard.press("Tab")
+  await page.keyboard.press("Tab")
+  await expect(first.getByRole("link", { name: /Edit/ })).toBeFocused()
   await page.reload()
   await expect(list.getByRole("listitem").first()).toContainText("Approved")
   await expectNoSeriousA11yViolations(page)

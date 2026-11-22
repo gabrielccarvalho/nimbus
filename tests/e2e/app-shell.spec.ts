@@ -50,3 +50,13 @@ test("unknown projects show not found", async ({ page }) => {
   const response = await page.goto("/projects/does-not-exist")
   expect(response?.status()).toBe(404)
 })
+
+test("unknown pages show a styled 404", async ({ page }) => {
+  const response = await page.goto("/does-not-exist")
+  expect(response?.status()).toBe(404)
+  await expect(
+    page.getByRole("heading", { name: "Page not found" })
+  ).toBeVisible()
+  await expect(page.getByRole("link", { name: "All projects" })).toBeVisible()
+  await expectNoSeriousA11yViolations(page)
+})

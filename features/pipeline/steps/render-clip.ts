@@ -4,6 +4,7 @@ import { getEnv } from "@/lib/env"
 import { AppError } from "@/lib/errors"
 import { getFfmpegCapabilities } from "@/lib/media/capabilities"
 import { getStorage, storageKeys } from "@/lib/storage"
+import { assertDiskSpace } from "@/lib/storage/disk"
 
 import { buildAss } from "../../captions/ass"
 import {
@@ -28,7 +29,6 @@ import {
   verticalGraph,
 } from "../../render/filtergraph"
 import { CAPTION_FONTS_DIR } from "../../render/fonts"
-import { assertDiskSpace } from "../../render/service"
 import { renderQualityCrf } from "../../settings/schema"
 import { getAppSettings } from "../../settings/service"
 import { transcriptRepository } from "../../transcription/repository"

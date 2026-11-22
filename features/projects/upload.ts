@@ -1,13 +1,14 @@
 import "server-only"
 
-import { Readable, Transform } from "node:stream"
-import type { ReadableStream as NodeReadableStream } from "node:stream/web"
+import { Transform } from "node:stream"
 
 import { getDb, newId, withTransaction } from "@/lib/db"
 import { getEnv } from "@/lib/env"
 import { AppError } from "@/lib/errors"
 import { logger } from "@/lib/logger"
+import { readableFromRequestBody } from "@/lib/http/request-body"
 import { getStorage, storageKeys } from "@/lib/storage"
+import { assertDiskSpace } from "@/lib/storage/disk"
 
 import { jobQueue } from "../jobs/queue"
 import { getAppSettings } from "../settings/service"
@@ -107,15 +108,16 @@ export async function handleUpload(
     throw new AppError("TOO_LARGE", "This file is larger than the upload limit")
   }
   if (!request.body) throw new AppError("VALIDATION", "The upload was empty")
+  if (Number.isFinite(declaredLength)) {
+    await assertDiskSpace(env.DATA_DIR, declaredLength, "store this upload")
+  }
 
   const storage = getStorage()
   const projectId = newId()
   const tempKey = storageKeys.uploadTemp(projectId)
   const sourceKey = storageKeys.source(projectId, ACCEPTED_VIDEO_TYPES[mime])
 
-  const body = Readable.fromWeb(
-    request.body as unknown as NodeReadableStream<Uint8Array>
-  )
+  const body = readableFromRequestBody(request.body)
 
   const { bytes } = await storage.write(tempKey, body, {
     maxBytes: env.MAX_UPLOAD_BYTES,

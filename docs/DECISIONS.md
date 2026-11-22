@@ -145,3 +145,11 @@ Context: trims, text and caption edits change the output, but throwing away a go
 ## ADR-0036: Env sets defaults, Settings override
 
 Context: some options (selector, transcription language, hardware encoding) were env-only, which means editing a file and restarting to change them. Decision: one `settings` row holds app settings; `getAppSettings` fills anything unsaved from env (`HIGHLIGHT_SELECTOR`, `WHISPER_LANGUAGE`, `VIDEO_ENCODER !== "libx264"`). Highlight and caption options are copied into each new project; language, render quality (CRF 26/20/17) and hardware encoding are read when a job runs. `VIDEO_ENCODER` still chooses which hardware encoder "on" means. The unimplemented "verify layout with Claude" flag was dropped from the schema. Consequences: no restart needed; existing projects keep their own highlight and caption settings.
+
+## ADR-0037: Media route serves an allowlist, not all of `DATA_DIR`
+
+Context: the media route served any key that resolved inside `DATA_DIR`, which included `app.db`, partial uploads and render work files. Decision: `isServableKey` allows only `projects/<id>/<file>` and `projects/<id>/renders/<file>` with video, audio or JPEG extensions; anything else is a 404 before storage is touched. Traversal protection in `LocalStorage.resolve` stays as a second layer. Consequences: new servable asset types must be added to the allowlist.
+
+## ADR-0038: Drain rejected upload bodies instead of cancelling them (workaround)
+
+Context: Next 16.4's request body adapter (`requestToBodyStream`) keeps calling `controller.enqueue` after the body is cancelled, which surfaced as an `uncaughtException: Invalid state: ReadableStream is already closed` whenever an upload was rejected mid-stream (wrong magic bytes, over the limit). Decision: uploads read the body through `readableFromRequestBody`, which drains and discards the rest of a rejected body rather than cancelling it. This is a workaround; the proper fix is upstream in Next (guarding enqueue after cancel), after which `Readable.fromWeb` can return. Consequences: a rejected upload keeps reading until the client stops sending; the client sees the error once its request completes or it aborts.

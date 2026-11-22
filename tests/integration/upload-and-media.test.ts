@@ -125,13 +125,13 @@ describe("GET /api/media/[...path]", () => {
   const ctx = (path: string[]) => ({ params: Promise.resolve({ path }) })
 
   beforeEach(async () => {
-    await getStorage().writeBuffer("projects/p1/file.txt", "0123456789")
+    await getStorage().writeBuffer("projects/p1/file.mp4", "0123456789")
   })
 
   it("serves full files with range support advertised", async () => {
     const response = await mediaGET(
-      new NextRequest("http://localhost/api/media/projects/p1/file.txt"),
-      ctx(["projects", "p1", "file.txt"])
+      new NextRequest("http://localhost/api/media/projects/p1/file.mp4"),
+      ctx(["projects", "p1", "file.mp4"])
     )
     expect(response.status).toBe(200)
     expect(response.headers.get("accept-ranges")).toBe("bytes")
@@ -141,10 +141,10 @@ describe("GET /api/media/[...path]", () => {
 
   it("serves partial content", async () => {
     const response = await mediaGET(
-      new NextRequest("http://localhost/api/media/projects/p1/file.txt", {
+      new NextRequest("http://localhost/api/media/projects/p1/file.mp4", {
         headers: { range: "bytes=3-5" },
       }),
-      ctx(["projects", "p1", "file.txt"])
+      ctx(["projects", "p1", "file.mp4"])
     )
     expect(response.status).toBe(206)
     expect(response.headers.get("content-range")).toBe("bytes 3-5/10")
@@ -153,10 +153,10 @@ describe("GET /api/media/[...path]", () => {
 
   it("returns 416 for unsatisfiable ranges", async () => {
     const response = await mediaGET(
-      new NextRequest("http://localhost/api/media/projects/p1/file.txt", {
+      new NextRequest("http://localhost/api/media/projects/p1/file.mp4", {
         headers: { range: "bytes=50-" },
       }),
-      ctx(["projects", "p1", "file.txt"])
+      ctx(["projects", "p1", "file.mp4"])
     )
     expect(response.status).toBe(416)
     expect(response.headers.get("content-range")).toBe("bytes */10")
@@ -165,9 +165,9 @@ describe("GET /api/media/[...path]", () => {
   it("sets a download filename when asked", async () => {
     const response = await mediaGET(
       new NextRequest(
-        "http://localhost/api/media/projects/p1/file.txt?download=My%20Clip.mp4"
+        "http://localhost/api/media/projects/p1/file.mp4?download=My%20Clip.mp4"
       ),
-      ctx(["projects", "p1", "file.txt"])
+      ctx(["projects", "p1", "file.mp4"])
     )
     expect(response.headers.get("content-disposition")).toContain(
       "My%20Clip.mp4"
@@ -176,8 +176,8 @@ describe("GET /api/media/[...path]", () => {
 
   it("returns 404 for missing files", async () => {
     const response = await mediaGET(
-      new NextRequest("http://localhost/api/media/projects/p1/nope.txt"),
-      ctx(["projects", "p1", "nope.txt"])
+      new NextRequest("http://localhost/api/media/projects/p1/nope.mp4"),
+      ctx(["projects", "p1", "nope.mp4"])
     )
     expect(response.status).toBe(404)
   })
@@ -187,11 +187,17 @@ describe("GET /api/media/[...path]", () => {
     [["projects", "..", "..", "secret"]],
     [["%2e%2e", "%2e%2e", "etc", "passwd"]],
     [["projects%2F..%2F..%2Fsecret"]],
-  ])("blocks traversal %j", async (path) => {
+    [["app.db"]],
+    [["tmp", "uploads", "abc.part"]],
+    [["projects", "p1", "work", "graph.txt"]],
+    [["projects", "p1", "audio.wav%00.mp4"]],
+  ])("only serves project media: %j", async (path) => {
+    await getStorage().writeBuffer("tmp/uploads/abc.part", "partial")
+    await getStorage().writeBuffer("projects/p1/work/graph.txt", "graph")
     const response = await mediaGET(
       new NextRequest("http://localhost/api/media/x"),
       ctx(path)
     )
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(404)
   })
 })

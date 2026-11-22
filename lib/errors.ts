@@ -58,6 +58,20 @@ const nonRetryable: ReadonlySet<AppErrorCode> = new Set([
   "CANCELLED",
 ])
 
+const userErrors: ReadonlySet<AppErrorCode> = new Set([
+  "VALIDATION",
+  "NOT_FOUND",
+  "CONFLICT",
+  "INVALID_TRANSITION",
+  "UNSUPPORTED_MEDIA",
+  "TOO_LARGE",
+  "CANCELLED",
+])
+
+export function isUserError(error: AppError): boolean {
+  return userErrors.has(error.code)
+}
+
 export function isRetryable(error: AppError): boolean {
   return !nonRetryable.has(error.code)
 }

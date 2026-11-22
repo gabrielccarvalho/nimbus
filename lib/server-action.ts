@@ -3,7 +3,14 @@ import "server-only"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
-import { AppError, err, ok, type Result } from "@/lib/errors"
+import {
+  AppError,
+  err,
+  isUserError,
+  ok,
+  toAppError,
+  type Result,
+} from "@/lib/errors"
 import { logger } from "@/lib/logger"
 
 export const idSchema = z.string().min(1).max(64)
@@ -24,7 +31,15 @@ export async function runAction<T>(
     for (const path of paths) revalidatePath(path, "layout")
     return ok(value)
   } catch (error) {
-    logger.warn({ err: error, action: name }, "action failed")
+    const appError = toAppError(error)
+    if (isUserError(appError)) {
+      logger.debug(
+        { code: appError.code, message: appError.message, action: name },
+        "action rejected"
+      )
+    } else {
+      logger.error({ err: appError, action: name }, "action failed")
+    }
     return err(error)
   }
 }

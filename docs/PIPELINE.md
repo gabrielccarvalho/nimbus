@@ -137,6 +137,10 @@ Keep ranges = complement of silences longer than 1000 ms, each cut shrunk by 150
 
 Why concat instead of `select`/`aselect`: `aselect` works on whole audio frames (~21–23 ms), so error accumulates across hundreds of cuts and drifts A/V sync. `atrim` is sample-accurate. Subtitle timings are remapped onto the cut timeline before generating the ASS file (ADR-0019).
 
+## 8. sweep (maintenance, no project)
+
+The worker enqueues one `sweep` on start and every 6 h (never two at once). It deletes partial uploads older than 24 h, files of projects that no longer exist, `work/` leftovers older than 7 h and render files no asset points to. Projects with queued or running jobs are skipped. The rules are the pure `planSweep` in `features/pipeline/sweep-plan.ts`.
+
 ## Progress
 
 `-progress pipe:1` emits `key=value` blocks ending in `progress=continue|end`. The pure parser (`features/render/progress-parser.ts`) reads `out_time_us` (or `out_time_ms`, which is also microseconds) and returns `min(100, out_time / expected_duration · 100)`. The runner throttles DB writes to at most one per 500 ms.

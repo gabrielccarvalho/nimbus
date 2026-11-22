@@ -31,4 +31,11 @@ export const storageKeys = {
   uploadTemp: (id: string) => `tmp/uploads/${id}.part`,
 }
 
+const SERVABLE_KEY =
+  /^projects\/[\w-]+\/(?:renders\/)?[\w.-]+\.(?:mp4|mov|mkv|webm|wav|jpg)$/
+
+export function isServableKey(key: string) {
+  return SERVABLE_KEY.test(key) && !key.includes("..")
+}
+
 export type { StorageAdapter } from "./types"

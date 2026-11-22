@@ -4,6 +4,7 @@ import {
   AppError,
   err,
   isRetryable,
+  isUserError,
   ok,
   toAppError,
   toUserMessage,
@@ -27,6 +28,8 @@ describe("errors", () => {
   it("classifies retryable codes", () => {
     expect(isRetryable(new AppError("EXTERNAL", "x"))).toBe(true)
     expect(isRetryable(new AppError("DEPENDENCY_MISSING", "x"))).toBe(false)
+    expect(isUserError(new AppError("VALIDATION", "x"))).toBe(true)
+    expect(isUserError(new AppError("STORAGE", "x"))).toBe(false)
   })
 
   it("builds results", () => {
