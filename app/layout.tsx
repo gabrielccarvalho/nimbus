@@ -1,7 +1,11 @@
 import { Geist_Mono, Nunito_Sans, Oxanium } from "next/font/google"
 
 import "./globals.css"
+import type { Metadata } from "next"
+
 import { ThemeProvider } from "@/components/theme-provider"
+import { Toaster } from "@/components/ui/sonner"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
 const oxaniumHeading = Oxanium({
@@ -15,6 +19,11 @@ const fontMono = Geist_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
 })
+
+export const metadata: Metadata = {
+  title: { default: "Auto-Clipper", template: "%s · Auto-Clipper" },
+  description: "Turn long recordings into vertical clips with captions.",
+}
 
 export default function RootLayout({
   children,
@@ -34,7 +43,10 @@ export default function RootLayout({
       )}
     >
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <TooltipProvider>{children}</TooltipProvider>
+          <Toaster richColors closeButton />
+        </ThemeProvider>
       </body>
     </html>
   )

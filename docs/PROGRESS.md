@@ -83,11 +83,11 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 
 ### Phase 6: App shell and components
 
-- [ ] Install shadcn components
-- [ ] App layout (sidebar, header, breadcrumbs, theme toggle)
-- [ ] EmptyState, StatCard, Dropzone
-- [ ] `/dev/components`
-- [ ] Component tests + first e2e
+- [x] Install shadcn components
+- [x] App layout (sidebar, header, breadcrumbs, theme toggle)
+- [x] EmptyState, StatCard, Dropzone
+- [x] `/dev/components`
+- [x] Component tests + first e2e
 
 ### Phase 7: Projects flow
 

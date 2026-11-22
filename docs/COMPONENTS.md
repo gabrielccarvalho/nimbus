@@ -17,16 +17,46 @@ Before building any UI element:
 
 ## Installed shadcn components
 
-| Component | Source |
-| --- | --- |
-| button | preset |
+Installed with `pnpm exec shadcn add` (style `base-nova`, Base UI). Generated files import `cn` from the `cn` package; custom primitives in `components/ui/` do the same so they read identically.
+
+alert, alert-dialog, badge, breadcrumb, button, card, dialog, dropdown-menu, empty, field, input, input-group, item, kbd, label, progress, scroll-area, select, separator, sheet, sidebar (+ `hooks/use-mobile.ts`), skeleton, slider, sonner, spinner, stat-card*, switch, table, tabs, textarea, toggle, toggle-group, tooltip.
+
+\* custom, see below.
+
+The registry's `empty` component covers the planned EmptyState, so there is no custom EmptyState.
 
 ## Custom components
 
-| Component | Location | Purpose |
-| --- | --- | --- |
-| — | | |
+### StatCard (`components/ui/stat-card.tsx`)
+
+Labeled metric tile, rendered as a `<dl>` group so label/value pairs are announced as term/definition.
+
+- Parts: `StatCardGroup` (`dl` grid), `StatCard`, `StatCardHeader`, `StatCardLabel` (`dt`), `StatCardIcon` (decorative, `aria-hidden`), `StatCardValue` (`dd`, heading font, tabular numbers), `StatCardDescription` (`dd`).
+- Variants: `variant` = `default` | `muted` | `ghost`; `size` = `default` | `sm`.
+
+```tsx
+<StatCardGroup>
+  <StatCard size="sm">
+    <StatCardHeader>
+      <StatCardLabel>Duration</StatCardLabel>
+      <StatCardIcon>
+        <ClockIcon />
+      </StatCardIcon>
+    </StatCardHeader>
+    <StatCardValue>1:02:44</StatCardValue>
+  </StatCard>
+</StatCardGroup>
+```
+
+### Dropzone (`components/ui/dropzone.tsx`)
+
+File drop target that also opens the native picker.
+
+- Parts: `Dropzone` (root, `role="button"`), `DropzoneIcon`, `DropzoneTitle`, `DropzoneDescription` (wired to `aria-describedby`). `useDropzone()` exposes `{ dragging, disabled, open }`.
+- Props: `accept` (mime, `type/*` or `.ext`), `maxSize`, `multiple`, `disabled`, `onFilesAccepted(files)`, `onFilesRejected([{ file, reason: "type" | "size" | "count" }])`, `inputProps`, `size` = `default` | `sm`.
+- State: `data-dragging` on the root for styling. It holds no value state, so there's no controlled/uncontrolled API; the caller owns what happens to accepted files.
+- A11y: focusable, Enter/Space open the picker, `aria-disabled` + `tabIndex=-1` when disabled, constraints read via the description.
 
 ## Modified generated files
 
-None.
+- `hooks/use-mobile.ts`: rewritten with `useSyncExternalStore`. The generated version set state inside an effect, which fails the React Compiler lint rule `react-hooks/set-state-in-effect`. Same API (`useIsMobile(): boolean`).
