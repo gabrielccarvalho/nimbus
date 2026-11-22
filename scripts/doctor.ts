@@ -7,6 +7,8 @@ import { getEnv } from "@/lib/env"
 import { getFfmpegCapabilities } from "@/lib/media/capabilities"
 import { runProcess } from "@/lib/process/run"
 
+import { modelFile } from "./setup-vision"
+
 type Level = "ok" | "warn" | "fail"
 type Check = { name: string; level: Level; detail: string }
 
@@ -115,6 +117,17 @@ async function main() {
       ? `key configured, model ${env.ANTHROPIC_MODEL}`
       : "ANTHROPIC_API_KEY missing"
   )
+
+  try {
+    await access(modelFile, constants.R_OK)
+    add("face detection", "ok", path.relative(process.cwd(), modelFile))
+  } catch {
+    add(
+      "face detection",
+      "warn",
+      "MediaPipe assets missing; run pnpm run setup:vision (border detection still works)"
+    )
+  }
 
   try {
     await mkdir(env.DATA_DIR, { recursive: true })

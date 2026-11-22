@@ -25,12 +25,14 @@
     "doctor": "tsx --conditions=react-server scripts/doctor.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx --conditions=react-server scripts/migrate.ts",
-    "prepare": "husky"
+    "prepare": "husky",
+    "setup:vision": "tsx scripts/setup-vision.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.12.0",
     "@base-ui/react": "^1.9.0",
     "@hookform/resolvers": "^7.0.8",
+    "@mediapipe/tasks-vision": "1.2.2",
     "@next/env": "16.4.6",
     "@phosphor-icons/react": "^2.1.10",
     "better-sqlite3": "^13.2.0",

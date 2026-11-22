@@ -42,6 +42,7 @@ Use `ggml-small.bin` or larger for non-English or better accuracy.
 pnpm install
 cp .env.example .env.local   # then edit
 pnpm db:migrate
+pnpm run setup:vision        # copies MediaPipe WASM and downloads the face model into public/vendor
 pnpm run doctor                  # checks ffmpeg, libass, libx264, whisper, model, env, data dir
 pnpm dev                     # Next on :3000 + the worker
 ```

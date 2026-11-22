@@ -10,6 +10,10 @@ import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
+  CropRegion,
+  CropRegionEditor,
+} from "@/components/ui/crop-region-editor"
+import {
   Timeline,
   TimelineLoudness,
   TimelinePlayhead,
@@ -165,6 +169,15 @@ export function ComponentGallery() {
             <TimelineLoudness values={SAMPLE_LOUDNESS} />
           </Timeline>
         </div>
+      </Section>
+
+      <Section title="CropRegionEditor">
+        <CropRegionEditor
+          defaultValue={{ x: 0.7, y: 0.65, w: 0.25, h: 0.28 }}
+          className="aspect-video max-w-xl bg-[repeating-linear-gradient(45deg,var(--color-muted)_0_12px,var(--color-background)_12px_24px)]"
+        >
+          <CropRegion aria-label="Example region" />
+        </CropRegionEditor>
       </Section>
 
       <Section title="EmptyState (shadcn Empty)">

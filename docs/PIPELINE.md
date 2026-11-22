@@ -66,7 +66,13 @@ The configured HighlightSelector returns raw candidates. Shared post-processing 
 
 ## 5. layout (`awaiting_layout → ready_for_review`)
 
-Client-side. The browser samples ~8 frames of the proxy, runs MediaPipe face detection and the border heuristic, and proposes a rect. The user confirms it in the layout editor (Server Action). Skipped automatically when the aspect is `other` or a LayoutPreset matches the resolution.
+Client-side (`features/layout/detect-webcam.ts`). An off-screen `<video>` seeks to 8 evenly spaced frames of the proxy.
+
+- **Border heuristic** (`border-heuristic.ts`, pure): frames are scaled to 320 px wide and grayscaled. For each pixel the second-smallest vertical/horizontal gradient across frames is kept (one frame may disagree, e.g. a scene cut), so only static edges survive. Rows and columns are ranked by their longest run of strong edge pixels; every pair of top rows × pair of top columns that forms a plausible overlay (2–35% of the frame, aspect 0.75–2.4) is scored by how much of its perimeter is edge. Among boxes within 0.12 of the best score the largest wins, so an outer frame beats an inner detail.
+- **Face detection**: MediaPipe Tasks Vision `blaze_face_short_range` (CPU, WASM served from `public/vendor/mediapipe`, installed by `pnpm run setup:vision`). It runs on the border box crop first (webcam faces are tiny in the full frame), then on the whole frame. If the assets are missing it is skipped and the border result stands.
+- **Combining** (`detection.ts`, pure): border score ≥ 0.6 with a face inside → `cam-top` at ≥ 0.9 confidence; border alone → 0.8 × score; no border but a steady small face in ≥ half the frames → a 16:9 box around the face; otherwise `no-cam-blur-fill`.
+
+The user adjusts the box in the layout editor, with a live 9:16 canvas preview drawn from the same `planLayout()` used by the renderer, and confirms (Server Action `confirmLayoutAction` → `awaiting_layout → ready_for_review`). "Use for every W×H recording" saves a LayoutPreset. Skipped automatically when the aspect is `other` or a preset matches the resolution. The layout can be edited again later without changing the status.
 
 ## 6. render_clip (`ready_for_review → rendering → done`)
 

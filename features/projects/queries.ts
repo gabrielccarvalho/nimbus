@@ -119,3 +119,25 @@ export async function getProjectClips(id: string) {
     manualPrompt,
   }
 }
+
+export async function getProjectLayout(id: string) {
+  await connection()
+  const db = getDb()
+  const project = projectRepository(db).get(id)
+  if (!project) return undefined
+  const assets = assetRepository(db).listForProject(id)
+  const source = assets.find((a) => a.kind === "source")
+  const proxy = assets.find((a) => a.kind === "proxy")
+  const layout = layoutRepository(db).get(id)
+  const preset =
+    source?.width && source.height
+      ? layoutRepository(db).findPreset(source.width, source.height)
+      : undefined
+  return {
+    project,
+    source,
+    video: proxy ?? source,
+    layout,
+    hasPreset: Boolean(preset),
+  }
+}

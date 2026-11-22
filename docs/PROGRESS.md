@@ -26,7 +26,7 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 
 - ~~B1, libass missing from ffmpeg~~ Resolved 2026-11-22: `ffmpeg-full` 9.0.2 installed (keg-only) and set via `FFMPEG_PATH`/`FFPROBE_PATH` in `.env.local` (ADR-0028).
 - ~~B2, whisper.cpp missing~~ Resolved 2026-11-22: `whisper-cpp` 1.9.5 and `models/ggml-base.en.bin` installed; the heavy test passes.
-- **B3, no Anthropic credentials.** No `ANTHROPIC_API_KEY` or `ant` profile on this machine, so the Claude selector is verified only against a mocked API (MSW). Set the key in `.env.local` to use it; without it, a project set to `anthropic` falls back to the heuristic and says so in each clip's reason.
+- ~~B3, no Anthropic credentials~~ Resolved 2026-11-22: `ANTHROPIC_API_KEY` set in `.env.local`.
 
 ## Phases
 
@@ -120,10 +120,10 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 
 ### Phase 11: Webcam detection and layout editor
 
-- [ ] border-heuristic (pure) + detect-webcam (client)
-- [ ] CropRegionEditor
-- [ ] Layout editor page + presets
-- [ ] Tests
+- [x] border-heuristic (pure) + detect-webcam (client)
+- [x] CropRegionEditor
+- [x] Layout editor page + presets
+- [x] Tests
 
 ### Phase 12: Captions
 

@@ -117,3 +117,7 @@ Context: Homebrew's `ffmpeg` has no libass, so captions can't be burned in (Bloc
 ## ADR-0029: Blocking metadata
 
 Context: Next 16 streams `generateMetadata` output into `<body>` after the first paint, so dynamic pages briefly have no `<title>` (caught by axe as an intermittent `document-title` violation). Screen readers announce the title on load. Decision: `htmlLimitedBots: /.*/` makes metadata blocking for every request. Consequences: slightly later first byte; irrelevant here because metadata is a local SQLite read.
+
+## ADR-0030: Vision assets served locally
+
+Context: MediaPipe loads its WASM and model at runtime; the default is a CDN. Decision: `pnpm run setup:vision` copies the WASM from the pinned `@mediapipe/tasks-vision` package and downloads `blaze_face_short_range.tflite` once into `public/vendor/mediapipe` (gitignored). Consequences: detection works offline after setup and always matches the installed package version; e2e runs the setup before building.

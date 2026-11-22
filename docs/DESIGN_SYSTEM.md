@@ -6,19 +6,19 @@ Derived from the installed shadcn preset (`base-nova`, base color `neutral`) and
 
 All colors are OKLCH CSS variables. Use them through Tailwind utilities (`bg-primary`, `text-muted-foreground`, `border-border`…), never raw values.
 
-| Token | Role | Light | Dark |
-| --- | --- | --- | --- |
-| `background` / `foreground` | Page surface and body text | white / near-black | near-black / near-white |
-| `card` / `card-foreground` | Raised surfaces (project cards, clip cards) | white | `0.205` gray |
-| `popover` / `popover-foreground` | Menus, popovers, tooltips | white | `0.205` gray |
-| `primary` / `primary-foreground` | Brand lime-green. Primary actions, current-word caption highlight, active timeline ranges | `oklch(0.841 0.238 128.85)` | `oklch(0.768 0.233 130.85)` |
-| `secondary` / `secondary-foreground` | Low-emphasis buttons, chips | cool light gray | cool dark gray |
-| `muted` / `muted-foreground` | Subtle backgrounds, secondary text, timestamps | | |
-| `accent` / `accent-foreground` | Hover/selected rows in lists and menus | | |
-| `destructive` | Delete, reject, failed status | red | lighter red |
-| `border`, `input`, `ring` | Dividers, field borders, focus rings | | translucent white in dark |
-| `chart-1…5` | Lime ramp from light to dark. Loudness strip, score bars | | |
-| `sidebar-*` | Sidebar surface and its primary/accent | | |
+| Token                                | Role                                                                                      | Light                                                                                                                               | Dark                        |
+| ------------------------------------ | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| `background` / `foreground`          | Page surface and body text                                                                | white / near-black                                                                                                                  | near-black / near-white     |
+| `card` / `card-foreground`           | Raised surfaces (project cards, clip cards)                                               | white                                                                                                                               | `0.205` gray                |
+| `popover` / `popover-foreground`     | Menus, popovers, tooltips                                                                 | white                                                                                                                               | `0.205` gray                |
+| `primary` / `primary-foreground`     | Brand lime-green. Primary actions, current-word caption highlight, active timeline ranges | `oklch(0.841 0.238 128.85)`                                                                                                         | `oklch(0.768 0.233 130.85)` |
+| `secondary` / `secondary-foreground` | Low-emphasis buttons, chips                                                               | cool light gray                                                                                                                     | cool dark gray              |
+| `muted` / `muted-foreground`         | Subtle backgrounds, secondary text, timestamps                                            |                                                                                                                                     |                             |
+| `accent` / `accent-foreground`       | Hover/selected rows in lists and menus                                                    |                                                                                                                                     |                             |
+| `destructive`                        | Delete, reject, failed status                                                             | red-700 (`oklch(0.505 0.213 27.518)`, darker than the shadcn default so `text-destructive` on a `destructive/10` tint passes 4.5:1) | lighter red                 |
+| `border`, `input`, `ring`            | Dividers, field borders, focus rings                                                      |                                                                                                                                     | translucent white in dark   |
+| `chart-1…5`                          | Lime ramp from light to dark. Loudness strip, score bars                                  |                                                                                                                                     |                             |
+| `sidebar-*`                          | Sidebar surface and its primary/accent                                                    |                                                                                                                                     |                             |
 
 Note that `primary-foreground` is a dark green on a light lime background, not white. Keep that pairing.
 
@@ -26,14 +26,14 @@ Note that `primary-foreground` is a dark green on a light lime background, not w
 
 Status is always text + color, never color alone.
 
-| Status | Badge variant |
-| --- | --- |
-| queued, candidate, uploaded | `outline` |
-| running states (probing, transcribing, analyzing, selecting, rendering) | `secondary` + spinner icon |
-| approved, rendered, done, succeeded | `default` (primary) |
-| rejected, cancelled | `outline` + muted text |
-| failed | `destructive` |
-| awaiting_layout, ready_for_review | `secondary` + attention icon |
+| Status                                                                  | Badge variant                |
+| ----------------------------------------------------------------------- | ---------------------------- |
+| queued, candidate, uploaded                                             | `outline`                    |
+| running states (probing, transcribing, analyzing, selecting, rendering) | `secondary` + spinner icon   |
+| approved, rendered, done, succeeded                                     | `default` (primary)          |
+| rejected, cancelled                                                     | `outline` + muted text       |
+| failed                                                                  | `destructive`                |
+| awaiting_layout, ready_for_review                                       | `secondary` + attention icon |
 
 ## Radius
 
@@ -41,11 +41,11 @@ Status is always text + color, never color alone.
 
 ## Typography
 
-| Variable | Font | Use |
-| --- | --- | --- |
-| `--font-sans` | Nunito Sans | Body and UI (`font-sans`, default on `html`) |
-| `--font-heading` | Oxanium | Page titles, card titles, stat values (`font-heading`) |
-| `--font-mono` | Geist Mono | Timestamps, durations, file sizes, code (`font-mono tabular-nums`) |
+| Variable         | Font        | Use                                                                |
+| ---------------- | ----------- | ------------------------------------------------------------------ |
+| `--font-sans`    | Nunito Sans | Body and UI (`font-sans`, default on `html`)                       |
+| `--font-heading` | Oxanium     | Page titles, card titles, stat values (`font-heading`)             |
+| `--font-mono`    | Geist Mono  | Timestamps, durations, file sizes, code (`font-mono tabular-nums`) |
 
 Scale (Tailwind defaults): page title `text-2xl font-heading font-semibold`, section title `text-lg font-heading font-medium`, card title `text-base font-medium`, body `text-sm`, meta `text-xs text-muted-foreground`. The preset's controls are compact (`h-8` buttons, `text-sm`), so keep body text at `text-sm` to match.
 

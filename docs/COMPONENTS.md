@@ -104,6 +104,21 @@ Horizontal time strip for a whole recording: loudness, silences, clip ranges and
 </Timeline>
 ```
 
+### CropRegionEditor (`components/ui/crop-region-editor.tsx`)
+
+A movable, resizable rectangle over an image or video, in normalized 0–1 frame coordinates. Used to mark the webcam.
+
+- Parts: `CropRegionEditor` (root/frame; put the media inside it), `CropRegion` (the rectangle with corner handles). `useCropRegionEditor()` exposes `{ value, commit, disabled }`. `moveRect`/`resizeRect` are the pure clamping helpers.
+- Props: `value` / `defaultValue` / `onValueChange` (`{ x, y, w, h }`, controlled or uncontrolled), `disabled`. Minimum size is 5% of the frame and the rect never leaves it.
+- A11y: the region is a focusable `role="group"` with `aria-roledescription="crop region"` and a description of its position ("Left 78%, top 77%, 20% wide, 20% tall"). Arrow keys move by 0.5% of the frame, Shift+arrow by 5%, Alt+arrow resizes from the bottom-right corner. Corner handles are pointer-only.
+
+```tsx
+<CropRegionEditor value={rect} onValueChange={setRect} className="aspect-video">
+  <video src={src} className="size-full" />
+  <CropRegion aria-label="Webcam region" />
+</CropRegionEditor>
+```
+
 ## Modified generated files
 
 - `hooks/use-mobile.ts`: rewritten with `useSyncExternalStore`. The generated version set state inside an effect, which fails the React Compiler lint rule `react-hooks/set-state-in-effect`. Same API (`useIsMobile(): boolean`).

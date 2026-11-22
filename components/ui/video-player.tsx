@@ -259,7 +259,7 @@ function VideoPlayerControls({
     <div
       data-slot="video-player-controls"
       className={cn(
-        "flex items-center gap-2 bg-black/80 px-2 py-1.5 text-xs",
+        "flex items-center gap-2 bg-black/80 px-2 py-1.5 text-xs text-white",
         className
       )}
       {...props}

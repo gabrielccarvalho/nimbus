@@ -40,7 +40,7 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: [
     {
-      command: `pnpm exec next build && pnpm exec next start -p ${PORT} -H 127.0.0.1`,
+      command: `pnpm run setup:vision && pnpm exec next build && pnpm exec next start -p ${PORT} -H 127.0.0.1`,
       url: `http://127.0.0.1:${PORT}`,
       timeout: 240_000,
       reuseExistingServer: false,
