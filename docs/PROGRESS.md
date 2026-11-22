@@ -166,9 +166,12 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 - [x] Clean-clone run via README (2026-11-22): `pnpm install --frozen-lockfile`, `.env.local` from `.env.example` plus the `ffmpeg-full` paths, `db:migrate`, `setup:vision`, `doctor` all green except the expected missing Anthropic key; lint, typecheck, 320/320 tests, heavy whisper test and 17/17 e2e pass. The README now documents `ffmpeg-full` (what was actually verified) instead of the homebrew-ffmpeg tap.
 - [x] Real run through the production build with whisper.cpp `base.en`, libass and the Claude selector on speech versions of both fixtures (macOS `say` over the fixture video): transcript word-accurate, webcam found (16:9 at 66%, 21:9 at 90%, border heuristic only since the fixtures have no face), Claude picked and titled a clip, renders are 1080×1920 with audio and burned-in captions, per-clip download and zip export work. Found and fixed nested `<main>` landmarks on the way; axe now enforces landmark rules.
 - [x] Docs match reality
+- [x] 10-minute recording through the real pipeline (2026-11-22): upload to highlights in 30 s (whisper `base.en` + Claude), transcript page with 1,029 words loads in ~0.4 s, three clips rendered in 7 s, zip export 34 MB. The full transcript is sent to Claude (no truncation); with looped speech it returned 3 distinct moments instead of 12 duplicates.
+- [x] Claude API failures fall back to the heuristic with a readable reason (bad key, rate limit, transcript too long, overloaded) instead of the raw SDK message.
 
 ### Not verified
 
 - MediaPipe face detection on a real face (fixtures have none; the code path is unit tested and the model loads in e2e).
-- Real recordings longer than the 20 s fixtures, and hardware encoders other than VideoToolbox.
+- Real multi-hour recordings (10 minutes verified). Very long transcripts go to Claude in one request; past the model's context limit the project falls back to the heuristic with "the transcript is too long for one request". Chunking isn't implemented.
+- Hardware encoders other than VideoToolbox.
 - Linux and Windows.

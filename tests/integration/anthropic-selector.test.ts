@@ -127,7 +127,34 @@ describe("AnthropicSelector", () => {
           },
           { status: 401 }
         ),
-      /invalid x-api-key/,
+      /API key was rejected/,
+    ],
+    [
+      "a rate limit",
+      () =>
+        HttpResponse.json(
+          {
+            type: "error",
+            error: { type: "rate_limit_error", message: "slow down" },
+          },
+          { status: 429 }
+        ),
+      /rate limited/,
+    ],
+    [
+      "an oversized prompt",
+      () =>
+        HttpResponse.json(
+          {
+            type: "error",
+            error: {
+              type: "invalid_request_error",
+              message: "prompt is too long: 1200000 tokens > 1000000 maximum",
+            },
+          },
+          { status: 400 }
+        ),
+      /transcript is too long/,
     ],
     [
       "two bad replies",
