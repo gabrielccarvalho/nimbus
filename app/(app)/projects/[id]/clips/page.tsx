@@ -23,7 +23,18 @@ export default async function ClipsPage({
   const { id } = await params
   const data = await getProjectClips(id)
   if (!data) notFound()
-  const { project, clips, durationMs, video, audio, manualPrompt } = data
+  const {
+    project,
+    clips,
+    durationMs,
+    video,
+    audio,
+    manualPrompt,
+    renders,
+    edit,
+    layoutConfirmed,
+    snapshot,
+  } = data
 
   return (
     <div className="flex flex-col gap-6">
@@ -37,6 +48,10 @@ export default async function ClipsPage({
           durationMs={durationMs}
           clips={clips}
           audio={audio}
+          renders={renders}
+          edit={edit}
+          layoutConfirmed={layoutConfirmed}
+          snapshot={snapshot}
         />
       ) : manualPrompt ? null : (
         <Empty className="border">

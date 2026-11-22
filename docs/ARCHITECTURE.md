@@ -17,6 +17,7 @@ flowchart LR
     UP[/api/uploads<br/>streaming upload/]
     MD[/api/media/...path<br/>Range serving/]
     SSE[/api/projects/id/events<br/>SSE/]
+    ZIP[/api/projects/id/export<br/>streamed zip/]
   end
 
   subgraph Worker[worker/index.ts]
@@ -34,7 +35,7 @@ flowchart LR
   WD --> SA
   RSC & SA & SSE --> DB
   UP --> FS & DB
-  MD --> FS
+  MD & ZIP --> FS
   WL --> DB
   WL --> H
   H --> FF & WH & AN & FS & DB

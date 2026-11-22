@@ -8,7 +8,12 @@ import { parseCandidatesJson } from "../highlights/prompt"
 import { assetRepository, projectRepository } from "../projects/repository"
 import { transcriptRepository } from "../transcription/repository"
 import { clipRepository } from "./repository"
-import type { ClipStatus } from "./schema"
+import {
+  CLIP_MAX_EDIT_MS,
+  CLIP_MIN_EDIT_MS,
+  type ClipEdit,
+  type ClipStatus,
+} from "./schema"
 
 const REVIEWABLE = new Set(["awaiting_layout", "ready_for_review", "done"])
 
@@ -65,4 +70,44 @@ export function setClipReviewStatus(
     throw new AppError("CONFLICT", "This clip is rendering")
   }
   return clips.update(clipId, { status })
+}
+
+export function updateClip(
+  db: Db,
+  projectId: string,
+  clipId: string,
+  edit: ClipEdit
+) {
+  const clips = clipRepository(db)
+  const clip = clips.getOrThrow(clipId)
+  if (clip.projectId !== projectId) {
+    throw new AppError("NOT_FOUND", "Clip not found")
+  }
+  if (clip.status === "rendering") {
+    throw new AppError("CONFLICT", "Wait for this clip to finish rendering")
+  }
+  const source = assetRepository(db).findByKind(projectId, "source")
+  const durationMs = source?.durationMs ?? 0
+  const length = edit.endMs - edit.startMs
+  if (edit.endMs > durationMs || length <= 0) {
+    throw new AppError("VALIDATION", "The clip must stay inside the recording")
+  }
+  if (length < CLIP_MIN_EDIT_MS || length > CLIP_MAX_EDIT_MS) {
+    throw new AppError(
+      "VALIDATION",
+      `Clips must be between ${CLIP_MIN_EDIT_MS / 1000} and ${CLIP_MAX_EDIT_MS / 1000} seconds long`
+    )
+  }
+  const trimmed = edit.startMs !== clip.startMs || edit.endMs !== clip.endMs
+  return clips.update(clipId, {
+    startMs: edit.startMs,
+    endMs: edit.endMs,
+    title: edit.title,
+    hook: edit.hook,
+    captionOverrides: {
+      ...edit.captionOverrides,
+      pages: trimmed ? [] : edit.captionOverrides.pages,
+    },
+    status: clip.status === "rendered" ? "approved" : clip.status,
+  })
 }

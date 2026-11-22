@@ -6,7 +6,7 @@ import { z } from "zod"
 import { AppError, err, ok, type Result } from "@/lib/errors"
 import { logger } from "@/lib/logger"
 
-const idSchema = z.string().min(1).max(64)
+export const idSchema = z.string().min(1).max(64)
 
 export function parseId(input: unknown, label = "id") {
   const parsed = idSchema.safeParse(input)

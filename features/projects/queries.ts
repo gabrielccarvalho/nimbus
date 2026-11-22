@@ -3,6 +3,7 @@ import "server-only"
 import { connection } from "next/server"
 
 import { getDb, type Db } from "@/lib/db"
+import { mediaUrl, slugify } from "@/lib/format"
 
 import { normalizeLoudness } from "../analysis/loudness"
 import { signalsRepository } from "../analysis/repository"
@@ -110,6 +111,27 @@ export async function getProjectClips(id: string) {
       },
     })
   }
+  const renders = Object.fromEntries(
+    clips.flatMap((clip) => {
+      const asset = clip.renderAssetId
+        ? assets.find((a) => a.id === clip.renderAssetId)
+        : undefined
+      return asset
+        ? [
+            [
+              clip.id,
+              {
+                url: mediaUrl(asset.storageKey),
+                downloadUrl: mediaUrl(asset.storageKey, {
+                  download: `${slugify(clip.title)}.mp4`,
+                }),
+              },
+            ],
+          ]
+        : []
+    })
+  )
+  const edit = assets.find((a) => a.kind === "edit")
   return {
     project,
     clips,
@@ -117,6 +139,50 @@ export async function getProjectClips(id: string) {
     video: assets.find((a) => a.kind === "proxy") ?? source,
     audio: audioSummary(db, id),
     manualPrompt,
+    renders,
+    edit: edit
+      ? {
+          url: mediaUrl(edit.storageKey),
+          downloadUrl: mediaUrl(edit.storageKey, {
+            download: `${slugify(project.name, "project")}-edit.mp4`,
+          }),
+          durationMs: edit.durationMs ?? 0,
+        }
+      : undefined,
+    layoutConfirmed: Boolean(layoutRepository(db).get(id)?.confirmedByUser),
+    snapshot: getProjectSnapshot(db, id)!,
+  }
+}
+
+export async function getClipEditor(projectId: string, clipId: string) {
+  await connection()
+  const db = getDb()
+  const project = projectRepository(db).get(projectId)
+  const clip = clipRepository(db).get(clipId)
+  if (!project || !clip || clip.projectId !== project.id) return undefined
+  const assets = assetRepository(db).listForProject(projectId)
+  const source = assets.find((a) => a.kind === "source")
+  const video = assets.find((a) => a.kind === "proxy") ?? source
+  const layout = layoutRepository(db).get(projectId)
+  const render = clip.renderAssetId
+    ? assets.find((a) => a.id === clip.renderAssetId)
+    : undefined
+  return {
+    project,
+    clip,
+    source,
+    video,
+    layout,
+    words: transcriptRepository(db).get(projectId)?.words ?? [],
+    render: render
+      ? {
+          url: mediaUrl(render.storageKey),
+          downloadUrl: mediaUrl(render.storageKey, {
+            download: `${slugify(clip.title)}.mp4`,
+          }),
+        }
+      : undefined,
+    snapshot: getProjectSnapshot(db, projectId)!,
   }
 }
 

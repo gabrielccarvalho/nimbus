@@ -31,3 +31,13 @@ export const clipTextSchema = z.object({
   title: z.string().trim().min(1).max(100),
   hook: z.string().trim().max(200),
 })
+
+export const CLIP_MIN_EDIT_MS = 3_000
+export const CLIP_MAX_EDIT_MS = 180_000
+
+export const clipEditSchema = clipTextSchema.extend({
+  startMs: z.number().int().nonnegative(),
+  endMs: z.number().int().positive(),
+  captionOverrides: captionOverridesSchema,
+})
+export type ClipEdit = z.infer<typeof clipEditSchema>

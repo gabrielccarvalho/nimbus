@@ -23,7 +23,6 @@ import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
-  useVideoPlayer,
   VideoPlayerControls,
   VideoPlayerPlayButton,
   VideoPlayerProvider,
@@ -36,17 +35,15 @@ import {
   detectWebcam,
   type WebcamDetection,
 } from "@/features/layout/detect-webcam"
-import {
-  OUTPUT_HEIGHT,
-  OUTPUT_WIDTH,
-  planLayout,
-} from "@/features/layout/geometry"
+import { planLayout } from "@/features/layout/geometry"
 import {
   layoutModeSchema,
   type LayoutInput,
   type LayoutMode,
   type Rect,
 } from "@/features/layout/schema"
+
+import { VerticalPreviewCanvas } from "./vertical-preview"
 
 const MODES: { value: LayoutMode; label: string }[] = [
   { value: "cam-top", label: "Webcam on top" },
@@ -55,79 +52,14 @@ const MODES: { value: LayoutMode; label: string }[] = [
 ]
 
 const DEFAULT_WEBCAM: Rect = { x: 0.7, y: 0.7, w: 0.25, h: 0.25 }
-const PREVIEW_WIDTH = 270
-
-function drawPreview(
-  canvas: HTMLCanvasElement,
-  video: HTMLVideoElement,
-  layout: LayoutInput
-) {
-  const context = canvas.getContext("2d")
-  if (!context || !video.videoWidth) return
-  const scale = canvas.width / OUTPUT_WIDTH
-  const plan = planLayout(layout, video.videoWidth, video.videoHeight)
-  context.fillStyle = "#000"
-  context.fillRect(0, 0, canvas.width, canvas.height)
-  if (plan.mode === "no-cam-blur-fill") {
-    const { x, y, w, h } = plan.background
-    context.filter = "blur(6px) brightness(0.85)"
-    context.drawImage(video, x, y, w, h, 0, 0, canvas.width, canvas.height)
-    context.filter = "none"
-    const height = plan.foregroundHeight * scale
-    context.drawImage(
-      video,
-      0,
-      (canvas.height - height) / 2,
-      canvas.width,
-      height
-    )
-    return
-  }
-  let top = 0
-  for (const { crop, outHeight } of plan.regions) {
-    const height = outHeight * scale
-    context.drawImage(
-      video,
-      crop.x,
-      crop.y,
-      crop.w,
-      crop.h,
-      0,
-      top,
-      canvas.width,
-      height
-    )
-    top += height
-  }
-}
-
 function LayoutPreview({ layout }: { layout: LayoutInput }) {
-  const { videoRef, currentMs } = useVideoPlayer()
-  const canvasRef = React.useRef<HTMLCanvasElement>(null)
-
-  React.useEffect(() => {
-    const video = videoRef.current
-    const canvas = canvasRef.current
-    if (!video || !canvas) return
-    const draw = () => drawPreview(canvas, video, layout)
-    draw()
-    video.addEventListener("loadeddata", draw)
-    video.addEventListener("seeked", draw)
-    return () => {
-      video.removeEventListener("loadeddata", draw)
-      video.removeEventListener("seeked", draw)
-    }
-  }, [videoRef, layout, currentMs])
-
   return (
-    <canvas
-      ref={canvasRef}
+    <VerticalPreviewCanvas
+      layout={layout}
       role="img"
       aria-label="Vertical preview"
       data-testid="layout-preview"
-      width={PREVIEW_WIDTH}
-      height={(PREVIEW_WIDTH * OUTPUT_HEIGHT) / OUTPUT_WIDTH}
-      className="aspect-[9/16] w-full max-w-[220px] rounded-lg bg-black"
+      className="max-w-[220px] rounded-lg"
     />
   )
 }

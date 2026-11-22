@@ -133,3 +133,11 @@ Context: VideoToolbox/NVENC/QSV are much faster but their quality-per-bit and ra
 ## ADR-0033: Tests load `.env.test.local`, never `.env.local`
 
 Context: integration tests need machine-specific binaries (e.g. an ffmpeg with libass) but must never pick up personal settings like `ANTHROPIC_API_KEY` from `.env.local`. Decision: the integration setup imports `lib/load-env`, and because Vitest runs with `NODE_ENV=test`, `@next/env` loads `.env.test.local`/`.env.test` only. Consequences: put `FFMPEG_PATH`/`FFPROBE_PATH` in `.env.test.local` (gitignored); caption burn-in tests are skipped when the configured ffmpeg has no libass.
+
+## ADR-0034: Streamed, uncompressed zip export
+
+Context: rendered clips are already H.264/AAC, so deflate saves almost nothing and costs CPU, and a zip of several clips can be hundreds of MB. Decision: `GET /api/projects/[id]/export` streams a zip built with `yazl` in STORE mode straight from storage, names files `NN-<title-slug>.mp4` plus `edit-horizontal.mp4`, and adds a `clips.json` manifest (title, hook, range, `editedSinceRender`). Renders missing on disk are left out instead of failing the download. Consequences: constant memory, no temp files; a clip edited after rendering still exports its last render, and the manifest flags it.
+
+## ADR-0035: Editing a rendered clip marks it out of date
+
+Context: trims, text and caption edits change the output, but throwing away a good render on every save would be surprising. Decision: saving an edit moves a `rendered` clip back to `approved` and keeps `renderAssetId`; the UI shows "Out of date" and offers "Save and render". Changing the trim clears per-page caption overrides because page indices no longer line up. Consequences: downloads stay available while editing; "Render approved clips" picks up edited clips again.

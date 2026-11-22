@@ -6,6 +6,7 @@ import {
   formatDuration,
   formatTimestamp,
   mediaUrl,
+  slugify,
 } from "./format"
 
 describe("format helpers", () => {
@@ -45,5 +46,17 @@ describe("format helpers", () => {
     expect(mediaUrl("p/x.mp4", { download: "My Clip.mp4" })).toBe(
       "/api/media/p/x.mp4?download=My%20Clip.mp4"
     )
+  })
+})
+
+describe("slugify", () => {
+  it("makes safe file names", () => {
+    expect(slugify("Wait, WHAT just happened?!")).toBe(
+      "wait-what-just-happened"
+    )
+    expect(slugify("Crème brûlée 🍮 run")).toBe("creme-brulee-run")
+    expect(slugify("../../etc/passwd")).toBe("etc-passwd")
+    expect(slugify("!!!")).toBe("clip")
+    expect(slugify("a".repeat(80)).length).toBe(60)
   })
 })

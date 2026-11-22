@@ -141,9 +141,10 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 
 ### Phase 14: Review, clip editor, export
 
-- [ ] Clip editor (trim, captions, style, re-render)
-- [ ] Download + zip
-- [ ] Golden-path e2e
+- [x] Clip editor (trim, title/hook, caption text per page, style, re-render) at `/projects/[id]/clips/[clipId]` (ADR-0035)
+- [x] Render panel on the clips page (render approved clips, horizontal edit, live progress)
+- [x] Per-clip download + streamed zip export with `clips.json` (ADR-0034)
+- [x] Golden-path e2e: upload → detect → confirm layout → approve → render → download → zip → edit
 
 ### Phase 15: Settings
 

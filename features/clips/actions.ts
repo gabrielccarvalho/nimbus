@@ -6,8 +6,12 @@ import { getDb } from "@/lib/db"
 import { AppError } from "@/lib/errors"
 import { parseId, runAction } from "@/lib/server-action"
 
-import { clipStatusSchema } from "./schema"
-import { applyManualSelection, setClipReviewStatus } from "./service"
+import { clipEditSchema, clipStatusSchema } from "./schema"
+import {
+  applyManualSelection,
+  setClipReviewStatus,
+  updateClip,
+} from "./service"
 
 export async function submitManualSelectionAction(
   projectId: unknown,
@@ -40,6 +44,29 @@ export async function setClipStatusAction(
       if (!parsed.success)
         throw new AppError("VALIDATION", "Invalid clip status")
       setClipReviewStatus(getDb(), project, clip, parsed.data)
+    },
+    [`/projects/${project}`]
+  )
+}
+
+export async function updateClipAction(
+  projectId: unknown,
+  clipId: unknown,
+  edit: unknown
+) {
+  const project = parseId(projectId, "project id")
+  const clip = parseId(clipId, "clip id")
+  return runAction(
+    "updateClip",
+    () => {
+      const parsed = clipEditSchema.safeParse(edit)
+      if (!parsed.success) {
+        throw new AppError(
+          "VALIDATION",
+          parsed.error.issues[0]?.message ?? "Invalid clip"
+        )
+      }
+      updateClip(getDb(), project, clip, parsed.data)
     },
     [`/projects/${project}`]
   )
