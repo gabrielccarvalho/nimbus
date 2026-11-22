@@ -1,0 +1,5 @@
+[0:v]trim=start=2.000:end=17.000,setpts=PTS-STARTPTS,split=2[bgsrc][fg];
+[bgsrc]crop=606:1080:656:0,scale=1080:1920,boxblur=20:2,eq=brightness=-0.15,setsar=1[bg];
+[fg]scale=1080:606,setsar=1[fgs];
+[bg][fgs]overlay=(W-w)/2:(H-h)/2,fps=29.97,format=yuv420p,ass=filename=/data/work/c1.ass:fontsdir=/app/assets/fonts[v];
+[0:a]atrim=start=2.000:end=17.000,asetpts=PTS-STARTPTS[a]

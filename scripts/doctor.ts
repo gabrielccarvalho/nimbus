@@ -3,6 +3,7 @@ import "@/lib/load-env"
 import { access, constants, mkdir, rm, writeFile } from "node:fs/promises"
 import path from "node:path"
 
+import { chooseEncoder } from "@/features/render/filtergraph"
 import { getEnv } from "@/lib/env"
 import { getFfmpegCapabilities } from "@/lib/media/capabilities"
 import { runProcess } from "@/lib/process/run"
@@ -69,6 +70,12 @@ async function main() {
       caps.hardwareEncoders.length
         ? caps.hardwareEncoders.join(", ")
         : "none (software only)"
+    )
+    const encoder = chooseEncoder(env.VIDEO_ENCODER, caps.encoders)
+    add(
+      "video encoder",
+      caps.encoders.has(encoder) ? "ok" : "fail",
+      `${encoder} (VIDEO_ENCODER=${env.VIDEO_ENCODER})`
     )
   }
 

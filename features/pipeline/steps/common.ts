@@ -2,6 +2,7 @@ import "server-only"
 
 import { withTransaction, type Db } from "@/lib/db"
 import { AppError } from "@/lib/errors"
+import { getStorage } from "@/lib/storage"
 
 import { jobQueue } from "../../jobs/queue"
 import type { JobType } from "../../jobs/schema"
@@ -46,6 +47,17 @@ export function sourceAsset(db: Db, project: Project) {
     ? assetRepository(db).get(project.sourceAssetId)
     : undefined
   if (!asset) throw new AppError("NOT_FOUND", "The source video is missing")
+  return asset
+}
+
+export async function sourceFile(db: Db, project: Project) {
+  const asset = sourceAsset(db, project)
+  if (!(await getStorage().stat(asset.storageKey))) {
+    throw new AppError(
+      "NOT_FOUND",
+      "The source video file is missing from disk"
+    )
+  }
   return asset
 }
 

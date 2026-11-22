@@ -1,0 +1,5 @@
+[0:v]trim=start=2.000:end=31.500,setpts=PTS-STARTPTS,split=2[top_src][bottom_src];
+[top_src]crop=346:216:1520:832,scale=1080:672,setsar=1[top];
+[bottom_src]crop=934:1080:492:0,scale=1080:1248,setsar=1[bottom];
+[top][bottom]vstack=inputs=2,fps=30,format=yuv420p,ass=filename=/data/work/c1.ass:fontsdir=/app/assets/fonts[v];
+[0:a]atrim=start=2.000:end=31.500,asetpts=PTS-STARTPTS[a]

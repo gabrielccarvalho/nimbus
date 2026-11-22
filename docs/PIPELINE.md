@@ -83,24 +83,26 @@ Crop values are computed in TypeScript as even integers from normalized rects an
 ### cam-top (and split-50 with 960/960)
 
 ```
-[0:v]trim=start=S:end=E,setpts=PTS-STARTPTS,split=2[cam][game];
-[cam]crop=CW:CH:CX:CY,scale=1080:672:force_original_aspect_ratio=increase,crop=1080:672,setsar=1[top];
-[game]crop=GW:GH:GX:GY,scale=1080:1248:force_original_aspect_ratio=increase,crop=1080:1248:(iw-1080)*FX:(ih-1248)/2,setsar=1[bottom];
-[top][bottom]vstack=inputs=2,fps=30,format=yuv420p,ass='subs.ass'[v];
-[0:a]atrim=start=S:end=E,asetpts=PTS-STARTPTS[a]
+[0:v]trim=start=2.000:end=31.500,setpts=PTS-STARTPTS,split=2[top_src][bottom_src];
+[top_src]crop=346:216:1520:832,scale=1080:672,setsar=1[top];
+[bottom_src]crop=934:1080:492:0,scale=1080:1248,setsar=1[bottom];
+[top][bottom]vstack=inputs=2,fps=30,format=yuv420p,ass=filename=…c1.ass:fontsdir=…/assets/fonts[v];
+[0:a]atrim=start=2.000:end=31.500,asetpts=PTS-STARTPTS[a]
 ```
 
-`increase` + `crop` implements "cover". `FX` (gameplay focus) shifts the crop window horizontally, which matters for 21:9 where the gameplay crop is very wide.
+"Cover" is done in TypeScript: `planLayout()` → `coverCrop()` shrinks each region to the output aspect (even integers) before scaling, so the graph never needs `force_original_aspect_ratio`. For the gameplay region the leftover width is distributed by `gameplayFocusX` (0 = left edge, 1 = right edge), which matters for 21:9. The same `planLayout()` drives the layout editor's canvas preview.
 
 ### no-cam-blur-fill
 
 ```
-[0:v]trim=start=S:end=E,setpts=PTS-STARTPTS,split=2[bgsrc][fg];
-[bgsrc]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:2,eq=brightness=-0.15,setsar=1[bg];
-[fg]scale=1080:-2,setsar=1[fgs];
-[bg][fgs]overlay=(W-w)/2:(H-h)/2,fps=30,format=yuv420p,ass='subs.ass'[v];
-[0:a]atrim=start=S:end=E,asetpts=PTS-STARTPTS[a]
+[0:v]trim=…,setpts=PTS-STARTPTS,split=2[bgsrc][fg];
+[bgsrc]crop=606:1080:656:0,scale=1080:1920,boxblur=20:2,eq=brightness=-0.15,setsar=1[bg];
+[fg]scale=1080:606,setsar=1[fgs];
+[bg][fgs]overlay=(W-w)/2:(H-h)/2,fps=29.97,format=yuv420p,ass=…[v];
+[0:a]atrim=…,asetpts=PTS-STARTPTS[a]
 ```
+
+Golden copies of all three graphs and the edit graph live in `features/render/__golden__`.
 
 ### Output encoding
 
@@ -110,9 +112,18 @@ ffmpeg -ss <S−2s> -i <source> -/filter_complex <graph.txt> -map [v] -map [a] \
   -progress pipe:1 -nostats <out.mp4>
 ```
 
-Input seeking (`-ss` before `-i`) jumps to the nearest keyframe 2 s before the clip, and `trim` inside the graph cuts accurately relative to that point (the builder subtracts the pre-roll from `S`/`E`). The graph is written to a file and passed with `-/filter_complex` (ffmpeg ≥ 7 syntax; `-filter_complex_script` is deprecated) so long graphs never hit argv limits.
+Input seeking (`-ss` before `-i`) jumps to the nearest keyframe 2 s before the clip, and `trim` inside the graph cuts accurately relative to that point (the builder subtracts the pre-roll from `S`/`E`). The graph is written to a file and passed with `-/filter_complex` (ffmpeg ≥ 7 syntax; `-filter_complex_script` is deprecated) so long graphs never hit argv limits. Paths inside the graph (`ass=filename=…:fontsdir=…`) go through `escapeFilterPath()`, which escapes for both the filter-option and the graph level.
+
+- Encoder: `VIDEO_ENCODER` (default `libx264 -preset veryfast -crf 20`). `auto` picks the first hardware H.264 encoder ffmpeg reports (`h264_videotoolbox -q:v 65`, `h264_nvenc -cq 23`, `h264_qsv -global_quality 23`) and falls back to libx264. `pnpm run doctor` shows which one will be used.
+- ffmpeg writes into `projects/<id>/work/` and the file is moved into `renders/` only after a clean exit, so a crash or cancel never leaves a half-written render. The work ASS and graph files are always removed.
+- Before starting, the step checks free space on `DATA_DIR` (`statfs`): it needs 2 × the estimate (8 Mb/s video + 160 kb/s audio at 1080×1920, scaled by pixel count) + 500 MB.
+- A missing source file fails fast with `NOT_FOUND` (not retried).
+- When a `render_clip` job ends (success, final failure or cancel), `settleRendering()` checks for other queued/running render jobs; when none are left the project moves `rendering → done` if any clip is rendered, otherwise back to `ready_for_review`. The worker's `onSucceeded` hook runs it after the job row is marked complete, so the job being settled isn't counted as active.
+- Re-rendering a clip replaces its render asset and deletes the old file.
 
 ## 7. render_edit (horizontal silence-cut edit)
+
+Started on demand (`startEditRender`), independent of the project status machine; one at a time per project. Output is an `edit` asset at the source resolution. Captions use the project's caption style scaled to the source height (font × height/1920 × 1.3) with the baseline at 90%.
 
 Keep ranges = complement of silences longer than 1000 ms, each cut shrunk by 150 ms padding on both sides, adjacent ranges merged. Built as trim/atrim + concat:
 

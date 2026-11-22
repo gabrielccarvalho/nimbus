@@ -133,11 +133,11 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 
 ### Phase 13: Render engine
 
-- [ ] filtergraph builders + golden tests
-- [ ] ffmpeg runner (progress, timeout, cancel)
-- [ ] Render jobs + assets
-- [ ] Hardware encoder detection
-- [ ] Integration tests
+- [x] filtergraph builders + golden tests
+- [x] ffmpeg runner (progress, timeout, cancel)
+- [x] Render jobs + assets
+- [x] Hardware encoder detection
+- [x] Integration tests
 
 ### Phase 14: Review, clip editor, export
 

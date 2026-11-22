@@ -1,9 +1,6 @@
 import type { CaptionPage } from "./pages"
 import { assColor, type CaptionStyle } from "./styles"
 
-const WIDTH = 1080
-const HEIGHT = 1920
-
 export function assTime(ms: number) {
   const cs = Math.max(0, Math.round(ms / 10))
   const h = Math.floor(cs / 360_000)
@@ -51,10 +48,14 @@ export function buildAss({
   pages,
   style,
   baseline,
+  width = 1080,
+  height = 1920,
 }: {
   pages: readonly CaptionPage[]
   style: CaptionStyle
   baseline: number
+  width?: number
+  height?: number
 }) {
   const borderStyle = style.box ? 3 : 1
   const outlineColor = style.box
@@ -63,8 +64,8 @@ export function buildAss({
   const header = [
     "[Script Info]",
     "ScriptType: v4.00+",
-    `PlayResX: ${WIDTH}`,
-    `PlayResY: ${HEIGHT}`,
+    `PlayResX: ${width}`,
+    `PlayResY: ${height}`,
     "WrapStyle: 2",
     "ScaledBorderAndShadow: yes",
     "YCbCr Matrix: TV.709",
@@ -76,7 +77,7 @@ export function buildAss({
     "[Events]",
     "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
   ]
-  const position = `{\\an2\\pos(${WIDTH / 2},${Math.round(baseline * HEIGHT)})}`
+  const position = `{\\an2\\pos(${Math.round(width / 2)},${Math.round(baseline * height)})}`
   const events: string[] = []
   for (const page of pages) {
     const cuts = [page.startMs]

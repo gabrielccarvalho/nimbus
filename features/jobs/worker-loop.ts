@@ -28,6 +28,7 @@ export type WorkerOptions = {
   pollMs: number
   leaseMs?: number
   timeoutMs?: (job: Job) => number
+  onSucceeded?: (job: Job) => void
   onFinalFailure?: (job: Job, error: AppError) => void
   onCancelled?: (job: Job) => void
 }
@@ -129,6 +130,7 @@ export function createWorker(options: WorkerOptions) {
       if (abortReason) throw abortReason
       queue.complete(job.id, owner)
       log.info("job succeeded")
+      options.onSucceeded?.(job)
     } catch (caught) {
       const error = abortReason ?? toAppError(caught)
       if (error.code === "CANCELLED") {

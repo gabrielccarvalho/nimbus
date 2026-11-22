@@ -60,6 +60,7 @@ export const assetKinds = [
   "thumbnail",
   "proxy",
   "render",
+  "edit",
   "subtitle",
 ] as const
 export const assetKindSchema = z.enum(assetKinds)

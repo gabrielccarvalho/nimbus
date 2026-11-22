@@ -6,6 +6,7 @@ import {
   jobTimeoutMs,
   onJobCancelled,
   onJobFinalFailure,
+  onJobSucceeded,
   pipelineHandlers,
 } from "@/features/pipeline/handlers"
 import { handleUpload } from "@/features/projects/upload"
@@ -34,6 +35,7 @@ export function testWorker(db: Db, handlers: JobHandlers = pipelineHandlers) {
     pollMs: 10,
     leaseMs: 60_000,
     timeoutMs: jobTimeoutMs,
+    onSucceeded: (job) => onJobSucceeded(db, job),
     onFinalFailure: (job, error) => onJobFinalFailure(db, job, error),
     onCancelled: (job) => onJobCancelled(db, job),
   })

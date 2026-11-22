@@ -1,3 +1,5 @@
+import "@/lib/load-env"
+
 import { afterAll, afterEach, beforeAll } from "vitest"
 
 import { server } from "./msw"

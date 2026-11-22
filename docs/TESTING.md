@@ -28,8 +28,9 @@ Vitest's integration global setup and Playwright's global setup both call the ge
 - Integration tests get a fresh temp `DATA_DIR` and SQLite file per file (`tests/utils/test-env.ts`).
 - `server-only` is aliased to an empty module in Vitest.
 - MSW intercepts `https://api.anthropic.com/*`. Unhandled requests fail the test (`onUnhandledFrame: "error"`). Tests never hit the real API.
-- E2E runs with `TRANSCRIBER=fake`, `HIGHLIGHT_SELECTOR=heuristic`, `DATA_DIR=<temp>`, `E2E=1`. With `E2E=1` the layout editor reads the detected rect from `window.__autoClipperTestHooks.detectWebcam` when present, so no MediaPipe/WASM download happens.
-- Render tests that need caption burn-in skip when ffmpeg lacks libass (`tests/utils/ffmpeg-caps.ts`).
+- E2E runs with `TRANSCRIBER=fake`, `HIGHLIGHT_SELECTOR=heuristic`, `DATA_DIR=<temp>`, `E2E=1`. The web server command runs `pnpm run setup:vision` first, so webcam detection runs the real border heuristic and MediaPipe in Chromium (the layout spec fails if MediaPipe logs a load warning).
+- Integration tests load `.env.test.local` / `.env.test` (never `.env.local`, ADR-0033). Put machine-specific binaries there, e.g. `FFMPEG_PATH` pointing at an ffmpeg with libass.
+- Render tests that need caption burn-in (`it.runIf(hasLibass)` in `tests/integration/render.test.ts`) skip when the configured ffmpeg lacks libass.
 
 ## Coverage
 

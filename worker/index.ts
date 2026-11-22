@@ -7,6 +7,7 @@ import {
   jobTimeoutMs,
   onJobCancelled,
   onJobFinalFailure,
+  onJobSucceeded,
   pipelineHandlers,
 } from "@/features/pipeline/handlers"
 import { getDb } from "@/lib/db"
@@ -26,6 +27,7 @@ const worker = createWorker({
   renderConcurrency: env.WORKER_RENDER_CONCURRENCY,
   pollMs: env.WORKER_POLL_MS,
   timeoutMs: jobTimeoutMs,
+  onSucceeded: (job) => onJobSucceeded(db, job),
   onFinalFailure: (job, error) => onJobFinalFailure(db, job, error),
   onCancelled: (job) => onJobCancelled(db, job),
 })

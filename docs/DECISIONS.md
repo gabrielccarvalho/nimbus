@@ -125,3 +125,11 @@ Context: MediaPipe loads its WASM and model at runtime; the default is a CDN. De
 ## ADR-0031: Bundled caption fonts
 
 Context: libass falls back to whatever system font matches, so captions would look different per machine, and the app fonts come from `next/font` at build time, which ffmpeg can't use. Decision: commit static ExtraBold TTFs of the two design-system families (Oxanium, Nunito Sans; SIL OFL, licenses in `assets/fonts/licenses`) and pass `fontsdir`. The preview uses the same families via the `--font-heading`/`--font-sans` variables. Consequences: deterministic renders from a clean clone; ~135 KB in the repo.
+
+## ADR-0032: libx264 by default, hardware encoding opt-in
+
+Context: VideoToolbox/NVENC/QSV are much faster but their quality-per-bit and rate-control knobs differ per vendor, and CRF output is predictable and identical across machines. Decision: `VIDEO_ENCODER=libx264` by default; `auto` or an explicit encoder name opts in. Capabilities are detected from `ffmpeg -encoders` and shown by `pnpm run doctor`. Consequences: consistent output by default; a 30 s 1080×1920 clip still renders in a few seconds with `veryfast`.
+
+## ADR-0033: Tests load `.env.test.local`, never `.env.local`
+
+Context: integration tests need machine-specific binaries (e.g. an ffmpeg with libass) but must never pick up personal settings like `ANTHROPIC_API_KEY` from `.env.local`. Decision: the integration setup imports `lib/load-env`, and because Vitest runs with `NODE_ENV=test`, `@next/env` loads `.env.test.local`/`.env.test` only. Consequences: put `FFMPEG_PATH`/`FFPROBE_PATH` in `.env.test.local` (gitignored); caption burn-in tests are skipped when the configured ffmpeg has no libass.

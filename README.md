@@ -55,6 +55,7 @@ See `.env.example` for the full list. The main ones:
 | ------------------------------ | --------------------------- | ---------------------------------------------------------------------------------------- |
 | `DATA_DIR`                     | `./data`                    | Database, uploads and renders                                                            |
 | `FFMPEG_PATH` / `FFPROBE_PATH` | `ffmpeg` / `ffprobe`        | Binaries                                                                                 |
+| `VIDEO_ENCODER`                | `libx264`                   | `libx264`, `auto` (first hardware H.264 encoder found) or a specific encoder             |
 | `WHISPER_BIN`                  | `whisper-cli`               | whisper.cpp CLI                                                                          |
 | `WHISPER_MODEL`                | `./models/ggml-base.en.bin` | Model file                                                                               |
 | `TRANSCRIBER`                  | `whisper`                   | `whisper` or `fake`                                                                      |
