@@ -75,11 +75,11 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 
 ### Phase 5: Job queue and worker
 
-- [ ] Queue ops (enqueue, lease, heartbeat, complete, fail/backoff, cancel, recover)
-- [ ] Worker loop (concurrency, shutdown, timeout)
-- [ ] Progress → SSE (`lib/sse.ts`)
-- [ ] `pnpm dev` runs Next + worker
-- [ ] Integration tests
+- [x] Queue ops (enqueue, lease, heartbeat, complete, fail/backoff, cancel, recover)
+- [x] Worker loop (concurrency, shutdown, timeout)
+- [x] Progress → SSE (`lib/sse.ts`)
+- [x] `pnpm dev` runs Next + worker
+- [x] Integration tests
 
 ### Phase 6: App shell and components
 

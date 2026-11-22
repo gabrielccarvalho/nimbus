@@ -1,0 +1,105 @@
+export function formatSSE(event: {
+  data: unknown
+  event?: string
+  id?: string
+  retry?: number
+}): string {
+  let out = ""
+  if (event.event) out += `event: ${event.event}\n`
+  if (event.id) out += `id: ${event.id}\n`
+  if (event.retry !== undefined) out += `retry: ${event.retry}\n`
+  const payload =
+    typeof event.data === "string" ? event.data : JSON.stringify(event.data)
+  for (const line of payload.split("\n")) out += `data: ${line}\n`
+  return `${out}\n`
+}
+
+export const SSE_HEADERS = {
+  "Content-Type": "text/event-stream; charset=utf-8",
+  "Cache-Control": "no-cache, no-transform",
+  Connection: "keep-alive",
+  "X-Accel-Buffering": "no",
+} as const
+
+export type PollingStreamOptions<T> = {
+  poll: () => T | undefined
+  signal: AbortSignal
+  intervalMs?: number
+  heartbeatMs?: number
+  event?: string
+  isFinal?: (snapshot: T) => boolean
+}
+
+export function createPollingStream<T>({
+  poll,
+  signal,
+  intervalMs = 500,
+  heartbeatMs = 15_000,
+  event = "snapshot",
+  isFinal,
+}: PollingStreamOptions<T>): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder()
+  let timer: ReturnType<typeof setInterval> | undefined
+  let heartbeat: ReturnType<typeof setInterval> | undefined
+
+  const stop = () => {
+    if (timer) clearInterval(timer)
+    if (heartbeat) clearInterval(heartbeat)
+  }
+
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      let last = ""
+      let closed = false
+      const close = () => {
+        if (closed) return
+        closed = true
+        stop()
+        try {
+          controller.close()
+        } catch {}
+      }
+
+      const tick = () => {
+        if (closed) return
+        let snapshot: T | undefined
+        try {
+          snapshot = poll()
+        } catch {
+          controller.enqueue(
+            encoder.encode(
+              formatSSE({ event: "error", data: { message: "Lookup failed" } })
+            )
+          )
+          close()
+          return
+        }
+        if (snapshot === undefined) {
+          controller.enqueue(
+            encoder.encode(formatSSE({ event: "gone", data: {} }))
+          )
+          close()
+          return
+        }
+        const serialized = JSON.stringify(snapshot)
+        if (serialized !== last) {
+          last = serialized
+          controller.enqueue(
+            encoder.encode(formatSSE({ event, data: serialized, retry: 2000 }))
+          )
+        }
+        if (isFinal?.(snapshot)) close()
+      }
+
+      tick()
+      timer = setInterval(tick, intervalMs)
+      heartbeat = setInterval(() => {
+        if (!closed) controller.enqueue(encoder.encode(": keep-alive\n\n"))
+      }, heartbeatMs)
+      signal.addEventListener("abort", close, { once: true })
+    },
+    cancel() {
+      stop()
+    },
+  })
+}

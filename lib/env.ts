@@ -55,11 +55,12 @@ export function parseEnv(source: Record<string, string | undefined>): Env {
     Object.entries(source).filter(([, v]) => v !== undefined && v !== "")
   )
   const raw = envSchema.parse(cleaned)
-  const dataDir = path.resolve(raw.DATA_DIR)
+  const dataDir = path.resolve(/* turbopackIgnore: true */ raw.DATA_DIR)
   return {
     ...raw,
     DATA_DIR: dataDir,
     DATABASE_PATH: path.resolve(
+      /* turbopackIgnore: true */
       raw.DATABASE_PATH ?? path.join(dataDir, "app.db")
     ),
   }

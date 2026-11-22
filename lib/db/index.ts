@@ -15,7 +15,10 @@ export type Db = BetterSQLite3Database<typeof schema> & {
   $client: Database.Database
 }
 
-export const MIGRATIONS_DIR = path.join(process.cwd(), "lib/db/migrations")
+export const MIGRATIONS_DIR = path.join(
+  /* turbopackIgnore: true */ process.cwd(),
+  "lib/db/migrations"
+)
 
 export function openDb(file: string, { runMigrations = true } = {}): Db {
   if (file !== ":memory:") mkdirSync(path.dirname(file), { recursive: true })

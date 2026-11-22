@@ -32,7 +32,7 @@ export class LocalStorage implements StorageAdapter {
   readonly root: string
 
   constructor(root: string) {
-    this.root = path.resolve(root)
+    this.root = path.resolve(/* turbopackIgnore: true */ root)
   }
 
   resolve(key: string): string {
@@ -41,7 +41,7 @@ export class LocalStorage implements StorageAdapter {
         details: { key },
       })
     }
-    const resolved = path.resolve(this.root, key)
+    const resolved = path.resolve(/* turbopackIgnore: true */ this.root, key)
     if (resolved !== this.root && !resolved.startsWith(this.root + path.sep)) {
       throw new AppError("STORAGE", "Path escapes the data directory", {
         details: { key },
