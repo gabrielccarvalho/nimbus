@@ -35,15 +35,15 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 - [x] CLAUDE.md and PROGRESS.md
 
 ### Phase 1: Documentation
-- [ ] ARCHITECTURE.md
-- [ ] DEVELOPMENT_GUIDELINES.md
-- [ ] BUSINESS_LOGIC.md
-- [ ] DESIGN_SYSTEM.md
-- [ ] COMPONENTS.md
-- [ ] TESTING.md
-- [ ] PIPELINE.md
-- [ ] DECISIONS.md (ADR-0001…)
-- [ ] README.md
+- [x] ARCHITECTURE.md
+- [x] DEVELOPMENT_GUIDELINES.md
+- [x] BUSINESS_LOGIC.md
+- [x] DESIGN_SYSTEM.md
+- [x] COMPONENTS.md
+- [x] TESTING.md
+- [x] PIPELINE.md
+- [x] DECISIONS.md (ADR-0001…)
+- [x] README.md
 
 ### Phase 2: Tooling and quality gates
 - [ ] TS strict flags (`noUncheckedIndexedAccess` etc.)
