@@ -10,7 +10,7 @@ import { logger } from "@/lib/logger"
 import { getStorage, storageKeys } from "@/lib/storage"
 
 import { jobQueue } from "../jobs/queue"
-import { settingsRepository } from "../settings/repository"
+import { getAppSettings } from "../settings/service"
 import {
   ACCEPTED_VIDEO_TYPES,
   containerMatchesMime,
@@ -70,8 +70,7 @@ function magicByteCheck(mime: AcceptedVideoMime) {
 }
 
 export function projectSettingsFromApp(): ProjectSettings {
-  const env = getEnv()
-  const app = settingsRepository(getDb()).get(env.HIGHLIGHT_SELECTOR)
+  const app = getAppSettings(getDb())
   return {
     selectorMode: app.selectorMode,
     clipMinMs: app.clipMinMs,

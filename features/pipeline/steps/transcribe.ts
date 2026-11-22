@@ -5,7 +5,7 @@ import { getStorage, storageKeys } from "@/lib/storage"
 import type { JobHandler } from "../../jobs/worker-loop"
 import { assetRepository } from "../../projects/repository"
 import { runFfmpeg } from "../../render/ffmpeg-runner"
-import { settingsRepository } from "../../settings/repository"
+import { getAppSettings } from "../../settings/service"
 import { getTranscriber } from "../../transcription"
 import { buildSegments, normalizeWords } from "../../transcription/normalize"
 import { transcriptRepository } from "../../transcription/repository"
@@ -56,7 +56,7 @@ export const transcribeStep: JobHandler = async ({
   }
 
   const transcriber = getTranscriber()
-  const language = settingsRepository(db).get().transcriptionLanguage
+  const language = getAppSettings(db).transcriptionLanguage
   const raw = await transcriber.transcribe({
     audioPath: storage.resolve(audioKey),
     durationMs,

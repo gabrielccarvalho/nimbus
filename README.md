@@ -49,21 +49,22 @@ pnpm dev                     # Next on :3000 + the worker
 
 ## Environment
 
-See `.env.example` for the full list. The main ones:
+See `.env.example` for the full list. Values that also appear in Settings are only defaults: once Settings are saved, the saved values win. The main ones:
 
-| Variable                       | Default                     | Purpose                                                                                  |
-| ------------------------------ | --------------------------- | ---------------------------------------------------------------------------------------- |
-| `DATA_DIR`                     | `./data`                    | Database, uploads and renders                                                            |
-| `FFMPEG_PATH` / `FFPROBE_PATH` | `ffmpeg` / `ffprobe`        | Binaries                                                                                 |
-| `VIDEO_ENCODER`                | `libx264`                   | `libx264`, `auto` (first hardware H.264 encoder found) or a specific encoder             |
-| `WHISPER_BIN`                  | `whisper-cli`               | whisper.cpp CLI                                                                          |
-| `WHISPER_MODEL`                | `./models/ggml-base.en.bin` | Model file                                                                               |
-| `TRANSCRIBER`                  | `whisper`                   | `whisper` or `fake`                                                                      |
-| `HIGHLIGHT_SELECTOR`           | `heuristic`                 | `anthropic`, `manual` or `heuristic` (default for new projects; overridable in Settings) |
-| `ANTHROPIC_API_KEY`            | —                           | Needed for the `anthropic` selector. Never sent to the browser                           |
-| `ANTHROPIC_MODEL`              | `claude-sonnet-5-5`         | Model id                                                                                 |
-| `MAX_UPLOAD_BYTES`             | 21474836480                 | Upload limit (20 GiB)                                                                    |
-| `LOG_LEVEL`                    | `info`                      | pino level                                                                               |
+| Variable                       | Default                     | Purpose                                                                                                                                                            |
+| ------------------------------ | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `DATA_DIR`                     | `./data`                    | Database, uploads and renders                                                                                                                                      |
+| `FFMPEG_PATH` / `FFPROBE_PATH` | `ffmpeg` / `ffprobe`        | Binaries                                                                                                                                                           |
+| `VIDEO_ENCODER`                | `libx264`                   | `libx264`, `auto` (first hardware H.264 encoder found) or a specific encoder. Anything but `libx264` turns hardware encoding on by default; Settings can toggle it |
+| `WHISPER_BIN`                  | `whisper-cli`               | whisper.cpp CLI                                                                                                                                                    |
+| `WHISPER_MODEL`                | `./models/ggml-base.en.bin` | Model file                                                                                                                                                         |
+| `WHISPER_LANGUAGE`             | `auto`                      | Default transcription language; overridable in Settings                                                                                                            |
+| `TRANSCRIBER`                  | `whisper`                   | `whisper` or `fake`                                                                                                                                                |
+| `HIGHLIGHT_SELECTOR`           | `heuristic`                 | `anthropic`, `manual` or `heuristic` (default for new projects; overridable in Settings)                                                                           |
+| `ANTHROPIC_API_KEY`            | —                           | Needed for the `anthropic` selector. Never sent to the browser                                                                                                     |
+| `ANTHROPIC_MODEL`              | `claude-sonnet-5-5`         | Model id                                                                                                                                                           |
+| `MAX_UPLOAD_BYTES`             | 21474836480                 | Upload limit (20 GiB)                                                                                                                                              |
+| `LOG_LEVEL`                    | `info`                      | pino level                                                                                                                                                         |
 
 ## Scripts
 

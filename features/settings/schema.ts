@@ -20,7 +20,6 @@ export const appSettingsSchema = z
     captionsEnabled: z.boolean(),
     renderQuality: renderQualitySchema,
     hardwareEncoding: z.boolean(),
-    verifyLayoutWithClaude: z.boolean(),
   })
   .refine((s) => s.clipMinMs < s.clipMaxMs, {
     message: "Minimum clip length must be shorter than the maximum",
@@ -38,7 +37,6 @@ export const defaultAppSettings: AppSettings = {
   captionsEnabled: defaultProjectSettings.captionsEnabled,
   renderQuality: "standard",
   hardwareEncoding: false,
-  verifyLayoutWithClaude: false,
 }
 
 export const renderQualityCrf: Record<RenderQuality, number> = {

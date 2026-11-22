@@ -99,12 +99,27 @@ export function videoEncoderArgs(encoder: Encoder, crf = 20): string[] {
     case "libx264":
       return ["-c:v", "libx264", "-preset", "veryfast", "-crf", String(crf)]
     case "h264_videotoolbox":
-      return ["-c:v", "h264_videotoolbox", "-q:v", "65", "-allow_sw", "1"]
+      return [
+        "-c:v",
+        "h264_videotoolbox",
+        "-q:v",
+        String(Math.round(65 + ((20 - crf) * 5) / 3)),
+        "-allow_sw",
+        "1",
+      ]
     case "h264_nvenc":
       return ["-c:v", "h264_nvenc", "-preset", "p4", "-cq", String(crf + 3)]
     case "h264_qsv":
       return ["-c:v", "h264_qsv", "-global_quality", String(crf + 3)]
   }
+}
+
+export function encoderPreference(
+  hardwareEncoding: boolean,
+  configured: "auto" | Encoder
+): "auto" | Encoder {
+  if (!hardwareEncoding) return "libx264"
+  return configured === "libx264" ? "auto" : configured
 }
 
 export function chooseEncoder(
@@ -127,12 +142,14 @@ export function renderArgs({
   seekMs,
   graphFile,
   encoder,
+  crf = 20,
   output,
 }: {
   input: string
   seekMs: number
   graphFile: string
   encoder: Encoder
+  crf?: number
   output: string
 }) {
   return [
@@ -145,7 +162,7 @@ export function renderArgs({
     "[v]",
     "-map",
     "[a]",
-    ...videoEncoderArgs(encoder),
+    ...videoEncoderArgs(encoder, crf),
     "-c:a",
     "aac",
     "-b:a",

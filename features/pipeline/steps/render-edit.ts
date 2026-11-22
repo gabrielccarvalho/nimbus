@@ -14,9 +14,16 @@ import { assetRepository, projectRepository } from "../../projects/repository"
 import { estimateRenderBytes } from "../../render/disk"
 import { editedDuration, keepRanges, remapToEdit } from "../../render/edit"
 import { runFfmpeg } from "../../render/ffmpeg-runner"
-import { chooseEncoder, editGraph, renderArgs } from "../../render/filtergraph"
+import {
+  chooseEncoder,
+  editGraph,
+  encoderPreference,
+  renderArgs,
+} from "../../render/filtergraph"
 import { CAPTION_FONTS_DIR } from "../../render/fonts"
 import { assertDiskSpace } from "../../render/service"
+import { renderQualityCrf } from "../../settings/schema"
+import { getAppSettings } from "../../settings/service"
 import { transcriptRepository } from "../../transcription/repository"
 import { sourceFile, throwIfAborted } from "./common"
 
@@ -96,7 +103,11 @@ export const renderEditStep: JobHandler = async ({
     workKey("graph.txt"),
     editGraph({ keep, subtitles })
   )
-  const encoder = chooseEncoder(env.VIDEO_ENCODER, capabilities.encoders)
+  const settings = getAppSettings(db)
+  const encoder = chooseEncoder(
+    encoderPreference(settings.hardwareEncoding, env.VIDEO_ENCODER),
+    capabilities.encoders
+  )
   const outputKey = storageKeys.edit(project.id, stamp)
   try {
     await runFfmpeg(
@@ -105,6 +116,7 @@ export const renderEditStep: JobHandler = async ({
         seekMs: 0,
         graphFile: storage.resolve(workKey("graph.txt")),
         encoder,
+        crf: renderQualityCrf[settings.renderQuality],
         output: storage.resolve(workKey("mp4")),
       }),
       {

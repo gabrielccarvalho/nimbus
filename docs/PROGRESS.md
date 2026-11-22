@@ -148,8 +148,9 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 
 ### Phase 15: Settings
 
-- [ ] Settings persisted + page
-- [ ] e2e
+- [x] Settings persisted (env defaults, saved values win; ADR-0036) + `/settings` page: language, selector, clip lengths and count, captions, render quality, hardware encoding
+- [x] Render quality and hardware encoding applied in clip and edit renders
+- [x] e2e: save, reload, validation error, axe
 
 ### Phase 16: Hardening
 

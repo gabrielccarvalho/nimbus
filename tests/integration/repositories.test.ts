@@ -218,7 +218,9 @@ describe("settingsRepository", () => {
   it("returns defaults until saved and validates on save", () => {
     const repo = settingsRepository(env.db)
     expect(repo.get()).toEqual(defaultAppSettings)
-    expect(repo.get("anthropic").selectorMode).toBe("anthropic")
+    expect(repo.get({ selectorMode: "anthropic" }).selectorMode).toBe(
+      "anthropic"
+    )
     repo.save({ ...defaultAppSettings, clipMaxMs: 45_000 })
     expect(repo.get().clipMaxMs).toBe(45_000)
     expect(() =>

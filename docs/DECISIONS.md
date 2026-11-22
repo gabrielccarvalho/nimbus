@@ -141,3 +141,7 @@ Context: rendered clips are already H.264/AAC, so deflate saves almost nothing a
 ## ADR-0035: Editing a rendered clip marks it out of date
 
 Context: trims, text and caption edits change the output, but throwing away a good render on every save would be surprising. Decision: saving an edit moves a `rendered` clip back to `approved` and keeps `renderAssetId`; the UI shows "Out of date" and offers "Save and render". Changing the trim clears per-page caption overrides because page indices no longer line up. Consequences: downloads stay available while editing; "Render approved clips" picks up edited clips again.
+
+## ADR-0036: Env sets defaults, Settings override
+
+Context: some options (selector, transcription language, hardware encoding) were env-only, which means editing a file and restarting to change them. Decision: one `settings` row holds app settings; `getAppSettings` fills anything unsaved from env (`HIGHLIGHT_SELECTOR`, `WHISPER_LANGUAGE`, `VIDEO_ENCODER !== "libx264"`). Highlight and caption options are copied into each new project; language, render quality (CRF 26/20/17) and hardware encoding are read when a job runs. `VIDEO_ENCODER` still chooses which hardware encoder "on" means. The unimplemented "verify layout with Claude" flag was dropped from the schema. Consequences: no restart needed; existing projects keep their own highlight and caption settings.

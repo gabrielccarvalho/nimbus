@@ -6,7 +6,6 @@ import { now, type Db } from "@/lib/db"
 import { settings } from "@/lib/db/schema"
 import { logger } from "@/lib/logger"
 
-import type { SelectorMode } from "../projects/schema"
 import {
   appSettingsSchema,
   defaultAppSettings,
@@ -17,15 +16,13 @@ const APP_KEY = "app"
 
 export function settingsRepository(db: Db) {
   return {
-    get(fallbackSelector?: SelectorMode): AppSettings {
+    get(fallbacks: Partial<AppSettings> = {}): AppSettings {
       const row = db
         .select()
         .from(settings)
         .where(eq(settings.key, APP_KEY))
         .get()
-      const defaults = fallbackSelector
-        ? { ...defaultAppSettings, selectorMode: fallbackSelector }
-        : defaultAppSettings
+      const defaults = { ...defaultAppSettings, ...fallbacks }
       if (!row) return defaults
       const parsed = appSettingsSchema.safeParse({
         ...defaults,

@@ -21,6 +21,7 @@ import { estimateRenderBytes } from "../../render/disk"
 import { runFfmpeg } from "../../render/ffmpeg-runner"
 import {
   chooseEncoder,
+  encoderPreference,
   outputFps,
   renderArgs,
   seekFor,
@@ -28,6 +29,8 @@ import {
 } from "../../render/filtergraph"
 import { CAPTION_FONTS_DIR } from "../../render/fonts"
 import { assertDiskSpace } from "../../render/service"
+import { renderQualityCrf } from "../../settings/schema"
+import { getAppSettings } from "../../settings/service"
 import { transcriptRepository } from "../../transcription/repository"
 import { sourceFile, throwIfAborted } from "./common"
 
@@ -109,7 +112,11 @@ export const renderClipStep: JobHandler = async ({
     subtitles,
   })
   await storage.writeBuffer(workKey("graph.txt"), graph)
-  const encoder = chooseEncoder(env.VIDEO_ENCODER, capabilities.encoders)
+  const settings = getAppSettings(db)
+  const encoder = chooseEncoder(
+    encoderPreference(settings.hardwareEncoding, env.VIDEO_ENCODER),
+    capabilities.encoders
+  )
   const outputKey = storageKeys.render(project.id, clip.id, stamp)
   reportProgress(2)
 
@@ -120,6 +127,7 @@ export const renderClipStep: JobHandler = async ({
         seekMs: seekFor(clip.startMs).seekMs,
         graphFile: storage.resolve(workKey("graph.txt")),
         encoder,
+        crf: renderQualityCrf[settings.renderQuality],
         output: storage.resolve(workKey("mp4")),
       }),
       {

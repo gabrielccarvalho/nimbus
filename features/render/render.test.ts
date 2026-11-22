@@ -6,6 +6,8 @@ import { estimateRenderBytes, hasRoomFor } from "./disk"
 import { editedDuration, keepRanges, remapToEdit } from "./edit"
 import {
   chooseEncoder,
+  encoderPreference,
+  videoEncoderArgs,
   editGraph,
   escapeFilterPath,
   outputFps,
@@ -115,6 +117,12 @@ describe("helpers", () => {
     expect(chooseEncoder("libx264", available)).toBe("libx264")
     expect(chooseEncoder("auto", available)).toBe("h264_videotoolbox")
     expect(chooseEncoder("auto", new Set(["libx264"]))).toBe("libx264")
+    expect(encoderPreference(false, "h264_nvenc")).toBe("libx264")
+    expect(encoderPreference(true, "libx264")).toBe("auto")
+    expect(encoderPreference(true, "h264_nvenc")).toBe("h264_nvenc")
+    expect(videoEncoderArgs("libx264", 26)).toContain("26")
+    expect(videoEncoderArgs("h264_videotoolbox", 17)).toContain("70")
+    expect(videoEncoderArgs("h264_videotoolbox", 26)).toContain("55")
   })
 
   it("builds the ffmpeg arguments", () => {
