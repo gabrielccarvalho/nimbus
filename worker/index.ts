@@ -1,3 +1,5 @@
+import "@/lib/load-env"
+
 import os from "node:os"
 
 import { createWorker } from "@/features/jobs/worker-loop"

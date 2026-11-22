@@ -1,3 +1,5 @@
+import "@/lib/load-env"
+
 import { access, constants, mkdir, rm, writeFile } from "node:fs/promises"
 import path from "node:path"
 

@@ -25,7 +25,7 @@ const envSchema = z.object({
     .enum(["anthropic", "manual", "heuristic"])
     .default("heuristic"),
   ANTHROPIC_API_KEY: z.string().min(1).optional(),
-  ANTHROPIC_MODEL: z.string().min(1).default("claude-sonnet-5-5"),
+  ANTHROPIC_MODEL: z.string().min(1).default("claude-opus-5-5"),
   ANTHROPIC_BASE_URL: z.url().optional(),
   MAX_UPLOAD_BYTES: z.coerce
     .number()

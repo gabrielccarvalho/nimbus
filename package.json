@@ -31,6 +31,7 @@
     "@anthropic-ai/sdk": "^1.12.0",
     "@base-ui/react": "^1.9.0",
     "@hookform/resolvers": "^7.0.8",
+    "@next/env": "16.4.6",
     "@phosphor-icons/react": "^2.1.10",
     "better-sqlite3": "^13.2.0",
     "class-variance-authority": "^0.7.1",

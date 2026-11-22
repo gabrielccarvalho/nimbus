@@ -1,39 +1,15 @@
 "use server"
 
-import { revalidatePath } from "next/cache"
-import { z } from "zod"
-
 import { getDb } from "@/lib/db"
-import { AppError, err, ok, type Result } from "@/lib/errors"
-import { logger } from "@/lib/logger"
+import { AppError } from "@/lib/errors"
+import { parseId as parseAnyId, runAction as run } from "@/lib/server-action"
 import { getStorage } from "@/lib/storage"
 
 import { projectRepository } from "./repository"
 import { projectNameSchema } from "./schema"
 import { cancelProject, deleteProject, retryProject } from "./service"
 
-const idSchema = z.string().min(1).max(64)
-
-function parseId(input: unknown) {
-  const parsed = idSchema.safeParse(input)
-  if (!parsed.success) throw new AppError("VALIDATION", "Invalid project id")
-  return parsed.data
-}
-
-async function run<T>(
-  name: string,
-  fn: () => T | Promise<T>,
-  paths: string[]
-): Promise<Result<T>> {
-  try {
-    const value = await fn()
-    for (const path of paths) revalidatePath(path, "layout")
-    return ok(value)
-  } catch (error) {
-    logger.warn({ err: error, action: name }, "action failed")
-    return err(error)
-  }
-}
+const parseId = (input: unknown) => parseAnyId(input, "project id")
 
 export async function deleteProjectAction(projectId: unknown) {
   return run(

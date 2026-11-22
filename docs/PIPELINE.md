@@ -59,9 +59,10 @@ Speech density is computed from transcript words (words per second, 10 s window,
 
 The configured HighlightSelector returns raw candidates. Shared post-processing (`features/highlights/postprocess.ts`) snaps, bounds, de-overlaps and sorts them (rules in BUSINESS_LOGIC). Clips are inserted with status `candidate`.
 
-- **anthropic**: Messages API, forced tool use with a JSON schema; response validated with zod. One repair turn on failure, then HeuristicSelector.
-- **manual**: the step finishes with zero candidates and sets `awaitingManualSelection`; the UI shows the prompt and accepts pasted JSON.
-- **heuristic**: pure scoring over signals and transcript.
+- **anthropic** (`features/highlights/anthropic.ts`): Messages API with structured outputs (`output_config.format` from the zod schema), `effort: "high"`, server-side refusal fallbacks (`fallbacks: "default"`). `stop_reason` is checked before parsing. An unparseable or truncated reply gets one repair turn; a refusal, API error or second bad reply falls back to HeuristicSelector, and each clip's reason starts with "Claude unavailable (…)" so the editor can see it.
+- The prompt (`features/highlights/prompt.ts`) contains the timestamped transcript, the 15 loudest 250 ms buckets, silences and the length/count limits. Manual mode shows the same prompt plus a JSON reply format.
+- **manual**: the step finishes with zero candidates and sets `awaitingManualSelection`; the Clips page shows the prompt and accepts pasted JSON (prose around the JSON is ignored), which goes through the same post-processing.
+- **heuristic** (`features/highlights/heuristic.ts`): windows anchored at every sentence start and every 5 s, at the minimum length and at the midpoint of min/max. Loudness is the 90th percentile of normalized loudness in the window; density is words per second; keywords count hype phrases; question/answer is 1 when a question is followed by a non-question.
 
 ## 5. layout (`awaiting_layout → ready_for_review`)
 

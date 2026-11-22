@@ -56,7 +56,7 @@ Decision: whisper.cpp CLI with full JSON output for word timestamps. Consequence
 
 ## ADR-0014: Three highlight selectors
 
-Decision: Anthropic (structured tool output, model from `ANTHROPIC_MODEL`, default `claude-sonnet-5-5`), Manual (copy prompt, paste JSON) and Heuristic (no LLM). Shared post-processing enforces the hard rules for all three. Consequences: works offline; LLM output can never bypass the rules.
+Decision: Anthropic (structured tool output, model from `ANTHROPIC_MODEL`, default `claude-opus-5-5`), Manual (copy prompt, paste JSON) and Heuristic (no LLM). Shared post-processing enforces the hard rules for all three. Consequences: works offline; LLM output can never bypass the rules.
 
 ## ADR-0015: Cache Components off; per-request reads via `connection()`
 
@@ -101,3 +101,19 @@ Context: pnpm 11 ships a built-in `pnpm doctor` that shadows the package script.
 ## ADR-0025: E2E against a production build on port 3217
 
 Context: port 3100 was taken locally; dev-mode compilation makes e2e timing flaky. Decision: Playwright builds and starts Next on `E2E_PORT` (default 3217) and starts the worker as a second webServer, both with a fresh temp `DATA_DIR` per run. Consequences: e2e runs take a build (~30 s) but behave like production.
+
+## ADR-0026: Structured outputs, not forced tool use, for Claude selection
+
+Context: current Claude models reject forced `tool_choice` (`any`/`tool`) with a 400, and `messages.parse()` throws on an unparseable reply before `stop_reason` can be checked. Decision: call `beta.messages.create` with `output_config.format = betaZodOutputFormat(schema)`, check `stop_reason` first (refusal → heuristic fallback, `max_tokens` → repair turn), then validate with the format's own `parse()`. Default model `claude-opus-5-5` at effort `high`, with `fallbacks: "default"` (beta `server-side-fallback-2026-07-01`) so a classifier refusal is retried on another model server-side. Consequences: one code path for validation; the heuristic always produces a result.
+
+## ADR-0027: Worker and scripts load env files like Next
+
+Context: Next loads `.env*` files, but the worker (`tsx worker/index.ts`) and `pnpm run doctor` didn't, so `.env.local` settings such as `FFMPEG_PATH` or `ANTHROPIC_API_KEY` reached the web app but not the process that uses them. Decision: `lib/load-env.ts` calls `@next/env`'s `loadEnvConfig` (pinned to the installed Next version) as the first import of every Node entrypoint. Consequences: identical precedence in web and worker; variables already set in the process (e.g. by Playwright) still win.
+
+## ADR-0028: ffmpeg-full for libass
+
+Context: Homebrew's `ffmpeg` has no libass, so captions can't be burned in (Blocker B1). Decision: use the keg-only `ffmpeg-full` formula via `FFMPEG_PATH`/`FFPROBE_PATH` in `.env.local`; the system `ffmpeg` is untouched. Consequences: `pnpm run doctor` fails the libass check if the paths are missing, and the README documents the setup.
+
+## ADR-0029: Blocking metadata
+
+Context: Next 16 streams `generateMetadata` output into `<body>` after the first paint, so dynamic pages briefly have no `<title>` (caught by axe as an intermittent `document-title` violation). Screen readers announce the title on load. Decision: `htmlLimitedBots: /.*/` makes metadata blocking for every request. Consequences: slightly later first byte; irrelevant here because metadata is a local SQLite read.

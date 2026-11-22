@@ -7,6 +7,7 @@ import { getDb, type Db } from "@/lib/db"
 import { normalizeLoudness } from "../analysis/loudness"
 import { signalsRepository } from "../analysis/repository"
 import { clipRepository } from "../clips/repository"
+import { buildManualPrompt } from "../highlights/prompt"
 import { jobQueue } from "../jobs/queue"
 import { layoutRepository } from "../layout/repository"
 import { getProjectSnapshot } from "../pipeline/snapshot"
@@ -77,5 +78,44 @@ export async function getProjectTranscript(id: string) {
     source: assets.find((a) => a.kind === "source"),
     transcript: transcriptRepository(db).get(id),
     audio: audioSummary(db, id),
+  }
+}
+
+export async function getProjectClips(id: string) {
+  await connection()
+  const db = getDb()
+  const project = projectRepository(db).get(id)
+  if (!project) return undefined
+  const assets = assetRepository(db).listForProject(id)
+  const source = assets.find((a) => a.kind === "source")
+  const durationMs = source?.durationMs ?? 0
+  const clips = clipRepository(db).listForProject(id)
+  let manualPrompt: string | undefined
+  if (project.awaitingManualSelection) {
+    const transcript = transcriptRepository(db).get(id)
+    const signals = signalsRepository(db).get(id)
+    manualPrompt = buildManualPrompt({
+      durationMs,
+      segments: transcript?.segments ?? [],
+      signals: signals ?? {
+        silences: [],
+        loudness: [],
+        loudnessIntervalMs: 250,
+        speechDensity: [],
+      },
+      limits: {
+        minMs: project.settings.clipMinMs,
+        maxMs: project.settings.clipMaxMs,
+        maxCount: project.settings.targetClipCount,
+      },
+    })
+  }
+  return {
+    project,
+    clips,
+    durationMs,
+    video: assets.find((a) => a.kind === "proxy") ?? source,
+    audio: audioSummary(db, id),
+    manualPrompt,
   }
 }

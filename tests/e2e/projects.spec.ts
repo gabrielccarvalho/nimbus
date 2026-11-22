@@ -19,12 +19,10 @@ test("upload a recording and see it probed", async ({ page }) => {
   ).toBeVisible()
   await expectNoSeriousA11yViolations(page)
 
+  const projectPath = new URL(page.url()).pathname
   await page.getByRole("link", { name: "Projects" }).first().click()
-  await expect(
-    page
-      .getByRole("main")
-      .getByRole("link", { name: path.basename(fixtures.wide, ".mp4") })
-  ).toBeVisible()
+  const card = page.getByRole("main").locator(`a[href="${projectPath}"]`)
+  await expect(card).toHaveText(path.basename(fixtures.wide, ".mp4"))
   await expectNoSeriousA11yViolations(page)
 })
 

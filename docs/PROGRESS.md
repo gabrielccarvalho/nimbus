@@ -24,8 +24,9 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 
 ## Blockers
 
-- **B1, libass missing from ffmpeg.** The Homebrew ffmpeg 9.0.1 build has no `ass`/`subtitles` filter, so captions can't be burned in on this machine. ASS generation and filtergraph building are still fully implemented and golden-tested. Render integration tests that need burn-in skip when `pnpm run doctor` reports no libass. Fix: install an ffmpeg with libass (e.g. `brew tap homebrew-ffmpeg/ffmpeg && brew install homebrew-ffmpeg/ffmpeg/ffmpeg`, which enables libass by default, or a static build) and point `FFMPEG_PATH` at it.
-- **B2, whisper.cpp missing.** No binary or model. The app runs with `TRANSCRIBER=fake`; the `@heavy` test skips. Fix: `brew install whisper-cpp` and download a model (see README), then set `WHISPER_BIN` and `WHISPER_MODEL`.
+- ~~B1, libass missing from ffmpeg~~ Resolved 2026-11-22: `ffmpeg-full` 9.0.2 installed (keg-only) and set via `FFMPEG_PATH`/`FFPROBE_PATH` in `.env.local` (ADR-0028).
+- ~~B2, whisper.cpp missing~~ Resolved 2026-11-22: `whisper-cpp` 1.9.5 and `models/ggml-base.en.bin` installed; the heavy test passes.
+- **B3, no Anthropic credentials.** No `ANTHROPIC_API_KEY` or `ant` profile on this machine, so the Claude selector is verified only against a mocked API (MSW). Set the key in `.env.local` to use it; without it, a project set to `anthropic` falls back to the heuristic and says so in each clip's reason.
 
 ## Phases
 
@@ -112,10 +113,10 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 
 ### Phase 10: Highlight selection
 
-- [ ] Post-processing (snap, bounds, overlap, sort)
-- [ ] Anthropic, Manual and Heuristic selectors
-- [ ] Clips page
-- [ ] Tests (MSW, heuristic, e2e)
+- [x] Post-processing (snap, bounds, overlap, sort)
+- [x] Anthropic, Manual and Heuristic selectors
+- [x] Clips page
+- [x] Tests (MSW, heuristic, e2e)
 
 ### Phase 11: Webcam detection and layout editor
 
