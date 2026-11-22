@@ -42,14 +42,14 @@ flowchart LR
 
 ## Request vs worker boundary
 
-| Runs in a request (Next) | Runs in the worker |
-| --- | --- |
+| Runs in a request (Next)             | Runs in the worker                             |
+| ------------------------------------ | ---------------------------------------------- |
 | Reading projects, clips, transcripts | ffprobe, audio extraction, thumbnails, proxies |
-| Validating and persisting user edits | whisper.cpp transcription |
-| Enqueuing jobs | silencedetect / ebur128 analysis |
-| Streaming uploads to disk | Highlight selection (LLM or heuristic) |
-| Serving media with Range | Rendering clips and the horizontal edit |
-| Streaming job progress over SSE | Orphan sweeping, temp cleanup |
+| Validating and persisting user edits | whisper.cpp transcription                      |
+| Enqueuing jobs                       | silencedetect / ebur128 analysis               |
+| Streaming uploads to disk            | Highlight selection (LLM or heuristic)         |
+| Serving media with Range             | Rendering clips and the horizontal edit        |
+| Streaming job progress over SSE      | Orphan sweeping, temp cleanup                  |
 
 A request never waits on ffmpeg, whisper or an LLM call. Mutations that kick off work insert a row into `jobs` and return. The one exception is the Manual LLM selector, where the user pastes JSON that is validated and post-processed synchronously (pure code, milliseconds).
 
@@ -97,7 +97,7 @@ tests/               integration, contracts, e2e, fixtures, utils
 docs/
 ```
 
-Import direction: `app → components → features → lib`. `features` never imports `app` or `components`. `lib` never imports `features`.
+Import direction: `app → components → features → lib`. `features` never imports `app` or `components`. `lib` never imports runtime code from `features`; the one exception is `lib/db/schema.ts`, which imports domain _types_ (`import type`) for JSON columns.
 
 ## Adapter interfaces
 
@@ -105,8 +105,12 @@ All external capabilities sit behind interfaces so tests can swap them and the s
 
 ```ts
 interface StorageAdapter {
-  resolve(key: string): string              // absolute path inside DATA_DIR, throws on traversal
-  writeStream(key: string, body: Readable, opts?: { maxBytes?: number }): Promise<{ bytes: number }>
+  resolve(key: string): string // absolute path inside DATA_DIR, throws on traversal
+  writeStream(
+    key: string,
+    body: Readable,
+    opts?: { maxBytes?: number }
+  ): Promise<{ bytes: number }>
   stat(key: string): Promise<{ bytes: number } | null>
   readStream(key: string, range?: { start: number; end: number }): Readable
   remove(key: string): Promise<void>
@@ -115,13 +119,17 @@ interface StorageAdapter {
 
 interface Transcriber {
   readonly id: string
-  transcribe(input: { audioPath: string; language?: string; signal?: AbortSignal;
-                      onProgress?: (pct: number) => void }): Promise<RawTranscript>
+  transcribe(input: {
+    audioPath: string
+    language?: string
+    signal?: AbortSignal
+    onProgress?: (pct: number) => void
+  }): Promise<RawTranscript>
 }
 
 interface HighlightSelector {
   readonly id: "anthropic" | "manual" | "heuristic"
-  select(input: SelectionInput): Promise<HighlightCandidate[]>  // raw; post-processing is shared
+  select(input: SelectionInput): Promise<HighlightCandidate[]> // raw; post-processing is shared
 }
 ```
 

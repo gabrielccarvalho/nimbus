@@ -60,11 +60,11 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 
 ### Phase 3: Data layer and domain core
 
-- [ ] Drizzle schema + migrations + db singleton (WAL, FKs)
-- [ ] Repositories
-- [ ] Pipeline state machine + exhaustive tests
-- [ ] Shared zod schemas
-- [ ] Result / AppError
+- [x] Drizzle schema + migrations + db singleton (WAL, FKs)
+- [x] Repositories
+- [x] Pipeline state machine + exhaustive tests
+- [x] Shared zod schemas
+- [x] Result / AppError
 
 ### Phase 4: Storage, upload, media
 
