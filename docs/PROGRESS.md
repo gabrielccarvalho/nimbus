@@ -92,10 +92,10 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 
 ### Phase 7: Projects flow
 
-- [ ] Dashboard (upload, list, delete)
-- [ ] Probe step (ffprobe, aspect, thumbnail, proxy)
-- [ ] Project overview + PipelineStepper + SSE
-- [ ] e2e
+- [x] Dashboard (upload, list, delete)
+- [x] Probe step (ffprobe, aspect, thumbnail, proxy)
+- [x] Project overview + PipelineStepper + SSE
+- [x] e2e
 
 ### Phase 8: Transcription
 
