@@ -163,5 +163,12 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 
 ### Phase 17: Final QA
 
-- [ ] Clean-clone run via README
-- [ ] Docs match reality, final summary
+- [x] Clean-clone run via README (2026-11-22): `pnpm install --frozen-lockfile`, `.env.local` from `.env.example` plus the `ffmpeg-full` paths, `db:migrate`, `setup:vision`, `doctor` all green except the expected missing Anthropic key; lint, typecheck, 320/320 tests, heavy whisper test and 17/17 e2e pass. The README now documents `ffmpeg-full` (what was actually verified) instead of the homebrew-ffmpeg tap.
+- [x] Real run through the production build with whisper.cpp `base.en`, libass and the Claude selector on speech versions of both fixtures (macOS `say` over the fixture video): transcript word-accurate, webcam found (16:9 at 66%, 21:9 at 90%, border heuristic only since the fixtures have no face), Claude picked and titled a clip, renders are 1080×1920 with audio and burned-in captions, per-clip download and zip export work. Found and fixed nested `<main>` landmarks on the way; axe now enforces landmark rules.
+- [x] Docs match reality
+
+### Not verified
+
+- MediaPipe face detection on a real face (fixtures have none; the code path is unit tested and the model loads in e2e).
+- Real recordings longer than the 20 s fixtures, and hardware encoders other than VideoToolbox.
+- Linux and Windows.

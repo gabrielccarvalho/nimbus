@@ -3,12 +3,15 @@ import { expect, type Page } from "@playwright/test"
 
 export async function expectNoSeriousA11yViolations(page: Page) {
   const results = await new AxeBuilder({ page })
-    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "best-practice"])
     // Stacked toasts behind the front one are deliberately dimmed and covered.
     .exclude('[data-sonner-toast][data-front="false"]')
     .analyze()
   const serious = results.violations.filter(
-    (v) => v.impact === "serious" || v.impact === "critical"
+    (v) =>
+      v.impact === "serious" ||
+      v.impact === "critical" ||
+      v.id.startsWith("landmark-")
   )
   expect(
     serious.map(

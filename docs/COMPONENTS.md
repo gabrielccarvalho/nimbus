@@ -141,3 +141,4 @@ A movable, resizable rectangle over an image or video, in normalized 0–1 frame
 ## Modified generated files
 
 - `hooks/use-mobile.ts`: rewritten with `useSyncExternalStore`. The generated version set state inside an effect, which fails the React Compiler lint rule `react-hooks/set-state-in-effect`. Same API (`useIsMobile(): boolean`).
+- `components/ui/sidebar.tsx`: `SidebarInset` renders a `div` instead of `main`. The app shell puts the header and its own `<main id="main">` (the skip-link target) inside the inset, and a `main` inset made two nested main landmarks.

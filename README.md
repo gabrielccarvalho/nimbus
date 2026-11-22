@@ -16,12 +16,18 @@ Homebrew's default `ffmpeg` formula may ship without libass, which is needed to 
 ffmpeg -hide_banner -filters | grep " ass "
 ```
 
-If nothing prints, install the tap build (libass enabled by default) and point the app at it:
+If nothing prints, install `ffmpeg-full` (keg-only, so it doesn't replace `ffmpeg`) and point the app at it in `.env.local`:
 
 ```sh
-brew tap homebrew-ffmpeg/ffmpeg
-brew install homebrew-ffmpeg/ffmpeg/ffmpeg
+brew install ffmpeg-full
 ```
+
+```sh
+FFMPEG_PATH=/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg
+FFPROBE_PATH=/opt/homebrew/opt/ffmpeg-full/bin/ffprobe
+```
+
+Put the same two lines in `.env.test.local` so the caption tests run against it too (tests never read `.env.local`).
 
 On Debian/Ubuntu, `apt-get install ffmpeg` includes libass.
 
