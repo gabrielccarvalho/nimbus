@@ -10,6 +10,15 @@ import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
+  VideoPlayer,
+  VideoPlayerControls,
+  VideoPlayerMuteButton,
+  VideoPlayerPlayButton,
+  VideoPlayerSeekBar,
+  VideoPlayerTime,
+  VideoPlayerVideo,
+} from "@/components/ui/video-player"
+import {
   Dropzone,
   DropzoneDescription,
   DropzoneIcon,
@@ -99,6 +108,26 @@ export function ComponentGallery() {
             </StatCard>
           </StatCardGroup>
         ))}
+      </Section>
+
+      <Section title="VideoPlayer">
+        <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
+          {(["video", "vertical"] as const).map((aspect) => (
+            <VideoPlayer
+              key={aspect}
+              aspect={aspect}
+              aria-label={`${aspect} player`}
+            >
+              <VideoPlayerVideo />
+              <VideoPlayerControls>
+                <VideoPlayerPlayButton />
+                <VideoPlayerSeekBar />
+                <VideoPlayerTime />
+                <VideoPlayerMuteButton />
+              </VideoPlayerControls>
+            </VideoPlayer>
+          ))}
+        </div>
       </Section>
 
       <Section title="EmptyState (shadcn Empty)">

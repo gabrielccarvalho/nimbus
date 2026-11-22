@@ -8,6 +8,7 @@ import { clipRepository } from "../clips/repository"
 import { jobQueue } from "../jobs/queue"
 import { layoutRepository } from "../layout/repository"
 import { getProjectSnapshot } from "../pipeline/snapshot"
+import { transcriptRepository } from "../transcription/repository"
 import { assetRepository, projectRepository } from "./repository"
 
 export async function listProjects() {
@@ -48,3 +49,17 @@ export async function getProjectOverview(id: string) {
 export type ProjectOverview = NonNullable<
   Awaited<ReturnType<typeof getProjectOverview>>
 >
+
+export async function getProjectTranscript(id: string) {
+  await connection()
+  const db = getDb()
+  const project = projectRepository(db).get(id)
+  if (!project) return undefined
+  const assets = assetRepository(db).listForProject(id)
+  return {
+    project,
+    proxy: assets.find((a) => a.kind === "proxy"),
+    source: assets.find((a) => a.kind === "source"),
+    transcript: transcriptRepository(db).get(id),
+  }
+}

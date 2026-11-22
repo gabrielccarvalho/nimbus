@@ -79,7 +79,8 @@ stateDiagram-v2
   3. Merge whisper sub-word tokens that don't start with a space into the previous word.
   4. Sort by `startMs`, clamp `endMs ≥ startMs`.
   5. Fix overlaps: if `word[i].startMs < word[i-1].endMs`, set `word[i-1].endMs = word[i].startMs`.
-  6. Confidence clamped to `[0, 1]`.
+  6. Confidence clamped to `[0, 1]` (missing → 1, non-numeric → 0). A merged word's confidence is the mean of its parts.
+  7. Tokens with non-finite times are dropped; negative times clamp to 0. Words starting at or after the media duration are dropped.
 - Segments: split on sentence-final punctuation (`.` `?` `!` `…`) or on gaps ≥ 1000 ms.
 
 ### Analysis

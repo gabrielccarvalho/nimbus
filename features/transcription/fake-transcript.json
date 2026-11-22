@@ -1,0 +1,23 @@
+{
+  "language": "en",
+  "durationMs": 20000,
+  "sentences": [
+    {
+      "startMs": 200,
+      "endMs": 3800,
+      "text": "Okay chat, we are finally on the last boss."
+    },
+    { "startMs": 6100, "endMs": 8300, "text": "Wait, what is he doing?" },
+    {
+      "startMs": 8500,
+      "endMs": 11800,
+      "text": "No way! That was insane, did you see that?"
+    },
+    { "startMs": 13600, "endMs": 16200, "text": "Yes, we actually did it." },
+    {
+      "startMs": 16400,
+      "endMs": 19700,
+      "text": "Let's go! Hit subscribe if you laughed."
+    }
+  ]
+}

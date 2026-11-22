@@ -8,9 +8,11 @@ import type { Job } from "../jobs/queue"
 import type { JobHandlers } from "../jobs/worker-loop"
 import { projectRepository } from "../projects/repository"
 import { probeStep } from "./steps/probe"
+import { transcribeStep } from "./steps/transcribe"
 
 export const pipelineHandlers: JobHandlers = {
   probe: probeStep,
+  transcribe: transcribeStep,
 }
 
 const MINUTE = 60_000

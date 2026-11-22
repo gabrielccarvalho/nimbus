@@ -57,6 +57,31 @@ File drop target that also opens the native picker.
 - State: `data-dragging` on the root for styling. It holds no value state, so there's no controlled/uncontrolled API; the caller owns what happens to accepted files.
 - A11y: focusable, Enter/Space open the picker, `aria-disabled` + `tabIndex=-1` when disabled, constraints read via the description.
 
+### VideoPlayer (`components/ui/video-player.tsx`)
+
+Composable `<video>` player with frame-accurate time for transcript and caption sync.
+
+- Parts: `VideoPlayerProvider` (state only), `VideoPlayer` (focusable `role="group"` frame; creates its own provider when none is above it), `VideoPlayerVideo`, `VideoPlayerControls`, `VideoPlayerPlayButton`, `VideoPlayerSeekBar` (shadcn `Slider`, in seconds so `aria-valuetext` reads "12.4 sec"), `VideoPlayerTime`, `VideoPlayerMuteButton`. `useVideoPlayer()` exposes `{ currentMs, durationMs, paused, muted, play, pause, toggle, seek, setMuted }`.
+- Props: `aspect` = `video` | `vertical` | `auto`, `muted` / `defaultMuted` / `onMutedChange` (controlled or uncontrolled), `onTimeUpdate(ms)`.
+- State: playback time belongs to the media element, so it's read-only from outside: observe it with `onTimeUpdate` and drive it with `seek()`. While playing, time is sampled every animation frame (`timeupdate` alone fires only ~4×/s, too coarse for word highlighting).
+- Keyboard (frame focused): Space/K play-pause, ←/→ ±1 s (Shift ±5 s), J/L ±5 s, M mute.
+- Put the provider above the player when siblings need the same state, e.g. the transcript list:
+
+```tsx
+<VideoPlayerProvider>
+  <VideoPlayer aria-label="Source video">
+    <VideoPlayerVideo src={src} />
+    <VideoPlayerControls>
+      <VideoPlayerPlayButton />
+      <VideoPlayerSeekBar />
+      <VideoPlayerTime />
+      <VideoPlayerMuteButton />
+    </VideoPlayerControls>
+  </VideoPlayer>
+  <TranscriptPanel />
+</VideoPlayerProvider>
+```
+
 ## Modified generated files
 
 - `hooks/use-mobile.ts`: rewritten with `useSyncExternalStore`. The generated version set state inside an effect, which fails the React Compiler lint rule `react-hooks/set-state-in-effect`. Same API (`useIsMobile(): boolean`).

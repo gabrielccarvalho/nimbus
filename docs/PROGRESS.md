@@ -98,11 +98,11 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 
 ### Phase 8: Transcription
 
-- [ ] Transcriber interface, WhisperCpp, Fake
-- [ ] Audio extraction
-- [ ] VideoPlayer
-- [ ] Transcript page
-- [ ] Tests (contract, normalize, heavy, e2e)
+- [x] Transcriber interface, WhisperCpp, Fake
+- [x] Audio extraction
+- [x] VideoPlayer
+- [x] Transcript page
+- [x] Tests (contract, normalize, heavy, e2e)
 
 ### Phase 9: Audio analysis
 
