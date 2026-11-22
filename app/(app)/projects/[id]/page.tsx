@@ -8,6 +8,7 @@ import type { Metadata } from "next"
 import Image from "next/image"
 import { notFound } from "next/navigation"
 
+import { AudioOverview } from "@/components/projects/audio-timeline"
 import { ProjectActions } from "@/components/projects/project-actions"
 import { ProjectLive } from "@/components/projects/project-live"
 import {
@@ -33,7 +34,8 @@ export default async function ProjectOverviewPage({
   const { id } = await params
   const overview = await getProjectOverview(id)
   if (!overview) notFound()
-  const { project, source, thumbnail, layout, clips, snapshot } = overview
+  const { project, source, thumbnail, layout, clips, snapshot, audio } =
+    overview
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
@@ -96,6 +98,9 @@ export default async function ProjectOverviewPage({
             </StatCardValue>
           </StatCard>
         </StatCardGroup>
+        {audio && source?.durationMs ? (
+          <AudioOverview audio={audio} durationMs={source.durationMs} />
+        ) : null}
       </div>
       <aside className="flex flex-col gap-4">
         <div className="relative aspect-video overflow-hidden rounded-xl bg-muted ring-1 ring-foreground/10">

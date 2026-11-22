@@ -51,7 +51,7 @@ ffmpeg -i <audio.wav> -af silencedetect=noise=-35dB:d=0.5,ebur128=metadata=0 -f 
 Both filters log to stderr. Pure parsers (`features/analysis/silence.ts`, `loudness.ts`) read:
 
 - `silence_start: 12.345` / `silence_end: 14.5 | silence_duration: 2.155`. An unmatched trailing `silence_start` closes at media duration.
-- ebur128 lines `t: 1.2  TARGET:-23 LUFS  M: -18.4 S: -20.1 ...`. Momentary loudness (`M`) is bucketed to 250 ms (max within bucket). `-inf` → −70.
+- ebur128 lines `t: 1.2  TARGET:-23 LUFS  M: -18.4 S: -20.1 ...`. Momentary loudness (`M`) is bucketed to 250 ms (max within bucket). `-inf`, `nan` and anything below −70 (ffmpeg reports about −120 for digital silence) clamp to −70. The UI and scoring use `normalizeLoudness`: audible buckets scaled 0–1 between the quietest and loudest audible values, floor → 0.
 
 Speech density is computed from transcript words (words per second, 10 s window, 5 s step).
 

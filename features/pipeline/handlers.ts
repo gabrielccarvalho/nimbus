@@ -7,12 +7,14 @@ import { clipRepository } from "../clips/repository"
 import type { Job } from "../jobs/queue"
 import type { JobHandlers } from "../jobs/worker-loop"
 import { projectRepository } from "../projects/repository"
+import { analyzeStep } from "./steps/analyze"
 import { probeStep } from "./steps/probe"
 import { transcribeStep } from "./steps/transcribe"
 
 export const pipelineHandlers: JobHandlers = {
   probe: probeStep,
   transcribe: transcribeStep,
+  analyze: analyzeStep,
 }
 
 const MINUTE = 60_000

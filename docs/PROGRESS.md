@@ -106,9 +106,9 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 
 ### Phase 9: Audio analysis
 
-- [ ] silencedetect + ebur128 parsers, speech density
-- [ ] Signals stored, Timeline loudness strip
-- [ ] Tests
+- [x] silencedetect + ebur128 parsers, speech density
+- [x] Signals stored, Timeline loudness strip
+- [x] Tests
 
 ### Phase 10: Highlight selection
 

@@ -8,8 +8,16 @@ test("shows a synced, searchable transcript", async ({ page }) => {
   await page.locator("input[type=file]").setInputFiles(fixtures.wide)
   await expect(page).toHaveURL(/\/projects\/[\w-]+$/, { timeout: 30_000 })
   await expect(
-    page.getByRole("listitem").filter({ hasText: "Transcribe, completed" })
+    page.getByRole("listitem").filter({ hasText: "Analyze, completed" })
   ).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByTestId("audio-summary")).toHaveText(
+    "2 silences · 17% silent"
+  )
+  await expect(
+    page.getByRole("img", {
+      name: /Loudness over time with 2 silent stretches/,
+    })
+  ).toBeVisible()
 
   await page.getByRole("link", { name: "Transcript" }).click()
   await expect(page.getByText("Wait, what is he doing?")).toBeVisible()
@@ -18,6 +26,12 @@ test("shows a synced, searchable transcript", async ({ page }) => {
   await page.getByRole("button", { name: "Play from 0:08.5" }).click()
   const slider = page.getByRole("slider", { name: "Seek" })
   await expect(slider).toHaveAttribute("aria-valuenow", "8.5")
+  const timeline = page.getByRole("slider", { name: "Timeline" })
+  await expect(timeline).toHaveAttribute("aria-valuenow", "8500")
+  await timeline.focus()
+  await page.keyboard.press("Shift+ArrowRight")
+  await expect(slider).toHaveAttribute("aria-valuenow", "18.5")
+  await page.getByRole("button", { name: "Play from 0:08.5" }).click()
   await expect(page.locator("[data-segment][data-active]")).toHaveText(
     /No way!/
   )

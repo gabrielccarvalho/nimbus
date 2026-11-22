@@ -82,6 +82,28 @@ Composable `<video>` player with frame-accurate time for transcript and caption 
 </VideoPlayerProvider>
 ```
 
+### Timeline (`components/ui/timeline.tsx`)
+
+Horizontal time strip for a whole recording: loudness, silences, clip ranges and a playhead.
+
+- Parts: `Timeline` (root), `TimelineLoudness` (SVG area from normalized 0–1 values), `TimelineRange` (`variant` = `silence` | `clip` | `selected`, positioned by `startMs`/`endMs`), `TimelinePlayhead`. `useTimeline()` exposes `{ durationMs, value, toPercent }`.
+- Props: `durationMs`, `value` / `defaultValue` / `onValueChange` (ms, controlled or uncontrolled), `step` (default 1000 ms), `readOnly`.
+- A11y: interactive timelines are a `role="slider"` with `aria-valuetext` like "0:08 of 1:00". ←/→/↑/↓ move by `step` (Shift ×10), PageUp/PageDown ×10, Home/End jump to the ends. Pointer down/drag seeks. `readOnly` renders `role="img"`, so give it an `aria-label` that states what it shows.
+- Pair it with `VideoPlayerProvider` to sync with playback: `value={currentMs} onValueChange={seek}`.
+
+```tsx
+<Timeline
+  aria-label="Timeline"
+  durationMs={durationMs}
+  value={currentMs}
+  onValueChange={seek}
+>
+  <TimelineLoudness values={loudness} />
+  <TimelineRange variant="silence" startMs={4000} endMs={6000} />
+  <TimelinePlayhead />
+</Timeline>
+```
+
 ## Modified generated files
 
 - `hooks/use-mobile.ts`: rewritten with `useSyncExternalStore`. The generated version set state inside an effect, which fails the React Compiler lint rule `react-hooks/set-state-in-effect`. Same API (`useIsMobile(): boolean`).

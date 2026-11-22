@@ -3,6 +3,8 @@
 import { MagnifyingGlassIcon } from "@phosphor-icons/react"
 import * as React from "react"
 
+import { AudioTimelineLayers } from "./audio-timeline"
+
 import {
   InputGroup,
   InputGroupAddon,
@@ -10,6 +12,7 @@ import {
 } from "@/components/ui/input-group"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { Timeline, TimelinePlayhead } from "@/components/ui/timeline"
 import {
   useVideoPlayer,
   VideoPlayer,
@@ -21,6 +24,7 @@ import {
   VideoPlayerTime,
   VideoPlayerVideo,
 } from "@/components/ui/video-player"
+import type { AudioSummary } from "@/features/projects/queries"
 import { findActiveIndex } from "@/features/transcription/lookup"
 import type { Segment, Word } from "@/features/transcription/schema"
 import { formatTimestamp } from "@/lib/format"
@@ -29,34 +33,59 @@ import { cn } from "@/lib/utils"
 type TranscriptViewProps = {
   src: string
   poster?: string
+  durationMs: number
   words: Word[]
   segments: Segment[]
+  audio?: AudioSummary
 }
 
 export function TranscriptView({
   src,
   poster,
+  durationMs,
   words,
   segments,
+  audio,
 }: TranscriptViewProps) {
   return (
     <VideoPlayerProvider>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
-        <VideoPlayer
-          aria-label="Source video"
-          className="min-w-0 lg:sticky lg:top-4 lg:self-start"
-        >
-          <VideoPlayerVideo src={src} poster={poster} />
-          <VideoPlayerControls>
-            <VideoPlayerPlayButton />
-            <VideoPlayerSeekBar />
-            <VideoPlayerTime />
-            <VideoPlayerMuteButton />
-          </VideoPlayerControls>
-        </VideoPlayer>
+        <div className="flex min-w-0 flex-col gap-3 lg:sticky lg:top-4 lg:self-start">
+          <VideoPlayer aria-label="Source video">
+            <VideoPlayerVideo src={src} poster={poster} />
+            <VideoPlayerControls>
+              <VideoPlayerPlayButton />
+              <VideoPlayerSeekBar />
+              <VideoPlayerTime />
+              <VideoPlayerMuteButton />
+            </VideoPlayerControls>
+          </VideoPlayer>
+          {audio && <PlayerTimeline durationMs={durationMs} audio={audio} />}
+        </div>
         <TranscriptPanel words={words} segments={segments} />
       </div>
     </VideoPlayerProvider>
+  )
+}
+
+function PlayerTimeline({
+  durationMs,
+  audio,
+}: {
+  durationMs: number
+  audio: AudioSummary
+}) {
+  const { currentMs, seek } = useVideoPlayer()
+  return (
+    <Timeline
+      aria-label="Timeline"
+      durationMs={durationMs}
+      value={currentMs}
+      onValueChange={seek}
+    >
+      <AudioTimelineLayers audio={audio} />
+      <TimelinePlayhead />
+    </Timeline>
   )
 }
 

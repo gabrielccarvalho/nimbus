@@ -10,6 +10,12 @@ import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
+  Timeline,
+  TimelineLoudness,
+  TimelinePlayhead,
+  TimelineRange,
+} from "@/components/ui/timeline"
+import {
   VideoPlayer,
   VideoPlayerControls,
   VideoPlayerMuteButton,
@@ -39,6 +45,12 @@ import {
   StatCardLabel,
   StatCardValue,
 } from "@/components/ui/stat-card"
+
+const SAMPLE_LOUDNESS = Array.from({ length: 240 }, (_, i) =>
+  i >= 80 && i < 104
+    ? 0
+    : 0.35 + 0.3 * Math.abs(Math.sin(i / 7)) + (i % 11) / 40
+)
 
 function Section({
   title,
@@ -127,6 +139,31 @@ export function ComponentGallery() {
               </VideoPlayerControls>
             </VideoPlayer>
           ))}
+        </div>
+      </Section>
+
+      <Section title="Timeline">
+        <div className="flex flex-col gap-3">
+          <Timeline
+            aria-label="Interactive timeline"
+            durationMs={60_000}
+            defaultValue={15_000}
+          >
+            <TimelineLoudness values={SAMPLE_LOUDNESS} />
+            <TimelineRange variant="silence" startMs={20_000} endMs={26_000} />
+            <TimelineRange variant="clip" startMs={30_000} endMs={45_000}>
+              Clip 1
+            </TimelineRange>
+            <TimelinePlayhead />
+          </Timeline>
+          <Timeline
+            aria-label="Read-only timeline"
+            durationMs={60_000}
+            readOnly
+            className="h-6"
+          >
+            <TimelineLoudness values={SAMPLE_LOUDNESS} />
+          </Timeline>
         </div>
       </Section>
 

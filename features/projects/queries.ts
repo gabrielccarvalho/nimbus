@@ -2,14 +2,28 @@ import "server-only"
 
 import { connection } from "next/server"
 
-import { getDb } from "@/lib/db"
+import { getDb, type Db } from "@/lib/db"
 
+import { normalizeLoudness } from "../analysis/loudness"
+import { signalsRepository } from "../analysis/repository"
 import { clipRepository } from "../clips/repository"
 import { jobQueue } from "../jobs/queue"
 import { layoutRepository } from "../layout/repository"
 import { getProjectSnapshot } from "../pipeline/snapshot"
 import { transcriptRepository } from "../transcription/repository"
 import { assetRepository, projectRepository } from "./repository"
+
+function audioSummary(db: Db, projectId: string) {
+  const signals = signalsRepository(db).get(projectId)
+  if (!signals) return undefined
+  return {
+    loudness: normalizeLoudness(signals.loudness),
+    silences: signals.silences,
+    silentMs: signals.silences.reduce((sum, s) => sum + s.endMs - s.startMs, 0),
+  }
+}
+
+export type AudioSummary = NonNullable<ReturnType<typeof audioSummary>>
 
 export async function listProjects() {
   await connection()
@@ -40,6 +54,7 @@ export async function getProjectOverview(id: string) {
     thumbnail: assets.find((a) => a.kind === "thumbnail"),
     proxy: assets.find((a) => a.kind === "proxy"),
     layout: layoutRepository(db).get(id),
+    audio: audioSummary(db, id),
     clips: clipRepository(db).listForProject(id),
     jobs: jobQueue(db).listForProject(id),
     snapshot: getProjectSnapshot(db, id)!,
@@ -61,5 +76,6 @@ export async function getProjectTranscript(id: string) {
     proxy: assets.find((a) => a.kind === "proxy"),
     source: assets.find((a) => a.kind === "source"),
     transcript: transcriptRepository(db).get(id),
+    audio: audioSummary(db, id),
   }
 }
