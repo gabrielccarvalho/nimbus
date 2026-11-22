@@ -2,7 +2,7 @@ import "server-only"
 
 import { and, desc, eq, inArray, sql } from "drizzle-orm"
 
-import { newId, now, type Db } from "@/lib/db"
+import { newId, now, withTransaction, type Db } from "@/lib/db"
 import { assets, clips, projects } from "@/lib/db/schema"
 import { AppError } from "@/lib/errors"
 
@@ -130,15 +130,15 @@ export function projectRepository(db: Db) {
     },
 
     transition(id: string, to: ProjectStatus): Project {
-      return db.transaction((tx) => {
-        const current = tx
+      return withTransaction(db, () => {
+        const current = db
           .select()
           .from(projects)
           .where(eq(projects.id, id))
           .get()
         if (!current) throw new AppError("NOT_FOUND", "Project not found")
         assertTransition(current.status, to)
-        return tx
+        return db
           .update(projects)
           .set({
             status: to,

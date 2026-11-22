@@ -68,10 +68,10 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 
 ### Phase 4: Storage, upload, media
 
-- [ ] StorageAdapter (local) + contract tests
-- [ ] Streaming upload route
-- [ ] Range media route
-- [ ] Integration tests
+- [x] StorageAdapter (local) + contract tests
+- [x] Streaming upload route
+- [x] Range media route
+- [x] Integration tests
 
 ### Phase 5: Job queue and worker
 

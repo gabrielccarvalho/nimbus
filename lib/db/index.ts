@@ -36,6 +36,10 @@ export function getDb(): Db {
   return globalForDb.__autoClipperDb
 }
 
+export function withTransaction<T>(db: Db, fn: () => T): T {
+  return db.$client.transaction(fn)()
+}
+
 export function now() {
   return new Date()
 }

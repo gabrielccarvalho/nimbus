@@ -2,7 +2,7 @@ import "server-only"
 
 import { and, asc, desc, eq, inArray } from "drizzle-orm"
 
-import { newId, now, type Db } from "@/lib/db"
+import { newId, now, withTransaction, type Db } from "@/lib/db"
 import { clips } from "@/lib/db/schema"
 import { AppError } from "@/lib/errors"
 
@@ -46,8 +46,8 @@ export function clipRepository(db: Db) {
     },
 
     replaceCandidates(projectId: string, candidates: NewClip[]): Clip[] {
-      return db.transaction((tx) => {
-        tx.delete(clips)
+      return withTransaction(db, () => {
+        db.delete(clips)
           .where(
             and(
               eq(clips.projectId, projectId),
@@ -56,7 +56,7 @@ export function clipRepository(db: Db) {
           )
           .run()
         if (candidates.length === 0) return []
-        return tx
+        return db
           .insert(clips)
           .values(candidates.map((c) => ({ ...c, id: newId(), projectId })))
           .returning()
