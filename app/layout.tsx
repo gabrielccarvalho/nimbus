@@ -45,7 +45,7 @@ export default function RootLayout({
       <body>
         <ThemeProvider>
           <TooltipProvider>{children}</TooltipProvider>
-          <Toaster richColors closeButton />
+          <Toaster closeButton />
         </ThemeProvider>
       </body>
     </html>

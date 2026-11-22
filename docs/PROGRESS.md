@@ -151,6 +151,8 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 
 ### Phase 16: Hardening
 
+- [ ] Investigate `TypeError: Invalid state: ReadableStream is already closed` logged by `next start` during the upload → project page → dashboard e2e. Next catches it, so nothing fails or crashes, but it's noisy. It doesn't reproduce with curl against the upload, SSE or media routes (with or without the worker), so it's likely a browser-side abort of an RSC or image request. Media now uses a pull-based `toWebStream` instead of `Readable.toWeb`, and SSE writes are guarded.
+
 - [ ] Error/empty states, boundaries, toasts
 - [ ] Disk check, temp cleanup, orphan sweeper
 - [ ] Performance + bundle check

@@ -41,8 +41,10 @@ export function createPollingStream<T>({
   const encoder = new TextEncoder()
   let timer: ReturnType<typeof setInterval> | undefined
   let heartbeat: ReturnType<typeof setInterval> | undefined
+  let closed = false
 
   const stop = () => {
+    closed = true
     if (timer) clearInterval(timer)
     if (heartbeat) clearInterval(heartbeat)
   }
@@ -50,10 +52,16 @@ export function createPollingStream<T>({
   return new ReadableStream<Uint8Array>({
     start(controller) {
       let last = ""
-      let closed = false
+      const send = (text: string) => {
+        if (closed) return
+        try {
+          controller.enqueue(encoder.encode(text))
+        } catch {
+          stop()
+        }
+      }
       const close = () => {
         if (closed) return
-        closed = true
         stop()
         try {
           controller.close()
@@ -66,37 +74,29 @@ export function createPollingStream<T>({
         try {
           snapshot = poll()
         } catch {
-          controller.enqueue(
-            encoder.encode(
-              formatSSE({ event: "error", data: { message: "Lookup failed" } })
-            )
+          send(
+            formatSSE({ event: "error", data: { message: "Lookup failed" } })
           )
           close()
           return
         }
         if (snapshot === undefined) {
-          controller.enqueue(
-            encoder.encode(formatSSE({ event: "gone", data: {} }))
-          )
+          send(formatSSE({ event: "gone", data: {} }))
           close()
           return
         }
         const serialized = JSON.stringify(snapshot)
         if (serialized !== last) {
           last = serialized
-          controller.enqueue(
-            encoder.encode(formatSSE({ event, data: serialized, retry: 2000 }))
-          )
+          send(formatSSE({ event, data: serialized, retry: 2000 }))
         }
         if (isFinal?.(snapshot)) close()
       }
 
       tick()
       timer = setInterval(tick, intervalMs)
-      heartbeat = setInterval(() => {
-        if (!closed) controller.enqueue(encoder.encode(": keep-alive\n\n"))
-      }, heartbeatMs)
-      signal.addEventListener("abort", close, { once: true })
+      heartbeat = setInterval(() => send(": keep-alive\n\n"), heartbeatMs)
+      signal.addEventListener("abort", stop, { once: true })
     },
     cancel() {
       stop()

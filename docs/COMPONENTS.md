@@ -31,18 +31,18 @@ The registry's `empty` component covers the planned EmptyState, so there is no c
 
 Labeled metric tile, rendered as a `<dl>` group so label/value pairs are announced as term/definition.
 
-- Parts: `StatCardGroup` (`dl` grid), `StatCard`, `StatCardHeader`, `StatCardLabel` (`dt`), `StatCardIcon` (decorative, `aria-hidden`), `StatCardValue` (`dd`, heading font, tabular numbers), `StatCardDescription` (`dd`).
+- Parts: `StatCardGroup` (`dl` grid), `StatCard` (`div`, the wrapper HTML allows inside `dl`), `StatCardLabel` (`dt`, holds the text and an optional `StatCardIcon`), `StatCardIcon` (decorative, `aria-hidden`), `StatCardValue` (`dd`, heading font, tabular numbers), `StatCardDescription` (`dd`). `dt`/`dd` must be direct children of `StatCard` for valid `dl` structure.
 - Variants: `variant` = `default` | `muted` | `ghost`; `size` = `default` | `sm`.
 
 ```tsx
 <StatCardGroup>
   <StatCard size="sm">
-    <StatCardHeader>
-      <StatCardLabel>Duration</StatCardLabel>
+    <StatCardLabel>
+      <span className="truncate">Duration</span>
       <StatCardIcon>
         <ClockIcon />
       </StatCardIcon>
-    </StatCardHeader>
+    </StatCardLabel>
     <StatCardValue>1:02:44</StatCardValue>
   </StatCard>
 </StatCardGroup>

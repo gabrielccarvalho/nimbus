@@ -9,6 +9,9 @@ export async function expectNoSeriousA11yViolations(page: Page) {
     (v) => v.impact === "serious" || v.impact === "critical"
   )
   expect(
-    serious.map((v) => `${v.id}: ${v.nodes.map((n) => n.target).join(", ")}`)
+    serious.map(
+      (v) =>
+        `${v.id}: ${v.nodes.map((n) => `${n.target.join(" ")} ${n.html.slice(0, 160)}`).join(" | ")}`
+    )
   ).toEqual([])
 }

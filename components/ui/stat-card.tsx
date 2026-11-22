@@ -40,24 +40,14 @@ function StatCard({
   )
 }
 
-function StatCardHeader({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="stat-card-header"
-      className={cn(
-        "flex items-center justify-between gap-2 text-muted-foreground",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
 function StatCardLabel({ className, ...props }: React.ComponentProps<"dt">) {
   return (
     <dt
       data-slot="stat-card-label"
-      className={cn("truncate text-xs font-medium", className)}
+      className={cn(
+        "flex min-w-0 items-center justify-between gap-2 text-xs font-medium text-muted-foreground",
+        className
+      )}
       {...props}
     />
   )
@@ -120,7 +110,6 @@ export {
   StatCard,
   StatCardDescription,
   StatCardGroup,
-  StatCardHeader,
   StatCardIcon,
   StatCardLabel,
   StatCardValue,

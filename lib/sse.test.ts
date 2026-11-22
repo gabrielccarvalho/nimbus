@@ -63,20 +63,29 @@ describe("createPollingStream", () => {
     expect(text).not.toContain("db locked")
   })
 
-  it("stops when the request aborts and sends heartbeats", async () => {
+  it("stops polling when the request aborts and sends heartbeats", async () => {
     vi.useFakeTimers()
     const controller = new AbortController()
+    const poll = vi.fn(() => ({ s: 1 }))
     const stream = createPollingStream({
-      poll: () => ({ s: 1 }),
+      poll,
       signal: controller.signal,
       intervalMs: 10,
       heartbeatMs: 20,
     })
-    const result = readAll(stream)
-    await vi.advanceTimersByTimeAsync(50)
+    const reader = stream.getReader()
+    const decoder = new TextDecoder()
+    let text = ""
+    while (!text.includes("keep-alive")) {
+      const pending = reader.read()
+      await vi.advanceTimersByTimeAsync(10)
+      text += decoder.decode((await pending).value)
+    }
     controller.abort()
+    const calls = poll.mock.calls.length
+    await vi.advanceTimersByTimeAsync(100)
     vi.useRealTimers()
-    const text = await result
-    expect(text).toContain(": keep-alive")
+    expect(poll.mock.calls.length).toBe(calls)
+    await reader.cancel()
   })
 })

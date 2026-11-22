@@ -33,13 +33,12 @@ export type WorkerOptions = {
 }
 
 const PROGRESS_WRITE_MS = 500
-const renderTypes = [...RENDER_JOB_TYPES]
 
 type Lane = {
   name: string
   slots: number
   active: Set<Promise<void>>
-  filter: { types?: JobType[]; excludeTypes?: JobType[] }
+  types: JobType[]
 }
 
 export function createWorker(options: WorkerOptions) {
@@ -57,18 +56,21 @@ export function createWorker(options: WorkerOptions) {
   let running = false
   let wake: (() => void) | undefined
 
+  const handled = (Object.keys(handlers) as JobType[]).filter(
+    (type) => handlers[type]
+  )
   const lanes: Lane[] = [
     {
       name: "render",
       slots: options.renderConcurrency,
       active: new Set(),
-      filter: { types: renderTypes },
+      types: handled.filter((type) => RENDER_JOB_TYPES.has(type)),
     },
     {
       name: "default",
       slots: options.concurrency,
       active: new Set(),
-      filter: { excludeTypes: renderTypes },
+      types: handled.filter((type) => !RENDER_JOB_TYPES.has(type)),
     },
   ]
 
@@ -165,8 +167,9 @@ export function createWorker(options: WorkerOptions) {
 
   function fill(lane: Lane, force = false): boolean {
     let started = false
+    if (lane.types.length === 0) return false
     while ((running || force) && lane.active.size < lane.slots) {
-      const job = queue.lease({ owner, leaseMs, ...lane.filter })
+      const job = queue.lease({ owner, leaseMs, types: lane.types })
       if (!job) break
       started = true
       const task = execute(job).finally(() => {

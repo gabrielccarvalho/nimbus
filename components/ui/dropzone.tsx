@@ -172,23 +172,23 @@ function Dropzone({
         {...props}
       >
         {children}
-        <input
-          ref={inputRef}
-          type="file"
-          tabIndex={-1}
-          className="sr-only"
-          accept={accept.join(",") || undefined}
-          multiple={multiple}
-          disabled={disabled}
-          aria-hidden
-          {...inputProps}
-          onChange={(event) => {
-            inputProps?.onChange?.(event)
-            handleFiles(event.target.files)
-            event.target.value = ""
-          }}
-        />
       </div>
+      <input
+        ref={inputRef}
+        type="file"
+        tabIndex={-1}
+        className="sr-only"
+        accept={accept.join(",") || undefined}
+        multiple={multiple}
+        disabled={disabled}
+        aria-hidden
+        {...inputProps}
+        onChange={(event) => {
+          inputProps?.onChange?.(event)
+          handleFiles(event.target.files)
+          event.target.value = ""
+        }}
+      />
     </DropzoneContext.Provider>
   )
 }

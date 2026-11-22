@@ -1,6 +1,6 @@
 import "server-only"
 
-import { Readable } from "node:stream"
+import type { Readable } from "node:stream"
 
 import { toAppError, toUserMessage, type AppErrorCode } from "@/lib/errors"
 import { logger } from "@/lib/logger"
@@ -17,6 +17,24 @@ const STATUS_BY_CODE: Partial<Record<AppErrorCode, number>> = {
   UNSUPPORTED_MEDIA: 415,
   STORAGE: 400,
   CANCELLED: 499,
+}
+
+export function toWebStream(stream: Readable): ReadableStream<Uint8Array> {
+  const iterator = stream[Symbol.asyncIterator]() as AsyncIterator<Buffer>
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const { value, done } = await iterator.next()
+        if (done) controller.close()
+        else controller.enqueue(new Uint8Array(value))
+      } catch (error) {
+        controller.error(error)
+      }
+    },
+    cancel() {
+      stream.destroy()
+    },
+  })
 }
 
 export function errorResponse(
@@ -65,9 +83,7 @@ export async function fileResponse(
   const head = request.method === "HEAD"
   if (range.kind === "full") {
     headers.set("Content-Length", String(info.bytes))
-    const body = head
-      ? null
-      : (Readable.toWeb(storage.read(key)) as ReadableStream)
+    const body = head ? null : toWebStream(storage.read(key))
     return new Response(body, { status: 200, headers })
   }
 
@@ -76,8 +92,6 @@ export async function fileResponse(
     `bytes ${range.start}-${range.end}/${info.bytes}`
   )
   headers.set("Content-Length", String(range.end - range.start + 1))
-  const body = head
-    ? null
-    : (Readable.toWeb(storage.read(key, range)) as ReadableStream)
+  const body = head ? null : toWebStream(storage.read(key, range))
   return new Response(body, { status: 206, headers })
 }

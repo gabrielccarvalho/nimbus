@@ -4,7 +4,9 @@ import { expectNoSeriousA11yViolations } from "./utils/axe"
 
 test("navigates between projects and settings", async ({ page }) => {
   await page.goto("/")
-  await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible()
+  await expect(
+    page.getByRole("heading", { name: "Projects", exact: true })
+  ).toBeVisible()
   await page.getByRole("link", { name: "Settings" }).click()
   await expect(page).toHaveURL(/\/settings$/)
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible()

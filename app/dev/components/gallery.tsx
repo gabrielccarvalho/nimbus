@@ -26,7 +26,6 @@ import {
 import {
   StatCard,
   StatCardGroup,
-  StatCardHeader,
   StatCardIcon,
   StatCardLabel,
   StatCardValue,
@@ -81,21 +80,21 @@ export function ComponentGallery() {
         {(["default", "muted", "ghost"] as const).map((variant) => (
           <StatCardGroup key={variant}>
             <StatCard variant={variant}>
-              <StatCardHeader>
-                <StatCardLabel>Duration</StatCardLabel>
+              <StatCardLabel>
+                <span className="truncate">Duration</span>
                 <StatCardIcon>
                   <ClockIcon />
                 </StatCardIcon>
-              </StatCardHeader>
+              </StatCardLabel>
               <StatCardValue>1:02:44</StatCardValue>
             </StatCard>
             <StatCard variant={variant} size="sm">
-              <StatCardHeader>
-                <StatCardLabel>Clips ({variant}, sm)</StatCardLabel>
+              <StatCardLabel>
+                <span className="truncate">Clips ({variant}, sm)</span>
                 <StatCardIcon>
                   <FilmStripIcon />
                 </StatCardIcon>
-              </StatCardHeader>
+              </StatCardLabel>
               <StatCardValue>12</StatCardValue>
             </StatCard>
           </StatCardGroup>
