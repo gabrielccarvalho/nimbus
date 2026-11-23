@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest"
 import { coverCrop, planLayout, toPixels } from "../layout/geometry"
 import { FULL_FRAME, type LayoutInput } from "../layout/schema"
 import { frameAt, SHAKE_SCALE, type FloatRect } from "./frame"
+import type { SignalsData } from "../analysis/schema"
+import { planEffects, PLANNER, type PlanInput } from "./planner"
 import { effectSchema, normalizeEffects, type Effect } from "./schema"
 
 const zoom = (startMs: number, endMs: number): Effect => ({
@@ -278,5 +280,178 @@ describe("frameAt", () => {
     expect(crop.y).toBeGreaterThan(base.y)
     expect(crop.x + crop.w).toBeLessThan(base.x + base.w)
     expect(crop.y + crop.h).toBeLessThan(base.y + base.h)
+  })
+})
+
+function signalsWith(
+  peaks: { ms: number; lufs: number }[],
+  base = -30,
+  durationMs = 60_000
+): SignalsData {
+  const loudness = Array.from({ length: durationMs / 250 }, () => base)
+  for (const { ms, lufs } of peaks) loudness[Math.floor(ms / 250)] = lufs
+  return {
+    silences: [],
+    loudness,
+    loudnessIntervalMs: 250,
+    speechDensity: [],
+    cuts: [],
+  }
+}
+
+function plan(overrides: Partial<PlanInput> = {}) {
+  return planEffects({
+    startMs: 0,
+    endMs: 30_000,
+    hasWebcam: true,
+    signals: signalsWith([]),
+    words: [],
+    beats: [],
+    ...overrides,
+  })
+}
+
+describe("planEffects", () => {
+  it("scream gives a strong shake and a focus with a webcam", () => {
+    const events = plan({ signals: signalsWith([{ ms: 10_000, lufs: -10 }]) })
+    expect(events).toEqual([
+      { kind: "focus", startMs: 9700, endMs: 11_500 },
+      { kind: "shake", startMs: 10_000, endMs: 10_500, intensity: "strong" },
+    ])
+  })
+
+  it("scream gives only a shake without a webcam", () => {
+    const events = plan({
+      hasWebcam: false,
+      signals: signalsWith([{ ms: 10_000, lufs: -17 }]),
+    })
+    expect(events).toEqual([
+      { kind: "shake", startMs: 10_000, endMs: 10_500, intensity: "light" },
+    ])
+  })
+
+  it("reaction beat snaps to the nearby loudness peak", () => {
+    const events = plan({
+      signals: signalsWith([{ ms: 11_500, lufs: -25 }]),
+      beats: [{ ms: 10_000, kind: "reaction" }],
+    })
+    expect(events).toEqual([{ kind: "focus", startMs: 11_200, endMs: 13_000 }])
+  })
+
+  it("snaps to the densest speech window when loudness is flat", () => {
+    const events = plan({
+      signals: {
+        ...signalsWith([]),
+        speechDensity: [
+          { startMs: 8000, endMs: 9000, wordsPerSecond: 1 },
+          { startMs: 11_000, endMs: 12_000, wordsPerSecond: 4 },
+        ],
+      },
+      beats: [{ ms: 10_000, kind: "reaction" }],
+    })
+    expect(events).toEqual([{ kind: "focus", startMs: 11_200, endMs: 13_000 }])
+  })
+
+  it("keeps the beat time when nothing can snap it", () => {
+    const events = plan({ beats: [{ ms: 10_000, kind: "reaction" }] })
+    expect(events).toEqual([{ kind: "focus", startMs: 9700, endMs: 11_500 }])
+  })
+
+  it("weird beat becomes a zoom at its focus point", () => {
+    const events = plan({
+      beats: [{ ms: 10_000, kind: "weird", x: 0.2, y: 0.7 }],
+    })
+    expect(events).toEqual([
+      {
+        kind: "zoom",
+        startMs: 9250,
+        endMs: 10_750,
+        scale: 1.4,
+        focus: { x: 0.2, y: 0.7 },
+      },
+    ])
+  })
+
+  it("loudness jump after quiet gives a centred zoom only when there are no beats", () => {
+    const signals = signalsWith([{ ms: 10_000, lufs: -30 }], -45)
+    expect(plan({ signals })).toEqual([
+      {
+        kind: "zoom",
+        startMs: 9375,
+        endMs: 10_875,
+        scale: 1.4,
+        focus: { x: 0.5, y: 0.5 },
+      },
+    ])
+    const withBeat = plan({
+      signals,
+      beats: [{ ms: 20_000, kind: "weird", x: 0.5, y: 0.5 }],
+    })
+    expect(withBeat).toHaveLength(1)
+    expect(withBeat[0]!.startMs).toBe(19_250)
+  })
+
+  it("respects caps", () => {
+    const peaks = Array.from({ length: 10 }, (_, i) => ({
+      ms: 2000 + i * 3000,
+      lufs: -10,
+    }))
+    const events = plan({ signals: signalsWith(peaks) })
+    const shakes = events.filter((e) => e.kind === "shake")
+    const focuses = events.filter((e) => e.kind === "focus")
+    expect(shakes.length).toBeLessThanOrEqual(PLANNER.maxShakes)
+    const focusMs = focuses.reduce((sum, e) => sum + e.endMs - e.startMs, 0)
+    expect(focusMs).toBeLessThanOrEqual(30_000 * PLANNER.maxFocusShare)
+    for (const kind of ["shake", "focus"] as const) {
+      const starts = events.filter((e) => e.kind === kind).map((e) => e.startMs)
+      starts.forEach((start, i) => {
+        if (i > 0) {
+          expect(start - starts[i - 1]!).toBeGreaterThanOrEqual(
+            PLANNER.minGapMs
+          )
+        }
+      })
+    }
+  })
+
+  it("leaves the first 500 ms alone unless a beat is there", () => {
+    const signals = signalsWith([{ ms: 250, lufs: -10 }])
+    expect(plan({ signals })).toEqual([])
+    const withBeat = plan({
+      signals,
+      beats: [{ ms: 250, kind: "reaction" }],
+    })
+    expect(withBeat[0]).toMatchObject({ kind: "focus", startMs: 0 })
+  })
+
+  it("3 s clip that is loud throughout yields valid, non-overlapping events", () => {
+    const events = plan({
+      startMs: 4000,
+      endMs: 7000,
+      signals: signalsWith(
+        [
+          { ms: 4500, lufs: -1 },
+          { ms: 5000, lufs: -1 },
+          { ms: 6500, lufs: -1 },
+        ],
+        -10
+      ),
+    })
+    for (const event of events) {
+      expect(effectSchema.safeParse(event).success).toBe(true)
+      expect(event.startMs).toBeGreaterThanOrEqual(4000)
+      expect(event.endMs).toBeLessThanOrEqual(7000)
+    }
+    for (const kind of ["shake", "focus", "zoom"] as const) {
+      const ofKind = events.filter((e) => e.kind === kind)
+      ofKind.forEach((e, i) => {
+        if (i > 0)
+          expect(e.startMs).toBeGreaterThanOrEqual(ofKind[i - 1]!.endMs)
+      })
+    }
+  })
+
+  it("flat audio and no beats yields no events", () => {
+    expect(plan()).toEqual([])
   })
 })
