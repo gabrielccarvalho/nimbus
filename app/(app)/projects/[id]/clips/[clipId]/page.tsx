@@ -4,6 +4,7 @@ import { notFound } from "next/navigation"
 import { BreadcrumbLabel } from "@/components/app-shell/breadcrumbs"
 import { ClipEditor } from "@/components/projects/clip-editor"
 import { getClipEditor } from "@/features/projects/queries"
+import { installedCaptionFonts } from "@/features/render/fonts"
 import { mediaUrl } from "@/lib/format"
 
 export async function generateMetadata({
@@ -46,6 +47,7 @@ export default async function ClipEditorPage({
             w.endMs >= clip.startMs - 60_000 && w.startMs <= clip.endMs + 60_000
         )}
         settings={project.settings}
+        installedFonts={installedCaptionFonts()}
         render={data.render}
         snapshot={data.snapshot}
       />

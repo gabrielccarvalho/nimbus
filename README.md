@@ -52,6 +52,10 @@ brew install yt-dlp
 
 Sites change often; if imports start failing, `brew upgrade yt-dlp` first.
 
+### Caption fonts (optional)
+
+Oxanium and Nunito Sans are bundled. Pricedown is licensed by Typodermic for desktop use only, so it isn't in the repo: download it from typodermicfonts.com and copy `Pricedown Bl.otf` to `assets/fonts/Pricedown-Black.otf`. Until then it shows as "Not installed" in the font picker.
+
 ## Setup
 
 ```sh

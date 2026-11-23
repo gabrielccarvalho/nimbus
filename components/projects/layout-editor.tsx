@@ -39,6 +39,7 @@ import {
   captionBaseline,
   cssCaptionStyle,
   resolveCaptionStyle,
+  type CaptionFontId,
 } from "@/features/captions/styles"
 import { confirmLayoutAction } from "@/features/layout/actions"
 import {
@@ -205,6 +206,7 @@ export function LayoutEditor({
   awaitingConfirmation,
   settings,
   captionSample,
+  installedFonts,
 }: {
   projectId: string
   src: string
@@ -216,6 +218,7 @@ export function LayoutEditor({
   awaitingConfirmation: boolean
   settings: ProjectSettings
   captionSample: CaptionWord[]
+  installedFonts: readonly CaptionFontId[]
 }) {
   const router = useRouter()
   const autoDetect = !confirmed && initial.webcamRect === null
@@ -455,6 +458,7 @@ export function LayoutEditor({
               <CaptionStyleFields
                 value={captionStyle}
                 onValueChange={setCaptionStyle}
+                installedFonts={installedFonts}
                 disabled={pending}
               />
             </CardContent>

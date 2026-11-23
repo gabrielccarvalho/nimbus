@@ -1,5 +1,5 @@
 import type { CaptionPage } from "./pages"
-import { assColor, type CaptionStyle } from "./styles"
+import { assColor, CAPTION_FONTS, type CaptionStyle } from "./styles"
 
 export function assTime(ms: number) {
   const cs = Math.max(0, Math.round(ms / 10))
@@ -72,7 +72,7 @@ export function buildAss({
     "",
     "[V4+ Styles]",
     "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-    `Style: Caption,${style.fontFamily},${style.fontSize},${assColor(style.text)},${assColor(style.highlightColor)},${outlineColor},${assColor(style.outlineColor, 0.6)},0,0,0,0,100,100,0,0,${borderStyle},${style.outline},${style.shadow},2,60,60,0,1`,
+    `Style: Caption,${CAPTION_FONTS[style.font].fontFamily},${style.fontSize},${assColor(style.text)},${assColor(style.highlightColor)},${outlineColor},${assColor(style.outlineColor, 0.6)},0,0,0,0,100,100,0,0,${borderStyle},${style.outline},${style.shadow},2,60,60,0,1`,
     "",
     "[Events]",
     "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",

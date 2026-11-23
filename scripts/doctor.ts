@@ -5,7 +5,9 @@ import path from "node:path"
 
 import { Client } from "pg"
 
+import { CAPTION_FONT_IDS, CAPTION_FONTS } from "@/features/captions/styles"
 import { chooseEncoder } from "@/features/render/filtergraph"
+import { installedCaptionFonts } from "@/features/render/fonts"
 import { isEnglishOnlyModel } from "@/features/transcription/language"
 import { getEnv } from "@/lib/env"
 import { getFfmpegCapabilities } from "@/lib/media/capabilities"
@@ -162,6 +164,17 @@ async function main() {
       "MediaPipe assets missing; run pnpm run setup:vision (border detection still works)"
     )
   }
+
+  const missingFonts = CAPTION_FONT_IDS.filter(
+    (id) => !installedCaptionFonts().includes(id)
+  )
+  add(
+    "caption fonts",
+    missingFonts.length ? "warn" : "ok",
+    missingFonts.length
+      ? `missing ${missingFonts.map((id) => CAPTION_FONTS[id].file).join(", ")} in assets/fonts (see README → Caption fonts)`
+      : `${CAPTION_FONT_IDS.length} installed`
+  )
 
   const client = new Client({
     connectionString: env.DATABASE_URL,

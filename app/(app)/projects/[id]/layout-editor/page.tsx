@@ -12,6 +12,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import { getProjectLayout } from "@/features/projects/queries"
+import { installedCaptionFonts } from "@/features/render/fonts"
 import { mediaUrl } from "@/lib/format"
 
 export const metadata: Metadata = { title: "Layout" }
@@ -60,6 +61,7 @@ export default async function LayoutPage({
       awaitingConfirmation={project.status === "awaiting_layout"}
       settings={project.settings}
       captionSample={captionSample}
+      installedFonts={installedCaptionFonts()}
     />
   )
 }

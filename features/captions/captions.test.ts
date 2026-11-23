@@ -223,6 +223,10 @@ describe("styles", () => {
       position: "top",
     })
     expect(resolveCaptionStyle({ presetId: "missing" }).id).toBe("punch")
+    expect(
+      resolveCaptionStyle({ presetId: "punch", overrides: { font: "comic" } })
+        .font
+    ).toBe("oxanium")
     expect(captionBaseline(style, { mode: "cam-top" })).toBe(0.22)
     expect(
       captionBaseline({ position: "auto" }, { mode: "no-cam-blur-fill" })
@@ -259,6 +263,18 @@ describe("ASS", () => {
       baseline: 0.72,
     })
     await expect(ass).toMatchFileSnapshot("./__golden__/punch.ass")
+  })
+
+  it("uses the selected font's family name", () => {
+    const ass = buildAss({
+      pages: [],
+      style: resolveCaptionStyle({
+        presetId: "punch",
+        overrides: { font: "pricedown" },
+      }),
+      baseline: 0.72,
+    })
+    expect(ass).toContain("Style: Caption,Pricedown Black,92,")
   })
 
   it("emits one event per page without highlighting", () => {
