@@ -190,6 +190,23 @@ describe("frameAt", () => {
     expect(filled.crop.w).toBeCloseTo(fillBase.w / 1.4)
   })
 
+  it("zoom focus is relative to the gameplay crop", () => {
+    const inset: LayoutInput = {
+      ...camTop,
+      gameplayRect: { x: 0.1, y: 0.1, w: 0.8, h: 0.8 },
+    }
+    expect(frameAt(inset, source, [], 2000).regions[1]!.crop).toEqual({
+      x: 586,
+      y: 108,
+      w: 746,
+      h: 864,
+    })
+    const crop = frameAt(inset, source, [zoomAt(2, { x: 0.3, y: 0.7 })], 2000)
+      .regions[1]!.crop
+    expect(crop.x + crop.w / 2).toBeCloseTo(586 + 0.3 * 746)
+    expect(crop.y + crop.h / 2).toBeCloseTo(108 + 0.7 * 864)
+  })
+
   it("zoom eases over 150 ms", () => {
     const base = frameAt(camTop, source, [], 0).regions[1]!.crop
     const widthAt = (tMs: number) =>

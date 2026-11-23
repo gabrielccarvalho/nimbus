@@ -8,11 +8,20 @@ import {
 import { usesWebcam, type LayoutInput } from "../layout/schema"
 import type { Effect } from "./schema"
 
-export const ZOOM_EASE_MS = 150
-export const SHAKE_SCALE = { light: 1.06, strong: 1.12 }
+type ShakeIntensity = Extract<Effect, { kind: "shake" }>["intensity"]
 
-const SHAKE_AMPLITUDE = { light: 0.03, strong: 0.06 }
-// Below the ~15 Hz Nyquist limit of a 30 fps render, so preview and render show the same motion.
+export const ZOOM_EASE_MS = 150
+
+export const SHAKE_SCALE = { light: 1.06, strong: 1.12 } satisfies Record<
+  ShakeIntensity,
+  number
+>
+
+const SHAKE_AMPLITUDE = { light: 0.03, strong: 0.06 } satisfies Record<
+  ShakeIntensity,
+  number
+>
+// Stays below Nyquist for a ~30 fps render.
 const SHAKE_HZ = 12
 const SHAKE_RADIANS_PER_MS = (2 * Math.PI * SHAKE_HZ) / 1000
 
