@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 
+import { createCutParser, cutClusters } from "./cuts"
 import { computeSpeechDensity } from "./density"
 import { createLoudnessCollector, normalizeLoudness } from "./loudness"
 import { createSilenceParser } from "./silence"
@@ -95,5 +96,31 @@ describe("speech density", () => {
       { startMs: 0, endMs: 3000, wordsPerSecond: 0 },
     ])
     expect(computeSpeechDensity(words, 0)).toEqual([])
+  })
+})
+
+describe("cut parser", () => {
+  it("collects selected frame times and ignores other log lines", () => {
+    const parser = createCutParser()
+    ;[
+      "[Parsed_metadata_3 @ 0x6000] frame:0    pts:322     pts_time:32.2",
+      "[Parsed_metadata_3 @ 0x6000] lavfi.scene_score=0.292587",
+      "[Parsed_ebur128_1 @ 0x7829] t: 4.1  TARGET:-23 LUFS    M:-120.7",
+      "[Parsed_metadata_3 @ 0x6000] frame:1    pts:107     pts_time:10.7",
+      "[Parsed_metadata_3 @ 0x6000] frame:2    pts:107     pts_time:10.7",
+      "[Parsed_metadata_3 @ 0x6000] frame:3    pts:990     pts_time:99",
+    ].forEach(parser.push)
+    expect(parser.finish(60_000)).toEqual([10_700, 32_200])
+  })
+})
+
+describe("cutClusters", () => {
+  it("groups cuts at most 10 s apart and keeps groups of three or more", () => {
+    expect(
+      cutClusters([1000, 5000, 14_000, 40_000, 45_000, 80_000, 82_000, 84_000])
+    ).toEqual([
+      { startMs: 1000, endMs: 14_000, count: 3 },
+      { startMs: 80_000, endMs: 84_000, count: 3 },
+    ])
   })
 })

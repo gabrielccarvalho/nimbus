@@ -1,15 +1,18 @@
 import type { TimeRange } from "../analysis/schema"
 import type { Segment, Word } from "../transcription/schema"
+import { coveredShare, gameDialogueStretches } from "./game-dialogue"
 import type { Candidate, RawCandidate, SelectionLimits } from "./types"
 
 export const SNAP_WINDOW_MS = 1500
 export const MAX_OVERLAP_RATIO = 0.2
+export const GAME_DIALOGUE_PENALTY = 0.6
 
 type Context = {
   durationMs: number
   words: readonly Word[]
   segments: readonly Segment[]
   limits: SelectionLimits
+  language?: string
   exclude?: readonly TimeRange[]
 }
 
@@ -73,6 +76,9 @@ export function postprocessCandidates(
   const sentenceEnds = segments.map((s) => s.endMs)
   const wordStarts = words.map((w) => w.startMs)
   const wordEnds = words.map((w) => w.endMs)
+  const gameDialogue = context.language
+    ? gameDialogueStretches(words, context.language)
+    : []
 
   const shaped: Candidate[] = []
   for (const candidate of raw) {
@@ -94,6 +100,11 @@ export function postprocessCandidates(
     const length = endMs - startMs
     if (length < limits.minMs || length > limits.maxMs || endMs > durationMs)
       continue
+    const score = Number.isFinite(candidate.score)
+      ? Math.min(1, Math.max(0, candidate.score))
+      : 0
+    const penalty =
+      GAME_DIALOGUE_PENALTY * coveredShare({ startMs, endMs }, gameDialogue)
     shaped.push({
       ...candidate,
       startMs,
@@ -101,9 +112,7 @@ export function postprocessCandidates(
       title: candidate.title.trim().slice(0, 100) || "Untitled clip",
       hook: candidate.hook.trim().slice(0, 200),
       reason: candidate.reason.trim().slice(0, 500),
-      score: Number.isFinite(candidate.score)
-        ? Math.min(1, Math.max(0, candidate.score))
-        : 0,
+      score: score * (1 - penalty),
     })
   }
 

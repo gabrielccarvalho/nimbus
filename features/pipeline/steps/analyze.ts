@@ -2,6 +2,7 @@ import "server-only"
 
 import { getStorage } from "@/lib/storage"
 
+import { createCutParser, cutDetectionFilter } from "../../analysis/cuts"
 import { computeSpeechDensity } from "../../analysis/density"
 import {
   createLoudnessCollector,
@@ -71,7 +72,7 @@ export const analyzeStep: JobHandler = async ({
       signal,
       expectedDurationMs: durationMs,
       onProgress: (p) => {
-        reportProgress(p * 0.95)
+        reportProgress(p * 0.8)
         if (Date.now() - lastDetail >= DETAIL_INTERVAL_MS) publish()
       },
       onStderrLine: (line) => {
@@ -83,16 +84,44 @@ export const analyzeStep: JobHandler = async ({
   throwIfAborted(signal)
   publish()
 
+  const cuts = createCutParser()
+  const video =
+    (await assetRepository(db).findByKind(project.id, "proxy")) ?? source
+  await runFfmpeg(
+    [
+      "-i",
+      storage.resolve(video.storageKey),
+      "-an",
+      "-vf",
+      cutDetectionFilter,
+      "-f",
+      "null",
+      "-",
+    ],
+    {
+      signal,
+      expectedDurationMs: durationMs,
+      onProgress: (p) => reportProgress(80 + p * 0.15),
+      onStderrLine: cuts.push,
+    }
+  )
+  throwIfAborted(signal)
+
   const words = (await transcriptRepository(db).get(project.id))?.words ?? []
   const data = {
     silences: silences.finish(durationMs),
     loudness: loudness.finish(durationMs),
     loudnessIntervalMs: LOUDNESS_INTERVAL_MS,
     speechDensity: computeSpeechDensity(words, durationMs),
+    cuts: cuts.finish(durationMs),
   }
   await signalsRepository(db).save(project.id, data)
   logger.info(
-    { silences: data.silences.length, samples: data.loudness.length },
+    {
+      silences: data.silences.length,
+      samples: data.loudness.length,
+      cuts: data.cuts.length,
+    },
     "analyzed"
   )
   await completeStep(db, project.id, "selecting", "select")

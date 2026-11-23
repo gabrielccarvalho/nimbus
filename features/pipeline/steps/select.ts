@@ -90,6 +90,7 @@ export const selectStep: JobHandler = async ({
             words: transcript?.words ?? [],
             segments: transcript?.segments ?? [],
             limits,
+            language: transcript?.language ?? settings.language,
             exclude: existing,
           }),
           parts

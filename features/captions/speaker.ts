@@ -43,18 +43,22 @@ const tokens = (text: string) =>
 
 const normalized = (text: string) => tokens(text).join(" ")
 
-export function isForeignSegment(text: string, language: string) {
+export function functionWordHits(text: string, language: string) {
   const main = LISTS[language.slice(0, 2).toLowerCase()]
-  if (!main) return false
+  if (!main) return { main: 0, foreign: 0 }
   const words = tokens(text)
-  const mainHits = words.filter((word) => main.has(word)).length
-  let foreignHits = 0
+  let foreign = 0
   for (const list of Object.values(LISTS)) {
     if (list === main) continue
     const hits = words.filter((word) => list.has(word) && !main.has(word))
-    foreignHits = Math.max(foreignHits, hits.length)
+    foreign = Math.max(foreign, hits.length)
   }
-  return foreignHits > 0 && foreignHits > mainHits
+  return { main: words.filter((word) => main.has(word)).length, foreign }
+}
+
+export function isForeignSegment(text: string, language: string) {
+  const hits = functionWordHits(text, language)
+  return hits.foreign > 0 && hits.foreign > hits.main
 }
 
 export function loopedSegments(segments: readonly Segment[]) {
