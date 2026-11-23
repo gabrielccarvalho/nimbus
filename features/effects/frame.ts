@@ -9,10 +9,12 @@ import { usesWebcam, type LayoutInput } from "../layout/schema"
 import type { Effect } from "./schema"
 
 export const ZOOM_EASE_MS = 150
-export const SHAKE_SCALE = 1.06
+export const SHAKE_SCALE = { light: 1.06, strong: 1.12 }
 
 const SHAKE_AMPLITUDE = { light: 0.03, strong: 0.06 }
-const SHAKE_RADIANS_PER_MS = (2 * Math.PI * 25) / 1000
+// Below the ~15 Hz Nyquist limit of a 30 fps render, so preview and render show the same motion.
+const SHAKE_HZ = 12
+const SHAKE_RADIANS_PER_MS = (2 * Math.PI * SHAKE_HZ) / 1000
 
 export type FloatRect = { x: number; y: number; w: number; h: number }
 export type FrameRegion = { crop: FloatRect; dest: FloatRect; blur?: true }
@@ -115,11 +117,10 @@ function shakeCrop(
   const progress = (tMs - shake.startMs) / (shake.endMs - shake.startMs)
   const amplitude = SHAKE_AMPLITUDE[shake.intensity] * (1 - progress)
   const angle = tMs * SHAKE_RADIANS_PER_MS
-  const w = crop.w / SHAKE_SCALE
-  const h = crop.h / SHAKE_SCALE
-  const x = crop.x + (crop.w - w) / 2 + amplitude * crop.w * Math.sin(angle)
-  const y =
-    crop.y + (crop.h - h) / 2 + amplitude * crop.h * Math.cos(angle + 0.7)
+  const w = crop.w / SHAKE_SCALE[shake.intensity]
+  const h = crop.h / SHAKE_SCALE[shake.intensity]
+  const x = crop.x + (crop.w - w) / 2 + amplitude * w * Math.sin(angle)
+  const y = crop.y + (crop.h - h) / 2 + amplitude * h * Math.cos(angle + 0.7)
   return {
     x: clamp(x, crop.x, crop.x + crop.w - w),
     y: clamp(y, crop.y, crop.y + crop.h - h),

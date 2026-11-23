@@ -222,7 +222,7 @@ describe("frameAt", () => {
     expect(frameAt(camTop, source, events, 1500)).toEqual({ regions: shaken })
     shaken.forEach((region, i) => {
       inside(region.crop, unshaken[i]!.crop)
-      expect(region.crop.w).toBeCloseTo(unshaken[i]!.crop.w / SHAKE_SCALE)
+      expect(region.crop.w).toBeCloseTo(unshaken[i]!.crop.w / SHAKE_SCALE.light)
     })
 
     const strong: Effect = {
@@ -240,8 +240,26 @@ describe("frameAt", () => {
       )
     }
     const peak = (fromMs: number) =>
-      Math.max(...Array.from({ length: 40 }, (_, i) => offset(fromMs + i)))
+      Math.max(...Array.from({ length: 84 }, (_, i) => offset(fromMs + i)))
     expect(peak(1080)).toBeGreaterThan(peak(1880))
     expect(peak(1880)).toBeGreaterThan(0)
+  })
+
+  it("strong shake fits inside its over-scale without clamping", () => {
+    const strong: Effect = {
+      kind: "shake",
+      startMs: 1000,
+      endMs: 2000,
+      intensity: "strong",
+    }
+    const base = frameAt(fill, source, [], 1100).regions[0]!.crop
+    const crop = frameAt(fill, source, [strong], 1100).regions[0]!.crop
+    expect(crop.w).toBeCloseTo(base.w / SHAKE_SCALE.strong)
+    expect(crop.x + crop.w / 2).not.toBeCloseTo(base.x + base.w / 2)
+    expect(crop.y + crop.h / 2).not.toBeCloseTo(base.y + base.h / 2)
+    expect(crop.x).toBeGreaterThan(base.x)
+    expect(crop.y).toBeGreaterThan(base.y)
+    expect(crop.x + crop.w).toBeLessThan(base.x + base.w)
+    expect(crop.y + crop.h).toBeLessThan(base.y + base.h)
   })
 })
