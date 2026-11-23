@@ -133,7 +133,7 @@ describe("render_clip", () => {
     const at = 1
     const a = grayFrame(plain.file, at)
     const b = grayFrame(captioned.file, at)
-    const captionBand = bandDiff(a, b, 1150, 1400)
+    const captionBand = bandDiff(a, b, 900, 1100)
     const webcamBand = bandDiff(a, b, 100, 600)
     expect(captionBand).toBeGreaterThan(4)
     expect(webcamBand).toBeLessThan(1.5)

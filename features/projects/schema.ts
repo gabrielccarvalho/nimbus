@@ -59,7 +59,10 @@ export const defaultProjectSettings: ProjectSettings = {
   clipMinMs: 15_000,
   clipMaxMs: 60_000,
   targetClipCount: 12,
-  captionStyle: { presetId: "punch", overrides: {} },
+  captionStyle: {
+    presetId: "clean",
+    overrides: { position: "middle", maxWordsPerPage: 3 },
+  },
   captionsEnabled: true,
   language: "auto",
   audioTrack: null,
