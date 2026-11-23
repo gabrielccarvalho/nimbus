@@ -1,14 +1,18 @@
 import "server-only"
 
+import { getStorage } from "@/lib/storage"
+
 import { signalsRepository } from "../../analysis/repository"
 import { clipRepository } from "../../clips/repository"
 import { loadAudienceHeatmap } from "../../downloads/service"
 import { selectHighlights } from "../../highlights"
+import { proxyFrameSource } from "../../highlights/frames"
+import { NICHE_PROFILES, resolveNiche } from "../../highlights/niches"
 import { postprocessCandidates } from "../../highlights/postprocess"
 import type { Candidate, RawCandidate } from "../../highlights/types"
 import type { JobHandler } from "../../jobs/worker-loop"
 import { layoutRepository } from "../../layout/repository"
-import { projectRepository } from "../../projects/repository"
+import { assetRepository, projectRepository } from "../../projects/repository"
 import { transcriptRepository } from "../../transcription/repository"
 import { MAX_DETAIL_CANDIDATES, type StepDetail } from "../detail"
 import { beginStep, completeStep, sourceAsset, throwIfAborted } from "./common"
@@ -42,6 +46,13 @@ export const selectStep: JobHandler = async ({
   const signals = await signalsRepository(db).get(project.id)
   const durationMs = (await sourceAsset(db, project)).durationMs ?? 0
   const audience = await loadAudienceHeatmap(db, project, { signal, logger })
+  const niche = resolveNiche(settings.niche, project.name)
+  const proxy = await assetRepository(db).findByKind(project.id, "proxy")
+  const frames = proxy
+    ? proxyFrameSource(getStorage().resolve(proxy.storageKey))
+    : undefined
+  const reviewing = settings.selectorMode === "anthropic" && Boolean(frames)
+  const firstPassShare = reviewing ? 50 : 80
   reportProgress(10)
   const limits = {
     minMs: settings.clipMinMs,
@@ -64,7 +75,7 @@ export const selectStep: JobHandler = async ({
     } satisfies StepDetail)
   const found: RawCandidate[] = []
 
-  const { candidates, fallbackReason } = await selectHighlights(
+  const { candidates, fallbackReason, reviewFailure } = await selectHighlights(
     settings.selectorMode === "manual" ? "heuristic" : settings.selectorMode,
     {
       durationMs,
@@ -81,9 +92,11 @@ export const selectStep: JobHandler = async ({
       reactionPhrases: settings.reactionPhrases,
       audience,
       exclude: existing,
+      niche: NICHE_PROFILES[niche],
+      frames,
       onPart: (candidates, parts) => {
         found.push(...candidates)
-        reportProgress(10 + (80 * parts.done) / parts.total)
+        reportProgress(10 + (firstPassShare * parts.done) / parts.total)
         showCandidates(
           postprocessCandidates(found, {
             durationMs,
@@ -96,6 +109,8 @@ export const selectStep: JobHandler = async ({
           parts
         )
       },
+      onReview: ({ done, total }) =>
+        reportProgress(10 + firstPassShare + (30 * done) / total),
       signal,
     },
     logger
@@ -113,13 +128,21 @@ export const selectStep: JobHandler = async ({
       hook: c.hook,
       reason: fallbackReason
         ? `Claude unavailable (${fallbackReason}). ${c.reason}`
-        : c.reason,
+        : reviewFailure
+          ? `Not checked against the video (${reviewFailure}). ${c.reason}`
+          : c.reason,
       score: c.score,
     }))
   )
   await projectRepository(db).setAwaitingManualSelection(project.id, false)
   logger.info(
-    { candidates: candidates.length, more, fallback: Boolean(fallbackReason) },
+    {
+      candidates: candidates.length,
+      more,
+      niche,
+      fallback: Boolean(fallbackReason),
+      reviewed: reviewing && !fallbackReason && !reviewFailure,
+    },
     "selected"
   )
   await completeStep(db, project.id, next)

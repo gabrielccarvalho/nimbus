@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest"
 
 import { buildSegments, normalizeWords } from "../transcription/normalize"
-import { buildSelectionPrompt, chunkRanges, languageName } from "./prompt"
+import { NICHE_PROFILES } from "./niches"
+import {
+  buildSelectionPrompt,
+  chunkRanges,
+  buildManualPrompt,
+  languageName,
+  parseCandidatesJson,
+} from "./prompt"
 
 const words = normalizeWords([
   { text: " Meu", startMs: 0, endMs: 400, confidence: 0.95 },
@@ -26,6 +33,16 @@ const base = {
 }
 
 describe("selection prompt", () => {
+  it("lists what hooks viewers in the niche and asks for payoff starts", () => {
+    const prompt = buildSelectionPrompt({ ...base, niche: NICHE_PROFILES.gta })
+    expect(prompt).toContain(
+      "The game is GTA. For this niche, look hardest for:"
+    )
+    expect(prompt).toContain("- bugs and glitches")
+    expect(prompt).toContain("start on the payoff")
+    expect(buildSelectionPrompt(base)).not.toContain("The game is")
+  })
+
   it("names the spoken language and marks game and unclear speech", () => {
     const prompt = buildSelectionPrompt(base)
     expect(languageName("pt")).toBe("Portuguese")
@@ -115,5 +132,35 @@ describe("rewatched ranges", () => {
 
   it("says nothing without a heatmap", () => {
     expect(buildSelectionPrompt(base)).not.toContain("rewatched")
+  })
+})
+
+describe("manual prompt", () => {
+  it("includes the most replayed ranges and the reply format", () => {
+    const prompt = buildManualPrompt({
+      ...base,
+      audience: [
+        { startMs: 0, endMs: 6000, value: 0.2 },
+        { startMs: 6000, endMs: 12_000, value: 1 },
+        { startMs: 12_000, endMs: 18_000, value: 0.4 },
+      ],
+    })
+    expect(prompt).toContain("Most rewatched on YouTube")
+    expect(prompt).toContain("6.0–12.0s (1.00)")
+    expect(prompt).toContain("Reply with only JSON in this shape")
+  })
+})
+
+describe("parseCandidatesJson", () => {
+  it.each([
+    ["no object", "nothing here", /starts with/],
+    ["broken JSON", "{clips: [}", /isn't valid JSON/],
+    [
+      "the wrong shape",
+      '{"clips":[{"title":"x"}]}',
+      /expected shape \(clips\.0\.startMs/,
+    ],
+  ])("explains %s", (_, text, message) => {
+    expect(() => parseCandidatesJson(text)).toThrow(message)
   })
 })

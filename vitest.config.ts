@@ -15,6 +15,8 @@ const pureModules = [
   "features/highlights/postprocess.ts",
   "features/highlights/heuristic.ts",
   "features/highlights/prompt.ts",
+  "features/highlights/review.ts",
+  "features/highlights/niches.ts",
   "features/layout/border-heuristic.ts",
   "features/render/filtergraph.ts",
   "features/render/progress-parser.ts",

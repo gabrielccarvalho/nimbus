@@ -49,6 +49,19 @@ describe("postprocessCandidates", () => {
     ])
   })
 
+  it("keeps a reviewed payoff start, snapped only to the nearest word", () => {
+    const [clip] = postprocessCandidates([raw(10_900, 30_200)], {
+      ...context,
+      payoffStarts: true,
+    })
+    expect(clip).toMatchObject({ startMs: 11_000, endMs: 29_600 })
+    const [far] = postprocessCandidates([raw(12_450, 30_200)], {
+      ...context,
+      payoffStarts: true,
+    })
+    expect(far!.startMs).toBe(12_450)
+  })
+
   it("snaps to sentence boundaries within 1.5 s", () => {
     const [clip] = postprocessCandidates([raw(10_900, 30_200)], context)
     expect(clip).toMatchObject({

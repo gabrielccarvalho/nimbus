@@ -6,6 +6,7 @@ import type { Candidate, RawCandidate, SelectionLimits } from "./types"
 export const SNAP_WINDOW_MS = 1500
 export const MAX_OVERLAP_RATIO = 0.2
 export const GAME_DIALOGUE_PENALTY = 0.6
+export const PAYOFF_SNAP_MS = 400
 
 type Context = {
   durationMs: number
@@ -14,6 +15,7 @@ type Context = {
   limits: SelectionLimits
   language?: string
   exclude?: readonly TimeRange[]
+  payoffStarts?: boolean
 }
 
 function nearest(values: readonly number[], target: number, within = Infinity) {
@@ -93,7 +95,9 @@ export function postprocessCandidates(
     )
     let endMs = Math.max(0, Math.min(durationMs, Math.round(candidate.endMs)))
     if (endMs <= startMs) continue
-    startMs = snap(startMs, sentenceStarts, wordStarts)
+    startMs = context.payoffStarts
+      ? (nearest(wordStarts, startMs, PAYOFF_SNAP_MS) ?? startMs)
+      : snap(startMs, sentenceStarts, wordStarts)
     endMs = snap(endMs, sentenceEnds, wordEnds)
     if (endMs <= startMs) continue
     ;[startMs, endMs] = fitLength(startMs, endMs, context)

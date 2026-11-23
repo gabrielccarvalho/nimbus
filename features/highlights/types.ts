@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import type { AudiencePoint, SignalsData, TimeRange } from "../analysis/schema"
 import type { Segment, Word } from "../transcription/schema"
+import type { NicheProfile } from "./niches"
 
 export const rawCandidateSchema = z.object({
   startMs: z.number(),
@@ -35,14 +36,29 @@ export type SelectorInput = {
   reactionPhrases: readonly string[]
   audience?: readonly AudiencePoint[]
   exclude?: readonly TimeRange[]
+  niche?: NicheProfile
+  frames?: FrameSource
   onPart?: (
     candidates: RawCandidate[],
     parts: { done: number; total: number }
   ) => void
+  onReview?: (progress: { done: number; total: number }) => void
   signal?: AbortSignal
 }
+
+export type FrameSource = (
+  atMs: readonly number[],
+  signal?: AbortSignal
+) => Promise<string[]>
 
 export interface HighlightSelector {
   readonly id: "anthropic" | "heuristic"
   select(input: SelectorInput): Promise<RawCandidate[]>
+}
+
+export interface ClipReviewer {
+  review(
+    candidates: readonly Candidate[],
+    input: SelectorInput
+  ): Promise<RawCandidate[]>
 }
