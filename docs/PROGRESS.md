@@ -187,6 +187,49 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 - [x] Tests: link validation and yt-dlp parsing units, integration (import → download → highlights, private video failure and retry, live stream refusal), e2e (import from link, readable failure)
 - [x] Verified by hand against YouTube with yt-dlp 2026.10.26: 10-minute video downloaded and merged to H.264/AAC MP4 with progress to 100%; removed video and playlist links fail with readable reasons in ~2 s
 
+### Phase 20: Quick wins
+
+- [ ] Live project page: the snapshot carries name, source metadata (duration, resolution, size), aspect and thumbnail, and the page updates whenever any of them change, not just on status changes. Fixes the stale title after a link import and the empty stat cards
+- [ ] Thumbnail from the start: link imports save yt-dlp's thumbnail before downloading; uploads capture a frame in the browser and send it with the file. Probe still writes its own frame later. An empty thumbnail shows a placeholder, not a blank card
+- [ ] Cancel button: replace the square stop icon (reads as a checkbox) with a plain "Cancel" or an X
+- [ ] Rename Auto-Clipper → Nimbus: app name, page titles, sidebar, README, CLAUDE.md, package name, e2e assertions
+
+### Phase 21: Postgres + Docker for local development
+
+- [ ] `docker-compose.yml` with Postgres 17 (volume, healthcheck); `pnpm dev` starts it first. Next and the worker stay on the host, because VideoToolbox and whisper's Metal acceleration don't work inside Docker on macOS
+- [ ] Drizzle pg schema and migrations; all repositories and their callers become async; transactions via `db.transaction`
+- [ ] Job queue claims with `SELECT … FOR UPDATE SKIP LOCKED`; `LISTEN/NOTIFY` for project events so SSE no longer polls the DB
+- [ ] Tests: PGlite (in-process Postgres) for unit and integration tests so they don't need Docker; e2e against the compose database
+- [ ] One-off script to copy existing SQLite projects into Postgres; `doctor` checks the database connection
+- [ ] ADR: why Postgres (concurrent workers, NOTIFY, standard tooling, path to hosting) and what it costs (Docker needed to run)
+
+### Phase 22: Per-project settings and spoken language
+
+- [ ] Every setting is per project: spoken language, selector, clip length range, clip count, captions and style, render quality. Global settings become "defaults for new projects"
+- [ ] Upload and link import start straight away with the defaults; an "Options" section in the import form sets language and selector up front
+- [ ] Project Settings tab; changing a setting offers to re-run only what it affects (language → transcribe onward, selector or clip length → find highlights, captions or quality → re-render)
+- [ ] Spoken-language detection that ignores the game: detect on several windows across the recording and take the majority instead of only the first 30 s; use yt-dlp's `language` field as a hint for link imports; an explicit choice always wins
+- [ ] Voice track picker: when the source has more than one audio track (common with OBS: mic on its own track), transcribe the chosen track; analysis keeps using the full mix
+- [ ] Segments that don't match the spoken language (low-confidence game dialogue) are down-weighted when finding highlights
+
+### Phase 23: Highlights that adapt to the language
+
+- [ ] Remove the hard-coded English keyword list. Score with signals that work in any language: loudness spikes against a rolling baseline, sudden speech-rate jumps, shouting and laughter, repeated words ("vai vai vai"), exclamations, a pause before a peak
+- [ ] Per-language reaction phrase lists as data files (en, pt, es to start), chosen from the transcript's language; extra phrases per project for a streamer's catchphrases
+- [ ] Claude selector: tell it the spoken language, write titles and hooks in that language, and split very long transcripts (multi-hour streams) into chunks
+- [ ] Tune weights against a few real streams with known good moments; keep the tuning set as a regression test
+
+### Phase 24: Overview that changes with each step
+
+- [ ] The worker publishes step details (stored with the job, pushed over SSE), not just a percentage
+- [ ] Downloading: thumbnail, title, channel, speed, ETA, size so far
+- [ ] Probing: metadata cards fill in as they're read; preview frames appear
+- [ ] Transcribing: the transcript streams in live, with detected language and words per minute
+- [ ] Analyzing: the loudness waveform draws as it's computed, with silences marked
+- [ ] Finding highlights: candidate clips appear as they're found, with scores
+- [ ] Rendering: a grid of clips, each with its own progress and poster frame
+- [ ] Elapsed time and an estimate for each step
+
 ### Not verified
 
 - MediaPipe face detection on a real face (fixtures have none; the code path is unit tested and the model loads in e2e).
