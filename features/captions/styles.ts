@@ -4,8 +4,8 @@ import { OUTPUT_HEIGHT, SPLIT_HEIGHTS } from "../layout/geometry"
 
 export const CAPTION_TOKENS = {
   background: "oklch(1 0 0)",
-  foreground: "oklch(0.145 0 0)",
-  primary: "oklch(0.841 0.238 128.85)",
+  foreground: "oklch(0.2 0.03 285)",
+  primary: "oklch(0.87 0.17 90)",
 } as const
 
 export type CaptionColorToken = keyof typeof CAPTION_TOKENS
@@ -53,13 +53,13 @@ export const CAPTION_FONTS: Record<
   oxanium: {
     label: "Oxanium",
     fontFamily: "Oxanium ExtraBold",
-    cssFontFamily: "var(--font-heading)",
+    cssFontFamily: '"Oxanium ExtraBold", var(--font-heading)',
     file: "Oxanium-ExtraBold.ttf",
   },
   nunito: {
     label: "Nunito Sans",
     fontFamily: "Nunito Sans ExtraBold",
-    cssFontFamily: "var(--font-sans)",
+    cssFontFamily: '"Nunito Sans ExtraBold", var(--font-sans)',
     file: "NunitoSans-ExtraBold.ttf",
   },
   pricedown: {

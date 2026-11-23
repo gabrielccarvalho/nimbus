@@ -42,7 +42,7 @@ export function AppSidebar({ recent }: { recent: RecentProject[] }) {
               <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                 <FilmSlateIcon weight="bold" aria-hidden />
               </span>
-              <span className="font-heading text-base font-semibold">
+              <span className="font-heading text-xl font-extrabold">
                 Nimbus
               </span>
             </SidebarMenuButton>

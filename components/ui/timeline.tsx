@@ -155,7 +155,7 @@ function TimelineLoudness({
       viewBox={`0 0 ${Math.max(values.length, 1)} 1`}
       preserveAspectRatio="none"
       className={cn(
-        "pointer-events-none absolute inset-0 size-full fill-primary/40",
+        "pointer-events-none absolute inset-0 size-full fill-foreground/25",
         className
       )}
       {...props}
@@ -172,7 +172,7 @@ const timelineRangeVariants = cva(
       variant: {
         silence:
           "bg-[repeating-linear-gradient(135deg,var(--color-foreground)_0_1px,transparent_1px_6px)] opacity-20",
-        clip: "border-x-2 border-primary bg-primary/15 p-0.5 text-primary",
+        clip: "border-x-2 border-primary bg-primary/15 p-0.5 text-highlight-ink",
         selected:
           "border-x-2 border-primary bg-primary/30 p-0.5 text-primary-foreground",
         audience: "bottom-auto h-1.5 bg-chart-3",

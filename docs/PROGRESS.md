@@ -15,7 +15,7 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 | Component primitives | `@base-ui/react` 1.9 (Base UI, not Radix)                                                                                                   |
 | Icons                | `@phosphor-icons/react`                                                                                                                     |
 | `cn`                 | from the `cn` package, re-exported by `lib/utils.ts`                                                                                        |
-| Fonts                | Nunito Sans (`--font-sans`), Oxanium (`--font-heading`), Geist Mono (`--font-mono`)                                                         |
+| Fonts                | Archivo (`--font-sans`, condensed for `--font-heading`), Geist Mono (`--font-mono`)                                                         |
 | Theming              | `next-themes`, class strategy, `d` hotkey toggles dark mode                                                                                 |
 | ESLint               | 9 flat config, `eslint-config-next` 16.4.6                                                                                                  |
 | Prettier             | 3 + `prettier-plugin-tailwindcss`, no semicolons                                                                                            |

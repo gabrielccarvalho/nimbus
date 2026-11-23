@@ -8,17 +8,17 @@ YCbCr Matrix: TV.709
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Caption,Oxanium ExtraBold,92,&H00FFFFFF,&H0000E69A,&H000A0A0A,&H660A0A0A,0,0,0,0,100,100,0,0,1,7,0,2,60,60,0,1
+Style: Caption,Oxanium ExtraBold,92,&H00FFFFFF,&H0027CEFF,&H00231415,&H66231415,0,0,0,0,100,100,0,0,1,7,0,2,60,60,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-Dialogue: 0,0:00:00.00,0:00:00.32,Caption,,0,0,0,,{\an2\pos(540,1382)}{\c&H0000E69A}WAIT,{\c&H00FFFFFF} WHAT JUST
-Dialogue: 0,0:00:00.32,0:00:00.62,Caption,,0,0,0,,{\an2\pos(540,1382)}WAIT, {\c&H0000E69A}WHAT{\c&H00FFFFFF} JUST
-Dialogue: 0,0:00:00.62,0:00:00.82,Caption,,0,0,0,,{\an2\pos(540,1382)}WAIT, WHAT {\c&H0000E69A}JUST{\c&H00FFFFFF}
-Dialogue: 0,0:00:00.82,0:00:01.60,Caption,,0,0,0,,{\an2\pos(540,1382)}{\c&H0000E69A}HAPPENED?{\c&H00FFFFFF}
-Dialogue: 0,0:00:02.40,0:00:02.62,Caption,,0,0,0,,{\an2\pos(540,1382)}{\c&H0000E69A}DID{\c&H00FFFFFF} YOU SEE
-Dialogue: 0,0:00:02.62,0:00:02.82,Caption,,0,0,0,,{\an2\pos(540,1382)}DID {\c&H0000E69A}YOU{\c&H00FFFFFF} SEE
-Dialogue: 0,0:00:02.82,0:00:03.02,Caption,,0,0,0,,{\an2\pos(540,1382)}DID YOU {\c&H0000E69A}SEE{\c&H00FFFFFF}
-Dialogue: 0,0:00:03.02,0:00:03.32,Caption,,0,0,0,,{\an2\pos(540,1382)}{\c&H0000E69A}THAT{\c&H00FFFFFF} INSANE\NCLUTCH
-Dialogue: 0,0:00:03.32,0:00:03.72,Caption,,0,0,0,,{\an2\pos(540,1382)}THAT {\c&H0000E69A}INSANE{\c&H00FFFFFF}\NCLUTCH
-Dialogue: 0,0:00:03.72,0:00:04.50,Caption,,0,0,0,,{\an2\pos(540,1382)}THAT INSANE\N{\c&H0000E69A}CLUTCH{\c&H00FFFFFF}
+Dialogue: 0,0:00:00.00,0:00:00.32,Caption,,0,0,0,,{\an2\pos(540,1382)}{\c&H0027CEFF}WAIT,{\c&H00FFFFFF} WHAT JUST
+Dialogue: 0,0:00:00.32,0:00:00.62,Caption,,0,0,0,,{\an2\pos(540,1382)}WAIT, {\c&H0027CEFF}WHAT{\c&H00FFFFFF} JUST
+Dialogue: 0,0:00:00.62,0:00:00.82,Caption,,0,0,0,,{\an2\pos(540,1382)}WAIT, WHAT {\c&H0027CEFF}JUST{\c&H00FFFFFF}
+Dialogue: 0,0:00:00.82,0:00:01.60,Caption,,0,0,0,,{\an2\pos(540,1382)}{\c&H0027CEFF}HAPPENED?{\c&H00FFFFFF}
+Dialogue: 0,0:00:02.40,0:00:02.62,Caption,,0,0,0,,{\an2\pos(540,1382)}{\c&H0027CEFF}DID{\c&H00FFFFFF} YOU SEE
+Dialogue: 0,0:00:02.62,0:00:02.82,Caption,,0,0,0,,{\an2\pos(540,1382)}DID {\c&H0027CEFF}YOU{\c&H00FFFFFF} SEE
+Dialogue: 0,0:00:02.82,0:00:03.02,Caption,,0,0,0,,{\an2\pos(540,1382)}DID YOU {\c&H0027CEFF}SEE{\c&H00FFFFFF}
+Dialogue: 0,0:00:03.02,0:00:03.32,Caption,,0,0,0,,{\an2\pos(540,1382)}{\c&H0027CEFF}THAT{\c&H00FFFFFF} INSANE\NCLUTCH
+Dialogue: 0,0:00:03.32,0:00:03.72,Caption,,0,0,0,,{\an2\pos(540,1382)}THAT {\c&H0027CEFF}INSANE{\c&H00FFFFFF}\NCLUTCH
+Dialogue: 0,0:00:03.72,0:00:04.50,Caption,,0,0,0,,{\an2\pos(540,1382)}THAT INSANE\N{\c&H0027CEFF}CLUTCH{\c&H00FFFFFF}

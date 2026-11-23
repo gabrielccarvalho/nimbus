@@ -55,10 +55,9 @@ test("each project keeps its own settings and offers to re-run", async ({
   page,
 }) => {
   await page.goto("/")
-  await page.getByRole("button", { name: "Import options" }).click()
   await page.getByLabel("Spoken language").click()
   await page.getByRole("option", { name: "Portuguese" }).click()
-  await page.getByLabel("Or import from a link").fill("https://youtu.be/e2e-pt")
+  await page.getByLabel("Paste a video link").fill("https://youtu.be/e2e-pt")
   await page.getByRole("button", { name: "Import", exact: true }).click()
   await expect(page).toHaveURL(/\/projects\/[\w-]+$/, { timeout: 30_000 })
   await expect(

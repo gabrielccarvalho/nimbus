@@ -178,7 +178,9 @@ export function ProjectUploader({
       <DropzoneIcon>
         <UploadSimpleIcon />
       </DropzoneIcon>
-      <DropzoneTitle>Drop a recording or click to browse</DropzoneTitle>
+      <DropzoneTitle className="font-heading text-lg font-bold">
+        Drop a recording or click to browse
+      </DropzoneTitle>
       <DropzoneDescription>
         MP4, MOV, MKV or WebM, up to {formatBytes(maxBytes)}
       </DropzoneDescription>
