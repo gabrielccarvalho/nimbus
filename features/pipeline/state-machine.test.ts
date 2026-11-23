@@ -6,6 +6,7 @@ import { jobTypes } from "../jobs/schema"
 import { projectStatuses, type ProjectStatus } from "../projects/schema"
 import {
   allowedTransitions,
+  RERUN_FROM,
   assertTransition,
   canTransition,
   isRunning,
@@ -35,6 +36,10 @@ const legal: Array<[ProjectStatus, ProjectStatus]> = [
   ...RUNNING_STATUSES.flatMap((s): Array<[ProjectStatus, ProjectStatus]> => [
     [s, "failed"],
     [s, "cancelled"],
+  ]),
+  ...RERUN_FROM.flatMap((s): Array<[ProjectStatus, ProjectStatus]> => [
+    [s, "transcribing"],
+    [s, "selecting"],
   ]),
 ]
 
@@ -82,9 +87,12 @@ describe("pipeline state machine", () => {
     }
   })
 
-  it("treats failed and cancelled as dead ends without retry", () => {
-    expect(allowedTransitions("failed")).toEqual([])
-    expect(allowedTransitions("cancelled")).toEqual([])
+  it("only re-runs failed and cancelled projects from transcribe or select", () => {
+    expect(allowedTransitions("failed")).toEqual(["transcribing", "selecting"])
+    expect(allowedTransitions("cancelled")).toEqual([
+      "transcribing",
+      "selecting",
+    ])
   })
 
   describe("retry", () => {

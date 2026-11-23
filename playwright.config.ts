@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process"
 import os from "node:os"
 import path from "node:path"
 
@@ -5,14 +6,17 @@ import { defineConfig, devices } from "@playwright/test"
 
 const PORT = Number(process.env.E2E_PORT ?? 3217)
 
-process.env.E2E_DATA_DIR ??= path.join(
-  os.tmpdir(),
-  `autoclipper-e2e-${Date.now()}`
-)
+process.env.E2E_DATA_DIR ??= path.join(os.tmpdir(), `nimbus-e2e-${Date.now()}`)
+process.env.E2E_DATABASE_URL ??= execFileSync(
+  "pnpm",
+  ["exec", "tsx", "--conditions=react-server", "tests/e2e/reset-db.ts"],
+  { encoding: "utf8" }
+).trim()
 
 const testEnv = {
   NODE_ENV: "production",
   DATA_DIR: process.env.E2E_DATA_DIR,
+  DATABASE_URL: process.env.E2E_DATABASE_URL,
   TRANSCRIBER: "fake",
   DOWNLOADER: "fake",
   FAKE_DOWNLOAD_FILE: path.resolve(

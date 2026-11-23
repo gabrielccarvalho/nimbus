@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest"
 
 import { buildSegments, normalizeWords, type RawToken } from "./normalize"
-import { parseWhisperJson, parseWhisperProgress } from "./whisper-parse"
+import {
+  parseWhisperJson,
+  parseWhisperProgress,
+  parseWhisperSegmentLine,
+} from "./whisper-parse"
 
 const t = (
   text: string,
@@ -160,5 +164,15 @@ describe("parseWhisperJson", () => {
       parseWhisperProgress("whisper_print_progress_callback: progress =  45%")
     ).toBe(45)
     expect(parseWhisperProgress("nothing here")).toBeNull()
+  })
+
+  it("parses the words whisper prints while it works", () => {
+    expect(
+      parseWhisperSegmentLine("[01:02:03.450 --> 01:02:03.900]   Corre,")
+    ).toEqual({ startMs: 3_723_450, text: "Corre," })
+    expect(
+      parseWhisperSegmentLine("[00:00:00.000 --> 00:00:00.010]  ")
+    ).toBeNull()
+    expect(parseWhisperSegmentLine("whisper_init_from_file")).toBeNull()
   })
 })

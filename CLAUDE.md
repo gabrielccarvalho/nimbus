@@ -1,6 +1,6 @@
 @AGENTS.md
 
-# Auto-Clipper (repo: nimbus)
+# Nimbus
 
 Local-first web app: upload a long 16:9 / 21:9 recording (gameplay + webcam overlay) → transcribe → detect silences/loudness → pick highlight candidates → detect the webcam → render vertical 9:16 clips with word-by-word burned-in captions (plus an optional silence-trimmed horizontal edit) → human review and export. Nothing is auto-published.
 
@@ -21,7 +21,7 @@ Local-first web app: upload a long 16:9 / 21:9 recording (gameplay + webcam over
 
 ## Stack (verified versions in docs/PROGRESS.md → Recon)
 
-Next.js 16 App Router · React 19 · TypeScript strict · Tailwind v4 · shadcn `base-nova` style on **Base UI** (`@base-ui/react`, not Radix) · Phosphor icons · zod · Drizzle + better-sqlite3 · Vitest/RTL/MSW · Playwright + axe · system ffmpeg/ffprobe · whisper.cpp CLI.
+Next.js 16 App Router · React 19 · TypeScript strict · Tailwind v4 · shadcn `base-nova` style on **Base UI** (`@base-ui/react`, not Radix) · Phosphor icons · zod · Drizzle + Postgres (Docker; PGlite in tests) · Vitest/RTL/MSW · Playwright + axe · system ffmpeg/ffprobe · whisper.cpp CLI.
 
 ## shadcn-first rule (all UI)
 

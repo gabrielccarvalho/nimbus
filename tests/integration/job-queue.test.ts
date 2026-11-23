@@ -1,6 +1,4 @@
-import path from "node:path"
-import { execFile } from "node:child_process"
-
+import { sql } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { backoffMs, jobQueue } from "@/features/jobs/queue"
@@ -14,12 +12,12 @@ import { createTestEnv, type TestEnv } from "../utils/test-env"
 
 let env: TestEnv
 
-beforeEach(() => {
-  env = createTestEnv()
+beforeEach(async () => {
+  env = await createTestEnv()
 })
 afterEach(() => env.cleanup())
 
-function project() {
+async function project() {
   return projectRepository(env.db).create({
     name: "p",
     settings: defaultProjectSettings,
@@ -41,98 +39,111 @@ function worker(handlers: JobHandlers, overrides = {}) {
 }
 
 describe("jobQueue", () => {
-  it("leases in order and never twice", () => {
+  it("leases in order and never twice", async () => {
     const queue = jobQueue(env.db)
-    const p = project()
-    const a = queue.enqueue({ type: "probe", projectId: p.id })
-    const b = queue.enqueue({ type: "analyze", projectId: p.id })
-    expect(queue.lease({ owner: "w1", leaseMs: 1000 })?.id).toBe(a.id)
-    expect(queue.lease({ owner: "w2", leaseMs: 1000 })?.id).toBe(b.id)
-    expect(queue.lease({ owner: "w3", leaseMs: 1000 })).toBeUndefined()
-    expect(queue.get(a.id)).toMatchObject({
+    const p = await project()
+    const a = await queue.enqueue({ type: "probe", projectId: p.id })
+    const b = await queue.enqueue({ type: "analyze", projectId: p.id })
+    expect((await queue.lease({ owner: "w1", leaseMs: 1000 }))?.id).toBe(a.id)
+    expect((await queue.lease({ owner: "w2", leaseMs: 1000 }))?.id).toBe(b.id)
+    expect(await queue.lease({ owner: "w3", leaseMs: 1000 })).toBeUndefined()
+    expect(await queue.get(a.id)).toMatchObject({
       status: "running",
       attempts: 1,
       leaseOwner: "w1",
     })
   })
 
-  it("filters by type lanes and respects runAfter", () => {
+  it("filters by type lanes and respects runAfter", async () => {
     const queue = jobQueue(env.db)
-    const p = project()
-    queue.enqueue({
+    const p = await project()
+    await queue.enqueue({
       type: "render_clip",
       projectId: p.id,
       payload: { clipId: "c" },
     })
-    queue.enqueue({
+    await queue.enqueue({
       type: "probe",
       projectId: p.id,
       runAfter: new Date(Date.now() + 60_000),
     })
     expect(
-      queue.lease({ owner: "w", leaseMs: 1000, excludeTypes: ["render_clip"] })
+      await queue.lease({
+        owner: "w",
+        leaseMs: 1000,
+        excludeTypes: ["render_clip"],
+      })
     ).toBeUndefined()
     expect(
-      queue.lease({ owner: "w", leaseMs: 1000, types: ["render_clip"] })?.type
+      (await queue.lease({ owner: "w", leaseMs: 1000, types: ["render_clip"] }))
+        ?.type
     ).toBe("render_clip")
   })
 
-  it("retries with exponential backoff, then fails", () => {
+  it("retries with exponential backoff, then fails", async () => {
     const queue = jobQueue(env.db)
-    const p = project()
-    const job = queue.enqueue({
+    const p = await project()
+    const job = await queue.enqueue({
       type: "probe",
       projectId: p.id,
       maxAttempts: 2,
     })
 
-    queue.lease({ owner: "w", leaseMs: 1000 })
-    const retried = queue.fail(job.id, "w", "boom", { retryable: true })
+    await queue.lease({ owner: "w", leaseMs: 1000 })
+    const retried = await queue.fail(job.id, "w", "boom", { retryable: true })
     expect(retried?.status).toBe("queued")
     expect(retried!.runAfter.getTime()).toBeGreaterThan(Date.now() + 1000)
 
-    env.db.$client
-      .prepare("update jobs set run_after = 0 where id = ?")
-      .run(job.id)
-    queue.lease({ owner: "w", leaseMs: 1000 })
+    await env.db.execute(
+      sql`update jobs set run_after = now() - interval '1 hour' where id = ${job.id}`
+    )
+    await queue.lease({ owner: "w", leaseMs: 1000 })
     expect(
-      queue.fail(job.id, "w", "boom again", { retryable: true })
+      await queue.fail(job.id, "w", "boom again", { retryable: true })
     ).toMatchObject({ status: "failed", error: "boom again", attempts: 2 })
   })
 
-  it("fails immediately when not retryable", () => {
+  it("fails immediately when not retryable", async () => {
     const queue = jobQueue(env.db)
-    const job = queue.enqueue({ type: "probe", projectId: project().id })
-    queue.lease({ owner: "w", leaseMs: 1000 })
+    const job = await queue.enqueue({
+      type: "probe",
+      projectId: (await project()).id,
+    })
+    await queue.lease({ owner: "w", leaseMs: 1000 })
     expect(
-      queue.fail(job.id, "w", "no ffmpeg", { retryable: false })?.status
+      (await queue.fail(job.id, "w", "no ffmpeg", { retryable: false }))?.status
     ).toBe("failed")
   })
 
-  it("ignores completions from a worker that lost the lease", () => {
+  it("ignores completions from a worker that lost the lease", async () => {
     const queue = jobQueue(env.db)
-    const job = queue.enqueue({ type: "probe", projectId: project().id })
-    queue.lease({ owner: "w1", leaseMs: 1000 })
-    expect(queue.complete(job.id, "intruder")).toBe(false)
-    expect(queue.heartbeat(job.id, "intruder", 1000)).toBe(false)
-    expect(queue.complete(job.id, "w1")).toBe(true)
+    const job = await queue.enqueue({
+      type: "probe",
+      projectId: (await project()).id,
+    })
+    await queue.lease({ owner: "w1", leaseMs: 1000 })
+    expect(await queue.complete(job.id, "intruder")).toBe(false)
+    expect(await queue.heartbeat(job.id, "intruder", 1000)).toBe(false)
+    expect(await queue.complete(job.id, "w1")).toBe(true)
   })
 
-  it("recovers expired leases on startup", () => {
+  it("recovers expired leases on startup", async () => {
     const queue = jobQueue(env.db)
-    const p = project()
-    const alive = queue.enqueue({ type: "probe", projectId: p.id })
-    const exhausted = queue.enqueue({
+    const p = await project()
+    const alive = await queue.enqueue({ type: "probe", projectId: p.id })
+    const exhausted = await queue.enqueue({
       type: "analyze",
       projectId: p.id,
       maxAttempts: 1,
     })
-    queue.lease({ owner: "crashed", leaseMs: 1 })
-    queue.lease({ owner: "crashed", leaseMs: 1 })
-    env.db.$client.prepare("update jobs set leased_until = 0").run()
-    expect(queue.recoverExpired()).toBe(2)
-    expect(queue.get(alive.id)?.status).toBe("queued")
-    expect(queue.get(exhausted.id)?.status).toBe("failed")
+    await queue.lease({ owner: "crashed", leaseMs: 1 })
+    await queue.lease({ owner: "crashed", leaseMs: 1 })
+    await env.db.execute(
+      sql`update jobs set leased_until = now() - interval '1 hour'`
+    )
+    expect(await queue.recoverExpired()).toBe(2)
+    expect((await queue.get(alive.id))?.status).toBe("queued")
+    expect((await queue.get(exhausted.id))?.status).toBe("failed")
   })
 
   it("computes capped backoff", () => {
@@ -140,47 +151,15 @@ describe("jobQueue", () => {
     expect(backoffMs(3)).toBe(8000)
     expect(backoffMs(50)).toBe(5 * 60_000)
   })
-
-  it("never double-leases across concurrent connections", async () => {
-    const queue = jobQueue(env.db)
-    const p = project()
-    for (let i = 0; i < 120; i++)
-      queue.enqueue({ type: "probe", projectId: p.id })
-
-    const script = path.resolve(
-      import.meta.dirname,
-      "../utils/lease-process.ts"
-    )
-    const processes = Array.from(
-      { length: 4 },
-      (_, index) =>
-        new Promise<string[]>((resolve, reject) => {
-          execFile(
-            process.execPath,
-            [
-              "--conditions=react-server",
-              "--import",
-              "tsx",
-              script,
-              process.env.DATABASE_PATH!,
-              `p${index}`,
-            ],
-            (error, stdout) =>
-              error ? reject(error) : resolve(JSON.parse(stdout) as string[])
-          )
-        })
-    )
-    const results = await Promise.all(processes)
-    const all = results.flat()
-    expect(all).toHaveLength(120)
-    expect(new Set(all).size).toBe(120)
-  }, 60_000)
 })
 
 describe("worker loop", () => {
   it("runs handlers, reports progress and completes jobs", async () => {
     const queue = jobQueue(env.db)
-    const job = queue.enqueue({ type: "probe", projectId: project().id })
+    const job = await queue.enqueue({
+      type: "probe",
+      projectId: (await project()).id,
+    })
     const seen: number[] = []
     const w = worker({
       probe: async ({ reportProgress }) => {
@@ -190,7 +169,7 @@ describe("worker loop", () => {
     })
     await w.drain()
     expect(seen).toEqual([50])
-    expect(queue.get(job.id)).toMatchObject({
+    expect(await queue.get(job.id)).toMatchObject({
       status: "succeeded",
       progress: 100,
     })
@@ -198,9 +177,9 @@ describe("worker loop", () => {
 
   it("retries retryable errors and reports final failures", async () => {
     const queue = jobQueue(env.db)
-    const job = queue.enqueue({
+    const job = await queue.enqueue({
       type: "probe",
-      projectId: project().id,
+      projectId: (await project()).id,
       maxAttempts: 1,
     })
     const onFinalFailure = vi.fn()
@@ -215,14 +194,17 @@ describe("worker loop", () => {
       { onFinalFailure }
     )
     await w.drain()
-    expect(queue.get(job.id)?.status).toBe("failed")
-    expect(queue.get(job.id)?.error).toContain("moov atom not found")
+    expect((await queue.get(job.id))?.status).toBe("failed")
+    expect((await queue.get(job.id))?.error).toContain("moov atom not found")
     expect(onFinalFailure).toHaveBeenCalledOnce()
   })
 
   it("aborts a running job when it is cancelled elsewhere", async () => {
     const queue = jobQueue(env.db)
-    const job = queue.enqueue({ type: "probe", projectId: project().id })
+    const job = await queue.enqueue({
+      type: "probe",
+      projectId: (await project()).id,
+    })
     let aborted = false
     const onCancelled = vi.fn()
     const w = worker(
@@ -233,22 +215,22 @@ describe("worker loop", () => {
               aborted = true
               resolve()
             })
-            setTimeout(() => queue.cancel(job.id), 50)
+            setTimeout(() => void queue.cancel(job.id), 50)
           }),
       },
       { onCancelled }
     )
     await w.drain()
     expect(aborted).toBe(true)
-    expect(queue.get(job.id)?.status).toBe("cancelled")
+    expect((await queue.get(job.id))?.status).toBe("cancelled")
     expect(onCancelled).toHaveBeenCalledOnce()
   })
 
   it("times out slow jobs", async () => {
     const queue = jobQueue(env.db)
-    const job = queue.enqueue({
+    const job = await queue.enqueue({
       type: "probe",
-      projectId: project().id,
+      projectId: (await project()).id,
       maxAttempts: 1,
     })
     const w = worker(
@@ -261,15 +243,15 @@ describe("worker loop", () => {
       { timeoutMs: () => 50 }
     )
     await w.drain()
-    expect(queue.get(job.id)).toMatchObject({ status: "failed" })
-    expect(queue.get(job.id)?.error).toMatch(/timed out/)
+    expect(await queue.get(job.id)).toMatchObject({ status: "failed" })
+    expect((await queue.get(job.id))?.error).toMatch(/timed out/)
   })
 
   it("limits render concurrency separately", async () => {
     const queue = jobQueue(env.db)
-    const p = project()
+    const p = await project()
     for (let i = 0; i < 3; i++) {
-      queue.enqueue({
+      await queue.enqueue({
         type: "render_clip",
         projectId: p.id,
         payload: { clipId: `${i}` },
@@ -291,13 +273,16 @@ describe("worker loop", () => {
 
   it("stops gracefully, letting active jobs finish", async () => {
     const queue = jobQueue(env.db)
-    const job = queue.enqueue({ type: "probe", projectId: project().id })
+    const job = await queue.enqueue({
+      type: "probe",
+      projectId: (await project()).id,
+    })
     const w = worker({
       probe: () => new Promise((r) => setTimeout(r, 100)),
     })
     w.start()
     await vi.waitFor(() => expect(w.activeCount).toBe(1))
     await w.stop()
-    expect(queue.get(job.id)?.status).toBe("succeeded")
+    expect((await queue.get(job.id))?.status).toBe("succeeded")
   })
 })

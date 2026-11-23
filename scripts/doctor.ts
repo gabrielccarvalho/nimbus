@@ -3,7 +3,10 @@ import "@/lib/load-env"
 import { access, constants, mkdir, rm, writeFile } from "node:fs/promises"
 import path from "node:path"
 
+import { Client } from "pg"
+
 import { chooseEncoder } from "@/features/render/filtergraph"
+import { isEnglishOnlyModel } from "@/features/transcription/language"
 import { getEnv } from "@/lib/env"
 import { getFfmpegCapabilities } from "@/lib/media/capabilities"
 import { runProcess } from "@/lib/process/run"
@@ -126,7 +129,13 @@ async function main() {
   }
   try {
     await access(path.resolve(env.WHISPER_MODEL), constants.R_OK)
-    add("whisper model", "ok", env.WHISPER_MODEL)
+    add(
+      "whisper model",
+      isEnglishOnlyModel(env.WHISPER_MODEL) ? "warn" : "ok",
+      isEnglishOnlyModel(env.WHISPER_MODEL)
+        ? `${env.WHISPER_MODEL} is English-only: other languages can't be detected or transcribed`
+        : env.WHISPER_MODEL
+    )
   } catch {
     add("whisper model", transcriberLevel, `${env.WHISPER_MODEL} not readable`)
   }
@@ -152,6 +161,30 @@ async function main() {
       "warn",
       "MediaPipe assets missing; run pnpm run setup:vision (border detection still works)"
     )
+  }
+
+  const client = new Client({
+    connectionString: env.DATABASE_URL,
+    connectionTimeoutMillis: 3_000,
+  })
+  try {
+    await client.connect()
+    const { rows } = await client.query<{ version: string }>(
+      "select current_setting('server_version') as version"
+    )
+    add(
+      "postgres",
+      "ok",
+      `${rows[0]?.version ?? "connected"} (${new URL(env.DATABASE_URL).host})`
+    )
+  } catch (error) {
+    add(
+      "postgres",
+      "fail",
+      `${String(error)}; start it with docker compose up -d db`
+    )
+  } finally {
+    await client.end().catch(() => undefined)
   }
 
   try {

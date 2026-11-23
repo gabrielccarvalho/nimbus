@@ -1,6 +1,6 @@
 # Architecture
 
-Auto-Clipper is one Next.js app plus one long-running Node worker process. They share a SQLite database and a data directory on local disk. Nothing leaves the machine except optional calls to the Anthropic API.
+Nimbus is one Next.js app plus one long-running Node worker process. They share a Postgres database (Docker for local development) and a data directory on local disk. Nothing leaves the machine except optional calls to the Anthropic API.
 
 ## System diagram
 
@@ -25,7 +25,7 @@ flowchart LR
     H[Job handlers<br/>probe · transcribe · analyze · select · render]
   end
 
-  DB[(SQLite<br/>data/app.db)]
+  DB[(Postgres)]
   FS[(DATA_DIR<br/>sources · audio · renders)]
   FF[ffmpeg / ffprobe]
   WH[whisper.cpp]
@@ -60,7 +60,7 @@ A request never waits on ffmpeg, whisper or an LLM call. Mutations that kick off
 sequenceDiagram
   participant U as User
   participant N as Next
-  participant D as SQLite
+  participant D as Postgres
   participant W as Worker
   U->>N: POST /api/uploads (stream)
   N->>D: project(uploaded) + asset(source) + job(probe)
@@ -77,7 +77,7 @@ sequenceDiagram
   N-->>U: SSE progress throughout
 ```
 
-Each step handler is responsible for: reading its inputs, doing the work, writing outputs, transitioning the project through the state machine and enqueuing the next job, in that order. Transition and enqueue happen in one SQLite transaction.
+Each step handler is responsible for: reading its inputs, doing the work, writing outputs, transitioning the project through the state machine and enqueuing the next job, in that order. Transition and enqueue happen in one transaction.
 
 ## Folder structure
 
@@ -138,13 +138,15 @@ interface HighlightSelector {
 
 ## Persistence
 
-- SQLite via `better-sqlite3` + Drizzle. WAL mode so the Next process and the worker can read while the other writes. `foreign_keys = ON`. `busy_timeout = 5000`.
-- Repositories (`features/*/repository.ts`) are the only modules that issue queries. Swapping to Postgres means rewriting the schema dialect and repositories, not callers.
+- Postgres 17 via `pg` + Drizzle (`lib/db`). `docker-compose.yml` runs it on port 5442; `DATABASE_URL` points at it. JSON columns are `jsonb`, times are `timestamptz`.
+- Every repository method is async. `withTransaction(db, async (tx) => …)` runs a transaction; code inside must use `tx`, not `db`, or it runs outside the transaction.
+- The job queue claims work with `SELECT … FOR UPDATE SKIP LOCKED` inside a transaction, so any number of workers can lease without double-claiming.
+- Repositories (`features/*/repository.ts`) are the only modules that issue queries, apart from the sweep step's three key lookups.
 - Files live under `DATA_DIR` with keys like `projects/<projectId>/source.mp4`, `projects/<projectId>/renders/<clipId>.mp4`. The DB stores keys, never absolute paths.
 
 ## Realtime
 
-The worker writes `jobs.progress` and project status to SQLite. `/api/projects/[id]/events` polls the DB every 500 ms within the request and emits SSE events only when the snapshot changes, with a heartbeat comment every 15 s. The client falls back to `router.refresh()` polling if `EventSource` errors repeatedly.
+The worker writes `jobs.progress`, `jobs.detail` and project status to Postgres. `detail` is a small step-specific JSON object (`features/pipeline/detail.ts`: download bytes and speed, the transcript's last few hundred characters, a 240-point waveform, candidates found so far), written with the heartbeat at most every 500 ms, flushed before the job completes and cleared when it's leased again. The snapshot only includes it for running jobs. `/api/projects/[id]/events` polls the DB every 500 ms (the next poll starts after the previous one finishes) within the request and emits SSE events only when the snapshot changes, with a heartbeat comment every 15 s. The client falls back to `router.refresh()` polling if `EventSource` errors repeatedly.
 
 ## server-only in the worker
 

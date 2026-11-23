@@ -2,7 +2,7 @@
 
 import {
   ArrowClockwiseIcon,
-  StopIcon,
+  XIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react"
 import * as React from "react"
@@ -31,6 +31,8 @@ import {
   PIPELINE_STEPS,
   stepStates,
 } from "@/features/pipeline/state-machine"
+import { estimateRemainingMs } from "@/features/pipeline/detail"
+import { formatDuration } from "@/lib/format"
 
 import {
   PipelineStep,
@@ -39,9 +41,11 @@ import {
   PipelineStepper,
 } from "./pipeline-stepper"
 import { ProjectStatusBadge } from "./status-badge"
+import { StepDetailView, useNow, type RenderClip } from "./step-detail"
 import { useProjectEvents } from "./use-project-events"
 
 const JOB_LABELS: Record<string, string> = {
+  download: "Downloading",
   probe: "Reading video",
   transcribe: "Transcribing",
   analyze: "Analyzing audio",
@@ -50,13 +54,29 @@ const JOB_LABELS: Record<string, string> = {
   render_edit: "Rendering edit",
 }
 
-export function ProjectLive({ initial }: { initial: ProjectSnapshot }) {
+export function ProjectLive({
+  initial,
+  clips = [],
+  videoSrc = null,
+}: {
+  initial: ProjectSnapshot
+  clips?: readonly RenderClip[]
+  videoSrc?: string | null
+}) {
   const snapshot = useProjectEvents(initial)
   const [pending, startTransition] = React.useTransition()
   const states = stepStates(snapshot.status, snapshot.failedStep)
   const activeJob = snapshot.jobs.find((job) => job.status === "running")
   const queued = snapshot.jobs.some((job) => job.status === "queued")
   const running = isRunning(snapshot.status)
+  const now = useNow(running)
+  const elapsedMs = activeJob?.startedAt
+    ? Math.max(0, now - Date.parse(activeJob.startedAt))
+    : null
+  const remainingMs =
+    elapsedMs === null
+      ? null
+      : estimateRemainingMs(elapsedMs, activeJob?.progress ?? 0)
 
   const act = (action: typeof retryProjectAction, success: string) =>
     startTransition(async () => {
@@ -78,7 +98,7 @@ export function ProjectLive({ initial }: { initial: ProjectSnapshot }) {
             disabled={pending}
             onClick={() => act(cancelProjectAction, "Cancelled")}
           >
-            <StopIcon data-icon="inline-start" aria-hidden />
+            <XIcon data-icon="inline-start" aria-hidden />
             Cancel
           </Button>
         )}
@@ -107,7 +127,25 @@ export function ProjectLive({ initial }: { initial: ProjectSnapshot }) {
                   : "Starting…"}
             </ProgressLabel>
             <ProgressValue />
+            {elapsedMs !== null && (
+              <p
+                className="w-full text-xs text-muted-foreground tabular-nums"
+                data-testid="step-timing"
+              >
+                {formatDuration(elapsedMs)} elapsed
+                {remainingMs !== null &&
+                  ` · about ${formatDuration(remainingMs)} left`}
+              </p>
+            )}
           </Progress>
+        )}
+
+        {running && (
+          <StepDetailView
+            snapshot={snapshot}
+            clips={clips}
+            videoSrc={videoSrc}
+          />
         )}
 
         {snapshot.status === "failed" && (

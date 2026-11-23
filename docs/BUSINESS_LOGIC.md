@@ -111,7 +111,23 @@ stateDiagram-v2
 
 Post-processing applies to every selector, in this order: clamp to media bounds → snap start/end to sentence boundaries within ±1.5 s, else to the nearest word boundary → enforce length bounds (extend or shrink at the end, on word boundaries) → drop if still out of bounds → remove overlaps greedily by score → sort by score desc → cap at max count.
 
-HeuristicSelector score for a window = `0.45·loudnessPeak + 0.30·speechDensity + 0.15·keywordHits + 0.10·questionAnswer`, each normalized 0–1 across the video.
+HeuristicSelector (`features/highlights/heuristic.ts`) scores windows that start at every sentence and every 5 s, at the minimum and middle clip lengths. Each signal is measured against the 2 minutes either side of the window, so a loud game section or a fast-talking streamer doesn't drown everything else:
+
+| Signal              | Weight | Measure                                                                                                    |
+| ------------------- | ------ | ---------------------------------------------------------------------------------------------------------- |
+| loudness spike      | 0.30   | 90th-percentile loudness minus the surrounding mean                                                        |
+| speech rate         | 0.15   | words per second over the surrounding rate, minus 1 (capped at 2)                                          |
+| excitement          | 0.15   | laughter tokens (`hahaha`, `kkkk`, `jajaja`, `rsrs`, `[laughs]`…) and `!`, above 1.5× the surrounding rate |
+| reaction phrases    | 0.15   | phrases from `phrases/<language>.json` plus the project's catchphrases, above 1.5× the surrounding rate    |
+| repeated words      | 0.10   | the same word three times within 3 s ("vai vai vai")                                                       |
+| pause before peak   | 0.10   | a silence ends in the 3 s before the window's loudest moment                                               |
+| question and answer | 0.05   | a question followed by a non-question                                                                      |
+
+Each signal is divided by its 95th percentile across all windows and capped at 1. The weighted sum is multiplied by `0.4 + 0.6·mean word confidence`, so unclear speech (usually game dialogue in another language) scores lower. Phrases are matched without accents or case.
+
+"Find more highlights" re-runs selection with every existing clip, rejected ones included, as excluded ranges: the same overlap rule applies against them, and Claude is told not to pick them again. New candidates are added; nothing is replaced.
+
+The Claude selector is told the spoken language (titles and hooks are written in it) and sees low-confidence segments marked `(unclear)`. Transcripts over ~60k characters are split into parts with a minute of overlap, sent in parallel, each asking for its share of the clips plus two; post-processing merges them.
 
 ### Layout
 

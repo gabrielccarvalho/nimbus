@@ -10,7 +10,7 @@ export function envDefaults(): Partial<AppSettings> {
   const env = getEnv()
   return {
     selectorMode: env.HIGHLIGHT_SELECTOR,
-    transcriptionLanguage: env.WHISPER_LANGUAGE,
+    language: env.WHISPER_LANGUAGE,
     hardwareEncoding: env.VIDEO_ENCODER !== "libx264",
   }
 }

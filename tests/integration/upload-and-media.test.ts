@@ -17,8 +17,8 @@ import { createTestEnv, type TestEnv } from "../utils/test-env"
 
 let env: TestEnv
 
-beforeEach(() => {
-  env = createTestEnv({ MAX_UPLOAD_BYTES: String(50 * 1024 * 1024) })
+beforeEach(async () => {
+  env = await createTestEnv({ MAX_UPLOAD_BYTES: String(50 * 1024 * 1024) })
 })
 afterEach(() => env.cleanup())
 
@@ -49,18 +49,16 @@ describe("POST /api/uploads", () => {
     expect(response.status).toBe(201)
     const { projectId } = (await response.json()) as { projectId: string }
 
-    const project = projectRepository(env.db).getOrThrow(projectId)
+    const project = await projectRepository(env.db).getOrThrow(projectId)
     expect(project).toMatchObject({ name: "my stream", status: "uploaded" })
-    const source = assetRepository(env.db).findByKind(projectId, "source")
+    const source = await assetRepository(env.db).findByKind(projectId, "source")
     expect(source).toMatchObject({ bytes: data.length, mime: "video/mp4" })
     expect(project.sourceAssetId).toBe(source?.id)
     expect((await getStorage().stat(source!.storageKey))?.bytes).toBe(
       data.length
     )
     expect(
-      jobQueue(env.db)
-        .listForProject(projectId)
-        .map((j) => j.type)
+      (await jobQueue(env.db).listForProject(projectId)).map((j) => j.type)
     ).toEqual(["probe"])
     expect(await tempFiles()).toEqual([])
   })
@@ -74,12 +72,12 @@ describe("POST /api/uploads", () => {
 
   it("rejects streams that exceed the limit and cleans up", async () => {
     env.cleanup()
-    env = createTestEnv({ MAX_UPLOAD_BYTES: "1024" })
+    env = await createTestEnv({ MAX_UPLOAD_BYTES: "1024" })
     const data = await readFile(fixtures.wide)
     const response = await uploadPOST(uploadRequest(data))
     expect(response.status).toBe(413)
     expect(await tempFiles()).toEqual([])
-    expect(projectRepository(env.db).list()).toEqual([])
+    expect(await projectRepository(env.db).list()).toEqual([])
   })
 
   it("rejects unsupported declared types", async () => {
@@ -117,7 +115,7 @@ describe("POST /api/uploads", () => {
     const response = await uploadPOST(uploadRequest(stream))
     expect(response.status).toBeGreaterThanOrEqual(400)
     expect(await tempFiles()).toEqual([])
-    expect(projectRepository(env.db).list()).toEqual([])
+    expect(await projectRepository(env.db).list()).toEqual([])
   })
 })
 

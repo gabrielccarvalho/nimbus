@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { parseVideoUrl, placeholderName } from "./url"
+import type { DownloadProgress } from "./downloader"
+import { isPublicUrl, parseVideoUrl, placeholderName } from "./url"
 import {
   describeYtDlpError,
   parseInfo,
@@ -38,6 +39,11 @@ describe("parseVideoUrl", () => {
     expect(() => parseVideoUrl(input)).toThrow("Paste a link to a video")
   })
 
+  it("checks thumbnail links the same way", () => {
+    expect(isPublicUrl("https://i.ytimg.com/vi/abc/hq.jpg")).toBe(true)
+    expect(isPublicUrl("https://127.0.0.1/hq.jpg")).toBe(false)
+  })
+
   it("names a project from the video id until the title is known", () => {
     expect(placeholderName("https://www.youtube.com/watch?v=abc123")).toBe(
       "youtube.com abc123"
@@ -56,13 +62,17 @@ describe("parseInfo", () => {
           duration: 3725.5,
           live_status: "was_live",
           filesize_approx: 1_500_000_000,
+          thumbnail: "https://i.ytimg.com/vi/abc/maxresdefault.jpg",
+          language: "pt-BR",
         })
       )
     ).toEqual({
       title: "My stream",
+      language: "pt-BR",
       durationMs: 3_725_500,
       isLive: false,
       approxBytes: 1_500_000_000,
+      thumbnailUrl: "https://i.ytimg.com/vi/abc/maxresdefault.jpg",
     })
   })
 
@@ -74,10 +84,15 @@ describe("parseInfo", () => {
   it("tolerates missing fields", () => {
     expect(parseInfo("{}")).toEqual({
       title: "",
+      language: null,
       durationMs: null,
       isLive: false,
       approxBytes: null,
+      thumbnailUrl: null,
     })
+    expect(
+      parseInfo('{"thumbnail":"file:///etc/passwd"}').thumbnailUrl
+    ).toBeNull()
   })
 
   it("rejects playlists and garbage", () => {
@@ -88,8 +103,18 @@ describe("parseInfo", () => {
 
 describe("progress", () => {
   it("parses progress lines", () => {
-    expect(parseProgressLine("progress 50 200 NA")).toBe(25)
-    expect(parseProgressLine("progress 50 NA 100")).toBe(50)
+    expect(parseProgressLine("progress 50 200 NA 25 6")).toEqual({
+      percent: 25,
+      downloadedBytes: 50,
+      totalBytes: 200,
+      bytesPerSecond: 25,
+      etaSeconds: 6,
+    })
+    expect(parseProgressLine("progress 50 NA 100 NA NA")).toMatchObject({
+      percent: 50,
+      bytesPerSecond: null,
+      etaSeconds: null,
+    })
     expect(parseProgressLine("progress 10 NA NA")).toBeNull()
     expect(parseProgressLine("[download] Destination: x")).toBeNull()
   })
@@ -103,7 +128,12 @@ describe("progress", () => {
     line("[download] Destination: dir/source.f140.m4a")
     line("progress 100 100 NA")
     line("[Merger] Merging formats into dir/source.mp4")
-    expect(onProgress.mock.calls.map(([p]) => p)).toEqual([45, 90, 100])
+    const calls = onProgress.mock.calls.map(([p]) => p as DownloadProgress)
+    expect(calls.map((p) => p.percent)).toEqual([45, 90, 100])
+    expect(calls.at(-1)).toMatchObject({
+      downloadedBytes: 200,
+      totalBytes: 200,
+    })
   })
 })
 

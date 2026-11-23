@@ -13,22 +13,22 @@ export type LayoutPreset = typeof layoutPresets.$inferSelect
 
 export function layoutRepository(db: Db) {
   return {
-    get(projectId: string): Layout | undefined {
-      return db
+    async get(projectId: string): Promise<Layout | undefined> {
+      const [row] = await db
         .select()
         .from(layouts)
         .where(eq(layouts.projectId, projectId))
-        .get()
+      return row
     },
 
-    upsert(
+    async upsert(
       projectId: string,
       input: LayoutInput & {
         sourceAspect: SourceAspect
         confidence?: number
         confirmedByUser?: boolean
       }
-    ): Layout {
+    ): Promise<Layout> {
       const values = {
         sourceAspect: input.sourceAspect,
         webcamRect: input.webcamRect,
@@ -38,7 +38,7 @@ export function layoutRepository(db: Db) {
         confidence: input.confidence ?? 0,
         confirmedByUser: input.confirmedByUser ?? false,
       }
-      return db
+      const [row] = await db
         .insert(layouts)
         .values({ projectId, ...values })
         .onConflictDoUpdate({
@@ -46,27 +46,34 @@ export function layoutRepository(db: Db) {
           set: { ...values, updatedAt: now() },
         })
         .returning()
-        .get()
+      return row!
     },
 
-    findPreset(width: number, height: number): LayoutPreset | undefined {
-      return db
+    async findPreset(
+      width: number,
+      height: number
+    ): Promise<LayoutPreset | undefined> {
+      const [row] = await db
         .select()
         .from(layoutPresets)
         .where(
           and(eq(layoutPresets.width, width), eq(layoutPresets.height, height))
         )
-        .get()
+      return row
     },
 
-    savePreset(width: number, height: number, input: LayoutInput) {
+    async savePreset(
+      width: number,
+      height: number,
+      input: LayoutInput
+    ): Promise<LayoutPreset> {
       const values = {
         webcamRect: input.webcamRect,
         gameplayRect: input.gameplayRect,
         gameplayFocusX: input.gameplayFocusX,
         mode: input.mode,
       }
-      return db
+      const [row] = await db
         .insert(layoutPresets)
         .values({ id: newId(), width, height, ...values })
         .onConflictDoUpdate({
@@ -74,15 +81,15 @@ export function layoutRepository(db: Db) {
           set: { ...values, updatedAt: now() },
         })
         .returning()
-        .get()
+      return row!
     },
 
-    listPresets(): LayoutPreset[] {
-      return db.select().from(layoutPresets).all()
+    listPresets(): Promise<LayoutPreset[]> {
+      return db.select().from(layoutPresets)
     },
 
-    deletePreset(id: string) {
-      db.delete(layoutPresets).where(eq(layoutPresets.id, id)).run()
+    async deletePreset(id: string) {
+      await db.delete(layoutPresets).where(eq(layoutPresets.id, id))
     },
   }
 }

@@ -7,14 +7,14 @@ import { assetRepository, projectRepository } from "../projects/repository"
 import { layoutRepository } from "./repository"
 import { usesWebcam, type LayoutInput } from "./schema"
 
-export function confirmLayout(
+export async function confirmLayout(
   db: Db,
   projectId: string,
   input: LayoutInput,
   options: { confidence?: number; savePreset?: boolean } = {}
 ) {
   const projects = projectRepository(db)
-  const project = projects.getOrThrow(projectId)
+  const project = await projects.getOrThrow(projectId)
   if (project.status === "rendering") {
     throw new AppError(
       "CONFLICT",
@@ -28,21 +28,23 @@ export function confirmLayout(
     )
   }
   const layouts = layoutRepository(db)
-  const source = assetRepository(db).findByKind(projectId, "source")
-  const current = layouts.get(projectId)
+  const source = await assetRepository(db).findByKind(projectId, "source")
+  const current = await layouts.get(projectId)
   if (!current || !source?.width || !source.height) {
     throw new AppError("CONFLICT", "Wait for the probe step to finish")
   }
 
-  const layout = layouts.upsert(projectId, {
+  const layout = await layouts.upsert(projectId, {
     ...input,
     sourceAspect: current.sourceAspect,
     confidence: options.confidence ?? current.confidence,
     confirmedByUser: true,
   })
-  if (options.savePreset) layouts.savePreset(source.width, source.height, input)
+  if (options.savePreset) {
+    await layouts.savePreset(source.width, source.height, input)
+  }
   if (project.status === "awaiting_layout") {
-    projects.transition(projectId, "ready_for_review")
+    await projects.transition(projectId, "ready_for_review")
   }
   return layout
 }

@@ -51,34 +51,33 @@ export function jobTimeoutMs(job: Job): number {
   }
 }
 
-export function onJobSucceeded(db: Db, job: Job) {
+export async function onJobSucceeded(db: Db, job: Job) {
   if (job.type === "render_clip" && job.projectId) {
-    settleRendering(db, job.projectId)
+    await settleRendering(db, job.projectId)
   }
 }
 
-export function onJobFinalFailure(db: Db, job: Job, error: AppError) {
+export async function onJobFinalFailure(db: Db, job: Job, error: AppError) {
   if (!job.projectId) return
   if (job.type === "render_clip") {
     const clipId = job.payload.clipId
-    if (typeof clipId === "string" && clipRepository(db).get(clipId)) {
-      clipRepository(db).update(clipId, {
-        status: "failed",
-        error: error.message,
-      })
+    const clips = clipRepository(db)
+    if (typeof clipId === "string" && (await clips.get(clipId))) {
+      await clips.update(clipId, { status: "failed", error: error.message })
     }
-    settleRendering(db, job.projectId)
+    await settleRendering(db, job.projectId)
     return
   }
   if (job.type === "render_edit" || job.type === "sweep") return
-  projectRepository(db).markFailed(job.projectId, error.message)
+  await projectRepository(db).markFailed(job.projectId, error.message)
 }
 
-export function onJobCancelled(db: Db, job: Job) {
+export async function onJobCancelled(db: Db, job: Job) {
   if (job.type !== "render_clip") return
   const clipId = job.payload.clipId
-  if (typeof clipId === "string" && clipRepository(db).get(clipId)) {
-    clipRepository(db).update(clipId, { status: "approved" })
+  const clips = clipRepository(db)
+  if (typeof clipId === "string" && (await clips.get(clipId))) {
+    await clips.update(clipId, { status: "approved" })
   }
-  if (job.projectId) settleRendering(db, job.projectId)
+  if (job.projectId) await settleRendering(db, job.projectId)
 }

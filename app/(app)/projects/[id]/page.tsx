@@ -1,5 +1,6 @@
 import {
   ClockIcon,
+  FilmSlateIcon,
   FilmStripIcon,
   FrameCornersIcon,
   HardDrivesIcon,
@@ -34,13 +35,22 @@ export default async function ProjectOverviewPage({
   const { id } = await params
   const overview = await getProjectOverview(id)
   if (!overview) notFound()
-  const { project, source, thumbnail, layout, clips, snapshot, audio } =
+  const { project, source, thumbnail, proxy, layout, clips, snapshot, audio } =
     overview
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="flex min-w-0 flex-col gap-6">
-        <ProjectLive initial={snapshot} />
+        <ProjectLive
+          initial={snapshot}
+          clips={clips.map((clip) => ({
+            id: clip.id,
+            title: clip.title,
+            startMs: clip.startMs,
+            endMs: clip.endMs,
+          }))}
+          videoSrc={proxy ? mediaUrl(proxy.storageKey) : null}
+        />
         <StatCardGroup aria-label="Source video">
           <StatCard size="sm">
             <StatCardLabel>
@@ -113,7 +123,11 @@ export default async function ProjectOverviewPage({
               sizes="20rem"
               className="object-cover"
             />
-          ) : null}
+          ) : (
+            <div className="flex size-full items-center justify-center text-muted-foreground">
+              <FilmSlateIcon className="size-8" aria-hidden />
+            </div>
+          )}
         </div>
         <ProjectActions projectId={project.id} projectName={project.name} />
       </aside>

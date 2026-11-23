@@ -14,14 +14,14 @@ import {
 import type { ProjectStatus } from "../../projects/schema"
 import type { RunningStatus } from "../state-machine"
 
-export function beginStep(
+export async function beginStep(
   db: Db,
   projectId: string | null,
   step: RunningStatus
-): Project {
+): Promise<Project> {
   if (!projectId) throw new AppError("VALIDATION", "Job has no project")
   const projects = projectRepository(db)
-  const project = projects.get(projectId)
+  const project = await projects.get(projectId)
   if (!project) throw new AppError("CANCELLED", "Project was deleted")
   if (project.status === step) return project
   if (project.status === "cancelled") {
@@ -30,28 +30,28 @@ export function beginStep(
   return projects.transition(projectId, step)
 }
 
-export function completeStep(
+export async function completeStep(
   db: Db,
   projectId: string,
   next: ProjectStatus,
   nextJob?: JobType
 ) {
-  withTransaction(db, () => {
-    projectRepository(db).transition(projectId, next)
-    if (nextJob) jobQueue(db).enqueue({ type: nextJob, projectId })
+  await withTransaction(db, async (tx) => {
+    await projectRepository(tx).transition(projectId, next)
+    if (nextJob) await jobQueue(tx).enqueue({ type: nextJob, projectId })
   })
 }
 
-export function sourceAsset(db: Db, project: Project) {
+export async function sourceAsset(db: Db, project: Project) {
   const asset = project.sourceAssetId
-    ? assetRepository(db).get(project.sourceAssetId)
+    ? await assetRepository(db).get(project.sourceAssetId)
     : undefined
   if (!asset) throw new AppError("NOT_FOUND", "The source video is missing")
   return asset
 }
 
 export async function sourceFile(db: Db, project: Project) {
-  const asset = sourceAsset(db, project)
+  const asset = await sourceAsset(db, project)
   if (!(await getStorage().stat(asset.storageKey))) {
     throw new AppError(
       "NOT_FOUND",

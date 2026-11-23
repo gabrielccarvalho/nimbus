@@ -3,6 +3,7 @@ import "server-only"
 import { connection } from "next/server"
 
 import { getDb, type Db } from "@/lib/db"
+import { getEnv } from "@/lib/env"
 import { mediaUrl, slugify } from "@/lib/format"
 
 import { normalizeLoudness } from "../analysis/loudness"
@@ -12,11 +13,12 @@ import { buildManualPrompt } from "../highlights/prompt"
 import { jobQueue } from "../jobs/queue"
 import { layoutRepository } from "../layout/repository"
 import { getProjectSnapshot } from "../pipeline/snapshot"
+import { isEnglishOnlyModel } from "../transcription/language"
 import { transcriptRepository } from "../transcription/repository"
 import { assetRepository, projectRepository } from "./repository"
 
-function audioSummary(db: Db, projectId: string) {
-  const signals = signalsRepository(db).get(projectId)
+async function audioSummary(db: Db, projectId: string) {
+  const signals = await signalsRepository(db).get(projectId)
   if (!signals) return undefined
   return {
     loudness: normalizeLoudness(signals.loudness),
@@ -25,7 +27,7 @@ function audioSummary(db: Db, projectId: string) {
   }
 }
 
-export type AudioSummary = NonNullable<ReturnType<typeof audioSummary>>
+export type AudioSummary = NonNullable<Awaited<ReturnType<typeof audioSummary>>>
 
 export async function listProjects() {
   await connection()
@@ -34,9 +36,11 @@ export async function listProjects() {
 
 export async function listRecentProjects(limit = 5) {
   await connection()
-  return projectRepository(getDb())
-    .list({ limit })
-    .map((p) => ({ id: p.id, name: p.name, status: p.status }))
+  return (await projectRepository(getDb()).list({ limit })).map((p) => ({
+    id: p.id,
+    name: p.name,
+    status: p.status,
+  }))
 }
 
 export async function getProject(id: string) {
@@ -47,19 +51,26 @@ export async function getProject(id: string) {
 export async function getProjectOverview(id: string) {
   await connection()
   const db = getDb()
-  const project = projectRepository(db).get(id)
+  const project = await projectRepository(db).get(id)
   if (!project) return undefined
-  const assets = assetRepository(db).listForProject(id)
+  const [assets, layout, audio, clips, jobs, snapshot] = await Promise.all([
+    assetRepository(db).listForProject(id),
+    layoutRepository(db).get(id),
+    audioSummary(db, id),
+    clipRepository(db).listForProject(id),
+    jobQueue(db).listForProject(id),
+    getProjectSnapshot(db, id),
+  ])
   return {
     project,
     source: assets.find((a) => a.kind === "source"),
     thumbnail: assets.find((a) => a.kind === "thumbnail"),
     proxy: assets.find((a) => a.kind === "proxy"),
-    layout: layoutRepository(db).get(id),
-    audio: audioSummary(db, id),
-    clips: clipRepository(db).listForProject(id),
-    jobs: jobQueue(db).listForProject(id),
-    snapshot: getProjectSnapshot(db, id)!,
+    layout,
+    audio,
+    clips,
+    jobs,
+    snapshot: snapshot!,
   }
 }
 
@@ -70,33 +81,44 @@ export type ProjectOverview = NonNullable<
 export async function getProjectTranscript(id: string) {
   await connection()
   const db = getDb()
-  const project = projectRepository(db).get(id)
+  const project = await projectRepository(db).get(id)
   if (!project) return undefined
-  const assets = assetRepository(db).listForProject(id)
+  const [assets, transcript, audio] = await Promise.all([
+    assetRepository(db).listForProject(id),
+    transcriptRepository(db).get(id),
+    audioSummary(db, id),
+  ])
   return {
     project,
     proxy: assets.find((a) => a.kind === "proxy"),
     source: assets.find((a) => a.kind === "source"),
-    transcript: transcriptRepository(db).get(id),
-    audio: audioSummary(db, id),
+    transcript,
+    audio,
   }
 }
 
 export async function getProjectClips(id: string) {
   await connection()
   const db = getDb()
-  const project = projectRepository(db).get(id)
+  const project = await projectRepository(db).get(id)
   if (!project) return undefined
-  const assets = assetRepository(db).listForProject(id)
+  const [assets, clips, audio, layout, snapshot] = await Promise.all([
+    assetRepository(db).listForProject(id),
+    clipRepository(db).listForProject(id),
+    audioSummary(db, id),
+    layoutRepository(db).get(id),
+    getProjectSnapshot(db, id),
+  ])
   const source = assets.find((a) => a.kind === "source")
   const durationMs = source?.durationMs ?? 0
-  const clips = clipRepository(db).listForProject(id)
   let manualPrompt: string | undefined
   if (project.awaitingManualSelection) {
-    const transcript = transcriptRepository(db).get(id)
-    const signals = signalsRepository(db).get(id)
+    const transcript = await transcriptRepository(db).get(id)
+    const signals = await signalsRepository(db).get(id)
     manualPrompt = buildManualPrompt({
       durationMs,
+      words: transcript?.words ?? [],
+      language: transcript?.language ?? project.settings.language,
       segments: transcript?.segments ?? [],
       signals: signals ?? {
         silences: [],
@@ -137,7 +159,7 @@ export async function getProjectClips(id: string) {
     clips,
     durationMs,
     video: assets.find((a) => a.kind === "proxy") ?? source,
-    audio: audioSummary(db, id),
+    audio,
     manualPrompt,
     renders,
     edit: edit
@@ -149,21 +171,27 @@ export async function getProjectClips(id: string) {
           durationMs: edit.durationMs ?? 0,
         }
       : undefined,
-    layoutConfirmed: Boolean(layoutRepository(db).get(id)?.confirmedByUser),
-    snapshot: getProjectSnapshot(db, id)!,
+    layoutConfirmed: Boolean(layout?.confirmedByUser),
+    snapshot: snapshot!,
   }
 }
 
 export async function getClipEditor(projectId: string, clipId: string) {
   await connection()
   const db = getDb()
-  const project = projectRepository(db).get(projectId)
-  const clip = clipRepository(db).get(clipId)
+  const [project, clip] = await Promise.all([
+    projectRepository(db).get(projectId),
+    clipRepository(db).get(clipId),
+  ])
   if (!project || !clip || clip.projectId !== project.id) return undefined
-  const assets = assetRepository(db).listForProject(projectId)
+  const [assets, layout, transcript, snapshot] = await Promise.all([
+    assetRepository(db).listForProject(projectId),
+    layoutRepository(db).get(projectId),
+    transcriptRepository(db).get(projectId),
+    getProjectSnapshot(db, projectId),
+  ])
   const source = assets.find((a) => a.kind === "source")
   const video = assets.find((a) => a.kind === "proxy") ?? source
-  const layout = layoutRepository(db).get(projectId)
   const render = clip.renderAssetId
     ? assets.find((a) => a.id === clip.renderAssetId)
     : undefined
@@ -173,7 +201,7 @@ export async function getClipEditor(projectId: string, clipId: string) {
     source,
     video,
     layout,
-    words: transcriptRepository(db).get(projectId)?.words ?? [],
+    words: transcript?.words ?? [],
     render: render
       ? {
           url: mediaUrl(render.storageKey),
@@ -182,22 +210,24 @@ export async function getClipEditor(projectId: string, clipId: string) {
           }),
         }
       : undefined,
-    snapshot: getProjectSnapshot(db, projectId)!,
+    snapshot: snapshot!,
   }
 }
 
 export async function getProjectLayout(id: string) {
   await connection()
   const db = getDb()
-  const project = projectRepository(db).get(id)
+  const project = await projectRepository(db).get(id)
   if (!project) return undefined
-  const assets = assetRepository(db).listForProject(id)
+  const [assets, layout] = await Promise.all([
+    assetRepository(db).listForProject(id),
+    layoutRepository(db).get(id),
+  ])
   const source = assets.find((a) => a.kind === "source")
   const proxy = assets.find((a) => a.kind === "proxy")
-  const layout = layoutRepository(db).get(id)
   const preset =
     source?.width && source.height
-      ? layoutRepository(db).findPreset(source.width, source.height)
+      ? await layoutRepository(db).findPreset(source.width, source.height)
       : undefined
   return {
     project,
@@ -207,3 +237,29 @@ export async function getProjectLayout(id: string) {
     hasPreset: Boolean(preset),
   }
 }
+
+export async function getProjectSettings(id: string) {
+  await connection()
+  const db = getDb()
+  const project = await projectRepository(db).get(id)
+  if (!project) return undefined
+  const [source, transcript] = await Promise.all([
+    assetRepository(db).findByKind(id, "source"),
+    transcriptRepository(db).get(id),
+  ])
+  const env = getEnv()
+  return {
+    project,
+    audioTracks: source?.audioTracks ?? [],
+    transcript: transcript
+      ? { language: transcript.language, source: transcript.languageSource }
+      : null,
+    claudeAvailable: Boolean(env.ANTHROPIC_API_KEY),
+    englishOnlyModel:
+      env.TRANSCRIBER === "whisper" && isEnglishOnlyModel(env.WHISPER_MODEL),
+  }
+}
+
+export type ProjectSettingsData = NonNullable<
+  Awaited<ReturnType<typeof getProjectSettings>>
+>

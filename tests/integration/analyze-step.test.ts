@@ -10,8 +10,8 @@ import { createTestEnv, type TestEnv } from "../utils/test-env"
 
 let env: TestEnv
 
-beforeEach(() => {
-  env = createTestEnv()
+beforeEach(async () => {
+  env = await createTestEnv()
 })
 afterEach(() => env.cleanup())
 
@@ -20,10 +20,10 @@ describe("analyze step", () => {
     const { projectId } = await uploadFixture(fixtures.wide)
     await runJobs(env.db, ["probe", "transcribe", "analyze"])
 
-    expect(projectRepository(env.db).getOrThrow(projectId).status).toBe(
+    expect((await projectRepository(env.db).getOrThrow(projectId)).status).toBe(
       "selecting"
     )
-    const signals = signalsRepository(env.db).get(projectId)!
+    const signals = (await signalsRepository(env.db).get(projectId))!
 
     expect(signals.silences).toHaveLength(FIXTURE_SILENCES_S.length)
     signals.silences.forEach((silence, i) => {
@@ -46,9 +46,9 @@ describe("analyze step", () => {
     expect(signals.speechDensity[0]!.wordsPerSecond).toBeGreaterThan(0)
 
     expect(
-      jobQueue(env.db)
-        .listForProject(projectId)
-        .find((j) => j.type === "select")?.status
+      (await jobQueue(env.db).listForProject(projectId)).find(
+        (j) => j.type === "select"
+      )?.status
     ).toBe("queued")
   })
 })

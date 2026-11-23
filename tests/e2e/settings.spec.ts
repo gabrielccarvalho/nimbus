@@ -11,8 +11,8 @@ test.afterEach(async ({ page }) => {
   const captions = page.getByRole("switch", { name: "Burn in captions" })
   if (!(await captions.isChecked())) await captions.click()
   await page.getByRole("button", { name: "Punch" }).click()
-  await page.getByRole("button", { name: "Save settings" }).click()
-  await expect(page.getByText("Settings saved")).toBeVisible()
+  await page.getByRole("button", { name: "Save defaults" }).click()
+  await expect(page.getByText("Defaults saved")).toBeVisible()
 })
 
 test("settings persist and validate", async ({ page }) => {
@@ -27,8 +27,8 @@ test("settings persist and validate", async ({ page }) => {
   await page.getByRole("radio", { name: /Draft/ }).check()
   await page.getByRole("switch", { name: "Burn in captions" }).click()
   await page.getByRole("button", { name: "Clean" }).click()
-  await page.getByRole("button", { name: "Save settings" }).click()
-  await expect(page.getByText("Settings saved")).toBeVisible()
+  await page.getByRole("button", { name: "Save defaults" }).click()
+  await expect(page.getByText("Defaults saved")).toBeVisible()
 
   await page.reload()
   await expect(page.getByLabel("Clips to find")).toHaveValue("4")
@@ -43,10 +43,44 @@ test("settings persist and validate", async ({ page }) => {
 
   await page.getByLabel("Shortest clip (s)").fill("90")
   await page.getByLabel("Longest clip (s)").fill("30")
-  await page.getByRole("button", { name: "Save settings" }).click()
+  await page.getByRole("button", { name: "Save defaults" }).click()
   await expect(
     page.getByRole("alert").filter({ hasText: "shorter than the maximum" })
   ).toBeVisible()
   await page.reload()
   await expect(page.getByLabel("Shortest clip (s)")).not.toHaveValue("90")
+})
+
+test("each project keeps its own settings and offers to re-run", async ({
+  page,
+}) => {
+  await page.goto("/")
+  await page.getByRole("button", { name: "Import options" }).click()
+  await page.getByLabel("Spoken language").click()
+  await page.getByRole("option", { name: "Portuguese" }).click()
+  await page.getByLabel("Or import from a link").fill("https://youtu.be/e2e-pt")
+  await page.getByRole("button", { name: "Import", exact: true }).click()
+  await expect(page).toHaveURL(/\/projects\/[\w-]+$/, { timeout: 30_000 })
+  await expect(
+    page.getByRole("listitem").filter({ hasText: "Find highlights, completed" })
+  ).toBeVisible({ timeout: 30_000 })
+
+  await page.getByRole("link", { name: "Settings" }).last().click()
+  await expect(page.getByLabel("Spoken language")).toContainText("Portuguese")
+  await expect(
+    page.getByText("Transcribed as Portuguese (chosen in settings).")
+  ).toBeVisible()
+  await expectNoSeriousA11yViolations(page)
+
+  await page.getByLabel("Clips to find").fill("2")
+  await page.getByRole("button", { name: "Save project settings" }).click()
+  await expect(page.getByText("Find highlights again?")).toBeVisible()
+  await page.getByRole("button", { name: "Find highlights again" }).click()
+  await expect(page).toHaveURL(/\/projects\/[\w-]+$/)
+  await expect(
+    page.getByRole("listitem").filter({ hasText: "Find highlights, completed" })
+  ).toBeVisible({ timeout: 30_000 })
+
+  await page.goto("/settings")
+  await expect(page.getByLabel("Clips to find")).toHaveValue("12")
 })

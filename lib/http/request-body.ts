@@ -9,19 +9,21 @@ export function readableFromRequestBody(
   const reader = body.getReader()
   let finished = false
   return new Readable({
-    async read() {
-      try {
-        const { value, done } = await reader.read()
-        if (done) {
+    read() {
+      reader.read().then(
+        ({ value, done }) => {
+          if (done) {
+            finished = true
+            this.push(null)
+          } else {
+            this.push(value)
+          }
+        },
+        (error: unknown) => {
           finished = true
-          this.push(null)
-        } else {
-          this.push(value)
+          this.destroy(error as Error)
         }
-      } catch (error) {
-        finished = true
-        this.destroy(error as Error)
-      }
+      )
     },
     destroy(error, callback) {
       if (!finished) void drain(reader)

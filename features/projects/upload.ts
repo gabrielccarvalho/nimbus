@@ -23,9 +23,32 @@ import {
   type AcceptedVideoMime,
 } from "./media-type"
 import { assetRepository, projectRepository } from "./repository"
-import type { ProjectSettings } from "./schema"
+import {
+  importOptionsSchema,
+  type ImportOptions,
+  type ProjectSettings,
+} from "./schema"
 
 export const UPLOAD_FILENAME_HEADER = "x-file-name"
+export const UPLOAD_OPTIONS_HEADER = "x-import-options"
+
+export function parseImportOptions(input: unknown): ImportOptions {
+  const parsed = importOptionsSchema.safeParse(input ?? {})
+  if (!parsed.success) {
+    throw new AppError("VALIDATION", "Invalid import options")
+  }
+  return parsed.data
+}
+
+function optionsFromHeader(value: string | null) {
+  if (!value) return {}
+  try {
+    return parseImportOptions(JSON.parse(decodeURIComponent(value)))
+  } catch (error) {
+    if (error instanceof AppError) throw error
+    throw new AppError("VALIDATION", "Invalid import options")
+  }
+}
 
 function magicByteCheck(mime: AcceptedVideoMime) {
   let head = Buffer.alloc(0)
@@ -70,15 +93,21 @@ function magicByteCheck(mime: AcceptedVideoMime) {
   })
 }
 
-export function projectSettingsFromApp(): ProjectSettings {
-  const app = getAppSettings(getDb())
+export async function projectSettingsFromApp(
+  options: ImportOptions = {}
+): Promise<ProjectSettings> {
+  const app = await getAppSettings(getDb())
   return {
-    selectorMode: app.selectorMode,
+    selectorMode: options.selectorMode ?? app.selectorMode,
     clipMinMs: app.clipMinMs,
     clipMaxMs: app.clipMaxMs,
     targetClipCount: app.targetClipCount,
     captionStyle: app.captionStyle,
     captionsEnabled: app.captionsEnabled,
+    language: options.language ?? app.language,
+    audioTrack: null,
+    renderQuality: app.renderQuality,
+    reactionPhrases: app.reactionPhrases,
   }
 }
 
@@ -88,6 +117,7 @@ export async function handleUpload(
   const env = getEnv()
   const rawName = request.headers.get(UPLOAD_FILENAME_HEADER)
   const fileName = rawName ? decodeURIComponent(rawName) : "upload.mp4"
+  const options = optionsFromHeader(request.headers.get(UPLOAD_OPTIONS_HEADER))
   const declared = (request.headers.get("content-type") ?? "")
     .split(";")[0]!
     .trim()
@@ -131,21 +161,22 @@ export async function handleUpload(
   await storage.move(tempKey, sourceKey)
   const db = getDb()
   try {
-    withTransaction(db, () => {
-      projectRepository(db).create({
+    const settings = await projectSettingsFromApp(options)
+    await withTransaction(db, async (tx) => {
+      await projectRepository(tx).create({
         id: projectId,
         name: projectNameFromFile(fileName),
-        settings: projectSettingsFromApp(),
+        settings,
       })
-      const asset = assetRepository(db).create({
+      const asset = await assetRepository(tx).create({
         projectId,
         kind: "source",
         storageKey: sourceKey,
         mime,
         bytes,
       })
-      projectRepository(db).setSourceAsset(projectId, asset.id)
-      jobQueue(db).enqueue({ type: "probe", projectId })
+      await projectRepository(tx).setSourceAsset(projectId, asset.id)
+      await jobQueue(tx).enqueue({ type: "probe", projectId })
     })
   } catch (error) {
     await storage.remove(sourceKey)

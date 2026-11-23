@@ -6,8 +6,22 @@ import path from "node:path"
 import { AppError } from "@/lib/errors"
 import { runProcess } from "@/lib/process/run"
 
-import type { RawTranscript, TranscribeInput, Transcriber } from "./transcriber"
-import { parseWhisperJson, parseWhisperProgress } from "./whisper-parse"
+import {
+  isEnglishOnlyModel,
+  parseDetectedLanguage,
+  type LanguageVote,
+} from "./language"
+import type {
+  DetectLanguageInput,
+  RawTranscript,
+  TranscribeInput,
+  Transcriber,
+} from "./transcriber"
+import {
+  parseWhisperJson,
+  parseWhisperProgress,
+  parseWhisperSegmentLine,
+} from "./whisper-parse"
 
 export type WhisperOptions = {
   binary: string
@@ -17,16 +31,13 @@ export type WhisperOptions = {
 
 export class WhisperCppTranscriber implements Transcriber {
   readonly id = "whisper"
+  readonly multilingual: boolean
 
-  constructor(private readonly options: WhisperOptions) {}
+  constructor(private readonly options: WhisperOptions) {
+    this.multilingual = !isEnglishOnlyModel(options.model)
+  }
 
-  async transcribe({
-    audioPath,
-    durationMs,
-    language = "auto",
-    signal,
-    onProgress,
-  }: TranscribeInput): Promise<RawTranscript> {
+  private async assertModel() {
     try {
       await access(this.options.model)
     } catch {
@@ -35,6 +46,43 @@ export class WhisperCppTranscriber implements Transcriber {
         `Whisper model not found at ${this.options.model}`
       )
     }
+  }
+
+  async detectLanguage({ samplePath, signal }: DetectLanguageInput) {
+    if (!this.multilingual) return null
+    await this.assertModel()
+    const args = [
+      "-m",
+      this.options.model,
+      "-f",
+      samplePath,
+      "-l",
+      "auto",
+      "-dl",
+      "-t",
+      String(this.options.threads),
+    ]
+    let vote: LanguageVote | null = null
+    const result = await runProcess(this.options.binary, args, {
+      signal,
+      timeoutMs: 2 * 60_000,
+      collectStdout: false,
+      onStderrLine: (line) => {
+        vote ??= parseDetectedLanguage(line)
+      },
+    })
+    return result.code === 0 ? vote : null
+  }
+
+  async transcribe({
+    audioPath,
+    durationMs,
+    language = "auto",
+    signal,
+    onProgress,
+    onWord,
+  }: TranscribeInput): Promise<RawTranscript> {
+    await this.assertModel()
     const prefix = path.join(path.dirname(audioPath), "whisper")
     const output = `${prefix}.json`
     await rm(output, { force: true })
@@ -61,6 +109,10 @@ export class WhisperCppTranscriber implements Transcriber {
         signal,
         timeoutMs: Math.max(10 * 60_000, durationMs * 4),
         collectStdout: false,
+        onStdoutLine: (line) => {
+          const word = parseWhisperSegmentLine(line)
+          if (word) onWord?.(word)
+        },
         onStderrLine: (line) => {
           const progress = parseWhisperProgress(line)
           if (progress !== null) onProgress?.(progress)

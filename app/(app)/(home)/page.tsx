@@ -1,9 +1,8 @@
 import { FolderSimpleIcon } from "@phosphor-icons/react/ssr"
 import type { Metadata } from "next"
 
+import { ImportPanel } from "@/components/projects/import-panel"
 import { ProjectCard } from "@/components/projects/project-card"
-import { ProjectUploader } from "@/components/projects/project-uploader"
-import { UrlImportForm } from "@/components/projects/url-import-form"
 import {
   Empty,
   EmptyDescription,
@@ -12,12 +11,16 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import { listProjects } from "@/features/projects/queries"
+import { getImportDefaults } from "@/features/settings/queries"
 import { getEnv } from "@/lib/env"
 
 export const metadata: Metadata = { title: "Projects" }
 
 export default async function ProjectsPage() {
-  const projects = await listProjects()
+  const [projects, defaults] = await Promise.all([
+    listProjects(),
+    getImportDefaults(),
+  ])
 
   return (
     <>
@@ -28,10 +31,11 @@ export default async function ProjectsPage() {
           Every clip is a draft for you to review.
         </p>
       </div>
-      <div className="flex flex-col gap-4">
-        <ProjectUploader maxBytes={getEnv().MAX_UPLOAD_BYTES} />
-        <UrlImportForm />
-      </div>
+      <ImportPanel
+        maxBytes={getEnv().MAX_UPLOAD_BYTES}
+        defaults={defaults.defaults}
+        claudeAvailable={defaults.claudeAvailable}
+      />
       <section
         aria-labelledby="projects-heading"
         className="flex flex-col gap-3"

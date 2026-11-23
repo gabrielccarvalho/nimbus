@@ -1,1 +1,0 @@
-ALTER TABLE `projects` ADD `source_url` text;

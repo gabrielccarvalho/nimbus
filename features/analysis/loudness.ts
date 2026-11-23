@@ -20,6 +20,9 @@ export function createLoudnessCollector(intervalMs = LOUDNESS_INTERVAL_MS) {
       const index = Math.floor(ms / intervalMs)
       buckets[index] = Math.max(buckets[index] ?? LOUDNESS_FLOOR_LUFS, lufs)
     },
+    analyzedMs() {
+      return buckets.length * intervalMs
+    },
     finish(durationMs: number): number[] {
       const length = Math.max(0, Math.ceil(durationMs / intervalMs))
       return Array.from(

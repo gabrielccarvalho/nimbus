@@ -59,6 +59,19 @@ export function parseWhisperJson(json: string): WhisperOutput {
   return { language: parsed.data.result?.language ?? "unknown", tokens }
 }
 
+const SEGMENT_LINE = /^\[(\d+):(\d+):(\d+)\.(\d+) --> [\d:.]+\]\s+(.*\S)\s*$/
+
+export function parseWhisperSegmentLine(line: string) {
+  const match = SEGMENT_LINE.exec(line)
+  if (!match) return null
+  const [, h, m, s, ms, text] = match
+  return {
+    startMs:
+      ((Number(h) * 60 + Number(m)) * 60 + Number(s)) * 1000 + Number(ms),
+    text: text!,
+  }
+}
+
 export function parseWhisperProgress(line: string): number | null {
   const match = /progress\s*=\s*(\d+(?:\.\d+)?)%/.exec(line)
   return match ? Number(match[1]) : null

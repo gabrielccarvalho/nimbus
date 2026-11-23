@@ -11,22 +11,22 @@ export type Signals = typeof signals.$inferSelect
 
 export function signalsRepository(db: Db) {
   return {
-    get(projectId: string): Signals | undefined {
-      return db
+    async get(projectId: string): Promise<Signals | undefined> {
+      const [row] = await db
         .select()
         .from(signals)
         .where(eq(signals.projectId, projectId))
-        .get()
+      return row
     },
 
-    save(projectId: string, data: SignalsData) {
-      db.insert(signals)
+    async save(projectId: string, data: SignalsData) {
+      await db
+        .insert(signals)
         .values({ projectId, ...data })
         .onConflictDoUpdate({
           target: signals.projectId,
           set: { ...data, updatedAt: now() },
         })
-        .run()
     },
   }
 }

@@ -14,57 +14,58 @@ import {
 } from "../pipeline/state-machine"
 import { projectRepository } from "./repository"
 
-export function enqueueClipRenders(
+export async function enqueueClipRenders(
   db: Db,
   projectId: string,
   clipIds: string[]
 ) {
   const queue = jobQueue(db)
-  const clips = clipRepository(db)
-  clips.setStatus(clipIds, "rendering")
+  await clipRepository(db).setStatus(clipIds, "rendering")
   for (const clipId of clipIds) {
-    queue.enqueue({ type: "render_clip", projectId, payload: { clipId } })
+    await queue.enqueue({ type: "render_clip", projectId, payload: { clipId } })
   }
 }
 
-export function retryProject(db: Db, projectId: string) {
-  const projects = projectRepository(db)
-  const project = projects.getOrThrow(projectId)
+export async function retryProject(db: Db, projectId: string) {
+  const project = await projectRepository(db).getOrThrow(projectId)
   const target = retryTarget(project.status, project.failedStep)
-  withTransaction(db, () => {
-    projects.resumeFailed(projectId, target)
+  await withTransaction(db, async (tx) => {
+    await projectRepository(tx).resumeFailed(projectId, target)
     const jobType = jobTypeForStep(target)
     if (jobType) {
-      jobQueue(db).enqueue({ type: jobType, projectId })
+      await jobQueue(tx).enqueue({ type: jobType, projectId })
       return
     }
-    const retryable = clipRepository(db)
-      .listByStatus(projectId, ["failed", "rendering", "approved"])
-      .map((clip) => clip.id)
+    const retryable = (
+      await clipRepository(tx).listByStatus(projectId, [
+        "failed",
+        "rendering",
+        "approved",
+      ])
+    ).map((clip) => clip.id)
     if (retryable.length === 0) {
       throw new AppError("CONFLICT", "There are no clips to render")
     }
-    enqueueClipRenders(db, projectId, retryable)
+    await enqueueClipRenders(tx, projectId, retryable)
   })
 }
 
-export function cancelProject(db: Db, projectId: string) {
-  const projects = projectRepository(db)
-  const project = projects.getOrThrow(projectId)
+export async function cancelProject(db: Db, projectId: string) {
+  const project = await projectRepository(db).getOrThrow(projectId)
   if (!isRunning(project.status)) {
     throw new AppError("CONFLICT", "Nothing is running for this project")
   }
-  withTransaction(db, () => {
-    jobQueue(db).cancelForProject(projectId)
-    const rendering = clipRepository(db)
-      .listByStatus(projectId, ["rendering"])
-      .map((clip) => clip.id)
-    clipRepository(db).setStatus(rendering, "approved")
-    if (project.status === "rendering") {
-      projects.transition(projectId, "ready_for_review")
-    } else {
-      projects.transition(projectId, "cancelled")
-    }
+  await withTransaction(db, async (tx) => {
+    await jobQueue(tx).cancelForProject(projectId)
+    const clips = clipRepository(tx)
+    const rendering = (await clips.listByStatus(projectId, ["rendering"])).map(
+      (clip) => clip.id
+    )
+    await clips.setStatus(rendering, "approved")
+    await projectRepository(tx).transition(
+      projectId,
+      project.status === "rendering" ? "ready_for_review" : "cancelled"
+    )
   })
 }
 
@@ -73,11 +74,10 @@ export async function deleteProject(
   storage: StorageAdapter,
   projectId: string
 ) {
-  const projects = projectRepository(db)
-  projects.getOrThrow(projectId)
-  withTransaction(db, () => {
-    jobQueue(db).cancelForProject(projectId)
-    projects.delete(projectId)
+  await projectRepository(db).getOrThrow(projectId)
+  await withTransaction(db, async (tx) => {
+    await jobQueue(tx).cancelForProject(projectId)
+    await projectRepository(tx).delete(projectId)
   })
   try {
     await storage.removePrefix(storageKeys.projectPrefix(projectId))

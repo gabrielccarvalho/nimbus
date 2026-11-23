@@ -12,7 +12,7 @@ import {
   pipelineHandlers,
 } from "@/features/pipeline/handlers"
 import { SWEEP_INTERVAL_MS } from "@/features/pipeline/sweep-plan"
-import { getDb } from "@/lib/db"
+import { closeDb, getDb } from "@/lib/db"
 import { getEnv } from "@/lib/env"
 import { logger } from "@/lib/logger"
 
@@ -34,16 +34,20 @@ const worker = createWorker({
   onCancelled: (job) => onJobCancelled(db, job),
 })
 
-const scheduleSweep = () => {
+const scheduleSweep = async () => {
   const queue = jobQueue(db)
-  if (!queue.hasActiveOfType("sweep")) {
-    queue.enqueue({ type: "sweep", projectId: null, maxAttempts: 1 })
+  if (!(await queue.hasActiveOfType("sweep"))) {
+    await queue.enqueue({ type: "sweep", projectId: null, maxAttempts: 1 })
   }
 }
+const sweep = () =>
+  scheduleSweep().catch((error: unknown) =>
+    logger.error({ err: error }, "couldn't schedule the sweep")
+  )
 
 worker.start()
-scheduleSweep()
-const sweepTimer = setInterval(scheduleSweep, SWEEP_INTERVAL_MS)
+void sweep()
+const sweepTimer = setInterval(() => void sweep(), SWEEP_INTERVAL_MS)
 sweepTimer.unref()
 logger.info({ owner, dataDir: env.DATA_DIR }, "worker started")
 if (!process.stdout.isTTY || env.E2E) console.log("worker started")
@@ -55,9 +59,9 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     stopping = true
     clearInterval(sweepTimer)
     logger.info({ signal }, "worker stopping")
-    void worker.stop().then(() => {
-      db.$client.close()
-      process.exit(0)
-    })
+    void worker
+      .stop()
+      .then(closeDb)
+      .then(() => process.exit(0))
   })
 }

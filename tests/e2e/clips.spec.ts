@@ -37,3 +37,38 @@ test("reviews highlight candidates", async ({ page }) => {
   await expect(list.getByRole("listitem").first()).toContainText("Approved")
   await expectNoSeriousA11yViolations(page)
 })
+
+test("hides rejected clips and finds more highlights", async ({ page }) => {
+  await page.goto("/")
+  await page.locator("input[type=file]").setInputFiles(fixtures.wide)
+  await expect(page).toHaveURL(/\/projects\/[\w-]+$/, { timeout: 30_000 })
+  await expect(
+    page.getByRole("listitem").filter({ hasText: "Find highlights, completed" })
+  ).toBeVisible({ timeout: 30_000 })
+
+  await page.getByRole("link", { name: "Clips" }).click()
+  const list = page.getByRole("list", { name: "Clip candidates" })
+  const items = list.getByRole("listitem")
+  await expect(items.first()).toBeVisible()
+  const count = await items.count()
+  const title = await items.first().getByRole("heading").textContent()
+
+  await items.first().getByRole("button", { name: "Reject" }).click()
+  await expect(items).toHaveCount(count - 1)
+  await expect(page.getByText("1 rejected clip hidden")).toBeVisible()
+
+  await page.getByRole("button", { name: "Show rejected" }).click()
+  await expect(items).toHaveCount(count)
+  await expect(
+    items.filter({ hasText: title! }).getByText("Rejected", { exact: true })
+  ).toBeVisible()
+  await page.getByRole("button", { name: "Hide rejected" }).click()
+
+  await page.getByRole("button", { name: "Find more highlights" }).click()
+  await expect(page.getByText("Looking for more highlights")).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "Find more highlights" })
+  ).toBeEnabled({ timeout: 30_000 })
+  await expect(page.getByText("1 rejected clip hidden")).toBeVisible()
+  await expectNoSeriousA11yViolations(page)
+})

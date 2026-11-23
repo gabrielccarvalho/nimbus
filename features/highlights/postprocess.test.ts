@@ -114,6 +114,46 @@ describe("postprocessCandidates", () => {
   })
 })
 
+describe("excluded ranges", () => {
+  it("drops candidates that overlap existing clips", () => {
+    const words = normalizeWords(
+      Array.from({ length: 60 }, (_, i) => ({
+        text: i % 5 === 4 ? " done." : " word",
+        startMs: i * 1000,
+        endMs: i * 1000 + 500,
+      }))
+    )
+    const result = postprocessCandidates(
+      [
+        {
+          startMs: 0,
+          endMs: 20_000,
+          title: "a",
+          hook: "",
+          reason: "",
+          score: 0.9,
+        },
+        {
+          startMs: 30_000,
+          endMs: 50_000,
+          title: "b",
+          hook: "",
+          reason: "",
+          score: 0.5,
+        },
+      ],
+      {
+        durationMs: 60_000,
+        words,
+        segments: buildSegments(words),
+        limits: { minMs: 15_000, maxMs: 30_000, maxCount: 3 },
+        exclude: [{ startMs: 2_000, endMs: 18_000 }],
+      }
+    )
+    expect(result.map((c) => c.title)).toEqual(["b"])
+  })
+})
+
 describe("heuristic selector", () => {
   it("prefers the loud, dense, hype window", async () => {
     const hypeWords = normalizeWords([
@@ -144,6 +184,8 @@ describe("heuristic selector", () => {
         speechDensity: [],
       },
       limits: { minMs: 15_000, maxMs: 30_000, maxCount: 3 },
+      language: "en",
+      reactionPhrases: [],
     }
     const [best] = postprocessCandidates(
       await new HeuristicSelector().select(input),
@@ -151,7 +193,7 @@ describe("heuristic selector", () => {
     )
     expect(best!.startMs).toBeGreaterThanOrEqual(55_000)
     expect(best!.startMs).toBeLessThanOrEqual(63_000)
-    expect(best!.reason).toMatch(/hype words/)
+    expect(best!.reason).toMatch(/reaction phrases/)
     expect(best!.reason).toMatch(/question and answer/)
     expect(best!.hook).toBe("Wait, what?")
   })
@@ -168,6 +210,8 @@ describe("heuristic selector", () => {
         speechDensity: [],
       },
       limits: { minMs: 15_000, maxMs: 60_000, maxCount: 12 },
+      language: "en",
+      reactionPhrases: [],
     })
     expect(candidates.length).toBeGreaterThan(0)
     expect(candidates.every((c) => c.score === 0)).toBe(true)

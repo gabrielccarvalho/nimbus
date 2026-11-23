@@ -6,7 +6,12 @@ import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod"
 import { getEnv } from "@/lib/env"
 import { AppError } from "@/lib/errors"
 
-import { buildSelectionPrompt, SELECTION_SYSTEM_PROMPT } from "./prompt"
+import {
+  buildSelectionPrompt,
+  chunkRanges,
+  SELECTION_SYSTEM_PROMPT,
+  type PromptInput,
+} from "./prompt"
 import {
   candidatesResponseSchema,
   type HighlightSelector,
@@ -25,9 +30,37 @@ export class AnthropicSelector implements HighlightSelector {
   ) {}
 
   async select(input: SelectorInput) {
+    const ranges = chunkRanges(input.segments, input.durationMs)
+    if (ranges.length === 1) return this.selectPart(input, input)
+    let done = 0
+    const results = await Promise.all(
+      ranges.map(async (range, index) => {
+        const part = await this.selectPart(
+          {
+            ...input,
+            limits: {
+              ...input.limits,
+              maxCount:
+                Math.ceil(
+                  (input.limits.maxCount * (range.endMs - range.startMs)) /
+                    input.durationMs
+                ) + 2,
+            },
+            part: { index, count: ranges.length, ...range },
+          },
+          input
+        )
+        input.onPart?.(part, { done: ++done, total: ranges.length })
+        return part
+      })
+    )
+    return results.flat()
+  }
+
+  private async selectPart(prompt: PromptInput, input: SelectorInput) {
     const format = betaZodOutputFormat(candidatesResponseSchema)
     const messages: Anthropic.Beta.BetaMessageParam[] = [
-      { role: "user", content: buildSelectionPrompt(input) },
+      { role: "user", content: buildSelectionPrompt(prompt) },
     ]
     for (let attempt = 0; attempt < 2; attempt++) {
       const response = await this.request(messages, format, input.signal)
@@ -44,7 +77,7 @@ export class AnthropicSelector implements HighlightSelector {
         { role: "assistant", content: response.content },
         {
           role: "user",
-          content: `That reply ${response.stop_reason === "max_tokens" ? "was cut off" : "didn't match the JSON schema"}. Reply again with only the JSON, at most ${input.limits.maxCount} clips.`,
+          content: `That reply ${response.stop_reason === "max_tokens" ? "was cut off" : "didn't match the JSON schema"}. Reply again with only the JSON, at most ${prompt.limits.maxCount} clips.`,
         }
       )
     }

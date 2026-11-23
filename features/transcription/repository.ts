@@ -11,22 +11,22 @@ export type Transcript = typeof transcripts.$inferSelect
 
 export function transcriptRepository(db: Db) {
   return {
-    get(projectId: string): Transcript | undefined {
-      return db
+    async get(projectId: string): Promise<Transcript | undefined> {
+      const [row] = await db
         .select()
         .from(transcripts)
         .where(eq(transcripts.projectId, projectId))
-        .get()
+      return row
     },
 
-    save(projectId: string, data: TranscriptData) {
-      db.insert(transcripts)
+    async save(projectId: string, data: TranscriptData) {
+      await db
+        .insert(transcripts)
         .values({ projectId, ...data })
         .onConflictDoUpdate({
           target: transcripts.projectId,
           set: { ...data, updatedAt: now() },
         })
-        .run()
     },
   }
 }

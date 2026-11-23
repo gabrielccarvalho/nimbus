@@ -17,8 +17,17 @@ export const segmentSchema = z.object({
 })
 export type Segment = z.infer<typeof segmentSchema>
 
+export const languageSourceSchema = z.enum([
+  "setting",
+  "source",
+  "detected",
+  "whisper",
+])
+export type LanguageSource = z.infer<typeof languageSourceSchema>
+
 export const transcriptSchema = z.object({
   language: z.string(),
+  languageSource: languageSourceSchema.nullable().optional(),
   words: z.array(wordSchema),
   segments: z.array(segmentSchema),
 })

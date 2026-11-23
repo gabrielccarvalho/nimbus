@@ -1,5 +1,7 @@
 import "server-only"
 
+import { mkdirSync } from "node:fs"
+
 import { getEnv } from "@/lib/env"
 
 import { LocalStorage } from "./local"
@@ -10,6 +12,7 @@ let instance: { root: string; storage: StorageAdapter } | undefined
 export function getStorage(): StorageAdapter {
   const root = getEnv().DATA_DIR
   if (!instance || instance.root !== root) {
+    mkdirSync(root, { recursive: true })
     instance = { root, storage: new LocalStorage(root) }
   }
   return instance.storage
@@ -20,6 +23,8 @@ export const storageKeys = {
   source: (projectId: string, ext: string) =>
     `projects/${projectId}/source.${ext}`,
   audio: (projectId: string) => `projects/${projectId}/audio.wav`,
+  languageSample: (projectId: string) =>
+    `projects/${projectId}/language-sample.wav`,
   thumbnail: (projectId: string) => `projects/${projectId}/thumbnail.jpg`,
   proxy: (projectId: string) => `projects/${projectId}/proxy.mp4`,
   render: (projectId: string, clipId: string, stamp: number) =>

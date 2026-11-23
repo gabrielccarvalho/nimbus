@@ -1,12 +1,15 @@
-import { sql } from "drizzle-orm"
 import {
+  bigint,
+  boolean,
+  doublePrecision,
   index,
   integer,
-  real,
-  sqliteTable,
+  jsonb,
+  pgTable,
   text,
+  timestamp,
   uniqueIndex,
-} from "drizzle-orm/sqlite-core"
+} from "drizzle-orm/pg-core"
 
 import type { DensityWindow, TimeRange } from "@/features/analysis/schema"
 import type { CaptionOverrides, ClipStatus } from "@/features/clips/schema"
@@ -14,22 +17,26 @@ import type { JobStatus, JobType } from "@/features/jobs/schema"
 import type { LayoutMode, Rect } from "@/features/layout/schema"
 import type {
   AssetKind,
+  AudioTrack,
   ProjectSettings,
   ProjectStatus,
   SourceAspect,
 } from "@/features/projects/schema"
-import type { Segment, Word } from "@/features/transcription/schema"
+import type {
+  LanguageSource,
+  Segment,
+  Word,
+} from "@/features/transcription/schema"
+
+const timestamptz = (name: string) =>
+  timestamp(name, { withTimezone: true, mode: "date" })
 
 const timestamps = {
-  createdAt: integer("created_at", { mode: "timestamp_ms" })
-    .notNull()
-    .default(sql`(unixepoch('subsec') * 1000)`),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
-    .notNull()
-    .default(sql`(unixepoch('subsec') * 1000)`),
+  createdAt: timestamptz("created_at").notNull().defaultNow(),
+  updatedAt: timestamptz("updated_at").notNull().defaultNow(),
 }
 
-export const projects = sqliteTable(
+export const projects = pgTable(
   "projects",
   {
     id: text("id").primaryKey(),
@@ -39,12 +46,9 @@ export const projects = sqliteTable(
     error: text("error"),
     sourceAssetId: text("source_asset_id"),
     sourceUrl: text("source_url"),
-    settings: text("settings", { mode: "json" })
-      .$type<ProjectSettings>()
-      .notNull(),
-    awaitingManualSelection: integer("awaiting_manual_selection", {
-      mode: "boolean",
-    })
+    sourceLanguage: text("source_language"),
+    settings: jsonb("settings").$type<ProjectSettings>().notNull(),
+    awaitingManualSelection: boolean("awaiting_manual_selection")
       .notNull()
       .default(false),
     ...timestamps,
@@ -52,7 +56,7 @@ export const projects = sqliteTable(
   (t) => [index("projects_created_idx").on(t.createdAt)]
 )
 
-export const assets = sqliteTable(
+export const assets = pgTable(
   "assets",
   {
     id: text("id").primaryKey(),
@@ -62,74 +66,70 @@ export const assets = sqliteTable(
     kind: text("kind").$type<AssetKind>().notNull(),
     storageKey: text("storage_key").notNull(),
     mime: text("mime").notNull(),
-    bytes: integer("bytes").notNull().default(0),
+    bytes: bigint("bytes", { mode: "number" }).notNull().default(0),
     durationMs: integer("duration_ms"),
     width: integer("width"),
     height: integer("height"),
-    fps: real("fps"),
+    fps: doublePrecision("fps"),
     codec: text("codec"),
+    audioTracks: jsonb("audio_tracks").$type<AudioTrack[]>(),
     ...timestamps,
   },
   (t) => [index("assets_project_kind_idx").on(t.projectId, t.kind)]
 )
 
-export const transcripts = sqliteTable("transcripts", {
+export const transcripts = pgTable("transcripts", {
   projectId: text("project_id")
     .primaryKey()
     .references(() => projects.id, { onDelete: "cascade" }),
   language: text("language").notNull(),
-  words: text("words", { mode: "json" }).$type<Word[]>().notNull(),
-  segments: text("segments", { mode: "json" }).$type<Segment[]>().notNull(),
+  languageSource: text("language_source").$type<LanguageSource>(),
+  words: jsonb("words").$type<Word[]>().notNull(),
+  segments: jsonb("segments").$type<Segment[]>().notNull(),
   ...timestamps,
 })
 
-export const signals = sqliteTable("signals", {
+export const signals = pgTable("signals", {
   projectId: text("project_id")
     .primaryKey()
     .references(() => projects.id, { onDelete: "cascade" }),
-  silences: text("silences", { mode: "json" }).$type<TimeRange[]>().notNull(),
-  loudness: text("loudness", { mode: "json" }).$type<number[]>().notNull(),
+  silences: jsonb("silences").$type<TimeRange[]>().notNull(),
+  loudness: jsonb("loudness").$type<number[]>().notNull(),
   loudnessIntervalMs: integer("loudness_interval_ms").notNull(),
-  speechDensity: text("speech_density", { mode: "json" })
-    .$type<DensityWindow[]>()
-    .notNull(),
+  speechDensity: jsonb("speech_density").$type<DensityWindow[]>().notNull(),
   ...timestamps,
 })
 
-export const layouts = sqliteTable("layouts", {
+export const layouts = pgTable("layouts", {
   projectId: text("project_id")
     .primaryKey()
     .references(() => projects.id, { onDelete: "cascade" }),
   sourceAspect: text("source_aspect").$type<SourceAspect>().notNull(),
-  webcamRect: text("webcam_rect", { mode: "json" }).$type<Rect | null>(),
-  gameplayRect: text("gameplay_rect", { mode: "json" }).$type<Rect>().notNull(),
-  gameplayFocusX: real("gameplay_focus_x").notNull().default(0.5),
+  webcamRect: jsonb("webcam_rect").$type<Rect | null>(),
+  gameplayRect: jsonb("gameplay_rect").$type<Rect>().notNull(),
+  gameplayFocusX: doublePrecision("gameplay_focus_x").notNull().default(0.5),
   mode: text("mode").$type<LayoutMode>().notNull(),
-  confidence: real("confidence").notNull().default(0),
-  confirmedByUser: integer("confirmed_by_user", { mode: "boolean" })
-    .notNull()
-    .default(false),
+  confidence: doublePrecision("confidence").notNull().default(0),
+  confirmedByUser: boolean("confirmed_by_user").notNull().default(false),
   ...timestamps,
 })
 
-export const layoutPresets = sqliteTable(
+export const layoutPresets = pgTable(
   "layout_presets",
   {
     id: text("id").primaryKey(),
     width: integer("width").notNull(),
     height: integer("height").notNull(),
-    webcamRect: text("webcam_rect", { mode: "json" }).$type<Rect | null>(),
-    gameplayRect: text("gameplay_rect", { mode: "json" })
-      .$type<Rect>()
-      .notNull(),
-    gameplayFocusX: real("gameplay_focus_x").notNull().default(0.5),
+    webcamRect: jsonb("webcam_rect").$type<Rect | null>(),
+    gameplayRect: jsonb("gameplay_rect").$type<Rect>().notNull(),
+    gameplayFocusX: doublePrecision("gameplay_focus_x").notNull().default(0.5),
     mode: text("mode").$type<LayoutMode>().notNull(),
     ...timestamps,
   },
   (t) => [uniqueIndex("layout_presets_resolution_idx").on(t.width, t.height)]
 )
 
-export const clips = sqliteTable(
+export const clips = pgTable(
   "clips",
   {
     id: text("id").primaryKey(),
@@ -141,11 +141,9 @@ export const clips = sqliteTable(
     title: text("title").notNull(),
     hook: text("hook").notNull().default(""),
     reason: text("reason").notNull().default(""),
-    score: real("score").notNull().default(0),
+    score: doublePrecision("score").notNull().default(0),
     status: text("status").$type<ClipStatus>().notNull().default("candidate"),
-    captionOverrides: text("caption_overrides", {
-      mode: "json",
-    }).$type<CaptionOverrides>(),
+    captionOverrides: jsonb("caption_overrides").$type<CaptionOverrides>(),
     renderAssetId: text("render_asset_id").references(() => assets.id, {
       onDelete: "set null",
     }),
@@ -155,7 +153,7 @@ export const clips = sqliteTable(
   (t) => [index("clips_project_idx").on(t.projectId, t.score)]
 )
 
-export const jobs = sqliteTable(
+export const jobs = pgTable(
   "jobs",
   {
     id: text("id").primaryKey(),
@@ -163,21 +161,18 @@ export const jobs = sqliteTable(
       onDelete: "cascade",
     }),
     type: text("type").$type<JobType>().notNull(),
-    payload: text("payload", { mode: "json" })
-      .$type<Record<string, unknown>>()
-      .notNull(),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
     status: text("status").$type<JobStatus>().notNull().default("queued"),
     attempts: integer("attempts").notNull().default(0),
     maxAttempts: integer("max_attempts").notNull().default(3),
-    runAfter: integer("run_after", { mode: "timestamp_ms" })
-      .notNull()
-      .default(sql`(unixepoch('subsec') * 1000)`),
-    leasedUntil: integer("leased_until", { mode: "timestamp_ms" }),
+    runAfter: timestamptz("run_after").notNull().defaultNow(),
+    leasedUntil: timestamptz("leased_until"),
     leaseOwner: text("lease_owner"),
-    progress: real("progress").notNull().default(0),
+    progress: doublePrecision("progress").notNull().default(0),
+    detail: jsonb("detail").$type<Record<string, unknown>>(),
     error: text("error"),
-    startedAt: integer("started_at", { mode: "timestamp_ms" }),
-    finishedAt: integer("finished_at", { mode: "timestamp_ms" }),
+    startedAt: timestamptz("started_at"),
+    finishedAt: timestamptz("finished_at"),
     ...timestamps,
   },
   (t) => [
@@ -186,8 +181,8 @@ export const jobs = sqliteTable(
   ]
 )
 
-export const settings = sqliteTable("settings", {
+export const settings = pgTable("settings", {
   key: text("key").primaryKey(),
-  value: text("value", { mode: "json" }).$type<unknown>().notNull(),
+  value: jsonb("value").$type<unknown>().notNull(),
   ...timestamps,
 })

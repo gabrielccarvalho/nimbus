@@ -3,15 +3,18 @@ import { z } from "zod"
 import {
   captionStyleRefSchema,
   defaultProjectSettings,
+  languageSchema,
+  reactionPhrasesSchema,
+  renderQualitySchema,
   selectorModeSchema,
+  type RenderQuality,
 } from "../projects/schema"
 
-export const renderQualitySchema = z.enum(["draft", "standard", "high"])
-export type RenderQuality = z.infer<typeof renderQualitySchema>
+export { renderQualitySchema, type RenderQuality }
 
 export const appSettingsSchema = z
   .object({
-    transcriptionLanguage: z.string().trim().min(1).max(10),
+    language: languageSchema,
     selectorMode: selectorModeSchema,
     clipMinMs: z.number().int().min(5_000).max(180_000),
     clipMaxMs: z.number().int().min(5_000).max(180_000),
@@ -19,6 +22,7 @@ export const appSettingsSchema = z
     captionStyle: captionStyleRefSchema,
     captionsEnabled: z.boolean(),
     renderQuality: renderQualitySchema,
+    reactionPhrases: reactionPhrasesSchema,
     hardwareEncoding: z.boolean(),
   })
   .refine((s) => s.clipMinMs < s.clipMaxMs, {
@@ -28,14 +32,15 @@ export const appSettingsSchema = z
 export type AppSettings = z.infer<typeof appSettingsSchema>
 
 export const defaultAppSettings: AppSettings = {
-  transcriptionLanguage: "auto",
+  language: defaultProjectSettings.language,
   selectorMode: defaultProjectSettings.selectorMode,
   clipMinMs: defaultProjectSettings.clipMinMs,
   clipMaxMs: defaultProjectSettings.clipMaxMs,
   targetClipCount: defaultProjectSettings.targetClipCount,
   captionStyle: defaultProjectSettings.captionStyle,
   captionsEnabled: defaultProjectSettings.captionsEnabled,
-  renderQuality: "standard",
+  renderQuality: defaultProjectSettings.renderQuality,
+  reactionPhrases: defaultProjectSettings.reactionPhrases,
   hardwareEncoding: false,
 }
 

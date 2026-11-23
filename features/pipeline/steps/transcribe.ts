@@ -2,32 +2,107 @@ import "server-only"
 
 import { getStorage, storageKeys } from "@/lib/storage"
 
-import type { JobHandler } from "../../jobs/worker-loop"
-import { assetRepository } from "../../projects/repository"
+import type { JobContext, JobHandler } from "../../jobs/worker-loop"
+import { assetRepository, type Project } from "../../projects/repository"
 import { runFfmpeg } from "../../render/ffmpeg-runner"
-import { getAppSettings } from "../../settings/service"
 import { getTranscriber } from "../../transcription"
+import {
+  detectionWindows,
+  pickLanguage,
+  resolveLanguage,
+} from "../../transcription/language"
 import { buildSegments, normalizeWords } from "../../transcription/normalize"
 import { transcriptRepository } from "../../transcription/repository"
+import { textTail, type StepDetail } from "../detail"
 import { beginStep, completeStep, sourceAsset, throwIfAborted } from "./common"
+
+const DETECTION_WINDOW_MS = 30_000
+
+async function chooseLanguage(
+  project: Project,
+  audioPath: string,
+  durationMs: number,
+  { signal, logger }: Pick<JobContext, "signal" | "logger">
+) {
+  const storage = getStorage()
+  const resolved = resolveLanguage({
+    setting: project.settings.language,
+    sourceLanguage: project.sourceLanguage,
+  })
+  if (resolved) return resolved
+  const transcriber = getTranscriber()
+  if (!transcriber.multilingual)
+    return { language: "en", source: "whisper" } as const
+  const sampleKey = storageKeys.languageSample(project.id)
+  const samplePath = storage.resolve(sampleKey)
+  const votes = []
+  try {
+    for (const startMs of detectionWindows(durationMs, {
+      windowMs: DETECTION_WINDOW_MS,
+    })) {
+      throwIfAborted(signal)
+      await runFfmpeg(
+        [
+          "-ss",
+          String(startMs / 1000),
+          "-t",
+          String(DETECTION_WINDOW_MS / 1000),
+          "-i",
+          audioPath,
+          "-c",
+          "copy",
+          samplePath,
+        ],
+        { signal }
+      )
+      const vote = await transcriber.detectLanguage({ samplePath, signal })
+      if (vote) votes.push(vote)
+    }
+  } finally {
+    await storage.remove(sampleKey)
+  }
+  const picked = pickLanguage(votes)
+  logger.info({ votes, picked }, "detected spoken language")
+  return picked
+    ? ({ language: picked.language, source: "detected" } as const)
+    : ({ language: "auto", source: "whisper" } as const)
+}
 
 export const transcribeStep: JobHandler = async ({
   job,
   db,
   signal,
   reportProgress,
+  reportDetail,
   logger,
 }) => {
-  const project = beginStep(db, job.projectId, "transcribing")
+  const project = await beginStep(db, job.projectId, "transcribing")
+  const live: Extract<StepDetail, { kind: "transcribe" }> = {
+    kind: "transcribe",
+    phase: "extracting",
+    language: null,
+    languageSource: null,
+    text: "",
+    words: 0,
+    audioMs: 0,
+  }
+  reportDetail(live)
   const storage = getStorage()
-  const source = sourceAsset(db, project)
+  const source = await sourceAsset(db, project)
   const durationMs = source.durationMs ?? 0
   const audioKey = storageKeys.audio(project.id)
+  const track = project.settings.audioTrack
+  const trackExists =
+    track !== null && (source.audioTracks ?? []).some((t) => t.index === track)
+  if (track !== null && !trackExists) {
+    logger.warn({ track }, "chosen audio track is missing, using the default")
+  }
 
   await runFfmpeg(
     [
       "-i",
       storage.resolve(source.storageKey),
+      ...(trackExists ? ["-map", `0:a:${track}`] : []),
       "-vn",
       "-ac",
       "1",
@@ -44,39 +119,66 @@ export const transcribeStep: JobHandler = async ({
     }
   )
   const assets = assetRepository(db)
-  if (!assets.findByKind(project.id, "audio")) {
-    assets.create({
+  const bytes = (await storage.stat(audioKey))?.bytes ?? 0
+  const audio = await assets.findByKind(project.id, "audio")
+  if (audio) {
+    await assets.update(audio.id, { bytes, durationMs })
+  } else {
+    await assets.create({
       projectId: project.id,
       kind: "audio",
       storageKey: audioKey,
       mime: "audio/wav",
-      bytes: (await storage.stat(audioKey))?.bytes ?? 0,
+      bytes,
       durationMs,
     })
   }
 
-  const transcriber = getTranscriber()
-  const language = getAppSettings(db).transcriptionLanguage
-  const raw = await transcriber.transcribe({
-    audioPath: storage.resolve(audioKey),
-    durationMs,
-    language,
+  const audioPath = storage.resolve(audioKey)
+  reportDetail({ ...live, phase: "detecting" })
+  const chosen = await chooseLanguage(project, audioPath, durationMs, {
     signal,
-    onProgress: (p) => reportProgress(10 + p * 0.9),
+    logger,
+  })
+  reportProgress(15)
+  live.phase = "transcribing"
+  live.language = chosen.language === "auto" ? null : chosen.language
+  live.languageSource = chosen.source
+  reportDetail({ ...live })
+
+  const transcriber = getTranscriber()
+  const raw = await transcriber.transcribe({
+    audioPath,
+    durationMs,
+    language: chosen.language,
+    signal,
+    onProgress: (p) => reportProgress(15 + p * 0.85),
+    onWord: (word) => {
+      live.text = textTail(`${live.text} ${word.text}`.trim())
+      live.words++
+      live.audioMs = Math.max(live.audioMs, word.startMs)
+      reportDetail({ ...live })
+    },
   })
   throwIfAborted(signal)
 
   const words = normalizeWords(raw.tokens).filter(
     (w) => w.startMs < durationMs || !durationMs
   )
-  transcriptRepository(db).save(project.id, {
+  await transcriptRepository(db).save(project.id, {
     language: raw.language,
+    languageSource: chosen.source,
     words,
     segments: buildSegments(words),
   })
   logger.info(
-    { transcriber: transcriber.id, words: words.length },
+    {
+      transcriber: transcriber.id,
+      words: words.length,
+      language: raw.language,
+      languageSource: chosen.source,
+    },
     "transcribed"
   )
-  completeStep(db, project.id, "analyzing", "analyze")
+  await completeStep(db, project.id, "analyzing", "analyze")
 }

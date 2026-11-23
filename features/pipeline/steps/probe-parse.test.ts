@@ -41,8 +41,36 @@ describe("parseProbe", () => {
       fps: 29.97,
       codec: "h264",
       audioCodec: "aac",
+      audioTracks: [
+        { index: 0, codec: "aac", channels: 0, language: null, title: null },
+      ],
       formatName: "mov,mp4",
     })
+  })
+
+  it("lists every audio track with its language and name", () => {
+    const json = JSON.stringify({
+      streams: [
+        { codec_type: "video", codec_name: "h264", width: 1920, height: 1080 },
+        {
+          codec_type: "audio",
+          codec_name: "aac",
+          channels: 2,
+          tags: { language: "eng", handler_name: "Game" },
+        },
+        {
+          codec_type: "audio",
+          codec_name: "opus",
+          channels: 1,
+          tags: { language: "por", title: "Mic" },
+        },
+      ],
+      format: { duration: "10" },
+    })
+    expect(parseProbe(json).audioTracks).toEqual([
+      { index: 0, codec: "aac", channels: 2, language: "eng", title: "Game" },
+      { index: 1, codec: "opus", channels: 1, language: "por", title: "Mic" },
+    ])
   })
 
   it("swaps display dimensions for rotated video", () => {

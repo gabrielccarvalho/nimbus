@@ -1,19 +1,33 @@
 {
   "version": "7",
-  "dialect": "sqlite",
+  "dialect": "postgresql",
   "entries": [
     {
       "idx": 0,
-      "version": "6",
-      "when": 1795379024514,
+      "version": "7",
+      "when": 1795394800956,
       "tag": "0000_init",
       "breakpoints": true
     },
     {
       "idx": 1,
-      "version": "6",
-      "when": 1795391926773,
-      "tag": "0001_source_url",
+      "version": "7",
+      "when": 1795396153852,
+      "tag": "0001_per_project_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795397212911,
+      "tag": "0002_reaction_phrases",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795398032206,
+      "tag": "0003_job_detail",
       "breakpoints": true
     }
   ]

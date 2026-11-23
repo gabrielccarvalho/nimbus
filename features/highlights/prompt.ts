@@ -2,8 +2,8 @@ import { z } from "zod"
 
 import { AppError } from "@/lib/errors"
 
-import type { SignalsData } from "../analysis/schema"
-import type { Segment } from "../transcription/schema"
+import type { SignalsData, TimeRange } from "../analysis/schema"
+import type { Segment, Word } from "../transcription/schema"
 import {
   candidatesResponseSchema,
   type RawCandidate,
@@ -16,45 +16,109 @@ export const SELECTION_SYSTEM_PROMPT = `You pick short-form highlight clips from
 
 Write titles and hooks in the streamer's language. Titles are under 60 characters and say what happens. Hooks are the on-screen text for the first seconds, under 90 characters. The reason is one sentence an editor can check against the transcript. Score each clip from 0 to 1 by how likely it is to hold a viewer.`
 
-export function buildSelectionPrompt({
-  durationMs,
-  segments,
-  signals,
-  limits,
-}: {
+const UNCLEAR_CONFIDENCE = 0.5
+
+export function languageName(code: string) {
+  try {
+    return new Intl.DisplayNames(["en"], { type: "language" }).of(code) ?? code
+  } catch {
+    return code
+  }
+}
+
+export type PromptInput = {
   durationMs: number
+  words: readonly Word[]
   segments: readonly Segment[]
   signals: SignalsData
   limits: SelectionLimits
-}) {
+  language: string
+  exclude?: readonly TimeRange[]
+  part?: { index: number; count: number; startMs: number; endMs: number }
+}
+
+function segmentConfidence(segment: Segment, words: readonly Word[]) {
+  const own = words.slice(segment.firstWord, segment.lastWord + 1)
+  if (own.length === 0) return 1
+  return own.reduce((sum, w) => sum + w.confidence, 0) / own.length
+}
+
+export function buildSelectionPrompt({
+  durationMs,
+  words,
+  segments,
+  signals,
+  limits,
+  language,
+  exclude = [],
+  part,
+}: PromptInput) {
+  const from = part?.startMs ?? 0
+  const to = part?.endMs ?? durationMs
   const loudest = signals.loudness
     .map((lufs, i) => ({ lufs, ms: i * signals.loudnessIntervalMs }))
-    .filter((p) => p.lufs > -70)
+    .filter((p) => p.lufs > -70 && p.ms >= from && p.ms < to)
     .sort((a, b) => b.lufs - a.lufs)
     .slice(0, 15)
     .sort((a, b) => a.ms - b.ms)
     .map((p) => `${seconds(p.ms)}s (${p.lufs.toFixed(1)} LUFS)`)
+  const silences = signals.silences.filter(
+    (s) => s.endMs > from && s.startMs < to
+  )
+  const inside = segments.filter((s) => s.startMs >= from && s.startMs < to)
 
-  const transcript = segments.length
-    ? segments
-        .map((s) => `[${seconds(s.startMs)}–${seconds(s.endMs)}] ${s.text}`)
+  const transcript = inside.length
+    ? inside
+        .map(
+          (s) =>
+            `[${seconds(s.startMs)}–${seconds(s.endMs)}]${segmentConfidence(s, words) < UNCLEAR_CONFIDENCE ? " (unclear)" : ""} ${s.text}`
+        )
         .join("\n")
     : "(no speech detected)"
 
-  return `Recording length: ${seconds(durationMs)} s.
+  const spoken =
+    language && language !== "auto"
+      ? `The streamer speaks ${languageName(language)}. Game audio in other languages can appear in the transcript, often marked (unclear); it isn't the streamer reacting. Write titles and hooks in ${languageName(language)}.`
+      : "Write titles and hooks in the language the streamer speaks."
+
+  return `Recording length: ${seconds(durationMs)} s.${part ? ` This is part ${part.index + 1} of ${part.count}, from ${seconds(from)} s to ${seconds(to)} s; only pick clips inside it.` : ""}
+
+${spoken}
 
 Pick up to ${limits.maxCount} clips, each between ${seconds(limits.minMs)} and ${seconds(limits.maxMs)} seconds long, that don't overlap. Times are in milliseconds from the start of the recording; start and end on sentence boundaries from the transcript.
 
-Loudest moments: ${loudest.join(", ") || "none"}
-Silences: ${signals.silences.map((s) => `${seconds(s.startMs)}–${seconds(s.endMs)}s`).join(", ") || "none"}
+${exclude.length ? `Already clipped, don't pick these again or anything overlapping them: ${exclude.map((r) => `${seconds(r.startMs)}–${seconds(r.endMs)}s`).join(", ")}\n\n` : ""}Loudest moments: ${loudest.join(", ") || "none"}
+Silences: ${silences.map((s) => `${seconds(s.startMs)}–${seconds(s.endMs)}s`).join(", ") || "none"}
 
 Transcript (seconds):
 ${transcript}`
 }
 
-export function buildManualPrompt(
-  input: Parameters<typeof buildSelectionPrompt>[0]
+export function chunkRanges(
+  segments: readonly Segment[],
+  durationMs: number,
+  { maxChars = 60_000, overlapMs = 60_000 } = {}
 ) {
+  const total = segments.reduce((sum, s) => sum + s.text.length + 20, 0)
+  const count = Math.max(1, Math.ceil(total / maxChars))
+  if (count === 1) return [{ startMs: 0, endMs: durationMs }]
+  const target = total / count
+  const cuts: number[] = []
+  let running = 0
+  for (const segment of segments) {
+    running += segment.text.length + 20
+    if (running >= target * (cuts.length + 1) && cuts.length < count - 1) {
+      cuts.push(segment.endMs)
+    }
+  }
+  const bounds = [0, ...cuts, durationMs]
+  return bounds.slice(0, -1).map((start, i) => ({
+    startMs: Math.max(0, start - (i > 0 ? overlapMs : 0)),
+    endMs: bounds[i + 1]!,
+  }))
+}
+
+export function buildManualPrompt(input: PromptInput) {
   return `${SELECTION_SYSTEM_PROMPT}
 
 ${buildSelectionPrompt(input)}

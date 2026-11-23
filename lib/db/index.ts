@@ -1,46 +1,59 @@
 import "server-only"
 
-import { mkdirSync } from "node:fs"
 import path from "node:path"
 
-import Database from "better-sqlite3"
-import { drizzle, type BetterSQLite3Database } from "drizzle-orm/better-sqlite3"
-import { migrate } from "drizzle-orm/better-sqlite3/migrator"
+import { drizzle } from "drizzle-orm/node-postgres"
+import { migrate } from "drizzle-orm/node-postgres/migrator"
+import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core"
+import { Pool } from "pg"
 
 import { getEnv } from "@/lib/env"
 
 import * as schema from "./schema"
 
-export type Db = BetterSQLite3Database<typeof schema> & {
-  $client: Database.Database
-}
+export type Db = PgDatabase<PgQueryResultHKT, typeof schema>
 
 export const MIGRATIONS_DIR = path.join(
   /* turbopackIgnore: true */ process.cwd(),
   "lib/db/migrations"
 )
 
-export function openDb(file: string, { runMigrations = true } = {}): Db {
-  if (file !== ":memory:") mkdirSync(path.dirname(file), { recursive: true })
-  const client = new Database(file)
-  client.pragma("journal_mode = WAL")
-  client.pragma("foreign_keys = ON")
-  client.pragma("busy_timeout = 5000")
-  client.pragma("synchronous = NORMAL")
-  const db = drizzle(client, { schema })
-  if (runMigrations) migrate(db, { migrationsFolder: MIGRATIONS_DIR })
-  return db
+const globalForDb = globalThis as unknown as {
+  __nimbusDb?: Db
+  __nimbusPool?: Pool
 }
-
-const globalForDb = globalThis as unknown as { __autoClipperDb?: Db }
 
 export function getDb(): Db {
-  globalForDb.__autoClipperDb ??= openDb(getEnv().DATABASE_PATH)
-  return globalForDb.__autoClipperDb
+  if (!globalForDb.__nimbusDb) {
+    const pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 10 })
+    globalForDb.__nimbusPool = pool
+    globalForDb.__nimbusDb = drizzle(pool, { schema })
+  }
+  return globalForDb.__nimbusDb
 }
 
-export function withTransaction<T>(db: Db, fn: () => T): T {
-  return db.$client.transaction(fn)()
+export function setDb(db: Db | undefined) {
+  globalForDb.__nimbusDb = db
+}
+
+export async function migrateDb() {
+  getDb()
+  await migrate(drizzle(globalForDb.__nimbusPool!, { schema }), {
+    migrationsFolder: MIGRATIONS_DIR,
+  })
+}
+
+export async function closeDb() {
+  await globalForDb.__nimbusPool?.end()
+  globalForDb.__nimbusPool = undefined
+  globalForDb.__nimbusDb = undefined
+}
+
+export function withTransaction<T>(
+  db: Db,
+  fn: (tx: Db) => Promise<T>
+): Promise<T> {
+  return db.transaction((tx) => fn(tx))
 }
 
 export function now() {

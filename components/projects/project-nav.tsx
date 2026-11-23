@@ -10,6 +10,7 @@ const SECTIONS = [
   { href: "/transcript", label: "Transcript" },
   { href: "/layout-editor", label: "Layout" },
   { href: "/clips", label: "Clips" },
+  { href: "/settings", label: "Settings" },
 ] as const
 
 export function ProjectNav({ projectId }: { projectId: string }) {

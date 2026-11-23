@@ -20,6 +20,7 @@ yt-dlp --no-playlist --no-warnings --ignore-config [--ffmpeg-location FFMPEG_PAT
 
 - At most 1080p: vertical output is 1080 wide, so anything larger only costs download time. H.264/AAC is preferred so the MP4 merge is a remux.
 - Live, upcoming and still-processing streams, playlists and channel pages are rejected before downloading. The project takes the video's title.
+- The site's thumbnail (yt-dlp's `thumbnail` field, https and public hosts only) is saved with `ffmpeg -i <url> -frames:v 1 -vf scale=640:-2` before the download starts. Failing to fetch it only logs a warning. Probe doesn't replace an existing thumbnail.
 - Progress: the first stream (video) maps to 0–90%, the second (audio) to 90–100%, switching on yt-dlp's `[download] Destination:` lines.
 - yt-dlp errors are mapped to readable reasons (`describeYtDlpError`): private, members-only, age-restricted and removed videos fail without retrying; rate limits and network errors retry with backoff.
 - Retrying a failed download re-runs the step; a project that already has its source skips straight to probe.
@@ -48,8 +49,18 @@ Failure modes: not a media file, no video or no audio stream, zero duration, ffp
 ## 2. transcribe (`transcribing → analyzing`)
 
 ```sh
-ffmpeg -i <source> -vn -ac 1 -ar 16000 -c:a pcm_s16le <audio.wav>
+ffmpeg -i <source> [-map 0:a:<voice track>] -vn -ac 1 -ar 16000 -c:a pcm_s16le <audio.wav>
 ```
+
+The voice track comes from project settings (`audioTrack`, null for the default). Analysis keeps using the full mix when a voice track is chosen.
+
+Spoken language, first match wins (`features/transcription/language.ts`):
+
+1. the project's `language` setting when it isn't `auto`;
+2. the language the video's page reports (yt-dlp `language`, stored as `projects.source_language`);
+3. detection: 7 windows of 30 s spread across the recording, each cut with `ffmpeg -ss <t> -t 30 -c copy` and run through `whisper-cli -l auto -dl` (which ignores `-ot`, hence the cut), then the probability-weighted majority. Recordings under a minute use one window at the start. English-only models skip detection.
+
+The transcript stores the language and how it was chosen (`language_source`: setting, source, detected, whisper).
 
 Then the configured Transcriber:
 

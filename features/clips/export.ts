@@ -8,16 +8,16 @@ import { clipRepository } from "./repository"
 
 export type ExportEntry = { name: string; storageKey: string }
 
-export function exportContents(db: Db, projectId: string) {
+export async function exportContents(db: Db, projectId: string) {
   const assets = assetRepository(db)
   const files: ExportEntry[] = []
   const manifest: Array<Record<string, unknown>> = []
-  const rendered = clipRepository(db)
-    .listForProject(projectId)
-    .filter((clip) => clip.renderAssetId)
-  rendered.forEach((clip, index) => {
-    const asset = assets.get(clip.renderAssetId!)
-    if (!asset) return
+  const rendered = (await clipRepository(db).listForProject(projectId)).filter(
+    (clip) => clip.renderAssetId
+  )
+  for (const [index, clip] of rendered.entries()) {
+    const asset = await assets.get(clip.renderAssetId!)
+    if (!asset) continue
     const name = `${String(index + 1).padStart(2, "0")}-${slugify(clip.title)}.mp4`
     files.push({ name, storageKey: asset.storageKey })
     manifest.push({
@@ -28,8 +28,8 @@ export function exportContents(db: Db, projectId: string) {
       endMs: clip.endMs,
       editedSinceRender: clip.status !== "rendered",
     })
-  })
-  const edit = assets.findByKind(projectId, "edit")
+  }
+  const edit = await assets.findByKind(projectId, "edit")
   if (edit) {
     files.push({ name: "edit-horizontal.mp4", storageKey: edit.storageKey })
     manifest.push({ file: "edit-horizontal.mp4", durationMs: edit.durationMs })

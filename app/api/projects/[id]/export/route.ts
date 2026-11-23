@@ -17,9 +17,9 @@ export async function GET(
   try {
     const { id } = await ctx.params
     const db = getDb()
-    const project = projectRepository(db).getOrThrow(id)
+    const project = await projectRepository(db).getOrThrow(id)
     const storage = getStorage()
-    const contents = exportContents(db, id)
+    const contents = await exportContents(db, id)
     const present = await Promise.all(
       contents.files.map(async (file) =>
         Boolean(await storage.stat(file.storageKey))

@@ -21,7 +21,7 @@ const fontMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: { default: "Auto-Clipper", template: "%s · Auto-Clipper" },
+  title: { default: "Nimbus", template: "%s · Nimbus" },
   description: "Turn long recordings into vertical clips with captions.",
 }
 

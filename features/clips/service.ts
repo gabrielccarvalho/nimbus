@@ -17,16 +17,20 @@ import {
 
 const REVIEWABLE = new Set(["awaiting_layout", "ready_for_review", "done"])
 
-export function applyManualSelection(db: Db, projectId: string, text: string) {
-  const project = projectRepository(db).getOrThrow(projectId)
+export async function applyManualSelection(
+  db: Db,
+  projectId: string,
+  text: string
+) {
+  const project = await projectRepository(db).getOrThrow(projectId)
   if (!REVIEWABLE.has(project.status)) {
     throw new AppError(
       "CONFLICT",
       "Wait for analysis to finish before adding clips"
     )
   }
-  const transcript = transcriptRepository(db).get(projectId)
-  const source = assetRepository(db).findByKind(projectId, "source")
+  const transcript = await transcriptRepository(db).get(projectId)
+  const source = await assetRepository(db).findByKind(projectId, "source")
   const candidates = postprocessCandidates(parseCandidatesJson(text), {
     durationMs: source?.durationMs ?? 0,
     words: transcript?.words ?? [],
@@ -43,14 +47,17 @@ export function applyManualSelection(db: Db, projectId: string, text: string) {
       "None of those clips fit the recording and length limits"
     )
   }
-  const clips = clipRepository(db).replaceCandidates(projectId, candidates)
-  projectRepository(db).setAwaitingManualSelection(projectId, false)
+  const clips = await clipRepository(db).replaceCandidates(
+    projectId,
+    candidates
+  )
+  await projectRepository(db).setAwaitingManualSelection(projectId, false)
   return clips.length
 }
 
 const REVIEW_STATUSES: ClipStatus[] = ["candidate", "approved", "rejected"]
 
-export function setClipReviewStatus(
+export async function setClipReviewStatus(
   db: Db,
   projectId: string,
   clipId: string,
@@ -63,7 +70,7 @@ export function setClipReviewStatus(
     )
   }
   const clips = clipRepository(db)
-  const clip = clips.getOrThrow(clipId)
+  const clip = await clips.getOrThrow(clipId)
   if (clip.projectId !== projectId)
     throw new AppError("NOT_FOUND", "Clip not found")
   if (clip.status === "rendering") {
@@ -72,21 +79,21 @@ export function setClipReviewStatus(
   return clips.update(clipId, { status })
 }
 
-export function updateClip(
+export async function updateClip(
   db: Db,
   projectId: string,
   clipId: string,
   edit: ClipEdit
 ) {
   const clips = clipRepository(db)
-  const clip = clips.getOrThrow(clipId)
+  const clip = await clips.getOrThrow(clipId)
   if (clip.projectId !== projectId) {
     throw new AppError("NOT_FOUND", "Clip not found")
   }
   if (clip.status === "rendering") {
     throw new AppError("CONFLICT", "Wait for this clip to finish rendering")
   }
-  const source = assetRepository(db).findByKind(projectId, "source")
+  const source = await assetRepository(db).findByKind(projectId, "source")
   const durationMs = source?.durationMs ?? 0
   const length = edit.endMs - edit.startMs
   if (edit.endMs > durationMs || length <= 0) {
@@ -112,12 +119,11 @@ export function updateClip(
   })
 }
 
-export function approveAllCandidates(db: Db, projectId: string) {
+export async function approveAllCandidates(db: Db, projectId: string) {
   const clips = clipRepository(db)
-  const ids = clips
-    .listForProject(projectId)
+  const ids = (await clips.listForProject(projectId))
     .filter((clip) => clip.status === "candidate")
     .map((clip) => clip.id)
-  clips.setStatus(ids, "approved")
+  await clips.setStatus(ids, "approved")
   return ids.length
 }

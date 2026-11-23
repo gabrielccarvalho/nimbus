@@ -25,8 +25,8 @@ export async function renderEditAction(projectId: unknown) {
   const id = parseId(projectId, "project id")
   return runAction(
     "renderEdit",
-    () => {
-      startEditRender(getDb(), id)
+    async () => {
+      await startEditRender(getDb(), id)
     },
     [`/projects/${id}`]
   )

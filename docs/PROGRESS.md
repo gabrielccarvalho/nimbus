@@ -187,9 +187,58 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 - [x] Tests: link validation and yt-dlp parsing units, integration (import → download → highlights, private video failure and retry, live stream refusal), e2e (import from link, readable failure)
 - [x] Verified by hand against YouTube with yt-dlp 2026.10.26: 10-minute video downloaded and merged to H.264/AAC MP4 with progress to 100%; removed video and playlist links fail with readable reasons in ~2 s
 
+### Phase 20: Quick wins
+
+- [x] Live project page: the snapshot carries a `revision` (name, source and thumbnail assets, aspect) and the page refreshes when it changes, not only on status changes. Fixes the stale title after a link import and the empty stat cards
+- [x] Thumbnail early: link imports save the site's thumbnail (ffmpeg reads the URL from yt-dlp's details, ~0.6 s) before the download starts; probe keeps an existing thumbnail. Uploads show a frame captured in the browser while uploading; the project's own thumbnail comes from probe a few seconds after the upload ends (sending the browser frame to the server wasn't worth an extra endpoint). Empty thumbnails show a placeholder
+- [x] Cancel button uses an X instead of the square stop icon
+- [x] Renamed Auto-Clipper → Nimbus (title, sidebar, README, CLAUDE.md, architecture doc, temp dir prefixes)
+- [x] Verified by hand with yt-dlp against YouTube: title set ~3 s after import, YouTube thumbnail saved and kept through probe
+
+### Phase 21: Postgres + Docker for local development
+
+- [x] `docker-compose.yml` with Postgres 17 (volume, healthcheck, port 5442); `pnpm dev` starts it and migrates first. Next and the worker stay on the host, because VideoToolbox and whisper's Metal acceleration don't work inside Docker on macOS
+- [x] Drizzle pg schema and migrations; all repositories and their callers become async; transactions via `db.transaction`. `no-floating-promises` and `no-misused-promises` are on so a missing `await` fails lint
+- [x] Job queue claims with `SELECT … FOR UPDATE SKIP LOCKED`, with a four-connection race test against real Postgres
+- [x] Dropped: `LISTEN/NOTIFY` for SSE. Each event still has to read the snapshot, so it would only save one cheap query per open tab every 500 ms (ADR-0041)
+- [x] Tests: PGlite (in-process Postgres) for unit and integration tests so they don't need Docker; e2e against a fresh `nimbus_e2e` database on the compose server
+- [x] One-off script to copy existing SQLite projects into Postgres (`pnpm db:import-sqlite`; the GTA 6 stream came over with its 12 clips); `doctor` checks the database connection
+- [x] ADR: why Postgres (concurrent workers, NOTIFY, standard tooling, path to hosting) and what it costs (Docker needed to run)
+
+### Phase 22: Per-project settings and spoken language
+
+- [x] Every setting is per project: spoken language, voice track, selector, clip length range, clip count, captions and style, render quality. Global settings are "defaults for new projects"; hardware encoding stays global (it's a property of the machine). A migration fills the new fields on existing projects
+- [x] Upload and link import start straight away with the defaults; "Import options" on the home page sets language and selector up front (an `x-import-options` header for uploads, a second action argument for links)
+- [x] Project Settings tab; changing a setting offers to re-run only what it affects (language or voice track → transcribe onward, selector or clip length → find highlights, captions or quality → re-render rendered clips). Re-runs keep approved and rendered clips
+- [x] Spoken-language detection that ignores the game: 7 windows of 30 s across the recording, probability-weighted majority; yt-dlp's `language` field is used first for link imports; an explicit choice always wins. Checked on the 3 h GTA 6 stream: 2 of 5 windows said English (game dialogue), 3 said Portuguese, Portuguese won, ~0.7 s per window. whisper-cli's `-dl` ignores `-ot`, so each window is cut to its own file first
+- [x] Default model is now multilingual (`ggml-large-v3-turbo-q5_0.bin`); English-only models can't detect or transcribe other languages, and `doctor` and Settings warn about them
+- [x] Voice track picker: probe records every audio track; when there's more than one, the project settings offer a picker and transcription uses that track; analysis keeps using the full mix
+- [x] Moved to Phase 23: down-weighting low-confidence segments is scoring, which Phase 23 rewrites
+
+### Phase 23: Highlights that adapt to the language
+
+- [x] Segments that don't match the spoken language (low-confidence game dialogue) are down-weighted: window score × (0.4 + 0.6 × mean word confidence); Claude sees them marked `(unclear)`
+- [x] Hard-coded English keywords removed. Signals that work in any language, each against the surrounding 2 minutes: loudness spike, speech-rate jump, laughter and exclamations, repeated words, a pause before the peak
+- [x] Reaction phrase lists as data (`features/highlights/phrases/{en,pt,es}.json`), picked by the transcript's language, plus per-project catchphrases (Settings → Highlights). Phrases count only above 1.5× the streamer's own rate, so verbal tics ("mano") don't dominate
+- [x] Claude selector: told the spoken language, writes titles and hooks in it, and long transcripts are split into overlapping parts sent in parallel
+- [~] Tuning: checked against the Portuguese transcript of the 3 h GTA 6 stream (top picks: "Corre, corre, corre…", "Meu Deus do céu… Não é possível", "Caralho, irmão, se você bater no meu carro de novo…"; the old scorer's 12-minute cluster around one sub-thanks segment is gone). The regression tests are synthetic (`heuristic.test.ts`); a real tuning set needs streams with known good moments, and the stream content isn't committed
+- [x] Rejected clips leave the clip list, with Undo in the toast and a "Show rejected" toggle
+- [x] "Find more highlights" adds candidates that don't overlap any existing clip, rejected ones included, without replacing anything
+
+### Phase 24: Overview that changes with each step
+
+- [x] The worker publishes step details (`jobs.detail`, validated by `stepDetailSchema`, pushed in the SSE snapshot for running jobs), not just a percentage
+- [x] Downloading: size so far, speed and time left from yt-dlp; title and thumbnail were already there. Channel isn't shown (not stored)
+- [~] Probing: the metadata cards fill in when probe saves the source (existing revision refresh). Preview frames: not done, probe takes under a second on local files
+- [x] Transcribing: phase (extracting, detecting language, transcribing), language and how it was chosen, word count, words per minute, position, and the latest words as whisper prints them. Checked with real whisper on an 11-minute video
+- [x] Analyzing: the loudness waveform and silences draw as ffmpeg reads the audio; the part not read yet is greyed out
+- [x] Finding highlights: candidates with scores appear as Claude's parts come back (the built-in selector finishes at once)
+- [x] Rendering: a grid of the clips being rendered, each with its own progress and a poster frame from the proxy
+- [x] Elapsed time and an estimate for the running step
+
 ### Not verified
 
 - MediaPipe face detection on a real face (fixtures have none; the code path is unit tested and the model loads in e2e).
-- Real multi-hour recordings (10 minutes verified). Very long transcripts go to Claude in one request; past the model's context limit the project falls back to the heuristic with "the transcript is too long for one request". Chunking isn't implemented.
+- Real multi-hour recordings end to end (a 3 h stream was transcribed and scored; rendering from it wasn't). Claude's chunking of long transcripts is tested against a mocked API only.
 - Hardware encoders other than VideoToolbox.
 - Linux and Windows.

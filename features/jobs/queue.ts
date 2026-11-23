@@ -1,8 +1,18 @@
 import "server-only"
 
-import { and, asc, desc, eq, inArray, lt, lte, sql } from "drizzle-orm"
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  lt,
+  lte,
+  notInArray,
+  sql,
+} from "drizzle-orm"
 
-import { newId, now, type Db } from "@/lib/db"
+import { newId, now, withTransaction, type Db } from "@/lib/db"
 import { jobs } from "@/lib/db/schema"
 
 import type { JobType } from "./schema"
@@ -35,9 +45,11 @@ export type LeaseInput = {
 }
 
 export function jobQueue(db: Db) {
+  const changed = (rows: unknown[]) => rows.length > 0
+
   return {
-    enqueue(input: EnqueueInput): Job {
-      return db
+    async enqueue(input: EnqueueInput): Promise<Job> {
+      const [row] = await db
         .insert(jobs)
         .values({
           id: newId(),
@@ -48,7 +60,7 @@ export function jobQueue(db: Db) {
           runAfter: input.runAfter ?? now(),
         })
         .returning()
-        .get()
+      return row!
     },
 
     lease({
@@ -56,82 +68,91 @@ export function jobQueue(db: Db) {
       leaseMs,
       types,
       excludeTypes,
-    }: LeaseInput): Job | undefined {
-      const at = now()
-      const filters = [eq(jobs.status, "queued"), lte(jobs.runAfter, at)]
-      if (types?.length) filters.push(inArray(jobs.type, [...types]))
-      if (excludeTypes?.length) {
-        filters.push(sql`${jobs.type} not in ${[...excludeTypes]}`)
-      }
-      const next = db
-        .select({ id: jobs.id })
-        .from(jobs)
-        .where(and(...filters))
-        .orderBy(asc(jobs.runAfter), asc(jobs.createdAt))
-        .limit(1)
-      return db
-        .update(jobs)
-        .set({
-          status: "running",
-          leaseOwner: owner,
-          leasedUntil: new Date(at.getTime() + leaseMs),
-          attempts: sql`${jobs.attempts} + 1`,
-          startedAt: sql`coalesce(${jobs.startedAt}, ${at.getTime()})`,
-          updatedAt: at,
-        })
-        .where(and(eq(jobs.id, sql`(${next})`), eq(jobs.status, "queued")))
-        .returning()
-        .get()
+    }: LeaseInput): Promise<Job | undefined> {
+      return withTransaction(db, async (tx) => {
+        const at = now()
+        const filters = [eq(jobs.status, "queued"), lte(jobs.runAfter, at)]
+        if (types?.length) filters.push(inArray(jobs.type, [...types]))
+        if (excludeTypes?.length) {
+          filters.push(notInArray(jobs.type, [...excludeTypes]))
+        }
+        const [next] = await tx
+          .select({ id: jobs.id })
+          .from(jobs)
+          .where(and(...filters))
+          .orderBy(asc(jobs.runAfter), asc(jobs.createdAt))
+          .limit(1)
+          .for("update", { skipLocked: true })
+        if (!next) return undefined
+        const [row] = await tx
+          .update(jobs)
+          .set({
+            status: "running",
+            leaseOwner: owner,
+            leasedUntil: new Date(at.getTime() + leaseMs),
+            attempts: sql`${jobs.attempts} + 1`,
+            detail: null,
+            startedAt: sql`coalesce(${jobs.startedAt}, ${at.toISOString()}::timestamptz)`,
+            updatedAt: at,
+          })
+          .where(eq(jobs.id, next.id))
+          .returning()
+        return row
+      })
     },
 
-    heartbeat(
+    async heartbeat(
       id: string,
       owner: string,
       leaseMs: number,
-      progress?: number
-    ): boolean {
+      progress?: number,
+      detail?: Record<string, unknown>
+    ): Promise<boolean> {
       const at = now()
-      const result = db
-        .update(jobs)
-        .set({
-          leasedUntil: new Date(at.getTime() + leaseMs),
-          updatedAt: at,
-          ...(progress === undefined
-            ? {}
-            : { progress: Math.max(0, Math.min(100, progress)) }),
-        })
-        .where(
-          and(
-            eq(jobs.id, id),
-            eq(jobs.leaseOwner, owner),
-            eq(jobs.status, "running")
+      return changed(
+        await db
+          .update(jobs)
+          .set({
+            leasedUntil: new Date(at.getTime() + leaseMs),
+            updatedAt: at,
+            ...(progress === undefined
+              ? {}
+              : { progress: Math.max(0, Math.min(100, progress)) }),
+            ...(detail === undefined ? {} : { detail }),
+          })
+          .where(
+            and(
+              eq(jobs.id, id),
+              eq(jobs.leaseOwner, owner),
+              eq(jobs.status, "running")
+            )
           )
-        )
-        .run()
-      return result.changes > 0
+          .returning({ id: jobs.id })
+      )
     },
 
-    complete(id: string, owner: string): boolean {
+    async complete(id: string, owner: string): Promise<boolean> {
       const at = now()
-      const result = db
-        .update(jobs)
-        .set({
-          status: "succeeded",
-          progress: 100,
-          leasedUntil: null,
-          finishedAt: at,
-          updatedAt: at,
-          error: null,
-        })
-        .where(
-          and(
-            eq(jobs.id, id),
-            eq(jobs.leaseOwner, owner),
-            eq(jobs.status, "running")
+      return changed(
+        await db
+          .update(jobs)
+          .set({
+            status: "succeeded",
+            progress: 100,
+            leasedUntil: null,
+            finishedAt: at,
+            updatedAt: at,
+            error: null,
+          })
+          .where(
+            and(
+              eq(jobs.id, id),
+              eq(jobs.leaseOwner, owner),
+              eq(jobs.status, "running")
+            )
           )
-        )
-        .run()
-      return result.changes > 0
+          .returning({ id: jobs.id })
+      )
     },
 
     fail(
@@ -139,78 +160,91 @@ export function jobQueue(db: Db) {
       owner: string,
       message: string,
       { retryable }: { retryable: boolean }
-    ): Job | undefined {
-      const current = db.select().from(jobs).where(eq(jobs.id, id)).get()
-      if (
-        !current ||
-        current.leaseOwner !== owner ||
-        current.status !== "running"
-      ) {
-        return current
-      }
-      const at = now()
-      const retry = retryable && current.attempts < current.maxAttempts
-      return db
-        .update(jobs)
-        .set(
-          retry
-            ? {
-                status: "queued",
-                leaseOwner: null,
-                leasedUntil: null,
-                runAfter: new Date(at.getTime() + backoffMs(current.attempts)),
-                error: message,
-                updatedAt: at,
-              }
-            : {
-                status: "failed",
-                leasedUntil: null,
-                error: message,
-                finishedAt: at,
-                updatedAt: at,
-              }
-        )
-        .where(eq(jobs.id, id))
-        .returning()
-        .get()
+    ): Promise<Job | undefined> {
+      return withTransaction(db, async (tx) => {
+        const [current] = await tx
+          .select()
+          .from(jobs)
+          .where(eq(jobs.id, id))
+          .for("update")
+        if (
+          !current ||
+          current.leaseOwner !== owner ||
+          current.status !== "running"
+        ) {
+          return current
+        }
+        const at = now()
+        const retry = retryable && current.attempts < current.maxAttempts
+        const [row] = await tx
+          .update(jobs)
+          .set(
+            retry
+              ? {
+                  status: "queued",
+                  leaseOwner: null,
+                  leasedUntil: null,
+                  runAfter: new Date(
+                    at.getTime() + backoffMs(current.attempts)
+                  ),
+                  error: message,
+                  updatedAt: at,
+                }
+              : {
+                  status: "failed",
+                  leasedUntil: null,
+                  error: message,
+                  finishedAt: at,
+                  updatedAt: at,
+                }
+          )
+          .where(eq(jobs.id, id))
+          .returning()
+        return row
+      })
     },
 
-    cancel(id: string): boolean {
+    async cancel(id: string): Promise<boolean> {
       const at = now()
-      const result = db
-        .update(jobs)
-        .set({ status: "cancelled", finishedAt: at, updatedAt: at })
-        .where(
-          and(eq(jobs.id, id), inArray(jobs.status, ["queued", "running"]))
-        )
-        .run()
-      return result.changes > 0
+      return changed(
+        await db
+          .update(jobs)
+          .set({ status: "cancelled", finishedAt: at, updatedAt: at })
+          .where(
+            and(eq(jobs.id, id), inArray(jobs.status, ["queued", "running"]))
+          )
+          .returning({ id: jobs.id })
+      )
     },
 
-    cancelForProject(projectId: string, types?: readonly JobType[]): number {
+    async cancelForProject(
+      projectId: string,
+      types?: readonly JobType[]
+    ): Promise<number> {
       const at = now()
       const filters = [
         eq(jobs.projectId, projectId),
         inArray(jobs.status, ["queued", "running"]),
       ]
       if (types?.length) filters.push(inArray(jobs.type, [...types]))
-      return db
+      const rows = await db
         .update(jobs)
         .set({ status: "cancelled", finishedAt: at, updatedAt: at })
         .where(and(...filters))
-        .run().changes
+        .returning({ id: jobs.id })
+      return rows.length
     },
 
-    recoverExpired(): number {
+    async recoverExpired(): Promise<number> {
       const at = now()
-      const expired = db
+      const expired = await db
         .select()
         .from(jobs)
         .where(and(eq(jobs.status, "running"), lt(jobs.leasedUntil, at)))
-        .all()
       for (const job of expired) {
         const exhausted = job.attempts >= job.maxAttempts
-        db.update(jobs)
+        await db
+          .update(jobs)
           .set(
             exhausted
               ? {
@@ -229,52 +263,48 @@ export function jobQueue(db: Db) {
                 }
           )
           .where(and(eq(jobs.id, job.id), eq(jobs.status, "running")))
-          .run()
       }
       return expired.length
     },
 
-    get(id: string): Job | undefined {
-      return db.select().from(jobs).where(eq(jobs.id, id)).get()
+    async get(id: string): Promise<Job | undefined> {
+      const [row] = await db.select().from(jobs).where(eq(jobs.id, id))
+      return row
     },
 
-    listForProject(projectId: string): Job[] {
+    listForProject(projectId: string): Promise<Job[]> {
       return db
         .select()
         .from(jobs)
         .where(eq(jobs.projectId, projectId))
         .orderBy(desc(jobs.createdAt))
-        .all()
     },
 
-    hasActiveOfType(type: JobType): boolean {
-      return Boolean(
-        db
-          .select({ id: jobs.id })
-          .from(jobs)
-          .where(
-            and(
-              eq(jobs.type, type),
-              inArray(jobs.status, ["queued", "running"])
-            )
-          )
-          .get()
-      )
+    async hasActiveOfType(type: JobType): Promise<boolean> {
+      const [row] = await db
+        .select({ id: jobs.id })
+        .from(jobs)
+        .where(
+          and(eq(jobs.type, type), inArray(jobs.status, ["queued", "running"]))
+        )
+        .limit(1)
+      return Boolean(row)
     },
 
-    countActive(projectId: string, types?: readonly JobType[]): number {
+    async countActive(
+      projectId: string,
+      types?: readonly JobType[]
+    ): Promise<number> {
       const filters = [
         eq(jobs.projectId, projectId),
         inArray(jobs.status, ["queued", "running"]),
       ]
       if (types?.length) filters.push(inArray(jobs.type, [...types]))
-      return (
-        db
-          .select({ count: sql<number>`count(*)` })
-          .from(jobs)
-          .where(and(...filters))
-          .get()?.count ?? 0
-      )
+      const [row] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(jobs)
+        .where(and(...filters))
+      return row?.count ?? 0
     },
   }
 }

@@ -19,11 +19,11 @@ export async function confirmLayoutAction(projectId: unknown, input: unknown) {
   const id = parseId(projectId, "project id")
   return runAction(
     "confirmLayout",
-    () => {
+    async () => {
       const parsed = confirmSchema.safeParse(input)
       if (!parsed.success) throw new AppError("VALIDATION", "Invalid layout")
       const { layout, ...options } = parsed.data
-      confirmLayout(getDb(), id, layout, options)
+      await confirmLayout(getDb(), id, layout, options)
     },
     [`/projects/${id}`]
   )

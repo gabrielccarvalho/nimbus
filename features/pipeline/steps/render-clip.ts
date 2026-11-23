@@ -45,14 +45,14 @@ export const renderClipStep: JobHandler = async ({
   if (!job.projectId || typeof clipId !== "string") {
     throw new AppError("VALIDATION", "Render job is missing its clip")
   }
-  const project = projectRepository(db).get(job.projectId)
+  const project = await projectRepository(db).get(job.projectId)
   if (!project) throw new AppError("CANCELLED", "Project was deleted")
   const clips = clipRepository(db)
-  const clip = clips.get(clipId)
+  const clip = await clips.get(clipId)
   if (!clip || clip.projectId !== project.id) {
     throw new AppError("CANCELLED", "Clip was deleted")
   }
-  const layout = layoutRepository(db).get(project.id)
+  const layout = await layoutRepository(db).get(project.id)
   if (!layout) throw new AppError("CONFLICT", "The layout is missing")
   const source = await sourceFile(db, project)
   if (!source.width || !source.height) {
@@ -81,7 +81,7 @@ export const renderClipStep: JobHandler = async ({
       clip.captionOverrides?.style ?? project.settings.captionStyle
     )
     const words = wordsInRange(
-      transcriptRepository(db).get(project.id)?.words ?? [],
+      (await transcriptRepository(db).get(project.id))?.words ?? [],
       clip.startMs,
       clip.endMs
     )
@@ -112,7 +112,7 @@ export const renderClipStep: JobHandler = async ({
     subtitles,
   })
   await storage.writeBuffer(workKey("graph.txt"), graph)
-  const settings = getAppSettings(db)
+  const settings = await getAppSettings(db)
   const encoder = chooseEncoder(
     encoderPreference(settings.hardwareEncoding, env.VIDEO_ENCODER),
     capabilities.encoders
@@ -127,7 +127,7 @@ export const renderClipStep: JobHandler = async ({
         seekMs: seekFor(clip.startMs).seekMs,
         graphFile: storage.resolve(workKey("graph.txt")),
         encoder,
-        crf: renderQualityCrf[settings.renderQuality],
+        crf: renderQualityCrf[project.settings.renderQuality],
         output: storage.resolve(workKey("mp4")),
       }),
       {
@@ -147,7 +147,7 @@ export const renderClipStep: JobHandler = async ({
   }
 
   const assets = assetRepository(db)
-  const asset = assets.create({
+  const asset = await assets.create({
     projectId: project.id,
     kind: "render",
     storageKey: outputKey,
@@ -160,15 +160,15 @@ export const renderClipStep: JobHandler = async ({
     codec: encoder,
   })
   const previous = clip.renderAssetId
-    ? assets.get(clip.renderAssetId)
+    ? await assets.get(clip.renderAssetId)
     : undefined
-  clips.update(clip.id, {
+  await clips.update(clip.id, {
     status: "rendered",
     renderAssetId: asset.id,
     error: null,
   })
   if (previous) {
-    assets.delete(previous.id)
+    await assets.delete(previous.id)
     await storage.remove(previous.storageKey)
   }
   logger.info(

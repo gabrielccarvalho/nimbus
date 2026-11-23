@@ -1,3 +1,4 @@
+import type { TimeRange } from "../analysis/schema"
 import type { Segment, Word } from "../transcription/schema"
 import type { Candidate, RawCandidate, SelectionLimits } from "./types"
 
@@ -9,6 +10,7 @@ type Context = {
   words: readonly Word[]
   segments: readonly Segment[]
   limits: SelectionLimits
+  exclude?: readonly TimeRange[]
 }
 
 function nearest(values: readonly number[], target: number, within = Infinity) {
@@ -56,7 +58,7 @@ function fitLength(
   return [startMs, endMs]
 }
 
-function overlapRatio(a: Candidate, b: Candidate) {
+function overlapRatio(a: TimeRange, b: TimeRange) {
   const overlap = Math.min(a.endMs, b.endMs) - Math.max(a.startMs, b.startMs)
   if (overlap <= 0) return 0
   return overlap / Math.min(a.endMs - a.startMs, b.endMs - b.startMs)
@@ -105,10 +107,11 @@ export function postprocessCandidates(
     })
   }
 
+  const exclude = context.exclude ?? []
   const accepted: Candidate[] = []
   for (const candidate of [...shaped].sort((a, b) => b.score - a.score)) {
     if (
-      accepted.every(
+      [...exclude, ...accepted].every(
         (other) => overlapRatio(candidate, other) <= MAX_OVERLAP_RATIO
       )
     ) {

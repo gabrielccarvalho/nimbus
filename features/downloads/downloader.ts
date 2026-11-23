@@ -1,8 +1,10 @@
 export type VideoInfo = {
   title: string
+  language: string | null
   durationMs: number | null
   isLive: boolean
   approxBytes: number | null
+  thumbnailUrl: string | null
 }
 
 export type DownloadInput = {
@@ -10,7 +12,15 @@ export type DownloadInput = {
   dir: string
   maxBytes: number
   signal?: AbortSignal
-  onProgress?: (percent: number) => void
+  onProgress?: (progress: DownloadProgress) => void
+}
+
+export type DownloadProgress = {
+  percent: number
+  downloadedBytes: number
+  totalBytes: number | null
+  bytesPerSecond: number | null
+  etaSeconds: number | null
 }
 
 export interface Downloader {
