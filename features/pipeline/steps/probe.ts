@@ -7,7 +7,13 @@ import { layoutRepository } from "../../layout/repository"
 import { FULL_FRAME } from "../../layout/schema"
 import { assetRepository } from "../../projects/repository"
 import { runFfmpeg, runFfprobe } from "../../render/ffmpeg-runner"
-import { beginStep, completeStep, sourceAsset, throwIfAborted } from "./common"
+import {
+  beginStep,
+  completeStep,
+  produceFile,
+  sourceAsset,
+  throwIfAborted,
+} from "./common"
 import { classifyAspect, isLandscape, parseProbe } from "./probe-parse"
 
 export const probeStep: JobHandler = async ({
@@ -36,21 +42,23 @@ export const probeStep: JobHandler = async ({
 
   const thumbKey = storageKeys.thumbnail(project.id)
   if (!(await assets.findByKind(project.id, "thumbnail"))) {
-    await runFfmpeg(
-      [
-        "-ss",
-        String((info.durationMs * 0.1) / 1000),
-        "-i",
-        sourcePath,
-        "-frames:v",
-        "1",
-        "-vf",
-        "scale=640:-2",
-        "-q:v",
-        "4",
-        storage.resolve(thumbKey),
-      ],
-      { signal, timeoutMs: 60_000 }
+    await produceFile(project.id, thumbKey, (file) =>
+      runFfmpeg(
+        [
+          "-ss",
+          String((info.durationMs * 0.1) / 1000),
+          "-i",
+          sourcePath,
+          "-frames:v",
+          "1",
+          "-vf",
+          "scale=640:-2",
+          "-q:v",
+          "4",
+          file,
+        ],
+        { signal, timeoutMs: 60_000 }
+      )
     )
     await assets.create({
       projectId: project.id,
@@ -64,37 +72,39 @@ export const probeStep: JobHandler = async ({
   reportProgress(20)
 
   const proxyKey = storageKeys.proxy(project.id)
-  await runFfmpeg(
-    [
-      "-i",
-      sourcePath,
-      "-map",
-      "0:v:0",
-      "-map",
-      "0:a:0",
-      "-vf",
-      "scale=640:-2",
-      "-c:v",
-      "libx264",
-      "-preset",
-      "veryfast",
-      "-crf",
-      "30",
-      "-pix_fmt",
-      "yuv420p",
-      "-c:a",
-      "aac",
-      "-b:a",
-      "96k",
-      "-movflags",
-      "+faststart",
-      storage.resolve(proxyKey),
-    ],
-    {
-      signal,
-      expectedDurationMs: info.durationMs,
-      onProgress: (p) => reportProgress(20 + p * 0.8),
-    }
+  await produceFile(project.id, proxyKey, (file) =>
+    runFfmpeg(
+      [
+        "-i",
+        sourcePath,
+        "-map",
+        "0:v:0",
+        "-map",
+        "0:a:0",
+        "-vf",
+        "scale=640:-2",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "30",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "96k",
+        "-movflags",
+        "+faststart",
+        file,
+      ],
+      {
+        signal,
+        expectedDurationMs: info.durationMs,
+        onProgress: (p) => reportProgress(20 + p * 0.8),
+      }
+    )
   )
   await assets.create({
     projectId: project.id,

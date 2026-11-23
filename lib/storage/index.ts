@@ -23,8 +23,8 @@ export const storageKeys = {
   source: (projectId: string, ext: string) =>
     `projects/${projectId}/source.${ext}`,
   audio: (projectId: string) => `projects/${projectId}/audio.wav`,
-  languageSample: (projectId: string) =>
-    `projects/${projectId}/language-sample.wav`,
+  languageSample: (projectId: string, id: string) =>
+    `projects/${projectId}/work/language-sample-${id}.wav`,
   thumbnail: (projectId: string) => `projects/${projectId}/thumbnail.jpg`,
   proxy: (projectId: string) => `projects/${projectId}/proxy.mp4`,
   render: (projectId: string, clipId: string, stamp: number) =>
