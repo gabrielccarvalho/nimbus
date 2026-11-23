@@ -109,15 +109,18 @@ export function postprocessCandidates(
       : 0
     const penalty =
       GAME_DIALOGUE_PENALTY * coveredShare({ startMs, endMs }, gameDialogue)
+    const beats = candidate.beats?.filter(
+      (b) => b.ms >= startMs && b.ms <= endMs
+    )
     shaped.push({
       ...candidate,
+      ...(beats ? { beats } : {}),
       startMs,
       endMs,
       title: candidate.title.trim().slice(0, 100) || "Untitled clip",
       hook: candidate.hook.trim().slice(0, 200),
       reason: candidate.reason.trim().slice(0, 500),
       score: score * (1 - penalty),
-      beats: candidate.beats?.filter((b) => b.ms >= startMs && b.ms <= endMs),
     })
   }
 

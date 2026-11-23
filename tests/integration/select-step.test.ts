@@ -132,6 +132,12 @@ describe("select step", () => {
 describe("auto effects at selection", () => {
   const withReview = async (autoEffects: boolean) => {
     review.on = true
+    await layoutRepository(env.db).savePreset(1920, 1080, {
+      webcamRect: { x: 0.78, y: 0.03, w: 0.2, h: 0.2 },
+      gameplayRect: { x: 0, y: 0, w: 1, h: 1 },
+      gameplayFocusX: 0.5,
+      mode: "cam-top",
+    })
     return analyzed(async (id) => {
       const projects = projectRepository(env.db)
       await projects.updateSettings(id, {
@@ -148,6 +154,12 @@ describe("auto effects at selection", () => {
     for (const clip of clips) {
       expect(clip.beats).toEqual([{ ms: expect.any(Number), kind: "reaction" }])
       expect(clip.effects).toMatchObject({ edited: false })
+      const beat = clip.beats![0]!
+      expect(clip.effects!.events).toContainEqual(
+        expect.objectContaining({ kind: "focus" })
+      )
+      const focus = clip.effects!.events.find((e) => e.kind === "focus")!
+      expect(Math.abs(focus.startMs - beat.ms)).toBeLessThanOrEqual(3000)
       for (const event of clip.effects!.events) {
         expect(event.startMs).toBeGreaterThanOrEqual(clip.startMs)
         expect(event.endMs).toBeLessThanOrEqual(clip.endMs)

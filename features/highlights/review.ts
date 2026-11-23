@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import type { TimeRange } from "../analysis/schema"
+import { beatSchema, type Beat } from "../effects/schema"
 import { languageName, transcriptLines } from "./prompt"
 import {
   rawCandidateSchema,
@@ -35,8 +37,20 @@ Then tighten the clip for retention:
 
 Return every candidate you were given, by id, even the bad ones, with an honest score.`
 
+const lenientBeatSchema = z.object({
+  ms: z.number(),
+  kind: z.enum(["reaction", "weird"]),
+  x: z.number().optional(),
+  y: z.number().optional(),
+})
+
 export const reviewResponseSchema = z.object({
-  clips: z.array(rawCandidateSchema.extend({ id: z.number().int() })),
+  clips: z.array(
+    rawCandidateSchema.omit({ beats: true }).extend({
+      id: z.number().int(),
+      beats: z.array(z.unknown()).optional().catch(undefined),
+    })
+  ),
 })
 export type ReviewedCandidate = z.infer<
   typeof reviewResponseSchema
@@ -108,6 +122,30 @@ export function buildReviewContent(
   return blocks
 }
 
+const clamp01 = (value: number) => Math.min(1, Math.max(0, value))
+
+function normalizeBeats(raw: readonly unknown[] | undefined, range: TimeRange) {
+  const beats: Beat[] = []
+  for (const item of raw ?? []) {
+    const lenient = lenientBeatSchema.safeParse(item)
+    if (!lenient.success) continue
+    const { ms, kind, x, y } = lenient.data
+    const beat = beatSchema.safeParse({
+      ms: Math.round(ms),
+      kind,
+      ...(x === undefined ? {} : { x: clamp01(x) }),
+      ...(y === undefined ? {} : { y: clamp01(y) }),
+    })
+    if (
+      beat.success &&
+      beat.data.ms >= range.startMs &&
+      beat.data.ms <= range.endMs
+    )
+      beats.push(beat.data)
+  }
+  return beats
+}
+
 export function applyReviews(
   candidates: readonly Candidate[],
   reviews: readonly ReviewedCandidate[]
@@ -135,7 +173,9 @@ export function applyReviews(
       hook: review.hook.trim() || candidate.hook,
       reason: review.reason.trim() || candidate.reason,
       score: review.score,
-      beats: review.beats?.filter((b) => b.ms >= startMs && b.ms <= endMs),
+      ...(review.beats
+        ? { beats: normalizeBeats(review.beats, { startMs, endMs }) }
+        : {}),
     }
   })
 }

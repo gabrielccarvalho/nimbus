@@ -203,4 +203,30 @@ describe("visual review", () => {
     })
     expect(parsed.clips[0]!.beats).toBeUndefined()
   })
+
+  it("drops malformed beats and normalises sloppy ones without failing the review", () => {
+    const review = reviewResponseSchema.parse({
+      clips: [
+        {
+          id: 0,
+          startMs: 20_000,
+          endMs: 40_000,
+          title: "t",
+          hook: "h",
+          reason: "r",
+          score: 0.9,
+          beats: [
+            { ms: 25_000.6, kind: "weird", x: 1.2, y: -0.1 },
+            { ms: -5, kind: "reaction" },
+            { ms: "soon", kind: "reaction" },
+            { ms: 30_000, kind: "laugh" },
+            null,
+          ],
+        },
+      ],
+    })
+    const [clip] = applyReviews([candidate(20_000, 40_000)], review.clips)
+    expect(clip).toMatchObject({ score: 0.9 })
+    expect(clip!.beats).toEqual([{ ms: 25_001, kind: "weird", x: 1, y: 0 }])
+  })
 })
