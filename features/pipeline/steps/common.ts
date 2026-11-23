@@ -1,8 +1,12 @@
 import "server-only"
 
+import { randomUUID } from "node:crypto"
+import { mkdir } from "node:fs/promises"
+import path from "node:path"
+
 import { withTransaction, type Db } from "@/lib/db"
 import { AppError } from "@/lib/errors"
-import { getStorage } from "@/lib/storage"
+import { getStorage, storageKeys } from "@/lib/storage"
 
 import { jobQueue } from "../../jobs/queue"
 import type { JobType } from "../../jobs/schema"
@@ -59,6 +63,29 @@ export async function sourceFile(db: Db, project: Project) {
     )
   }
   return asset
+}
+
+// A retried job can overlap an orphaned ffmpeg from a killed worker, so each
+// attempt writes its own work file and only a finished one replaces the target.
+export async function produceFile(
+  projectId: string,
+  key: string,
+  produce: (file: string) => Promise<unknown>
+) {
+  const storage = getStorage()
+  const workKey = storageKeys.work(
+    projectId,
+    `${randomUUID()}-${path.posix.basename(key)}`
+  )
+  const file = storage.resolve(workKey)
+  await mkdir(path.dirname(file), { recursive: true })
+  try {
+    await produce(file)
+    await storage.move(workKey, key)
+  } catch (error) {
+    await storage.remove(workKey)
+    throw error
+  }
 }
 
 export function throwIfAborted(signal: AbortSignal) {

@@ -1,5 +1,7 @@
 import "server-only"
 
+import { randomUUID } from "node:crypto"
+
 import { getStorage, storageKeys } from "@/lib/storage"
 
 import type { JobContext, JobHandler } from "../../jobs/worker-loop"
@@ -14,7 +16,13 @@ import {
 import { buildSegments, normalizeWords } from "../../transcription/normalize"
 import { transcriptRepository } from "../../transcription/repository"
 import { textTail, type StepDetail } from "../detail"
-import { beginStep, completeStep, sourceAsset, throwIfAborted } from "./common"
+import {
+  beginStep,
+  completeStep,
+  produceFile,
+  sourceAsset,
+  throwIfAborted,
+} from "./common"
 
 const DETECTION_WINDOW_MS = 30_000
 
@@ -33,7 +41,7 @@ async function chooseLanguage(
   const transcriber = getTranscriber()
   if (!transcriber.multilingual)
     return { language: "en", source: "whisper" } as const
-  const sampleKey = storageKeys.languageSample(project.id)
+  const sampleKey = storageKeys.languageSample(project.id, randomUUID())
   const samplePath = storage.resolve(sampleKey)
   const votes = []
   try {
@@ -98,25 +106,27 @@ export const transcribeStep: JobHandler = async ({
     logger.warn({ track }, "chosen audio track is missing, using the default")
   }
 
-  await runFfmpeg(
-    [
-      "-i",
-      storage.resolve(source.storageKey),
-      ...(trackExists ? ["-map", `0:a:${track}`] : []),
-      "-vn",
-      "-ac",
-      "1",
-      "-ar",
-      "16000",
-      "-c:a",
-      "pcm_s16le",
-      storage.resolve(audioKey),
-    ],
-    {
-      signal,
-      expectedDurationMs: durationMs,
-      onProgress: (p) => reportProgress(p * 0.1),
-    }
+  await produceFile(project.id, audioKey, (file) =>
+    runFfmpeg(
+      [
+        "-i",
+        storage.resolve(source.storageKey),
+        ...(trackExists ? ["-map", `0:a:${track}`] : []),
+        "-vn",
+        "-ac",
+        "1",
+        "-ar",
+        "16000",
+        "-c:a",
+        "pcm_s16le",
+        file,
+      ],
+      {
+        signal,
+        expectedDurationMs: durationMs,
+        onProgress: (p) => reportProgress(p * 0.1),
+      }
+    )
   )
   const assets = assetRepository(db)
   const bytes = (await storage.stat(audioKey))?.bytes ?? 0

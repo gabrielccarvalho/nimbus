@@ -59,8 +59,10 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     stopping = true
     clearInterval(sweepTimer)
     logger.info({ signal }, "worker stopping")
+    // tsx watch SIGKILLs after 5 s, which would orphan running ffmpeg children;
+    // abort early enough for runProcess to terminate them first.
     void worker
-      .stop()
+      .stop({ graceMs: 1_000 })
       .then(closeDb)
       .then(() => process.exit(0))
   })
