@@ -197,3 +197,7 @@ Context: users want to pick the caption font independently of the preset, includ
 ## ADR-0049: Indigo and highlighter-yellow rebrand
 
 Context: the near-black + lime palette and Oxanium/Nunito pairing read as a generic gaming-tool template, and the Projects page was a stack of default blocks. Decision: indigo ink surfaces and a highlighter yellow `primary` that only marks what the pipeline found (clip ranges, the spoken word) and primary actions; Archivo for all UI text, condensed through its `wdth` axis for headings. The Projects page lists recordings as rows with a read-only `Timeline` showing every clip's position in the VOD. Caption fonts load from `/api/fonts/[font]` so the preview no longer depends on UI fonts. Consequences: the caption highlight is now yellow and the outline indigo ink (golden ASS updated); `highlight-ink` exists for readable yellow text on light surfaces; radius drops to 8 px.
+
+## ADR-0050: yt-dlp cookies for YouTube's bot check
+
+Context: YouTube answers anonymous yt-dlp requests from some IPs with "Sign in to confirm you're not a bot". We reported it as rate limiting and retried, which can't succeed and keeps hitting YouTube. Decision: opt-in `YTDLP_COOKIES_FROM_BROWSER` / `YTDLP_COOKIES`, passed to every yt-dlp call; the bot check maps to `DEPENDENCY_MISSING` (no retries) with a message naming the setting, and doctor warns when neither is set. Consequences: imports run as the signed-in browser profile; reading Chrome's cookies on macOS can show a Keychain prompt the first time.

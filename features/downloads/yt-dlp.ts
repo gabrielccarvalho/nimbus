@@ -26,14 +26,35 @@ const INFO_TIMEOUT_MS = 60_000
 export class YtDlpDownloader implements Downloader {
   readonly id = "yt-dlp"
 
-  constructor(private readonly options: { binary: string; ffmpeg: string }) {}
+  constructor(
+    private readonly options: {
+      binary: string
+      ffmpeg: string
+      cookiesFromBrowser?: string
+      cookiesFile?: string
+    }
+  ) {}
 
   private baseArgs() {
     const args = ["--no-playlist", "--no-warnings", "--ignore-config"]
     if (this.options.ffmpeg.includes("/")) {
       args.push("--ffmpeg-location", this.options.ffmpeg)
     }
+    if (this.options.cookiesFromBrowser) {
+      args.push("--cookies-from-browser", this.options.cookiesFromBrowser)
+    }
+    if (this.options.cookiesFile) {
+      args.push("--cookies", this.options.cookiesFile)
+    }
     return args
+  }
+
+  private describeError(stderr: string) {
+    return describeYtDlpError(stderr, {
+      withCookies: Boolean(
+        this.options.cookiesFromBrowser || this.options.cookiesFile
+      ),
+    })
   }
 
   async info(url: string, signal?: AbortSignal): Promise<VideoInfo> {
@@ -48,7 +69,7 @@ export class YtDlpDownloader implements Downloader {
       ],
       { signal, timeoutMs: INFO_TIMEOUT_MS, stderrTailBytes: 8192 }
     )
-    if (result.code !== 0) throw describeYtDlpError(result.stderrTail)
+    if (result.code !== 0) throw this.describeError(result.stderrTail)
     return parseInfo(result.stdout)
   }
 
@@ -86,7 +107,7 @@ export class YtDlpDownloader implements Downloader {
         onStdoutLine: onLine,
       }
     )
-    if (result.code !== 0) throw describeYtDlpError(result.stderrTail)
+    if (result.code !== 0) throw this.describeError(result.stderrTail)
     const file = (await readdir(dir)).find((name) =>
       /^source\.(mp4|mkv|webm|mov)$/.test(name)
     )
