@@ -1,5 +1,4 @@
 import { LOUDNESS_FLOOR_LUFS, type SignalsData } from "../analysis/schema"
-import type { Word } from "../transcription/schema"
 import { normalizeEffects, type Beat, type Effect } from "./schema"
 
 export type PlanInput = {
@@ -7,7 +6,6 @@ export type PlanInput = {
   endMs: number
   hasWebcam: boolean
   signals: SignalsData
-  words: readonly Word[]
   beats: readonly Beat[]
 }
 
@@ -35,6 +33,7 @@ type Candidate = {
   exempt: boolean
   events: Effect[]
   optionalFocus?: FocusEffect
+  screamPeak?: boolean
 }
 
 function median(values: readonly number[]) {
@@ -64,11 +63,16 @@ function snapBeat(beat: Beat, input: PlanInput) {
   const { loudness, loudnessIntervalMs, speechDensity } = input.signals
   const from = Math.max(
     0,
-    Math.floor((beat.ms - PLANNER.beatSnapMs) / loudnessIntervalMs)
+    Math.ceil(
+      Math.max(beat.ms - PLANNER.beatSnapMs, input.startMs) / loudnessIntervalMs
+    )
   )
   const to = Math.min(
     loudness.length - 1,
-    Math.floor((beat.ms + PLANNER.beatSnapMs) / loudnessIntervalMs)
+    Math.floor(
+      (Math.min(beat.ms + PLANNER.beatSnapMs, input.endMs) - 1) /
+        loudnessIntervalMs
+    )
   )
   let best = LOUDNESS_FLOOR_LUFS
   let bestIndex = -1
@@ -89,6 +93,7 @@ function snapBeat(beat: Beat, input: PlanInput) {
   for (const window of speechDensity) {
     const mid = (window.startMs + window.endMs) / 2
     if (Math.abs(mid - beat.ms) > PLANNER.beatSnapMs) continue
+    if (mid < input.startMs || mid >= input.endMs) continue
     if (window.wordsPerSecond > (densest?.rate ?? 0)) {
       densest = { mid, rate: window.wordsPerSecond }
     }
@@ -175,6 +180,7 @@ function screamCandidates(input: PlanInput): Candidate[] {
         exempt: false,
         events: [shake],
         optionalFocus: input.hasWebcam ? focusAround(ms) : undefined,
+        screamPeak: true,
       }
     })
 }
@@ -215,10 +221,11 @@ export function planEffects(input: PlanInput): Effect[] {
     Math.min(event.endMs, input.endMs) - Math.max(event.startMs, input.startMs)
 
   for (const candidate of candidates) {
-    if (!candidate.exempt && candidate.anchorMs < leadInEnd) continue
+    if (!candidate.exempt && candidate.events[0]!.startMs < leadInEnd) continue
 
     const covering = accepted.find(
       (event) =>
+        candidate.screamPeak &&
         event.kind === "focus" &&
         event.startMs <= candidate.anchorMs &&
         candidate.anchorMs < event.endMs

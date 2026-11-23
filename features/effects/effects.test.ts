@@ -305,7 +305,6 @@ function plan(overrides: Partial<PlanInput> = {}) {
     endMs: 30_000,
     hasWebcam: true,
     signals: signalsWith([]),
-    words: [],
     beats: [],
     ...overrides,
   })
@@ -453,5 +452,73 @@ describe("planEffects", () => {
 
   it("flat audio and no beats yields no events", () => {
     expect(plan()).toEqual([])
+  })
+
+  it("never puts a zoom inside a focus or a second focus within the gap", () => {
+    const withWeird = plan({
+      beats: [
+        { ms: 10_000, kind: "reaction" },
+        { ms: 10_500, kind: "weird", x: 0.5, y: 0.5 },
+      ],
+    })
+    expect(withWeird.map((e) => e.kind)).toEqual(["focus"])
+    const twoReactions = plan({
+      beats: [
+        { ms: 10_000, kind: "reaction" },
+        { ms: 10_800, kind: "reaction" },
+      ],
+    })
+    expect(twoReactions).toEqual([
+      { kind: "focus", startMs: 9700, endMs: 11_500 },
+    ])
+  })
+
+  it("caps beat-driven events by gap and focus budget", () => {
+    const beats = Array.from({ length: 10 }, (_, i) => ({
+      ms: 1000 + i * 1000,
+      kind: "reaction" as const,
+    }))
+    const events = plan({ endMs: 10_000, beats })
+    const starts = events.map((e) => e.startMs)
+    starts.forEach((start, i) => {
+      if (i > 0) {
+        expect(start - starts[i - 1]!).toBeGreaterThanOrEqual(PLANNER.minGapMs)
+      }
+    })
+    const focusMs = events.reduce((sum, e) => sum + e.endMs - e.startMs, 0)
+    expect(focusMs).toBeLessThanOrEqual(10_000 * PLANNER.maxFocusShare)
+    expect(events).toHaveLength(2)
+  })
+
+  it("keeps shake cap when beats already used the budget", () => {
+    const peaks = Array.from({ length: 10 }, (_, i) => ({
+      ms: 2000 + i * 3000,
+      lufs: -10,
+    }))
+    const events = plan({
+      hasWebcam: false,
+      signals: signalsWith(peaks),
+      beats: [{ ms: 1000, kind: "weird", x: 0.5, y: 0.5 }],
+    })
+    expect(events.filter((e) => e.kind === "shake")).toHaveLength(
+      PLANNER.maxShakes
+    )
+    expect(events.filter((e) => e.kind === "zoom")).toHaveLength(1)
+  })
+
+  it("keeps a jump zoom out of the first 500 ms", () => {
+    const signals = signalsWith([{ ms: 1750, lufs: -30 }], -45)
+    expect(plan({ startMs: 1000, signals })).toEqual([])
+    expect(plan({ startMs: 0, signals })).toHaveLength(1)
+  })
+
+  it("ignores loudness peaks outside the clip when snapping a beat", () => {
+    const events = plan({
+      startMs: 10_000,
+      endMs: 30_000,
+      signals: signalsWith([{ ms: 8000, lufs: -10 }]),
+      beats: [{ ms: 10_500, kind: "reaction" }],
+    })
+    expect(events).toEqual([{ kind: "focus", startMs: 10_200, endMs: 12_000 }])
   })
 })
