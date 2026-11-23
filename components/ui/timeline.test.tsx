@@ -89,4 +89,23 @@ describe("Timeline", () => {
       "M0,1 L0,1.000 L1,0.500 L2,0.000 L3,1 Z"
     )
   })
+
+  it("draws the audience band along the top with its own opacity", () => {
+    const { container } = render(
+      <Timeline aria-label="Audio overview" durationMs={20_000} readOnly>
+        <TimelineRange
+          variant="audience"
+          startMs={0}
+          endMs={10_000}
+          style={{ opacity: 0.4 }}
+        />
+      </Timeline>
+    )
+    const band = container.querySelector<HTMLElement>(
+      "[data-variant=audience]"
+    )!
+    expect(band.style.width).toBe("50%")
+    expect(band.style.opacity).toBe("0.4")
+    expect(band).toHaveClass("h-1.5")
+  })
 })

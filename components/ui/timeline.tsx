@@ -175,6 +175,7 @@ const timelineRangeVariants = cva(
         clip: "border-x-2 border-primary bg-primary/15 p-0.5 text-primary",
         selected:
           "border-x-2 border-primary bg-primary/30 p-0.5 text-primary-foreground",
+        audience: "bottom-auto h-1.5 bg-chart-3",
       },
     },
     defaultVariants: { variant: "clip" },

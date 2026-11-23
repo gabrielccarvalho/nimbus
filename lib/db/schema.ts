@@ -11,7 +11,11 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core"
 
-import type { DensityWindow, TimeRange } from "@/features/analysis/schema"
+import type {
+  AudiencePoint,
+  DensityWindow,
+  TimeRange,
+} from "@/features/analysis/schema"
 import type { CaptionOverrides, ClipStatus } from "@/features/clips/schema"
 import type { JobStatus, JobType } from "@/features/jobs/schema"
 import type {
@@ -52,6 +56,7 @@ export const projects = pgTable(
     sourceAssetId: text("source_asset_id"),
     sourceUrl: text("source_url"),
     sourceLanguage: text("source_language"),
+    audienceHeatmap: jsonb("audience_heatmap").$type<AudiencePoint[]>(),
     settings: jsonb("settings").$type<ProjectSettings>().notNull(),
     awaitingManualSelection: boolean("awaiting_manual_selection")
       .notNull()

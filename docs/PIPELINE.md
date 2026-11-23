@@ -6,7 +6,7 @@ All ffmpeg invocations use `-hide_banner -nostdin -y`. Long-running ones add `-p
 
 ## 0. download (`downloading → uploaded`, link imports only)
 
-`importFromUrl` validates the link (http/https, public host, no fragment), creates the project in `downloading` with `sourceUrl` and enqueues `download`. The step (`features/pipeline/steps/download.ts`) asks the Downloader (`features/downloads`) for the video's details, then downloads into `tmp/downloads/<projectId>/`, moves the file to the project's source key, creates the source asset and continues to `probe`. The download dir is removed whatever happens; the sweep clears anything older than 24 h.
+`importFromUrl` validates the link (http/https, public host, no fragment), creates the project in `downloading` with `sourceUrl` and enqueues `download`. The step (`features/pipeline/steps/download.ts`) asks the Downloader (`features/downloads`) for the video's details (title, language, thumbnail and YouTube's 100-point replay heatmap, stored on `projects.audience_heatmap`; `[]` when the video has none), then downloads into `tmp/downloads/<projectId>/`, moves the file to the project's source key, creates the source asset and continues to `probe`. The download dir is removed whatever happens; the sweep clears anything older than 24 h.
 
 ```
 yt-dlp --no-playlist --no-warnings --ignore-config [--ffmpeg-location FFMPEG_PATH] \

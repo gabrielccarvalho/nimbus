@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import type { SignalsData, TimeRange } from "../analysis/schema"
+import type { AudiencePoint, SignalsData, TimeRange } from "../analysis/schema"
 import type { Segment, Word } from "../transcription/schema"
 
 export const rawCandidateSchema = z.object({
@@ -33,6 +33,7 @@ export type SelectorInput = {
   limits: SelectionLimits
   language: string
   reactionPhrases: readonly string[]
+  audience?: readonly AudiencePoint[]
   exclude?: readonly TimeRange[]
   onPart?: (
     candidates: RawCandidate[],

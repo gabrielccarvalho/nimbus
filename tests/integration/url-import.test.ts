@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { importFromUrl } from "@/features/downloads/service"
@@ -8,6 +9,7 @@ import {
   projectRepository,
 } from "@/features/projects/repository"
 import { retryProject } from "@/features/projects/service"
+import { projects as projectsTable } from "@/lib/db/schema"
 import { getStorage } from "@/lib/storage"
 
 import { fixtures } from "../../scripts/make-fixtures"
@@ -101,5 +103,53 @@ describe("importFromUrl", () => {
     expect(
       (await projectRepository(env.db).getOrThrow(projectId)).error
     ).toMatch(/live stream/)
+  })
+})
+
+describe("YouTube replay heatmap", () => {
+  const setSource = (projectId: string, values: Record<string, unknown>) =>
+    env.db
+      .update(projectsTable)
+      .set(values)
+      .where(eq(projectsTable.id, projectId))
+
+  it("keeps the heatmap from the download", async () => {
+    const { projectId } = await importFromUrl(
+      env.db,
+      "https://www.youtube.com/watch?v=heatmap1"
+    )
+    await runJobs(env.db, ["download"])
+    const project = await projectRepository(env.db).getOrThrow(projectId)
+    expect(project.audienceHeatmap).toHaveLength(20)
+    expect(project.audienceHeatmap![12]).toMatchObject({ value: 1 })
+  })
+
+  it("fetches it when finding highlights for an older import", async () => {
+    const { projectId } = await importFromUrl(
+      env.db,
+      "https://www.youtube.com/watch?v=heatmap2"
+    )
+    await runJobs(env.db, ["download", "probe", "transcribe", "analyze"])
+    await setSource(projectId, { audienceHeatmap: null })
+    await runJobs(env.db, ["select"])
+    const project = await projectRepository(env.db).getOrThrow(projectId)
+    expect(project.audienceHeatmap).toHaveLength(20)
+    expect(project.status).toBe("awaiting_layout")
+  })
+
+  it("still finds highlights when the site won't answer", async () => {
+    const { projectId } = await importFromUrl(
+      env.db,
+      "https://www.youtube.com/watch?v=abc123"
+    )
+    await runJobs(env.db, ["download", "probe", "transcribe", "analyze"])
+    await setSource(projectId, {
+      audienceHeatmap: null,
+      sourceUrl: "https://www.youtube.com/watch?v=private1",
+    })
+    await runJobs(env.db, ["select"])
+    const project = await projectRepository(env.db).getOrThrow(projectId)
+    expect(project.audienceHeatmap).toBeNull()
+    expect(project.status).toBe("awaiting_layout")
   })
 })

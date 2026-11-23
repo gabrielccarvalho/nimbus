@@ -2,7 +2,7 @@ import { z } from "zod"
 
 import { AppError } from "@/lib/errors"
 
-import type { SignalsData, TimeRange } from "../analysis/schema"
+import type { AudiencePoint, SignalsData, TimeRange } from "../analysis/schema"
 import type { Segment, Word } from "../transcription/schema"
 import {
   candidatesResponseSchema,
@@ -33,6 +33,7 @@ export type PromptInput = {
   signals: SignalsData
   limits: SelectionLimits
   language: string
+  audience?: readonly AudiencePoint[]
   exclude?: readonly TimeRange[]
   part?: { index: number; count: number; startMs: number; endMs: number }
 }
@@ -50,6 +51,7 @@ export function buildSelectionPrompt({
   signals,
   limits,
   language,
+  audience = [],
   exclude = [],
   part,
 }: PromptInput) {
@@ -65,6 +67,19 @@ export function buildSelectionPrompt({
   const silences = signals.silences.filter(
     (s) => s.endMs > from && s.startMs < to
   )
+  const median =
+    [...audience].sort((a, b) => a.value - b.value)[
+      Math.floor(audience.length / 2)
+    ]?.value ?? 0
+  const rewatched = audience
+    .filter((p) => p.endMs > from && p.startMs < to && p.value > median)
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 8)
+    .sort((a, b) => a.startMs - b.startMs)
+    .map(
+      (p) =>
+        `${seconds(p.startMs)}–${seconds(p.endMs)}s (${p.value.toFixed(2)})`
+    )
   const inside = segments.filter((s) => s.startMs >= from && s.startMs < to)
 
   const transcript = inside.length
@@ -89,7 +104,7 @@ Pick up to ${limits.maxCount} clips, each between ${seconds(limits.minMs)} and $
 
 ${exclude.length ? `Already clipped, don't pick these again or anything overlapping them: ${exclude.map((r) => `${seconds(r.startMs)}–${seconds(r.endMs)}s`).join(", ")}\n\n` : ""}Loudest moments: ${loudest.join(", ") || "none"}
 Silences: ${silences.map((s) => `${seconds(s.startMs)}–${seconds(s.endMs)}s`).join(", ") || "none"}
-
+${rewatched.length ? `Most rewatched on YouTube (viewer replays, 1 = the most replayed part of the video; each range is coarse, so find the moment inside it): ${rewatched.join(", ")}\n` : ""}
 Transcript (seconds):
 ${transcript}`
 }

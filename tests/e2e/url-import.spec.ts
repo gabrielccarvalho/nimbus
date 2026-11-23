@@ -10,7 +10,7 @@ test("imports a recording from a link", async ({ page }) => {
   await expect(page.getByText("Paste a link to a video")).toBeVisible()
   await expectNoSeriousA11yViolations(page)
 
-  await link.fill("https://www.youtube.com/watch?v=e2e")
+  await link.fill("https://www.youtube.com/watch?v=e2eheatmap")
   await page.getByRole("button", { name: "Import", exact: true }).click()
   await expect(page).toHaveURL(/\/projects\/[\w-]+$/, { timeout: 30_000 })
   await expect(
@@ -19,6 +19,10 @@ test("imports a recording from a link", async ({ page }) => {
   await expect(
     page.getByRole("listitem").filter({ hasText: "Find highlights, completed" })
   ).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByTestId("audio-summary")).toContainText(
+    "most rewatched on YouTube"
+  )
+  await expect(page.locator("[data-variant=audience]")).toHaveCount(20)
 })
 
 test("explains why a download failed", async ({ page }) => {

@@ -2,6 +2,7 @@ import "server-only"
 
 import { signalsRepository } from "../../analysis/repository"
 import { clipRepository } from "../../clips/repository"
+import { loadAudienceHeatmap } from "../../downloads/service"
 import { selectHighlights } from "../../highlights"
 import { postprocessCandidates } from "../../highlights/postprocess"
 import type { Candidate, RawCandidate } from "../../highlights/types"
@@ -40,6 +41,7 @@ export const selectStep: JobHandler = async ({
   const transcript = await transcriptRepository(db).get(project.id)
   const signals = await signalsRepository(db).get(project.id)
   const durationMs = (await sourceAsset(db, project)).durationMs ?? 0
+  const audience = await loadAudienceHeatmap(db, project, { signal, logger })
   reportProgress(10)
   const limits = {
     minMs: settings.clipMinMs,
@@ -77,6 +79,7 @@ export const selectStep: JobHandler = async ({
       limits,
       language: transcript?.language ?? settings.language,
       reactionPhrases: settings.reactionPhrases,
+      audience,
       exclude: existing,
       onPart: (candidates, parts) => {
         found.push(...candidates)

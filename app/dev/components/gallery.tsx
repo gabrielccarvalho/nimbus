@@ -208,6 +208,12 @@ export function ComponentGallery() {
           >
             <TimelineLoudness values={SAMPLE_LOUDNESS} />
             <TimelineRange variant="silence" startMs={20_000} endMs={26_000} />
+            <TimelineRange
+              variant="audience"
+              startMs={30_000}
+              endMs={40_000}
+              style={{ opacity: 0.8 }}
+            />
             <TimelineRange variant="clip" startMs={30_000} endMs={45_000}>
               Clip 1
             </TimelineRange>

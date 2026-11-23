@@ -5,6 +5,12 @@ import { AppError } from "@/lib/errors"
 
 import type { DownloadInput, Downloader, VideoInfo } from "./downloader"
 
+const FAKE_HEATMAP = Array.from({ length: 20 }, (_, i) => ({
+  startMs: i * 1000,
+  endMs: (i + 1) * 1000,
+  value: i === 12 ? 1 : 0.2,
+}))
+
 export class FakeDownloader implements Downloader {
   readonly id = "fake"
 
@@ -21,6 +27,7 @@ export class FakeDownloader implements Downloader {
       isLive: url.includes("live"),
       approxBytes: null,
       thumbnailUrl: null,
+      heatmap: url.includes("heatmap") ? FAKE_HEATMAP : [],
     }
   }
 
