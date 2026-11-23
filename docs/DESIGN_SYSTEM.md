@@ -1,26 +1,26 @@
 # Design system
 
-Derived from the installed shadcn preset (`base-nova`, base color `neutral`) and `app/globals.css`. Don't invent tokens. If a new token is genuinely needed, add it to `globals.css` for both `:root` and `.dark`, map it in `@theme inline`, and document it here.
+Built on the shadcn preset (`base-nova`) with a custom palette in `app/globals.css` (ADR-0049). The direction is an edit bay at night: deep indigo ink surfaces, and a highlighter yellow that marks what Nimbus found (clip ranges, the spoken word, primary actions). Yellow is never decoration and never text on a light background. Don't invent tokens. If a new token is genuinely needed, add it to `globals.css` for both `:root` and `.dark`, map it in `@theme inline`, and document it here.
 
 ## Color roles
 
 All colors are OKLCH CSS variables. Use them through Tailwind utilities (`bg-primary`, `text-muted-foreground`, `border-border`…), never raw values.
 
-| Token                                | Role                                                                                      | Light                                                                                                                               | Dark                        |
-| ------------------------------------ | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| `background` / `foreground`          | Page surface and body text                                                                | white / near-black                                                                                                                  | near-black / near-white     |
-| `card` / `card-foreground`           | Raised surfaces (project cards, clip cards)                                               | white                                                                                                                               | `0.205` gray                |
-| `popover` / `popover-foreground`     | Menus, popovers, tooltips                                                                 | white                                                                                                                               | `0.205` gray                |
-| `primary` / `primary-foreground`     | Brand lime-green. Primary actions, current-word caption highlight, active timeline ranges | `oklch(0.841 0.238 128.85)`                                                                                                         | `oklch(0.768 0.233 130.85)` |
-| `secondary` / `secondary-foreground` | Low-emphasis buttons, chips                                                               | cool light gray                                                                                                                     | cool dark gray              |
-| `muted` / `muted-foreground`         | Subtle backgrounds, secondary text, timestamps                                            |                                                                                                                                     |                             |
-| `accent` / `accent-foreground`       | Hover/selected rows in lists and menus                                                    |                                                                                                                                     |                             |
-| `destructive`                        | Delete, reject, failed status                                                             | red-700 (`oklch(0.505 0.213 27.518)`, darker than the shadcn default so `text-destructive` on a `destructive/10` tint passes 4.5:1) | lighter red                 |
-| `border`, `input`, `ring`            | Dividers, field borders, focus rings                                                      |                                                                                                                                     | translucent white in dark   |
-| `chart-1…5`                          | Lime ramp from light to dark. Loudness strip, score bars                                  |                                                                                                                                     |                             |
-| `sidebar-*`                          | Sidebar surface and its primary/accent                                                    |                                                                                                                                     |                             |
+| Token                                | Role                                                                                           | Light                                                                                                                               | Dark                                              |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `background` / `foreground`          | Page surface and body text                                                                     | white / indigo ink `oklch(0.2 0.03 285)`                                                                                            | deep indigo `oklch(0.17 0.025 285)` / lilac white |
+| `card` / `card-foreground`           | Raised surfaces (project rows, clip cards)                                                     | white                                                                                                                               | indigo `0.215`                                    |
+| `popover` / `popover-foreground`     | Menus, popovers, tooltips                                                                      | white                                                                                                                               | `0.205` gray                                      |
+| `primary` / `primary-foreground`     | Highlighter yellow with ink text. Primary actions, current-word caption highlight, clip ranges | `oklch(0.87 0.17 90)`                                                                                                               | same                                              |
+| `secondary` / `secondary-foreground` | Low-emphasis buttons, chips                                                                    | light lilac gray                                                                                                                    | indigo `0.27`                                     |
+| `muted` / `muted-foreground`         | Subtle backgrounds, secondary text, timestamps                                                 |                                                                                                                                     |                                                   |
+| `accent` / `accent-foreground`       | Hover/selected rows in lists and menus                                                         |                                                                                                                                     |                                                   |
+| `destructive`                        | Delete, reject, failed status                                                                  | red-700 (`oklch(0.505 0.213 27.518)`, darker than the shadcn default so `text-destructive` on a `destructive/10` tint passes 4.5:1) | lighter red                                       |
+| `border`, `input`, `ring`            | Dividers, field borders, focus rings                                                           |                                                                                                                                     | translucent white in dark                         |
+| `chart-1…5`                          | Yellow-to-amber ramp. Replay heatmap band, score bars                                          |                                                                                                                                     |                                                   |
+| `sidebar-*`                          | Sidebar surface and its primary/accent                                                         |                                                                                                                                     |                                                   |
 
-Note that `primary-foreground` is a dark green on a light lime background, not white. Keep that pairing.
+`primary-foreground` is the indigo ink, not white. For yellow-ish text that must stay readable on light surfaces (timeline clip labels), use `highlight-ink`: a darker amber in light mode, the highlighter yellow in dark mode. The timeline loudness wave is `foreground/25` so yellow stays reserved for clips.
 
 ### Status color mapping
 
@@ -37,17 +37,19 @@ Status is always text + color, never color alone.
 
 ## Radius
 
-`--radius: 0.625rem` (10 px). Scale derived in `@theme inline`: `rounded-sm` 6 px, `rounded-md` 8 px, `rounded-lg` 10 px, `rounded-xl` 14 px, `rounded-2xl` 18 px. Cards use `rounded-xl`, controls `rounded-lg` (the button default), small chips `rounded-md`.
+`--radius: 0.5rem` (8 px). Scale derived in `@theme inline`: `rounded-sm` ~5 px, `rounded-md` ~6 px, `rounded-lg` 8 px, `rounded-xl` ~11 px, `rounded-2xl` ~14 px. Cards use `rounded-xl`, controls `rounded-lg` (the button default), small chips `rounded-md`.
 
 ## Typography
 
-| Variable         | Font        | Use                                                                |
-| ---------------- | ----------- | ------------------------------------------------------------------ |
-| `--font-sans`    | Nunito Sans | Body and UI (`font-sans`, default on `html`)                       |
-| `--font-heading` | Oxanium     | Page titles, card titles, stat values (`font-heading`)             |
-| `--font-mono`    | Geist Mono  | Timestamps, durations, file sizes, code (`font-mono tabular-nums`) |
+| Variable         | Font                            | Use                                                                                                       |
+| ---------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `--font-sans`    | Archivo (variable, `wdth` axis) | Body and UI (`font-sans`, default on `html`)                                                              |
+| `--font-heading` | Archivo at `font-stretch: 72%`  | Page titles, card titles, stat values (`font-heading`). Condensed and heavy, like a broadcast lower-third |
+| `--font-mono`    | Geist Mono                      | Timestamps, durations, file sizes, code (`font-mono tabular-nums`)                                        |
 
-Scale (Tailwind defaults): page title `text-2xl font-heading font-semibold`, section title `text-lg font-heading font-medium`, card title `text-base font-medium`, body `text-sm`, meta `text-xs text-muted-foreground`. The preset's controls are compact (`h-8` buttons, `text-sm`), so keep body text at `text-sm` to match.
+Caption fonts (Oxanium, Nunito Sans, Pricedown) are not UI fonts: the caption preview loads them from `/api/fonts/[font]` via `@font-face` in `globals.css`.
+
+Scale (Tailwind defaults): top-level page title `text-4xl sm:text-5xl font-heading font-extrabold`, project title `text-2xl font-heading font-semibold`, section title `text-lg font-heading font-medium`, card title `text-base font-medium`, body `text-sm`, meta `text-xs text-muted-foreground`. The preset's controls are compact (`h-8` buttons, `text-sm`), so keep body text at `text-sm` to match.
 
 ## Spacing and layout
 

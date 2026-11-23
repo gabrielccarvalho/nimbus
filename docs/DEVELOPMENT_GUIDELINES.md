@@ -10,7 +10,7 @@ This repo runs Next 16.4. APIs differ from older versions; check `node_modules/n
 - **Uploads** never go through Server Actions (body limits). `app/api/uploads/route.ts` streams `request.body` to disk with `Readable.fromWeb` + `stream/promises.pipeline`, enforces `MAX_UPLOAD_BYTES`, checks the declared mime and the magic bytes, and writes to `*.part` then renames.
 - **Media**: `app/api/media/[...path]/route.ts` serves files from `DATA_DIR` with `Range` support (206, `Content-Range`, `Accept-Ranges: bytes`), path traversal protection (resolve, then verify the result stays inside `DATA_DIR`) and the right `Content-Type`. It only serves project media and renders (`isServableKey`); the database, partial uploads and work files are 404 (ADR-0037).
 - **Segments**: `loading.tsx` (skeletons matching the final layout), `error.tsx` (client component, friendly message, retry) and `not-found.tsx` for project and clip routes. Call `notFound()` from `next/navigation` when a lookup misses.
-- **Fonts** come from `next/font` in `app/layout.tsx`. Don't add others.
+- **Fonts**: UI fonts come from `next/font` in `app/layout.tsx`. Caption fonts live in `assets/fonts` and are registered in `CAPTION_FONTS` (ADR-0048). Don't add others.
 - **Typed routes** are on (`typedRoutes: true`). Use `Link` with literal or template hrefs; `as Route` only when building dynamic hrefs.
 - **Long work** never runs in a request. Enqueue a job.
 - **Route handlers** use the Node runtime (default). Don't set `runtime = "edge"`.

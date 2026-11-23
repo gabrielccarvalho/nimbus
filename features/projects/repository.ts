@@ -16,6 +16,7 @@ export type NewAsset = Omit<typeof assets.$inferInsert, "id"> & { id?: string }
 
 export type ProjectListItem = Project & {
   clipCount: number
+  clipRanges: { startMs: number; endMs: number }[]
   durationMs: number | null
   thumbnailKey: string | null
 }
@@ -65,23 +66,17 @@ export function projectRepository(db: Db) {
         .limit(limit)
       if (rows.length === 0) return []
       const ids = rows.map((r) => r.id)
-      const counts = new Map(
-        (
-          await db
-            .select({
-              projectId: clips.projectId,
-              count: sql<number>`count(*)::int`,
-            })
-            .from(clips)
-            .where(
-              and(
-                inArray(clips.projectId, ids),
-                sql`${clips.status} != 'rejected'`
-              )
-            )
-            .groupBy(clips.projectId)
-        ).map((r) => [r.projectId, r.count])
-      )
+      const ranges = await db
+        .select({
+          projectId: clips.projectId,
+          startMs: clips.startMs,
+          endMs: clips.endMs,
+        })
+        .from(clips)
+        .where(
+          and(inArray(clips.projectId, ids), sql`${clips.status} != 'rejected'`)
+        )
+        .orderBy(clips.startMs)
       const media = await db
         .select({
           projectId: assets.projectId,
@@ -98,9 +93,13 @@ export function projectRepository(db: Db) {
         )
       return rows.map((row) => {
         const own = media.filter((m) => m.projectId === row.id)
+        const clipRanges = ranges
+          .filter((r) => r.projectId === row.id)
+          .map(({ startMs, endMs }) => ({ startMs, endMs }))
         return {
           ...row,
-          clipCount: counts.get(row.id) ?? 0,
+          clipCount: clipRanges.length,
+          clipRanges,
           durationMs: own.find((m) => m.kind === "source")?.durationMs ?? null,
           thumbnailKey:
             own.find((m) => m.kind === "thumbnail")?.storageKey ?? null,

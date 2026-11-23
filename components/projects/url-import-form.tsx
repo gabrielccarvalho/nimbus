@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
 
+import { Button } from "@/components/ui/button"
 import {
   Field,
   FieldDescription,
@@ -14,7 +15,6 @@ import {
 import {
   InputGroup,
   InputGroupAddon,
-  InputGroupButton,
   InputGroupInput,
 } from "@/components/ui/input-group"
 import { Spinner } from "@/components/ui/spinner"
@@ -43,33 +43,38 @@ export function UrlImportForm({ options = {} }: { options?: ImportOptions }) {
 
   return (
     <form onSubmit={submit}>
-      <Field data-invalid={Boolean(error)}>
-        <FieldLabel htmlFor="video-url">Or import from a link</FieldLabel>
-        <InputGroup>
-          <InputGroupAddon>
-            <LinkIcon aria-hidden />
-          </InputGroupAddon>
-          <InputGroupInput
-            id="video-url"
-            type="url"
-            inputMode="url"
-            placeholder="https://www.youtube.com/watch?v=…"
-            value={url}
-            aria-invalid={Boolean(error)}
-            onChange={(event) => setUrl(event.target.value)}
-            required
-          />
-          <InputGroupAddon align="inline-end">
-            <InputGroupButton
-              type="submit"
-              variant="default"
-              disabled={pending}
-            >
-              {pending && <Spinner data-icon="inline-start" />}
-              Import
-            </InputGroupButton>
-          </InputGroupAddon>
-        </InputGroup>
+      <Field data-invalid={Boolean(error)} className="gap-3">
+        <FieldLabel
+          htmlFor="video-url"
+          className="font-heading text-lg font-bold"
+        >
+          Paste a video link
+        </FieldLabel>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <InputGroup className="h-10 flex-1">
+            <InputGroupAddon>
+              <LinkIcon aria-hidden />
+            </InputGroupAddon>
+            <InputGroupInput
+              id="video-url"
+              type="url"
+              inputMode="url"
+              placeholder="https://www.youtube.com/watch?v=…"
+              value={url}
+              aria-invalid={Boolean(error)}
+              onChange={(event) => setUrl(event.target.value)}
+              required
+            />
+          </InputGroup>
+          <Button
+            type="submit"
+            disabled={pending}
+            className="h-10 px-5 font-semibold"
+          >
+            {pending && <Spinner data-icon="inline-start" />}
+            Import
+          </Button>
+        </div>
         {error ? (
           <FieldError>{error}</FieldError>
         ) : (

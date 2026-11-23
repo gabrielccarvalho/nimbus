@@ -1,4 +1,4 @@
-import { Geist_Mono, Nunito_Sans, Oxanium } from "next/font/google"
+import { Archivo, Geist_Mono } from "next/font/google"
 
 import "./globals.css"
 import type { Metadata } from "next"
@@ -8,12 +8,11 @@ import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
-const oxaniumHeading = Oxanium({
-  subsets: ["latin"],
-  variable: "--font-heading",
+const archivo = Archivo({
+  subsets: ["latin", "latin-ext"],
+  axes: ["wdth"],
+  variable: "--font-sans",
 })
-
-const nunitoSans = Nunito_Sans({ subsets: ["latin"], variable: "--font-sans" })
 
 const fontMono = Geist_Mono({
   subsets: ["latin"],
@@ -38,8 +37,7 @@ export default function RootLayout({
         "antialiased",
         fontMono.variable,
         "font-sans",
-        nunitoSans.variable,
-        oxaniumHeading.variable
+        archivo.variable
       )}
     >
       <body>

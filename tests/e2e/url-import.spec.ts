@@ -4,7 +4,7 @@ import { expectNoSeriousA11yViolations } from "./utils/axe"
 
 test("imports a recording from a link", async ({ page }) => {
   await page.goto("/")
-  const link = page.getByLabel("Or import from a link")
+  const link = page.getByLabel("Paste a video link")
   await link.fill("http://localhost:3000/video")
   await page.getByRole("button", { name: "Import", exact: true }).click()
   await expect(page.getByText("Paste a link to a video")).toBeVisible()
@@ -28,7 +28,7 @@ test("imports a recording from a link", async ({ page }) => {
 test("explains why a download failed", async ({ page }) => {
   await page.goto("/")
   await page
-    .getByLabel("Or import from a link")
+    .getByLabel("Paste a video link")
     .fill("https://example.com/private-video")
   await page.getByRole("button", { name: "Import", exact: true }).click()
   await expect(page).toHaveURL(/\/projects\/[\w-]+$/, { timeout: 30_000 })
