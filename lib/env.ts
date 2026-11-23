@@ -31,6 +31,8 @@ const envSchema = z.object({
   WHISPER_THREADS: z.coerce.number().int().positive().default(4),
   TRANSCRIBER: z.enum(["whisper", "fake"]).default("whisper"),
   YTDLP_PATH: z.string().min(1).default("yt-dlp"),
+  YTDLP_COOKIES_FROM_BROWSER: z.string().min(1).optional(),
+  YTDLP_COOKIES: z.string().min(1).optional(),
   DOWNLOADER: z.enum(["yt-dlp", "fake"]).default("yt-dlp"),
   FAKE_DOWNLOAD_FILE: z.string().min(1).optional(),
   HIGHLIGHT_SELECTOR: z

@@ -13,5 +13,7 @@ export function getDownloader(): Downloader {
   return new YtDlpDownloader({
     binary: env.YTDLP_PATH,
     ffmpeg: env.FFMPEG_PATH,
+    cookiesFromBrowser: env.YTDLP_COOKIES_FROM_BROWSER,
+    cookiesFile: env.YTDLP_COOKIES,
   })
 }

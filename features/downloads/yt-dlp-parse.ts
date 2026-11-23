@@ -131,7 +131,7 @@ const KNOWN_ERRORS: [RegExp, AppError["code"], string][] = [
     "This video is age-restricted and can't be downloaded without signing in",
   ],
   [
-    /not a bot|HTTP Error 429|too many requests/i,
+    /HTTP Error 429|too many requests/i,
     "EXTERNAL",
     "The site is rate limiting downloads. Try again in a few minutes.",
   ],
@@ -162,7 +162,18 @@ const KNOWN_ERRORS: [RegExp, AppError["code"], string][] = [
   ],
 ]
 
-export function describeYtDlpError(stderr: string): AppError {
+export function describeYtDlpError(
+  stderr: string,
+  { withCookies = false }: { withCookies?: boolean } = {}
+): AppError {
+  if (/not a bot/i.test(stderr)) {
+    return new AppError(
+      "DEPENDENCY_MISSING",
+      withCookies
+        ? "YouTube still wants a sign-in to confirm this isn't a bot. Sign in to YouTube in the browser set in YTDLP_COOKIES_FROM_BROWSER (or refresh YTDLP_COOKIES) and try again."
+        : "YouTube wants a sign-in to confirm this isn't a bot. Set YTDLP_COOKIES_FROM_BROWSER (e.g. chrome) in .env.local, restart, and try again."
+    )
+  }
   for (const [pattern, code, message] of KNOWN_ERRORS) {
     if (pattern.test(stderr)) return new AppError(code, message)
   }

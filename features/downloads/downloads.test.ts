@@ -173,10 +173,11 @@ describe("describeYtDlpError", () => {
       /age-restricted/,
     ],
     [
-      "ERROR: [youtube] abc: Sign in to confirm you're not a bot",
-      "EXTERNAL",
-      /rate limiting/,
+      "ERROR: [youtube] abc: Sign in to confirm you’re not a bot",
+      "DEPENDENCY_MISSING",
+      /YTDLP_COOKIES_FROM_BROWSER/,
     ],
+    ["ERROR: HTTP Error 429: Too Many Requests", "EXTERNAL", /rate limiting/],
     ["ERROR: [youtube] abc: Video unavailable", "NOT_FOUND", /unavailable/],
     [
       "ERROR: [youtube] xxxxxxxxxxx: This video is unavailable",
@@ -204,5 +205,14 @@ describe("describeYtDlpError", () => {
     const error = describeYtDlpError(stderr)
     expect(error.code).toBe(code)
     expect(error.message).toMatch(message)
+  })
+
+  it("tells the user to refresh cookies when they're already set", () => {
+    const error = describeYtDlpError(
+      "ERROR: [youtube] abc: Sign in to confirm you're not a bot",
+      { withCookies: true }
+    )
+    expect(error.code).toBe("DEPENDENCY_MISSING")
+    expect(error.message).toMatch(/still wants a sign-in/)
   })
 })

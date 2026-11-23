@@ -129,6 +129,18 @@ async function main() {
       `${env.YTDLP_PATH} not found; link imports won't work (brew install yt-dlp)`
     )
   }
+  const cookies = [
+    env.YTDLP_COOKIES_FROM_BROWSER &&
+      `browser: ${env.YTDLP_COOKIES_FROM_BROWSER}`,
+    env.YTDLP_COOKIES && `file: ${env.YTDLP_COOKIES}`,
+  ].filter(Boolean)
+  add(
+    "yt-dlp cookies",
+    cookies.length > 0 ? "ok" : "warn",
+    cookies.length > 0
+      ? cookies.join(", ")
+      : 'not set; YouTube may block imports with a "confirm you\'re not a bot" check (set YTDLP_COOKIES_FROM_BROWSER)'
+  )
   try {
     await access(path.resolve(env.WHISPER_MODEL), constants.R_OK)
     add(
