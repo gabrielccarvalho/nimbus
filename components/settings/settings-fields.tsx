@@ -25,6 +25,11 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { CAPTION_PRESETS } from "@/features/captions/styles"
+import {
+  NICHE_PROFILES,
+  niches,
+  type Niche,
+} from "@/features/highlights/niches"
 import type {
   ProjectSettings,
   RenderQuality,
@@ -48,6 +53,11 @@ export const LANGUAGES = [
 export function languageLabel(code: string) {
   return LANGUAGES.find((l) => l.value === code)?.label ?? code.toUpperCase()
 }
+
+const NICHES = niches.map((niche) => ({
+  value: niche,
+  label: niche === "auto" ? "Detect from title" : NICHE_PROFILES[niche].label,
+}))
 
 export const SELECTORS: {
   value: SelectorMode
@@ -92,6 +102,7 @@ type Shared = Pick<
   | "captionStyle"
   | "renderQuality"
   | "reactionPhrases"
+  | "niche"
 >
 
 type FieldsProps<T extends Shared> = {
@@ -178,6 +189,7 @@ export function HighlightFields<T extends Shared>({
           })}
         </RadioGroup>
       </FieldSet>
+      <NicheField value={value} set={set} />
       <div className="grid gap-4 sm:grid-cols-3">
         <Field>
           <FieldLabel htmlFor="clip-min">Shortest clip (s)</FieldLabel>
@@ -231,6 +243,35 @@ export function HighlightFields<T extends Shared>({
       </div>
       <CatchphrasesField value={value} set={set} />
     </FieldGroup>
+  )
+}
+
+function NicheField<T extends Shared>({ value, set }: FieldsProps<T>) {
+  return (
+    <Field>
+      <FieldLabel htmlFor="niche">Niche</FieldLabel>
+      <Select
+        items={NICHES}
+        value={value.niche}
+        onValueChange={(next) => next && set("niche", next as T["niche"])}
+      >
+        <SelectTrigger id="niche" className="w-full sm:w-64">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {NICHES.map((niche) => (
+            <SelectItem key={niche.value} value={niche.value}>
+              {niche.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <FieldDescription>
+        {value.niche === "auto"
+          ? "Guessed from the recording's title. Tells Claude which moments hook viewers in this game."
+          : NICHE_PROFILES[value.niche as Exclude<Niche, "auto">].description}
+      </FieldDescription>
+    </Field>
   )
 }
 

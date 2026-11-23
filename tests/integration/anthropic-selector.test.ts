@@ -3,7 +3,10 @@ import { http, HttpResponse } from "msw"
 import pino from "pino"
 import { describe, expect, it } from "vitest"
 
-import { AnthropicSelector } from "@/features/highlights/anthropic"
+import {
+  AnthropicReviewer,
+  AnthropicSelector,
+} from "@/features/highlights/anthropic"
 import { selectHighlights } from "@/features/highlights"
 import {
   buildSegments,
@@ -40,6 +43,11 @@ const create = () =>
     new Anthropic({ apiKey: "test-key", baseURL: BASE, maxRetries: 0 }),
     "claude-opus-5-5"
   )
+
+const client = () =>
+  new Anthropic({ apiKey: "test-key", baseURL: BASE, maxRetries: 0 })
+const reviewer = () => new AnthropicReviewer(client(), "claude-opus-5-5")
+const frames = async (atMs: readonly number[]) => atMs.map(() => "/9j/AA==")
 
 const message = (text: string, stop_reason = "end_turn") => ({
   id: "msg_1",
@@ -222,5 +230,112 @@ describe("AnthropicSelector", () => {
         create
       )
     ).rejects.toThrow()
+  })
+
+  it("reviews frames of a wider pool and keeps the payoff start", async () => {
+    const bodies: Record<string, unknown>[] = []
+    server.use(
+      http.post(`${BASE}/v1/messages`, async ({ request }) => {
+        const body = (await request.json()) as Record<string, unknown>
+        bodies.push(body)
+        if (!String(body.system).includes("final editor")) {
+          return HttpResponse.json(
+            message(
+              JSON.stringify({
+                clips: [
+                  {
+                    startMs: 6000,
+                    endMs: 24_000,
+                    title: "Go",
+                    hook: "",
+                    reason: "Loud",
+                    score: 0.9,
+                  },
+                  {
+                    startMs: 36_000,
+                    endMs: 54_000,
+                    title: "Now",
+                    hook: "",
+                    reason: "Loud",
+                    score: 0.5,
+                  },
+                ],
+              })
+            )
+          )
+        }
+        return HttpResponse.json(
+          message(
+            JSON.stringify({
+              clips: [
+                {
+                  id: 0,
+                  startMs: 6000,
+                  endMs: 24_000,
+                  title: "Menu",
+                  hook: "",
+                  reason: "Pause menu",
+                  score: 0.1,
+                },
+                {
+                  id: 1,
+                  startMs: 39_000,
+                  endMs: 56_000,
+                  title: "Car flies",
+                  hook: "Watch the car",
+                  reason: "Car launches",
+                  score: 0.95,
+                },
+              ],
+            })
+          )
+        )
+      })
+    )
+    const progress: number[] = []
+    const { candidates, reviewFailure } = await selectHighlights(
+      "anthropic",
+      { ...input, frames, onReview: ({ done }) => progress.push(done) },
+      logger,
+      create,
+      reviewer
+    )
+    expect(reviewFailure).toBeUndefined()
+    expect(candidates.map((c) => [c.startMs, c.title, c.score])).toEqual([
+      [39_000, "Car flies", 0.95],
+      [6000, "Menu", 0.1],
+    ])
+    expect(progress).toEqual([1])
+    expect(JSON.stringify(bodies[0]!.messages)).toContain("Pick up to 9 clips")
+    const review = bodies[1]!
+    expect(review).toMatchObject({ output_config: { effort: "medium" } })
+    const content = (review.messages as { content: { type: string }[] }[])[0]!
+      .content
+    expect(content.filter((b) => b.type === "image")).toHaveLength(24)
+  })
+
+  it("keeps the first pass when the review fails", async () => {
+    server.use(
+      http.post(`${BASE}/v1/messages`, async ({ request }) => {
+        const body = (await request.json()) as { system: string }
+        return body.system.includes("final editor")
+          ? HttpResponse.json(
+              { type: "error", error: { type: "api_error", message: "boom" } },
+              { status: 500 }
+            )
+          : HttpResponse.json(message(clipsJson))
+      })
+    )
+    const { candidates, reviewFailure } = await selectHighlights(
+      "anthropic",
+      { ...input, frames },
+      logger,
+      create,
+      reviewer
+    )
+    expect(reviewFailure).toMatch(/overloaded or unavailable/)
+    expect(candidates).toEqual([
+      expect.objectContaining({ startMs: 6000, title: "Go now" }),
+    ])
   })
 })

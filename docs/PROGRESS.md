@@ -236,6 +236,14 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 - [x] Rendering: a grid of the clips being rendered, each with its own progress and a poster frame from the proxy
 - [x] Elapsed time and an estimate for the running step
 
+### Phase 25: Highlights that hook (ADR-0052)
+
+- [x] Per-project niche (GTA, open world, horror, shooter, racing, general, auto from the title), in Settings → Highlights; changing it offers to re-run selection
+- [x] Both Claude prompts list what hooks viewers in the niche; bugs and glitches rank first; clips start on the payoff
+- [x] Visual review: the transcript pass over-fetches, Claude re-scores each candidate from 12 proxy frames and moves its start to the payoff; `ANTHROPIC_REVIEW_MODEL` overrides the model
+- [ ] Check on a real GTA stream: compare picks with and without the review, and the token cost
+- [ ] Tune frame count, pool size and the rubric once posted clips have retention numbers
+
 ### Not verified
 
 - MediaPipe face detection on a real face (fixtures have none; the code path is unit tested and the model loads in e2e).

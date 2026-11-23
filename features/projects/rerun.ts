@@ -11,6 +11,7 @@ const AFFECTS: Record<RerunStep, readonly (keyof ProjectSettings)[]> = {
     "clipMaxMs",
     "targetClipCount",
     "reactionPhrases",
+    "niche",
   ],
   render: ["captionStyle", "captionsEnabled", "renderQuality"],
 }

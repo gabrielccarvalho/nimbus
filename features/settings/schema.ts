@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { nicheSchema } from "../highlights/niches"
+
 import {
   captionStyleRefSchema,
   defaultProjectSettings,
@@ -23,6 +25,7 @@ export const appSettingsSchema = z
     captionsEnabled: z.boolean(),
     renderQuality: renderQualitySchema,
     reactionPhrases: reactionPhrasesSchema,
+    niche: nicheSchema,
     hardwareEncoding: z.boolean(),
   })
   .refine((s) => s.clipMinMs < s.clipMaxMs, {
@@ -41,6 +44,7 @@ export const defaultAppSettings: AppSettings = {
   captionsEnabled: defaultProjectSettings.captionsEnabled,
   renderQuality: defaultProjectSettings.renderQuality,
   reactionPhrases: defaultProjectSettings.reactionPhrases,
+  niche: defaultProjectSettings.niche,
   hardwareEncoding: false,
 }
 

@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { nicheSchema } from "../highlights/niches"
+
 export const projectStatuses = [
   "downloading",
   "uploaded",
@@ -47,6 +49,7 @@ export const projectSettingsSchema = z
     audioTrack: z.number().int().min(0).max(31).nullable(),
     renderQuality: renderQualitySchema,
     reactionPhrases: reactionPhrasesSchema,
+    niche: nicheSchema,
   })
   .refine((s) => s.clipMinMs < s.clipMaxMs, {
     message: "Minimum clip length must be shorter than the maximum",
@@ -68,6 +71,7 @@ export const defaultProjectSettings: ProjectSettings = {
   audioTrack: null,
   renderQuality: "standard",
   reactionPhrases: [],
+  niche: "auto",
 }
 
 export const importOptionsSchema = z.object({

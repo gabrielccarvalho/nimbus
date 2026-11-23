@@ -108,6 +108,7 @@ export async function projectSettingsFromApp(
     audioTrack: null,
     renderQuality: app.renderQuality,
     reactionPhrases: app.reactionPhrases,
+    niche: app.niche,
   }
 }
 

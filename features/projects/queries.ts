@@ -11,6 +11,7 @@ import { signalsRepository } from "../analysis/repository"
 import { sampleCaptionWords } from "../captions/pages"
 import { speakerTranscriptWords } from "../captions/speaker"
 import { clipRepository } from "../clips/repository"
+import { NICHE_PROFILES, resolveNiche } from "../highlights/niches"
 import { buildManualPrompt } from "../highlights/prompt"
 import { jobQueue } from "../jobs/queue"
 import { layoutRepository } from "../layout/repository"
@@ -123,6 +124,7 @@ export async function getProjectClips(id: string) {
       words: transcript?.words ?? [],
       language: transcript?.language ?? project.settings.language,
       audience: project.audienceHeatmap ?? [],
+      niche: NICHE_PROFILES[resolveNiche(project.settings.niche, project.name)],
       segments: transcript?.segments ?? [],
       signals: signals ?? {
         silences: [],
