@@ -35,9 +35,19 @@ test("detects the webcam and confirms the layout", async ({ page }) => {
   await expect(region).toHaveAccessibleDescription(/Left 7[\d.]+%/)
   await expectNoSeriousA11yViolations(page)
 
+  await page.getByRole("button", { name: "Boxed" }).click()
+  await page.getByRole("switch", { name: "Uppercase" }).click()
+  await expect(page.locator("[data-slot=caption-preview-text]")).not.toBeEmpty()
+
   await page.getByRole("button", { name: "Confirm layout" }).click()
   await expect(page.getByText("Layout confirmed")).toBeVisible()
   await expect(page.getByRole("button", { name: "Save layout" })).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole("button", { name: "Boxed" })).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  )
+  await expect(page.getByRole("switch", { name: "Uppercase" })).toBeChecked()
   await page.getByRole("link", { name: "Overview" }).click()
   await expect(
     page.getByRole("listitem").filter({ hasText: "Confirm layout, completed" })

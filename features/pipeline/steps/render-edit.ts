@@ -24,6 +24,7 @@ import {
 import { CAPTION_FONTS_DIR } from "../../render/fonts"
 import { renderQualityCrf } from "../../settings/schema"
 import { getAppSettings } from "../../settings/service"
+import { speakerTranscriptWords } from "../../captions/speaker"
 import { transcriptRepository } from "../../transcription/repository"
 import { sourceFile, throwIfAborted } from "./common"
 
@@ -79,7 +80,7 @@ export const renderEditStep: JobHandler = async ({
     }
     const words = remapToEdit(
       wordsInRange(
-        (await transcriptRepository(db).get(project.id))?.words ?? [],
+        speakerTranscriptWords(await transcriptRepository(db).get(project.id)),
         0,
         durationMs
       ),

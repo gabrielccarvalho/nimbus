@@ -9,7 +9,10 @@ import {
   applyPageOverrides,
   breakLines,
   buildCaptionPages,
+  DEFAULT_PAGING,
   pageAt,
+  sampleCaptionWords,
+  spokenEnd,
   wordsInRange,
   type CaptionWord,
 } from "./pages"
@@ -70,10 +73,23 @@ describe("buildCaptionPages", () => {
 
   it("never crosses a long gap and holds pages until the next one", () => {
     const pages = buildCaptionPages(sample, 5000)
-    expect(pages[0]!.endMs).toBe(1700)
+    expect(pages[0]!.endMs).toBe(1600)
     expect(pages[1]!.startMs).toBe(2400)
     expect(pages[1]!.endMs).toBe(pages[2]!.startMs)
-    expect(pages.at(-1)!.endMs).toBe(4600)
+    expect(pages.at(-1)!.endMs).toBe(4500)
+  })
+
+  it("clears the screen when a word is stretched over a silence", () => {
+    const pages = buildCaptionPages(
+      [w("então", 0, 300), w("conhecessem,", 320, 7480), w("né?", 7500, 7800)],
+      9000
+    )
+    expect(pages.map((p) => p.words.map((x) => x.text).join(" "))).toEqual([
+      "então conhecessem,",
+      "né?",
+    ])
+    expect(pages[0]!.endMs).toBeLessThan(2000)
+    expect(spokenEnd(w("conhecessem,", 320, 7480), DEFAULT_PAGING)).toBe(1520)
   })
 
   it("holds the paging invariants for random input", () => {
@@ -102,7 +118,13 @@ describe("buildCaptionPages", () => {
         maxCharsPerLine: 10 + Math.floor(rand() * 20),
       }
       const pages = buildCaptionPages(words, t + 1000, options)
-      expect(pages.flatMap((p) => p.words)).toEqual(words)
+      const paged = pages.flatMap((p) => p.words)
+      expect(paged.map((x) => [x.text, x.startMs])).toEqual(
+        words.map((x) => [x.text, x.startMs])
+      )
+      paged.forEach((x, i) =>
+        expect(x.endMs).toBeLessThanOrEqual(words[i]!.endMs)
+      )
       for (let i = 0; i < pages.length; i++) {
         const page = pages[i]!
         expect(page.words.length).toBeLessThanOrEqual(options.maxWordsPerPage)
@@ -114,7 +136,7 @@ describe("buildCaptionPages", () => {
         for (let j = 1; j < page.words.length; j++) {
           expect(
             page.words[j]!.startMs - page.words[j - 1]!.endMs
-          ).toBeLessThanOrEqual(600)
+          ).toBeLessThanOrEqual(DEFAULT_PAGING.gapMs)
         }
         let at = 0
         for (const count of page.lines) {
@@ -255,5 +277,33 @@ describe("ASS", () => {
     expect(events).toHaveLength(pages.length)
     expect(ass).toContain(",3,16,0,2,")
     expect(events[0]).toContain("\\pos(540,1536)")
+  })
+})
+
+describe("sampleCaptionWords", () => {
+  const word = (text: string, startMs: number) => ({
+    text,
+    startMs,
+    endMs: startMs + 200,
+    confidence: 1,
+  })
+
+  it("picks a continuous run and times it from zero", () => {
+    const words = [
+      word("a", 0),
+      word("b", 5000),
+      word("c", 5300),
+      word("d", 5600),
+      word("e", 9000),
+    ]
+    expect(sampleCaptionWords(words, 3)).toEqual([
+      { text: "b", startMs: 0, endMs: 200 },
+      { text: "c", startMs: 300, endMs: 500 },
+      { text: "d", startMs: 600, endMs: 800 },
+    ])
+  })
+
+  it("returns nothing when no run is long enough", () => {
+    expect(sampleCaptionWords([word("a", 0), word("b", 5000)], 2)).toEqual([])
   })
 })

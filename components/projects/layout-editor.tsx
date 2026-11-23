@@ -7,6 +7,10 @@ import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
+  CaptionPreview,
+  CaptionPreviewText,
+} from "@/components/ui/caption-preview"
+import {
   Card,
   CardContent,
   CardDescription,
@@ -30,6 +34,12 @@ import {
   VideoPlayerTime,
   VideoPlayerVideo,
 } from "@/components/ui/video-player"
+import { buildCaptionPages, type CaptionWord } from "@/features/captions/pages"
+import {
+  captionBaseline,
+  cssCaptionStyle,
+  resolveCaptionStyle,
+} from "@/features/captions/styles"
 import { confirmLayoutAction } from "@/features/layout/actions"
 import {
   detectWebcam,
@@ -45,7 +55,13 @@ import {
   type LayoutMode,
   type Rect,
 } from "@/features/layout/schema"
+import { updateProjectSettingsAction } from "@/features/projects/actions"
+import type { ProjectSettings } from "@/features/projects/schema"
 
+import {
+  CaptionStyleFields,
+  type CaptionStyleRef,
+} from "./caption-style-fields"
 import { VerticalPreviewCanvas } from "./vertical-preview"
 
 export const LAYOUT_MODES: { value: LayoutMode; label: string }[] = [
@@ -86,15 +102,65 @@ export function CamPositionField({
   )
 }
 
-function LayoutPreview({ layout }: { layout: LayoutInput }) {
+const FALLBACK_SAMPLE: CaptionWord[] = "Captions look like this on your clips"
+  .split(" ")
+  .map((text, i) => ({ text, startMs: i * 300, endMs: i * 300 + 260 }))
+
+const SAMPLE_PAUSE_MS = 800
+
+function useLoopMs(durationMs: number) {
+  const [ms, setMs] = React.useState(0)
+  React.useEffect(() => {
+    const started = performance.now()
+    const timer = setInterval(
+      () => setMs((performance.now() - started) % durationMs),
+      50
+    )
+    return () => clearInterval(timer)
+  }, [durationMs])
+  return ms
+}
+
+function LayoutPreview({
+  layout,
+  captionStyle,
+  captionsEnabled,
+  sample,
+}: {
+  layout: LayoutInput
+  captionStyle: CaptionStyleRef
+  captionsEnabled: boolean
+  sample: CaptionWord[]
+}) {
+  const style = resolveCaptionStyle(captionStyle)
+  const words = sample.length > 0 ? sample : FALLBACK_SAMPLE
+  const durationMs = words.at(-1)!.endMs + SAMPLE_PAUSE_MS
+  const pages = buildCaptionPages(words, durationMs, {
+    maxWordsPerPage: style.maxWordsPerPage,
+    maxCharsPerLine: style.maxCharsPerLine,
+  })
+  const currentMs = useLoopMs(durationMs)
   return (
-    <VerticalPreviewCanvas
-      layout={layout}
+    <CaptionPreview
       role="img"
       aria-label="Vertical preview"
-      data-testid="layout-preview"
-      className="max-w-[220px] rounded-lg"
-    />
+      className="max-w-[220px]"
+    >
+      <VerticalPreviewCanvas
+        layout={layout}
+        aria-hidden
+        data-testid="layout-preview"
+        className="absolute inset-0 size-full"
+      />
+      {captionsEnabled && (
+        <CaptionPreviewText
+          pages={pages}
+          currentMs={currentMs}
+          captionStyle={cssCaptionStyle(style)}
+          baseline={captionBaseline(style, layout)}
+        />
+      )}
+    </CaptionPreview>
   )
 }
 
@@ -137,6 +203,8 @@ export function LayoutEditor({
   initialConfidence,
   confirmed,
   awaitingConfirmation,
+  settings,
+  captionSample,
 }: {
   projectId: string
   src: string
@@ -146,6 +214,8 @@ export function LayoutEditor({
   initialConfidence: number
   confirmed: boolean
   awaitingConfirmation: boolean
+  settings: ProjectSettings
+  captionSample: CaptionWord[]
 }) {
   const router = useRouter()
   const autoDetect = !confirmed && initial.webcamRect === null
@@ -153,6 +223,9 @@ export function LayoutEditor({
   const [confidence, setConfidence] = React.useState(initialConfidence)
   const [detecting, setDetecting] = React.useState(autoDetect)
   const [savePreset, setSavePreset] = React.useState(false)
+  const [captionStyle, setCaptionStyle] = React.useState(settings.captionStyle)
+  const captionStyleChanged =
+    JSON.stringify(captionStyle) !== JSON.stringify(settings.captionStyle)
   const [pending, startTransition] = React.useTransition()
   const hasWebcam = usesWebcam(layout.mode)
 
@@ -309,6 +382,21 @@ export function LayoutEditor({
                   disabled={pending || detecting}
                   onClick={() =>
                     startTransition(async () => {
+                      if (captionStyleChanged) {
+                        const saved = await updateProjectSettingsAction(
+                          projectId,
+                          { ...settings, captionStyle }
+                        )
+                        if (!saved.ok) {
+                          toast.error(saved.error.message)
+                          return
+                        }
+                        if (saved.value.rerun === "render") {
+                          toast.info(
+                            "Render the clips again to use the new caption style"
+                          )
+                        }
+                      }
                       const result = await confirmLayoutAction(projectId, {
                         layout: hasWebcam
                           ? {
@@ -353,10 +441,33 @@ export function LayoutEditor({
               </div>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Captions</CardTitle>
+              <CardDescription>
+                {settings.captionsEnabled
+                  ? "Applies to every clip that doesn't have its own style. Saved with the layout."
+                  : "Captions are turned off for this project in Settings."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <CaptionStyleFields
+                value={captionStyle}
+                onValueChange={setCaptionStyle}
+                disabled={pending}
+              />
+            </CardContent>
+          </Card>
         </div>
 
         <div className="flex flex-col items-center gap-2 lg:items-start">
-          <LayoutPreview layout={layout} />
+          <LayoutPreview
+            layout={layout}
+            captionStyle={captionStyle}
+            captionsEnabled={settings.captionsEnabled}
+            sample={captionSample}
+          />
           <p className="text-xs text-muted-foreground">
             1080×1920 preview at the current frame
           </p>

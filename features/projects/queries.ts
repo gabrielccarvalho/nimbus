@@ -8,6 +8,8 @@ import { mediaUrl, slugify } from "@/lib/format"
 
 import { normalizeLoudness } from "../analysis/loudness"
 import { signalsRepository } from "../analysis/repository"
+import { sampleCaptionWords } from "../captions/pages"
+import { speakerTranscriptWords } from "../captions/speaker"
 import { clipRepository } from "../clips/repository"
 import { buildManualPrompt } from "../highlights/prompt"
 import { jobQueue } from "../jobs/queue"
@@ -201,7 +203,7 @@ export async function getClipEditor(projectId: string, clipId: string) {
     source,
     video,
     layout,
-    words: transcript?.words ?? [],
+    words: speakerTranscriptWords(transcript),
     render: render
       ? {
           url: mediaUrl(render.storageKey),
@@ -219,9 +221,10 @@ export async function getProjectLayout(id: string) {
   const db = getDb()
   const project = await projectRepository(db).get(id)
   if (!project) return undefined
-  const [assets, layout] = await Promise.all([
+  const [assets, layout, transcript] = await Promise.all([
     assetRepository(db).listForProject(id),
     layoutRepository(db).get(id),
+    transcriptRepository(db).get(id),
   ])
   const source = assets.find((a) => a.kind === "source")
   const proxy = assets.find((a) => a.kind === "proxy")
@@ -235,6 +238,7 @@ export async function getProjectLayout(id: string) {
     video: proxy ?? source,
     layout,
     hasPreset: Boolean(preset),
+    captionSample: sampleCaptionWords(speakerTranscriptWords(transcript)),
   }
 }
 
