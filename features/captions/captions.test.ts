@@ -3,6 +3,7 @@ import path from "node:path"
 
 import { describe, expect, it } from "vitest"
 
+import { defaultProjectSettings } from "../projects/schema"
 import { assTime, buildAss, escapeAssText } from "./ass"
 import {
   activeWordIndex,
@@ -231,6 +232,12 @@ describe("styles", () => {
     expect(
       captionBaseline({ position: "auto" }, { mode: "no-cam-blur-fill" })
     ).toBe(0.8)
+  })
+
+  it("defaults new projects to Clean, middle, three words", () => {
+    expect(
+      resolveCaptionStyle(defaultProjectSettings.captionStyle)
+    ).toMatchObject({ id: "clean", position: "middle", maxWordsPerPage: 3 })
   })
 
   it("keeps auto captions on the gameplay when the camera is at the bottom", () => {
