@@ -4,6 +4,7 @@ import type { DownloadProgress } from "./downloader"
 import { isPublicUrl, parseVideoUrl, placeholderName } from "./url"
 import {
   describeYtDlpError,
+  parseHeatmap,
   parseInfo,
   parseProgressLine,
   downloadProgress,
@@ -64,6 +65,10 @@ describe("parseInfo", () => {
           filesize_approx: 1_500_000_000,
           thumbnail: "https://i.ytimg.com/vi/abc/maxresdefault.jpg",
           language: "pt-BR",
+          heatmap: [
+            { start_time: 37.255, end_time: 74.51, value: 0.42 },
+            { start_time: 0, end_time: 37.255, value: 1 },
+          ],
         })
       )
     ).toEqual({
@@ -73,6 +78,10 @@ describe("parseInfo", () => {
       isLive: false,
       approxBytes: 1_500_000_000,
       thumbnailUrl: "https://i.ytimg.com/vi/abc/maxresdefault.jpg",
+      heatmap: [
+        { startMs: 0, endMs: 37_255, value: 1 },
+        { startMs: 37_255, endMs: 74_510, value: 0.42 },
+      ],
     })
   })
 
@@ -89,10 +98,23 @@ describe("parseInfo", () => {
       isLive: false,
       approxBytes: null,
       thumbnailUrl: null,
+      heatmap: [],
     })
     expect(
       parseInfo('{"thumbnail":"file:///etc/passwd"}').thumbnailUrl
     ).toBeNull()
+  })
+
+  it("skips malformed heatmap points and clamps values", () => {
+    expect(
+      parseHeatmap([
+        { start_time: 10, end_time: 5, value: 0.5 },
+        { start_time: "0", end_time: 5, value: 0.5 },
+        null,
+        { start_time: 0, end_time: 5, value: 1.4 },
+      ])
+    ).toEqual([{ startMs: 0, endMs: 5000, value: 1 }])
+    expect(parseHeatmap(null)).toEqual([])
   })
 
   it("rejects playlists and garbage", () => {

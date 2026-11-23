@@ -21,4 +21,11 @@ export const signalsSchema = z.object({
 })
 export type SignalsData = z.infer<typeof signalsSchema>
 
+export const audiencePointSchema = z.object({
+  startMs: z.number().int().nonnegative(),
+  endMs: z.number().int().nonnegative(),
+  value: z.number().min(0).max(1),
+})
+export type AudiencePoint = z.infer<typeof audiencePointSchema>
+
 export const LOUDNESS_FLOOR_LUFS = -70

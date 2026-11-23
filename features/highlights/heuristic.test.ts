@@ -15,6 +15,7 @@ function stream({
   loudness = () => -30,
   language = "pt",
   reactionPhrases = [] as string[],
+  audience,
 }: {
   durationMs?: number
   moment: string[]
@@ -24,6 +25,7 @@ function stream({
   loudness?: (ms: number) => number
   language?: string
   reactionPhrases?: string[]
+  audience?: { startMs: number; endMs: number; value: number }[]
 }) {
   const tokens = []
   for (let ms = 0; ms < durationMs; ms += 1500) {
@@ -55,6 +57,7 @@ function stream({
     limits,
     language,
     reactionPhrases,
+    audience,
   })
 }
 
@@ -129,5 +132,60 @@ describe("heuristic scoring", () => {
     const candidates = stream({ durationMs: 180 * MINUTE, moment: PT_MOMENT })
     expect(candidates.length).toBeGreaterThan(1000)
     expect(performance.now() - started).toBeLessThan(5000)
+  })
+})
+
+describe("YouTube replay heatmap", () => {
+  const buckets = (hotAt: number) =>
+    Array.from({ length: 100 }, (_, i) => ({
+      startMs: i * 6000,
+      endMs: (i + 1) * 6000,
+      value: Math.abs(i * 6000 - hotAt) < 30_000 ? 1 : 0.1,
+    }))
+  const steady = (ms: number) => -30 + Math.sin(ms / 7000) * 2
+
+  it("pulls the pick towards the most rewatched part", () => {
+    const pick = best(
+      stream({
+        moment: ["então"],
+        loudness: steady,
+        audience: buckets(8 * MINUTE),
+      })
+    )
+    expect(pick.startMs).toBeGreaterThan(7 * MINUTE)
+    expect(pick.startMs).toBeLessThan(9 * MINUTE)
+    expect(pick.reason).toMatch(/rewatched most on YouTube/)
+  })
+
+  it("lets a clear reaction beat a mildly rewatched stretch", () => {
+    const pick = best(
+      stream({
+        moment: PT_MOMENT,
+        loudness: (ms) =>
+          ms >= 5 * MINUTE && ms < 5 * MINUTE + 15_000 ? -12 : -30,
+        audience: buckets(8 * MINUTE).map((p) => ({
+          ...p,
+          value: p.value * 0.3,
+        })),
+      })
+    )
+    expect(pick.startMs).toBeGreaterThan(4.5 * MINUTE)
+    expect(pick.startMs).toBeLessThan(5.5 * MINUTE)
+  })
+
+  it("ignores a flat heatmap", () => {
+    const flat = Array.from({ length: 100 }, (_, i) => ({
+      startMs: i * 6000,
+      endMs: (i + 1) * 6000,
+      value: i === 80 ? 0.58 : 0.55,
+    }))
+    const pick = best(stream({ moment: PT_MOMENT, audience: flat }))
+    expect(pick.reason).not.toMatch(/YouTube/)
+  })
+
+  it("scores the same as before without a heatmap", () => {
+    const without = stream({ moment: PT_MOMENT })
+    const empty = stream({ moment: PT_MOMENT, audience: [] })
+    expect(empty).toEqual(without)
   })
 })

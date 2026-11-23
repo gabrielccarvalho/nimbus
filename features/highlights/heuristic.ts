@@ -1,4 +1,5 @@
 import { normalizeLoudness } from "../analysis/loudness"
+import type { AudiencePoint } from "../analysis/schema"
 import type { Segment, Word } from "../transcription/schema"
 import {
   countPhrases,
@@ -17,6 +18,7 @@ export const HEURISTIC_WEIGHTS = {
   repetition: 0.1,
   pauseBeforePeak: 0.1,
   questionAnswer: 0.05,
+  audience: 0.2,
 } as const
 
 type Feature = keyof typeof HEURISTIC_WEIGHTS
@@ -26,6 +28,10 @@ const BASELINE_MS = 120_000
 const PAUSE_BEFORE_PEAK_MS = 3000
 const REPEAT_GAP_MS = 3000
 const BASELINE_MARGIN = 1.5
+// YouTube already scales the heatmap to 0–1 per video, so it's scored on that
+// scale: rescaling like the other signals would turn a flat heatmap's noise into
+// full weight.
+const AUDIENCE_FULL_ABOVE_MEDIAN = 0.5
 
 function percentile(values: readonly number[], p: number) {
   if (values.length === 0) return 0
@@ -74,6 +80,24 @@ function repeatedWords(words: readonly Word[]) {
   })
 }
 
+function audienceAbove(points: readonly AudiencePoint[]) {
+  const median = percentile(
+    points.map((p) => p.value),
+    0.5
+  )
+  return (from: number, to: number) => {
+    let weighted = 0
+    let covered = 0
+    for (const point of points) {
+      const overlap = Math.min(to, point.endMs) - Math.max(from, point.startMs)
+      if (overlap <= 0) continue
+      weighted += point.value * overlap
+      covered += overlap
+    }
+    return covered > 0 ? Math.max(0, weighted / covered - median) : 0
+  }
+}
+
 type Window = {
   startMs: number
   endMs: number
@@ -105,6 +129,14 @@ export function scoreWindows(
   const segmentPhrases = segments.map((s) => countPhrases(s.text, phrases))
   const phraseSum = prefixSums(segmentPhrases)
   const silenceEnds = signals.silences.map((s) => s.endMs).sort((a, b) => a - b)
+  const audience = audienceAbove(input.audience ?? [])
+  const features = (Object.keys(HEURISTIC_WEIGHTS) as Feature[]).filter(
+    (key) => key !== "audience" || (input.audience?.length ?? 0) > 0
+  )
+  const totalWeight = features.reduce(
+    (sum, key) => sum + HEURISTIC_WEIGHTS[key],
+    0
+  )
 
   const rate = (from: number, to: number) => {
     const [a, b] = wordsIn(from, to)
@@ -181,6 +213,7 @@ export function scoreWindows(
           )
             ? 1
             : 0,
+          audience: audience(startMs, endMs),
         },
         confidence: wb > wa ? confidenceSum(wa, wb) / (wb - wa) : 1,
         segments: inside,
@@ -189,7 +222,8 @@ export function scoreWindows(
   }
 
   const scale = Object.fromEntries(
-    (Object.keys(HEURISTIC_WEIGHTS) as Feature[]).map((key) => {
+    features.map((key) => {
+      if (key === "audience") return [key, AUDIENCE_FULL_ABOVE_MEDIAN]
       const nonZero = windows.map((w) => w.values[key]).filter((v) => v > 0)
       return [key, percentile(nonZero, 0.95) || 1]
     })
@@ -199,13 +233,16 @@ export function scoreWindows(
     const parts = Object.fromEntries(
       (Object.keys(HEURISTIC_WEIGHTS) as Feature[]).map((key) => [
         key,
-        Math.min(1, window.values[key] / scale[key]),
+        features.includes(key)
+          ? Math.min(1, window.values[key] / scale[key])
+          : 0,
       ])
     ) as Record<Feature, number>
-    const raw = (Object.keys(HEURISTIC_WEIGHTS) as Feature[]).reduce(
-      (sum, key) => sum + HEURISTIC_WEIGHTS[key] * parts[key],
-      0
-    )
+    const raw =
+      features.reduce(
+        (sum, key) => sum + HEURISTIC_WEIGHTS[key] * parts[key],
+        0
+      ) / totalWeight
     const score = raw * (0.4 + 0.6 * window.confidence)
     const hookSegment =
       window.segments.find(
@@ -217,6 +254,7 @@ export function scoreWindows(
       parts.speechRate >= 0.8 && "talking faster",
       parts.excitement >= 0.5 && "laughing or shouting",
       parts.phrases >= 0.5 && "reaction phrases",
+      parts.audience >= 0.6 && "rewatched most on YouTube",
       window.values.repetition > 0 && "repeated words",
       window.values.pauseBeforePeak && "pause before the peak",
       window.values.questionAnswer && "question and answer",

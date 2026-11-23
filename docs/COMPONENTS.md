@@ -86,7 +86,7 @@ Composable `<video>` player with frame-accurate time for transcript and caption 
 
 Horizontal time strip for a whole recording: loudness, silences, clip ranges and a playhead.
 
-- Parts: `Timeline` (root), `TimelineLoudness` (SVG area from normalized 0–1 values), `TimelineRange` (`variant` = `silence` | `clip` | `selected`, positioned by `startMs`/`endMs`), `TimelinePlayhead`. `useTimeline()` exposes `{ durationMs, value, toPercent }`.
+- Parts: `Timeline` (root), `TimelineLoudness` (SVG area from normalized 0–1 values), `TimelineRange` (`variant` = `silence` | `clip` | `selected` | `audience` (a thin band along the top; set its `opacity` from the value), positioned by `startMs`/`endMs`), `TimelinePlayhead`. `useTimeline()` exposes `{ durationMs, value, toPercent }`.
 - Props: `durationMs`, `value` / `defaultValue` / `onValueChange` (ms, controlled or uncontrolled), `step` (default 1000 ms), `readOnly`.
 - A11y: interactive timelines are a `role="slider"` with `aria-valuetext` like "0:08 of 1:00". ←/→/↑/↓ move by `step` (Shift ×10), PageUp/PageDown ×10, Home/End jump to the ends. Pointer down/drag seeks. `readOnly` renders `role="img"`, so give it an `aria-label` that states what it shows.
 - Pair it with `VideoPlayerProvider` to sync with playback: `value={currentMs} onValueChange={seek}`.

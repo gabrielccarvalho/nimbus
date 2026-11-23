@@ -6,6 +6,7 @@ import { newId, now, withTransaction, type Db } from "@/lib/db"
 import { assets, clips, projects } from "@/lib/db/schema"
 import { AppError } from "@/lib/errors"
 
+import type { AudiencePoint } from "../analysis/schema"
 import { assertTransition, isRunning } from "../pipeline/state-machine"
 import type { ProjectSettings, ProjectStatus } from "./schema"
 
@@ -118,6 +119,13 @@ export function projectRepository(db: Db) {
       await db
         .update(projects)
         .set({ sourceLanguage: language, updatedAt: now() })
+        .where(eq(projects.id, id))
+    },
+
+    async setAudienceHeatmap(id: string, heatmap: AudiencePoint[]) {
+      await db
+        .update(projects)
+        .set({ audienceHeatmap: heatmap, updatedAt: now() })
         .where(eq(projects.id, id))
     },
 

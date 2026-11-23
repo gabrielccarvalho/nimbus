@@ -68,3 +68,23 @@ describe("chunkRanges", () => {
     }
   })
 })
+
+describe("rewatched ranges", () => {
+  it("lists the most replayed parts above the median, in order", () => {
+    const prompt = buildSelectionPrompt({
+      ...base,
+      audience: [
+        { startMs: 0, endMs: 20_000, value: 0.2 },
+        { startMs: 20_000, endMs: 40_000, value: 1 },
+        { startMs: 40_000, endMs: 60_000, value: 0.3 },
+      ],
+    })
+    expect(prompt).toContain(
+      "Most rewatched on YouTube (viewer replays, 1 = the most replayed part of the video; each range is coarse, so find the moment inside it): 20.0–40.0s (1.00)"
+    )
+  })
+
+  it("says nothing without a heatmap", () => {
+    expect(buildSelectionPrompt(base)).not.toContain("rewatched")
+  })
+})

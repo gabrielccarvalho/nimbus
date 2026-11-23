@@ -17,12 +17,13 @@ import { layoutRepository } from "../layout/repository"
 import { getProjectSnapshot } from "../pipeline/snapshot"
 import { isEnglishOnlyModel } from "../transcription/language"
 import { transcriptRepository } from "../transcription/repository"
-import { assetRepository, projectRepository } from "./repository"
+import { assetRepository, projectRepository, type Project } from "./repository"
 
-async function audioSummary(db: Db, projectId: string) {
-  const signals = await signalsRepository(db).get(projectId)
+async function audioSummary(db: Db, project: Project) {
+  const signals = await signalsRepository(db).get(project.id)
   if (!signals) return undefined
   return {
+    audience: project.audienceHeatmap ?? [],
     loudness: normalizeLoudness(signals.loudness),
     silences: signals.silences,
     silentMs: signals.silences.reduce((sum, s) => sum + s.endMs - s.startMs, 0),
@@ -58,7 +59,7 @@ export async function getProjectOverview(id: string) {
   const [assets, layout, audio, clips, jobs, snapshot] = await Promise.all([
     assetRepository(db).listForProject(id),
     layoutRepository(db).get(id),
-    audioSummary(db, id),
+    audioSummary(db, project),
     clipRepository(db).listForProject(id),
     jobQueue(db).listForProject(id),
     getProjectSnapshot(db, id),
@@ -88,7 +89,7 @@ export async function getProjectTranscript(id: string) {
   const [assets, transcript, audio] = await Promise.all([
     assetRepository(db).listForProject(id),
     transcriptRepository(db).get(id),
-    audioSummary(db, id),
+    audioSummary(db, project),
   ])
   return {
     project,
@@ -107,7 +108,7 @@ export async function getProjectClips(id: string) {
   const [assets, clips, audio, layout, snapshot] = await Promise.all([
     assetRepository(db).listForProject(id),
     clipRepository(db).listForProject(id),
-    audioSummary(db, id),
+    audioSummary(db, project),
     layoutRepository(db).get(id),
     getProjectSnapshot(db, id),
   ])
@@ -121,6 +122,7 @@ export async function getProjectClips(id: string) {
       durationMs,
       words: transcript?.words ?? [],
       language: transcript?.language ?? project.settings.language,
+      audience: project.audienceHeatmap ?? [],
       segments: transcript?.segments ?? [],
       signals: signals ?? {
         silences: [],

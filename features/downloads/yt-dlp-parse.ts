@@ -1,6 +1,7 @@
 import type { DownloadProgress } from "./downloader"
 import { AppError } from "@/lib/errors"
 
+import type { AudiencePoint } from "../analysis/schema"
 import type { VideoInfo } from "./downloader"
 
 export const PROGRESS_PREFIX = "progress"
@@ -38,7 +39,33 @@ export function parseInfo(json: string): VideoInfo {
       typeof raw.thumbnail === "string" && raw.thumbnail.startsWith("https://")
         ? raw.thumbnail
         : null,
+    heatmap: parseHeatmap(raw.heatmap),
   }
+}
+
+export function parseHeatmap(raw: unknown): AudiencePoint[] {
+  if (!Array.isArray(raw)) return []
+  const points: AudiencePoint[] = []
+  for (const point of raw) {
+    if (typeof point !== "object" || point === null) continue
+    const { start_time, end_time, value } = point as Record<string, unknown>
+    if (
+      typeof start_time !== "number" ||
+      typeof end_time !== "number" ||
+      typeof value !== "number" ||
+      !Number.isFinite(start_time + end_time + value) ||
+      start_time < 0 ||
+      end_time <= start_time
+    ) {
+      continue
+    }
+    points.push({
+      startMs: Math.round(start_time * 1000),
+      endMs: Math.round(end_time * 1000),
+      value: Math.min(1, Math.max(0, value)),
+    })
+  }
+  return points.sort((a, b) => a.startMs - b.startMs)
 }
 
 const positive = (value: string | undefined) => {

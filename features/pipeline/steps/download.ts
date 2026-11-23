@@ -88,6 +88,7 @@ export const downloadStep: JobHandler = async ({
   }
   const name = projectNameSchema.safeParse(info.title.slice(0, 120))
   if (name.success) await projects.rename(project.id, name.data)
+  await projects.setAudienceHeatmap(project.id, info.heatmap)
   const language = normalizeLanguage(info.language)
   if (language) await projects.setSourceLanguage(project.id, language)
   if (info.thumbnailUrl && isPublicUrl(info.thumbnailUrl)) {

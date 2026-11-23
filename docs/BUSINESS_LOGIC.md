@@ -122,12 +122,13 @@ HeuristicSelector (`features/highlights/heuristic.ts`) scores windows that start
 | repeated words      | 0.10   | the same word three times within 3 s ("vai vai vai")                                                       |
 | pause before peak   | 0.10   | a silence ends in the 3 s before the window's loudest moment                                               |
 | question and answer | 0.05   | a question followed by a non-question                                                                      |
+| YouTube replays     | 0.20   | the replay heatmap over the window minus its median, full weight at +0.5; only when the video has one      |
 
-Each signal is divided by its 95th percentile across all windows and capped at 1. The weighted sum is multiplied by `0.4 + 0.6·mean word confidence`, so unclear speech (usually game dialogue in another language) scores lower. Phrases are matched without accents or case.
+Each signal except YouTube replays is divided by its 95th percentile across all windows and capped at 1 (the heatmap is already 0–1 per video, and rescaling it would give a flat heatmap's noise full weight). The weighted sum is divided by the total weight of the signals in use, so projects without a heatmap score exactly as before. The weighted sum is multiplied by `0.4 + 0.6·mean word confidence`, so unclear speech (usually game dialogue in another language) scores lower. Phrases are matched without accents or case.
 
 "Find more highlights" re-runs selection with every existing clip, rejected ones included, as excluded ranges: the same overlap rule applies against them, and Claude is told not to pick them again. New candidates are added; nothing is replaced.
 
-The Claude selector is told the spoken language (titles and hooks are written in it) and sees low-confidence segments marked `(unclear)`. Transcripts over ~60k characters are split into parts with a minute of overlap, sent in parallel, each asking for its share of the clips plus two; post-processing merges them.
+The Claude selector is told the spoken language (titles and hooks are written in it), sees low-confidence segments marked `(unclear)` and, when there is a heatmap, the eight most replayed ranges above its median. Transcripts over ~60k characters are split into parts with a minute of overlap, sent in parallel, each asking for its share of the clips plus two; post-processing merges them.
 
 ### Layout
 

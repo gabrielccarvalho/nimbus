@@ -9,6 +9,15 @@ export function AudioTimelineLayers({ audio }: { audio: AudioSummary }) {
   return (
     <>
       <TimelineLoudness values={audio.loudness} />
+      {audio.audience.map((point) => (
+        <TimelineRange
+          key={point.startMs}
+          variant="audience"
+          startMs={point.startMs}
+          endMs={point.endMs}
+          style={{ opacity: point.value }}
+        />
+      ))}
       {audio.silences.map((silence) => (
         <TimelineRange
           key={silence.startMs}
@@ -44,12 +53,14 @@ export function AudioOverview({
           {audio.silences.length}{" "}
           {audio.silences.length === 1 ? "silence" : "silences"} · {silentShare}
           % silent
+          {audio.audience.length > 0 &&
+            " · top band: most rewatched on YouTube"}
         </p>
       </div>
       <Timeline
         readOnly
         durationMs={durationMs}
-        aria-label={`Loudness over time with ${audio.silences.length} silent stretches`}
+        aria-label={`Loudness over time with ${audio.silences.length} silent stretches${audio.audience.length > 0 ? " and YouTube replay activity" : ""}`}
       >
         <AudioTimelineLayers audio={audio} />
       </Timeline>

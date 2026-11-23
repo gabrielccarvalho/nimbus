@@ -1,3 +1,5 @@
+import type { AudiencePoint } from "../analysis/schema"
+
 export type VideoInfo = {
   title: string
   language: string | null
@@ -5,6 +7,7 @@ export type VideoInfo = {
   isLive: boolean
   approxBytes: number | null
   thumbnailUrl: string | null
+  heatmap: AudiencePoint[]
 }
 
 export type DownloadInput = {
