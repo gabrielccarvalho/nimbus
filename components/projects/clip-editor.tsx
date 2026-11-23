@@ -57,9 +57,7 @@ import {
   type CaptionPage,
 } from "@/features/captions/pages"
 import {
-  CAPTION_PRESETS,
   captionBaseline,
-  captionStyleOverridesSchema,
   cssCaptionStyle,
   resolveCaptionStyle,
 } from "@/features/captions/styles"
@@ -76,6 +74,7 @@ import { renderClipsAction } from "@/features/render/actions"
 import type { Word } from "@/features/transcription/schema"
 import { formatTimestamp } from "@/lib/format"
 
+import { CaptionStyleFields } from "./caption-style-fields"
 import { useProjectEvents } from "./use-project-events"
 import {
   CamPositionField,
@@ -102,13 +101,6 @@ type ClipEditorProps = {
 }
 
 const seconds = (ms: number) => (ms / 1000).toFixed(1)
-
-const CAPTION_POSITIONS = [
-  { value: "auto", label: "Auto" },
-  { value: "top", label: "Top" },
-  { value: "middle", label: "Middle" },
-  { value: "bottom", label: "Bottom" },
-] as const
 
 function ClipLoop({ startMs, endMs }: { startMs: number; endMs: number }) {
   const { currentMs, paused, seek } = useVideoPlayer()
@@ -531,63 +523,10 @@ export function ClipEditor({
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
-                <div className="flex flex-col gap-2">
-                  <Label id="caption-style-label">Style</Label>
-                  <ToggleGroup
-                    aria-labelledby="caption-style-label"
-                    variant="outline"
-                    size="sm"
-                    value={[style.id]}
-                    onValueChange={(value) => {
-                      if (value[0])
-                        setStyleRef({
-                          presetId: value[0],
-                          overrides:
-                            styleRef.overrides?.position === undefined
-                              ? {}
-                              : { position: styleRef.overrides.position },
-                        })
-                    }}
-                  >
-                    {CAPTION_PRESETS.map((preset) => (
-                      <ToggleGroupItem key={preset.id} value={preset.id}>
-                        {preset.label}
-                      </ToggleGroupItem>
-                    ))}
-                  </ToggleGroup>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label id="caption-position-label">Position</Label>
-                  <ToggleGroup
-                    aria-labelledby="caption-position-label"
-                    variant="outline"
-                    size="sm"
-                    value={[style.position]}
-                    onValueChange={(value) => {
-                      const position =
-                        captionStyleOverridesSchema.shape.position.safeParse(
-                          value[0]
-                        )
-                      if (!position.success) return
-                      setStyleRef((current) => ({
-                        ...current,
-                        overrides: {
-                          ...current.overrides,
-                          position: position.data,
-                        },
-                      }))
-                    }}
-                  >
-                    {CAPTION_POSITIONS.map((position) => (
-                      <ToggleGroupItem
-                        key={position.value}
-                        value={position.value}
-                      >
-                        {position.label}
-                      </ToggleGroupItem>
-                    ))}
-                  </ToggleGroup>
-                </div>
+                <CaptionStyleFields
+                  value={styleRef}
+                  onValueChange={setStyleRef}
+                />
                 <ol aria-label="Caption text" className="flex flex-col gap-2">
                   {basePages.map((page) => {
                     const id = `caption-${page.index}`

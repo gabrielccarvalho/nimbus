@@ -6,7 +6,12 @@ import { getDb } from "@/lib/db"
 import { AppError } from "@/lib/errors"
 import { idSchema, parseId, runAction } from "@/lib/server-action"
 
-import { startClipRenders, startEditRender } from "./service"
+import {
+  cancelClipRenders,
+  cancelEditRender,
+  startClipRenders,
+  startEditRender,
+} from "./service"
 
 export async function renderClipsAction(projectId: unknown, clipIds: unknown) {
   const id = parseId(projectId, "project id")
@@ -30,4 +35,18 @@ export async function renderEditAction(projectId: unknown) {
     },
     [`/projects/${id}`]
   )
+}
+
+export async function cancelClipRendersAction(projectId: unknown) {
+  const id = parseId(projectId, "project id")
+  return runAction("cancelClipRenders", () => cancelClipRenders(getDb(), id), [
+    `/projects/${id}`,
+  ])
+}
+
+export async function cancelEditRenderAction(projectId: unknown) {
+  const id = parseId(projectId, "project id")
+  return runAction("cancelEditRender", () => cancelEditRender(getDb(), id), [
+    `/projects/${id}`,
+  ])
 }

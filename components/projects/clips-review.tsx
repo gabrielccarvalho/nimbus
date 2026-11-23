@@ -55,7 +55,12 @@ import type { Clip } from "@/features/clips/repository"
 import type { ProjectSnapshot } from "@/features/pipeline/snapshot"
 import { findMoreHighlightsAction } from "@/features/projects/actions"
 import type { AudioSummary } from "@/features/projects/queries"
-import { renderClipsAction, renderEditAction } from "@/features/render/actions"
+import {
+  cancelClipRendersAction,
+  cancelEditRenderAction,
+  renderClipsAction,
+  renderEditAction,
+} from "@/features/render/actions"
 import type { Result } from "@/lib/errors"
 import { formatDuration } from "@/lib/format"
 import { cn } from "@/lib/utils"
@@ -187,28 +192,62 @@ function ExportPanel({
           )}
         </div>
         {renderJobs.length > 0 && (
-          <Progress
-            value={
-              renderJobs.reduce((sum, job) => sum + job.progress, 0) /
-              renderJobs.length
-            }
-            aria-live="polite"
-          >
-            <ProgressLabel>
-              Rendering {renderJobs.length}{" "}
-              {renderJobs.length === 1 ? "clip" : "clips"}
-            </ProgressLabel>
-            <ProgressValue />
-          </Progress>
+          <div className="flex items-end gap-3">
+            <Progress
+              className="flex-1"
+              value={
+                renderJobs.reduce((sum, job) => sum + job.progress, 0) /
+                renderJobs.length
+              }
+              aria-live="polite"
+            >
+              <ProgressLabel>
+                Rendering {renderJobs.length}{" "}
+                {renderJobs.length === 1 ? "clip" : "clips"}
+              </ProgressLabel>
+              <ProgressValue />
+            </Progress>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={pending}
+              onClick={() =>
+                run(
+                  () => cancelClipRendersAction(projectId),
+                  "Cancelled clip renders"
+                )
+              }
+            >
+              <XIcon data-icon="inline-start" aria-hidden />
+              Cancel
+            </Button>
+          </div>
         )}
         {editJob && (
-          <Progress
-            value={editJob.status === "running" ? editJob.progress : null}
-            aria-live="polite"
-          >
-            <ProgressLabel>Rendering the horizontal edit</ProgressLabel>
-            <ProgressValue />
-          </Progress>
+          <div className="flex items-end gap-3">
+            <Progress
+              className="flex-1"
+              value={editJob.status === "running" ? editJob.progress : null}
+              aria-live="polite"
+            >
+              <ProgressLabel>Rendering the horizontal edit</ProgressLabel>
+              <ProgressValue />
+            </Progress>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={pending}
+              onClick={() =>
+                run(
+                  () => cancelEditRenderAction(projectId),
+                  "Cancelled the edit render"
+                )
+              }
+            >
+              <XIcon data-icon="inline-start" aria-hidden />
+              Cancel
+            </Button>
+          </div>
         )}
       </CardContent>
     </Card>

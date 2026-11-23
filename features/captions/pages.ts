@@ -16,14 +16,20 @@ export type PagingOptions = {
   maxLines: number
   gapMs: number
   holdMs: number
+  wordBaseMs: number
+  wordCharMs: number
+  wordMaxMs: number
 }
 
 export const DEFAULT_PAGING: PagingOptions = {
   maxWordsPerPage: 4,
   maxCharsPerLine: 28,
   maxLines: 2,
-  gapMs: 600,
-  holdMs: 400,
+  gapMs: 500,
+  holdMs: 300,
+  wordBaseMs: 300,
+  wordCharMs: 80,
+  wordMaxMs: 1_200,
 }
 
 const SENTENCE_END = /[.!?…]["')\]]*$/
@@ -78,12 +84,26 @@ export function wordsInRange(
     }))
 }
 
+// Whisper often stretches a word's end across the pause after it, which keeps
+// captions on screen through silences.
+export function spokenEnd(
+  word: CaptionWord,
+  opts: Pick<PagingOptions, "wordBaseMs" | "wordCharMs" | "wordMaxMs">
+) {
+  const expected = Math.min(
+    opts.wordMaxMs,
+    opts.wordBaseMs + opts.wordCharMs * word.text.length
+  )
+  return Math.max(word.startMs, Math.min(word.endMs, word.startMs + expected))
+}
+
 export function buildCaptionPages(
-  words: readonly CaptionWord[],
+  input: readonly CaptionWord[],
   durationMs: number,
   options: Partial<PagingOptions> = {}
 ): CaptionPage[] {
   const opts = { ...DEFAULT_PAGING, ...options }
+  const words = input.map((word) => ({ ...word, endMs: spokenEnd(word, opts) }))
   const groups: CaptionWord[][] = []
   let current: CaptionWord[] = []
   for (const word of words) {
@@ -171,4 +191,21 @@ export function activeWordIndex(page: CaptionPage, ms: number) {
     if (page.words[i]!.startMs <= ms) active = i
   }
   return active
+}
+
+export function sampleCaptionWords(
+  words: readonly Word[],
+  count = 8,
+  gapMs = DEFAULT_PAGING.gapMs
+): CaptionWord[] {
+  const from = Math.floor(words.length / 10)
+  for (let i = from; i + count <= words.length; i++) {
+    const run = words.slice(i, i + count)
+    if (
+      run.every((w, j) => j === 0 || w.startMs - run[j - 1]!.endMs <= gapMs)
+    ) {
+      return wordsInRange(run, run[0]!.startMs, run.at(-1)!.endMs + 1)
+    }
+  }
+  return []
 }

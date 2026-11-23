@@ -31,6 +31,7 @@ import {
 import { CAPTION_FONTS_DIR } from "../../render/fonts"
 import { renderQualityCrf } from "../../settings/schema"
 import { getAppSettings } from "../../settings/service"
+import { speakerTranscriptWords } from "../../captions/speaker"
 import { transcriptRepository } from "../../transcription/repository"
 import { sourceFile, throwIfAborted } from "./common"
 
@@ -82,7 +83,7 @@ export const renderClipStep: JobHandler = async ({
       clip.captionOverrides?.style ?? project.settings.captionStyle
     )
     const words = wordsInRange(
-      (await transcriptRepository(db).get(project.id))?.words ?? [],
+      speakerTranscriptWords(await transcriptRepository(db).get(project.id)),
       clip.startMs,
       clip.endMs
     )

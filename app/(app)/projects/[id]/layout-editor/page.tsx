@@ -22,7 +22,7 @@ export default async function LayoutPage({
   const { id } = await params
   const data = await getProjectLayout(id)
   if (!data) notFound()
-  const { project, source, video, layout } = data
+  const { project, source, video, layout, captionSample } = data
 
   if (!layout || !video || !source?.width || !source.height) {
     return (
@@ -58,6 +58,8 @@ export default async function LayoutPage({
       initialConfidence={layout.confidence}
       confirmed={layout.confirmedByUser}
       awaitingConfirmation={project.status === "awaiting_layout"}
+      settings={project.settings}
+      captionSample={captionSample}
     />
   )
 }
