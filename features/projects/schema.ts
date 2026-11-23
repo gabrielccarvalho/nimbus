@@ -21,6 +21,11 @@ export type ProjectStatus = z.infer<typeof projectStatusSchema>
 export const selectorModeSchema = z.enum(["anthropic", "manual", "heuristic"])
 export type SelectorMode = z.infer<typeof selectorModeSchema>
 
+export const renderQualitySchema = z.enum(["draft", "standard", "high"])
+export type RenderQuality = z.infer<typeof renderQualitySchema>
+
+export const languageSchema = z.string().trim().min(2).max(10)
+
 export const captionStyleRefSchema = z.object({
   presetId: z.string().min(1),
   overrides: z.record(z.string(), z.unknown()).default({}),
@@ -34,6 +39,9 @@ export const projectSettingsSchema = z
     targetClipCount: z.number().int().min(1).max(30),
     captionStyle: captionStyleRefSchema,
     captionsEnabled: z.boolean(),
+    language: languageSchema,
+    audioTrack: z.number().int().min(0).max(31).nullable(),
+    renderQuality: renderQualitySchema,
   })
   .refine((s) => s.clipMinMs < s.clipMaxMs, {
     message: "Minimum clip length must be shorter than the maximum",
@@ -48,7 +56,16 @@ export const defaultProjectSettings: ProjectSettings = {
   targetClipCount: 12,
   captionStyle: { presetId: "punch", overrides: {} },
   captionsEnabled: true,
+  language: "auto",
+  audioTrack: null,
+  renderQuality: "standard",
 }
+
+export const importOptionsSchema = z.object({
+  language: languageSchema.optional(),
+  selectorMode: selectorModeSchema.optional(),
+})
+export type ImportOptions = z.infer<typeof importOptionsSchema>
 
 export const projectNameSchema = z.string().trim().min(1).max(120)
 
@@ -72,3 +89,11 @@ export const assetKinds = [
 ] as const
 export const assetKindSchema = z.enum(assetKinds)
 export type AssetKind = z.infer<typeof assetKindSchema>
+
+export type AudioTrack = {
+  index: number
+  codec: string
+  channels: number
+  language: string | null
+  title: string | null
+}

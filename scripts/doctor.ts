@@ -6,6 +6,7 @@ import path from "node:path"
 import { Client } from "pg"
 
 import { chooseEncoder } from "@/features/render/filtergraph"
+import { isEnglishOnlyModel } from "@/features/transcription/language"
 import { getEnv } from "@/lib/env"
 import { getFfmpegCapabilities } from "@/lib/media/capabilities"
 import { runProcess } from "@/lib/process/run"
@@ -128,7 +129,13 @@ async function main() {
   }
   try {
     await access(path.resolve(env.WHISPER_MODEL), constants.R_OK)
-    add("whisper model", "ok", env.WHISPER_MODEL)
+    add(
+      "whisper model",
+      isEnglishOnlyModel(env.WHISPER_MODEL) ? "warn" : "ok",
+      isEnglishOnlyModel(env.WHISPER_MODEL)
+        ? `${env.WHISPER_MODEL} is English-only: other languages can't be detected or transcribed`
+        : env.WHISPER_MODEL
+    )
   } catch {
     add("whisper model", transcriberLevel, `${env.WHISPER_MODEL} not readable`)
   }

@@ -18,73 +18,17 @@ import {
   FieldDescription,
   FieldGroup,
   FieldLabel,
-  FieldLegend,
-  FieldSet,
-  FieldTitle,
 } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { CAPTION_PRESETS } from "@/features/captions/styles"
-import type { SelectorMode } from "@/features/projects/schema"
 import { saveSettingsAction } from "@/features/settings/actions"
-import type { AppSettings, RenderQuality } from "@/features/settings/schema"
+import type { AppSettings } from "@/features/settings/schema"
 
-const LANGUAGES = [
-  { value: "auto", label: "Detect automatically" },
-  { value: "en", label: "English" },
-  { value: "pt", label: "Portuguese" },
-  { value: "es", label: "Spanish" },
-  { value: "fr", label: "French" },
-  { value: "de", label: "German" },
-  { value: "it", label: "Italian" },
-  { value: "ja", label: "Japanese" },
-  { value: "ko", label: "Korean" },
-  { value: "zh", label: "Chinese" },
-  { value: "ru", label: "Russian" },
-]
-
-const SELECTORS: {
-  value: SelectorMode
-  label: string
-  description: string
-}[] = [
-  {
-    value: "heuristic",
-    label: "Heuristic",
-    description: "Scores loudness, speech density and keywords locally.",
-  },
-  {
-    value: "anthropic",
-    label: "Claude",
-    description: "Sends the transcript to Claude to pick and title clips.",
-  },
-  {
-    value: "manual",
-    label: "Manual",
-    description: "Gives you a prompt to paste into any chat, then the reply.",
-  },
-]
-
-const QUALITIES: {
-  value: RenderQuality
-  label: string
-  description: string
-}[] = [
-  { value: "draft", label: "Draft", description: "Smallest files, fastest." },
-  { value: "standard", label: "Standard", description: "Good for uploads." },
-  { value: "high", label: "High", description: "Larger files, sharper." },
-]
-
-const seconds = (ms: number) => Math.round(ms / 1000)
+import {
+  CaptionFields,
+  HighlightFields,
+  LanguageField,
+  QualityField,
+} from "./settings-fields"
 
 export function SettingsForm({
   initial,
@@ -114,7 +58,7 @@ export function SettingsForm({
         return
       }
       setError(null)
-      toast.success("Settings saved")
+      toast.success("Defaults saved")
       router.refresh()
     })
   }
@@ -124,35 +68,16 @@ export function SettingsForm({
       <Card>
         <CardHeader>
           <CardTitle>Transcription</CardTitle>
+          <CardDescription>
+            Default for new projects. Imports can override it.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <Field>
-            <FieldLabel htmlFor="language">Language</FieldLabel>
-            <Select
-              items={LANGUAGES}
-              value={settings.transcriptionLanguage}
-              onValueChange={(value) =>
-                value && set("transcriptionLanguage", value)
-              }
-            >
-              <SelectTrigger id="language" className="w-full sm:w-64">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {LANGUAGES.map((language) => (
-                  <SelectItem key={language.value} value={language.value}>
-                    {language.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {englishOnlyModel && (
-              <FieldDescription>
-                The configured Whisper model is English-only. Use a multilingual
-                model for other languages.
-              </FieldDescription>
-            )}
-          </Field>
+          <LanguageField
+            value={settings}
+            set={set}
+            englishOnlyModel={englishOnlyModel}
+          />
         </CardContent>
       </Card>
 
@@ -162,86 +87,11 @@ export function SettingsForm({
           <CardDescription>Defaults for new projects.</CardDescription>
         </CardHeader>
         <CardContent>
-          <FieldGroup>
-            <FieldSet>
-              <FieldLegend variant="label">Selector</FieldLegend>
-              <RadioGroup
-                value={settings.selectorMode}
-                onValueChange={(value) =>
-                  set("selectorMode", value as SelectorMode)
-                }
-              >
-                {SELECTORS.map((selector) => {
-                  const disabled =
-                    selector.value === "anthropic" && !claudeAvailable
-                  return (
-                    <FieldLabel
-                      key={selector.value}
-                      htmlFor={`selector-${selector.value}`}
-                    >
-                      <Field orientation="horizontal" data-disabled={disabled}>
-                        <FieldContent>
-                          <FieldTitle>{selector.label}</FieldTitle>
-                          <FieldDescription>
-                            {disabled
-                              ? "Set ANTHROPIC_API_KEY in .env.local to use Claude."
-                              : selector.description}
-                          </FieldDescription>
-                        </FieldContent>
-                        <RadioGroupItem
-                          id={`selector-${selector.value}`}
-                          value={selector.value}
-                          disabled={disabled}
-                        />
-                      </Field>
-                    </FieldLabel>
-                  )
-                })}
-              </RadioGroup>
-            </FieldSet>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Field>
-                <FieldLabel htmlFor="clip-min">Shortest clip (s)</FieldLabel>
-                <Input
-                  id="clip-min"
-                  type="number"
-                  min={5}
-                  max={180}
-                  value={seconds(settings.clipMinMs)}
-                  aria-invalid={settings.clipMinMs >= settings.clipMaxMs}
-                  onChange={(event) =>
-                    set("clipMinMs", Number(event.target.value) * 1000)
-                  }
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="clip-max">Longest clip (s)</FieldLabel>
-                <Input
-                  id="clip-max"
-                  type="number"
-                  min={5}
-                  max={180}
-                  value={seconds(settings.clipMaxMs)}
-                  onChange={(event) =>
-                    set("clipMaxMs", Number(event.target.value) * 1000)
-                  }
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="clip-count">Clips to find</FieldLabel>
-                <Input
-                  id="clip-count"
-                  type="number"
-                  min={1}
-                  max={30}
-                  value={settings.targetClipCount}
-                  onChange={(event) =>
-                    set("targetClipCount", Number(event.target.value))
-                  }
-                />
-              </Field>
-            </div>
-          </FieldGroup>
+          <HighlightFields
+            value={settings}
+            set={set}
+            claudeAvailable={claudeAvailable}
+          />
         </CardContent>
       </Card>
 
@@ -251,42 +101,7 @@ export function SettingsForm({
           <CardDescription>Defaults for new projects.</CardDescription>
         </CardHeader>
         <CardContent>
-          <FieldGroup>
-            <Field orientation="horizontal">
-              <FieldContent>
-                <FieldLabel htmlFor="captions-enabled">
-                  Burn in captions
-                </FieldLabel>
-                <FieldDescription>
-                  Word-by-word captions on vertical clips and the edit.
-                </FieldDescription>
-              </FieldContent>
-              <Switch
-                id="captions-enabled"
-                checked={settings.captionsEnabled}
-                onCheckedChange={(checked) => set("captionsEnabled", checked)}
-              />
-            </Field>
-            <Field>
-              <FieldLabel id="caption-style-label">Style</FieldLabel>
-              <ToggleGroup
-                aria-labelledby="caption-style-label"
-                variant="outline"
-                size="sm"
-                value={[settings.captionStyle.presetId]}
-                onValueChange={(value) => {
-                  if (value[0])
-                    set("captionStyle", { presetId: value[0], overrides: {} })
-                }}
-              >
-                {CAPTION_PRESETS.map((preset) => (
-                  <ToggleGroupItem key={preset.id} value={preset.id}>
-                    {preset.label}
-                  </ToggleGroupItem>
-                ))}
-              </ToggleGroup>
-            </Field>
-          </FieldGroup>
+          <CaptionFields value={settings} set={set} />
         </CardContent>
       </Card>
 
@@ -294,41 +109,13 @@ export function SettingsForm({
         <CardHeader>
           <CardTitle>Rendering</CardTitle>
           <CardDescription>
-            Applies to every render from now on.
+            Quality is the default for new projects. Hardware encoding applies
+            to every render on this machine.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <FieldGroup>
-            <FieldSet>
-              <FieldLegend variant="label">Quality</FieldLegend>
-              <RadioGroup
-                value={settings.renderQuality}
-                onValueChange={(value) =>
-                  set("renderQuality", value as RenderQuality)
-                }
-                className="sm:grid-cols-3"
-              >
-                {QUALITIES.map((quality) => (
-                  <FieldLabel
-                    key={quality.value}
-                    htmlFor={`quality-${quality.value}`}
-                  >
-                    <Field orientation="horizontal">
-                      <FieldContent>
-                        <FieldTitle>{quality.label}</FieldTitle>
-                        <FieldDescription>
-                          {quality.description}
-                        </FieldDescription>
-                      </FieldContent>
-                      <RadioGroupItem
-                        id={`quality-${quality.value}`}
-                        value={quality.value}
-                      />
-                    </Field>
-                  </FieldLabel>
-                ))}
-              </RadioGroup>
-            </FieldSet>
+            <QualityField value={settings} set={set} />
             <Field orientation="horizontal" data-disabled={!hardwareEncoder}>
               <FieldContent>
                 <FieldLabel htmlFor="hardware-encoding">
@@ -358,7 +145,7 @@ export function SettingsForm({
       )}
       <div>
         <Button type="submit" disabled={pending}>
-          Save settings
+          Save defaults
         </Button>
       </div>
     </form>

@@ -13,13 +13,17 @@ import { handleUpload } from "@/features/projects/upload"
 import type { Db } from "@/lib/db"
 import { logger } from "@/lib/logger"
 
-export async function uploadFixture(file: string, name = "fixture.mp4") {
+export async function uploadFixture(
+  file: string,
+  name = "fixture.mp4",
+  headers: Record<string, string> = {}
+) {
   const data = await readFile(file)
   return handleUpload(
     new Request("http://localhost/api/uploads", {
       method: "POST",
       body: data,
-      headers: { "content-type": "video/mp4", "x-file-name": name },
+      headers: { "content-type": "video/mp4", "x-file-name": name, ...headers },
     })
   )
 }

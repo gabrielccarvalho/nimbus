@@ -1,5 +1,6 @@
 export type VideoInfo = {
   title: string
+  language: string | null
   durationMs: number | null
   isLive: boolean
   approxBytes: number | null

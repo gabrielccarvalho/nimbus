@@ -2,11 +2,12 @@ import { z } from "zod"
 
 import { AppError } from "@/lib/errors"
 
-import type { SourceAspect } from "../../projects/schema"
+import type { AudioTrack, SourceAspect } from "../../projects/schema"
 
 const streamSchema = z.looseObject({
   codec_type: z.string().optional(),
   codec_name: z.string().optional(),
+  channels: z.number().optional(),
   width: z.number().optional(),
   height: z.number().optional(),
   avg_frame_rate: z.string().optional(),
@@ -39,6 +40,7 @@ export type ProbeResult = {
   fps: number
   codec: string
   audioCodec: string
+  audioTracks: AudioTrack[]
   formatName: string
 }
 
@@ -80,7 +82,8 @@ export function parseProbe(json: string): ProbeResult {
   const video = streams.find(
     (s) => s.codec_type === "video" && !s.disposition?.attached_pic
   )
-  const audio = streams.find((s) => s.codec_type === "audio")
+  const audioStreams = streams.filter((s) => s.codec_type === "audio")
+  const audio = audioStreams[0]
   if (!video || !video.width || !video.height) {
     throw new AppError("UNSUPPORTED_MEDIA", "This file has no video track")
   }
@@ -115,6 +118,13 @@ export function parseProbe(json: string): ProbeResult {
     fps: Math.round(fps * 1000) / 1000,
     codec: video.codec_name ?? "unknown",
     audioCodec: audio.codec_name ?? "unknown",
+    audioTracks: audioStreams.map((stream, index) => ({
+      index,
+      codec: stream.codec_name ?? "unknown",
+      channels: stream.channels ?? 0,
+      language: stream.tags?.language ?? null,
+      title: stream.tags?.title ?? stream.tags?.handler_name ?? null,
+    })),
     formatName: format?.format_name ?? "unknown",
   }
 }

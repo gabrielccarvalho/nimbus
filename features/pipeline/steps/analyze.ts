@@ -31,7 +31,9 @@ export const analyzeStep: JobHandler = async ({
   const source = await sourceAsset(db, project)
   const durationMs = source.durationMs ?? 0
   const input =
-    (await assetRepository(db).findByKind(project.id, "audio")) ?? source
+    project.settings.audioTrack === null
+      ? ((await assetRepository(db).findByKind(project.id, "audio")) ?? source)
+      : source
 
   const silences = createSilenceParser()
   const loudness = createLoudnessCollector(LOUDNESS_INTERVAL_MS)

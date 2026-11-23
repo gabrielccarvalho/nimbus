@@ -33,9 +33,18 @@ export function isRunning(status: ProjectStatus): status is RunningStatus {
   return (RUNNING_STATUSES as readonly ProjectStatus[]).includes(status)
 }
 
+export const RERUN_FROM: readonly ProjectStatus[] = [
+  "awaiting_layout",
+  "ready_for_review",
+  "done",
+  "failed",
+  "cancelled",
+]
+
 export function allowedTransitions(from: ProjectStatus): ProjectStatus[] {
   const targets = [...forward[from]]
   if (isRunning(from)) targets.push("failed", "cancelled")
+  if (RERUN_FROM.includes(from)) targets.push("transcribing", "selecting")
   return targets
 }
 

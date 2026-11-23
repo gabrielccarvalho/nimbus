@@ -17,11 +17,16 @@ import type { JobStatus, JobType } from "@/features/jobs/schema"
 import type { LayoutMode, Rect } from "@/features/layout/schema"
 import type {
   AssetKind,
+  AudioTrack,
   ProjectSettings,
   ProjectStatus,
   SourceAspect,
 } from "@/features/projects/schema"
-import type { Segment, Word } from "@/features/transcription/schema"
+import type {
+  LanguageSource,
+  Segment,
+  Word,
+} from "@/features/transcription/schema"
 
 const timestamptz = (name: string) =>
   timestamp(name, { withTimezone: true, mode: "date" })
@@ -41,6 +46,7 @@ export const projects = pgTable(
     error: text("error"),
     sourceAssetId: text("source_asset_id"),
     sourceUrl: text("source_url"),
+    sourceLanguage: text("source_language"),
     settings: jsonb("settings").$type<ProjectSettings>().notNull(),
     awaitingManualSelection: boolean("awaiting_manual_selection")
       .notNull()
@@ -66,6 +72,7 @@ export const assets = pgTable(
     height: integer("height"),
     fps: doublePrecision("fps"),
     codec: text("codec"),
+    audioTracks: jsonb("audio_tracks").$type<AudioTrack[]>(),
     ...timestamps,
   },
   (t) => [index("assets_project_kind_idx").on(t.projectId, t.kind)]
@@ -76,6 +83,7 @@ export const transcripts = pgTable("transcripts", {
     .primaryKey()
     .references(() => projects.id, { onDelete: "cascade" }),
   language: text("language").notNull(),
+  languageSource: text("language_source").$type<LanguageSource>(),
   words: jsonb("words").$type<Word[]>().notNull(),
   segments: jsonb("segments").$type<Segment[]>().notNull(),
   ...timestamps,

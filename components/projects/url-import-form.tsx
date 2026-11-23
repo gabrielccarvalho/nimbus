@@ -19,8 +19,9 @@ import {
 } from "@/components/ui/input-group"
 import { Spinner } from "@/components/ui/spinner"
 import { importFromUrlAction } from "@/features/downloads/actions"
+import type { ImportOptions } from "@/features/projects/schema"
 
-export function UrlImportForm() {
+export function UrlImportForm({ options = {} }: { options?: ImportOptions }) {
   const router = useRouter()
   const [pending, startTransition] = React.useTransition()
   const [url, setUrl] = React.useState("")
@@ -29,7 +30,7 @@ export function UrlImportForm() {
   const submit = (event: React.FormEvent) => {
     event.preventDefault()
     startTransition(async () => {
-      const result = await importFromUrlAction(url)
+      const result = await importFromUrlAction(url, options)
       if (!result.ok) {
         setError(result.error.message)
         return

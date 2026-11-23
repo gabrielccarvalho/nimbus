@@ -6,9 +6,15 @@ import type { RawTranscript, TranscribeInput, Transcriber } from "./transcriber"
 
 export class FakeTranscriber implements Transcriber {
   readonly id = "fake"
+  readonly multilingual = true
+
+  async detectLanguage() {
+    return { language: data.language, probability: 0.9 }
+  }
 
   async transcribe({
     durationMs,
+    language,
     signal,
     onProgress,
   }: TranscribeInput): Promise<RawTranscript> {
@@ -34,6 +40,9 @@ export class FakeTranscriber implements Transcriber {
       }
       onProgress?.(((loop + 1) / loops) * 100)
     }
-    return { language: data.language, tokens }
+    return {
+      language: language && language !== "auto" ? language : data.language,
+      tokens,
+    }
   }
 }

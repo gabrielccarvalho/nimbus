@@ -207,15 +207,17 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 
 ### Phase 22: Per-project settings and spoken language
 
-- [ ] Every setting is per project: spoken language, selector, clip length range, clip count, captions and style, render quality. Global settings become "defaults for new projects"
-- [ ] Upload and link import start straight away with the defaults; an "Options" section in the import form sets language and selector up front
-- [ ] Project Settings tab; changing a setting offers to re-run only what it affects (language → transcribe onward, selector or clip length → find highlights, captions or quality → re-render)
-- [ ] Spoken-language detection that ignores the game: detect on several windows across the recording and take the majority instead of only the first 30 s; use yt-dlp's `language` field as a hint for link imports; an explicit choice always wins
-- [ ] Voice track picker: when the source has more than one audio track (common with OBS: mic on its own track), transcribe the chosen track; analysis keeps using the full mix
-- [ ] Segments that don't match the spoken language (low-confidence game dialogue) are down-weighted when finding highlights
+- [x] Every setting is per project: spoken language, voice track, selector, clip length range, clip count, captions and style, render quality. Global settings are "defaults for new projects"; hardware encoding stays global (it's a property of the machine). A migration fills the new fields on existing projects
+- [x] Upload and link import start straight away with the defaults; "Import options" on the home page sets language and selector up front (an `x-import-options` header for uploads, a second action argument for links)
+- [x] Project Settings tab; changing a setting offers to re-run only what it affects (language or voice track → transcribe onward, selector or clip length → find highlights, captions or quality → re-render rendered clips). Re-runs keep approved and rendered clips
+- [x] Spoken-language detection that ignores the game: 7 windows of 30 s across the recording, probability-weighted majority; yt-dlp's `language` field is used first for link imports; an explicit choice always wins. Checked on the 3 h GTA 6 stream: 2 of 5 windows said English (game dialogue), 3 said Portuguese, Portuguese won, ~0.7 s per window. whisper-cli's `-dl` ignores `-ot`, so each window is cut to its own file first
+- [x] Default model is now multilingual (`ggml-large-v3-turbo-q5_0.bin`); English-only models can't detect or transcribe other languages, and `doctor` and Settings warn about them
+- [x] Voice track picker: probe records every audio track; when there's more than one, the project settings offer a picker and transcription uses that track; analysis keeps using the full mix
+- [x] Moved to Phase 23: down-weighting low-confidence segments is scoring, which Phase 23 rewrites
 
 ### Phase 23: Highlights that adapt to the language
 
+- [ ] Segments that don't match the spoken language (low-confidence game dialogue) are down-weighted when finding highlights
 - [ ] Remove the hard-coded English keyword list. Score with signals that work in any language: loudness spikes against a rolling baseline, sudden speech-rate jumps, shouting and laughter, repeated words ("vai vai vai"), exclamations, a pause before a peak
 - [ ] Per-language reaction phrase lists as data files (en, pt, es to start), chosen from the transcript's language; extra phrases per project for a streamer's catchphrases
 - [ ] Claude selector: tell it the spoken language, write titles and hooks in that language, and split very long transcripts (multi-hour streams) into chunks

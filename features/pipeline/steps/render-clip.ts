@@ -127,7 +127,7 @@ export const renderClipStep: JobHandler = async ({
         seekMs: seekFor(clip.startMs).seekMs,
         graphFile: storage.resolve(workKey("graph.txt")),
         encoder,
-        crf: renderQualityCrf[settings.renderQuality],
+        crf: renderQualityCrf[project.settings.renderQuality],
         output: storage.resolve(workKey("mp4")),
       }),
       {

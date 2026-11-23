@@ -16,6 +16,7 @@ export class FakeDownloader implements Downloader {
     }
     return {
       title: "Imported recording",
+      language: null,
       durationMs: null,
       isLive: url.includes("live"),
       approxBytes: null,

@@ -30,6 +30,7 @@ export const probeStep: JobHandler = async ({
     height: info.displayHeight,
     fps: info.fps,
     codec: info.codec,
+    audioTracks: info.audioTracks,
   })
   reportProgress(10)
 

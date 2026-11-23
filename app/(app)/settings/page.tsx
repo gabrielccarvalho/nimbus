@@ -13,7 +13,8 @@ export default async function SettingsPage() {
       <div className="flex flex-col gap-1">
         <h1 className="font-heading text-2xl font-semibold">Settings</h1>
         <p className="text-sm text-muted-foreground">
-          Transcription, highlight selection, captions and rendering.
+          Defaults for new projects. Each project can change its own on its
+          Settings tab.
         </p>
       </div>
       <SettingsForm

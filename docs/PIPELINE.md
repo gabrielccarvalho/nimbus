@@ -49,8 +49,18 @@ Failure modes: not a media file, no video or no audio stream, zero duration, ffp
 ## 2. transcribe (`transcribing → analyzing`)
 
 ```sh
-ffmpeg -i <source> -vn -ac 1 -ar 16000 -c:a pcm_s16le <audio.wav>
+ffmpeg -i <source> [-map 0:a:<voice track>] -vn -ac 1 -ar 16000 -c:a pcm_s16le <audio.wav>
 ```
+
+The voice track comes from project settings (`audioTrack`, null for the default). Analysis keeps using the full mix when a voice track is chosen.
+
+Spoken language, first match wins (`features/transcription/language.ts`):
+
+1. the project's `language` setting when it isn't `auto`;
+2. the language the video's page reports (yt-dlp `language`, stored as `projects.source_language`);
+3. detection: 7 windows of 30 s spread across the recording, each cut with `ffmpeg -ss <t> -t 30 -c copy` and run through `whisper-cli -l auto -dl` (which ignores `-ot`, hence the cut), then the probability-weighted majority. Recordings under a minute use one window at the start. English-only models skip detection.
+
+The transcript stores the language and how it was chosen (`language_source`: setting, source, detected, whisper).
 
 Then the configured Transcriber:
 

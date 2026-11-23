@@ -25,6 +25,7 @@ export function parseInfo(json: string): VideoInfo {
   const duration = number(raw.duration)
   return {
     title: typeof raw.title === "string" ? raw.title.trim() : "",
+    language: typeof raw.language === "string" ? raw.language : null,
     durationMs: duration === null ? null : Math.round(duration * 1000),
     isLive:
       raw.is_live === true ||

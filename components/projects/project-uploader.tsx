@@ -17,6 +17,7 @@ import {
   ProgressLabel,
   ProgressValue,
 } from "@/components/ui/progress"
+import type { ImportOptions } from "@/features/projects/schema"
 import { formatBytes } from "@/lib/format"
 
 const ACCEPT = [
@@ -31,7 +32,11 @@ const ACCEPT = [
   ".webm",
 ]
 
-function upload(file: File, onProgress: (percent: number) => void) {
+function upload(
+  file: File,
+  options: ImportOptions,
+  onProgress: (percent: number) => void
+) {
   return new Promise<{ projectId: string }>((resolve, reject) => {
     const xhr = new XMLHttpRequest()
     xhr.open("POST", "/api/uploads")
@@ -40,6 +45,10 @@ function upload(file: File, onProgress: (percent: number) => void) {
       file.type || "application/octet-stream"
     )
     xhr.setRequestHeader("x-file-name", encodeURIComponent(file.name))
+    xhr.setRequestHeader(
+      "x-import-options",
+      encodeURIComponent(JSON.stringify(options))
+    )
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) onProgress((event.loaded / event.total) * 100)
     }
@@ -109,7 +118,13 @@ const REJECTION_MESSAGES: Record<DropzoneRejection["reason"], string> = {
   count: "Upload one video at a time",
 }
 
-export function ProjectUploader({ maxBytes }: { maxBytes: number }) {
+export function ProjectUploader({
+  maxBytes,
+  options = {},
+}: {
+  maxBytes: number
+  options?: ImportOptions
+}) {
   const router = useRouter()
   const [progress, setProgress] = React.useState<number | null>(null)
   const [fileName, setFileName] = React.useState("")
@@ -121,7 +136,7 @@ export function ProjectUploader({ maxBytes }: { maxBytes: number }) {
     setProgress(0)
     void capturePreview(file).then(setPreview)
     try {
-      const { projectId } = await upload(file, setProgress)
+      const { projectId } = await upload(file, options, setProgress)
       toast.success("Upload complete. Processing started.")
       router.push(`/projects/${projectId}`)
     } catch (error) {

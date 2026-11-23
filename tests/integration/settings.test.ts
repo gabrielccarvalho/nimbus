@@ -25,7 +25,7 @@ describe("app settings", () => {
     process.env.VIDEO_ENCODER = "auto"
     resetEnvCache()
     expect(await getAppSettings(env.db)).toMatchObject({
-      transcriptionLanguage: "pt",
+      language: "pt",
       hardwareEncoding: true,
       selectorMode: "heuristic",
     })

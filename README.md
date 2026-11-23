@@ -36,11 +36,11 @@ On Debian/Ubuntu, `apt-get install ffmpeg` includes libass.
 ```sh
 brew install whisper-cpp            # provides whisper-cli
 mkdir -p models
-curl -L -o models/ggml-base.en.bin \
-  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin
+curl -L -o models/ggml-large-v3-turbo-q5_0.bin \
+  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin
 ```
 
-Use `ggml-small.bin` or larger for non-English or better accuracy.
+The default is a multilingual model (~550 MB), so streams in any language can be transcribed and their spoken language detected. English-only models (`*.en.bin`) are smaller but can't detect or transcribe other languages; Settings warns when one is configured.
 
 ### yt-dlp (optional)
 
@@ -72,22 +72,22 @@ Projects from the earlier SQLite version can be copied over once with `pnpm db:i
 
 See `.env.example` for the full list. Values that also appear in Settings are only defaults: once Settings are saved, the saved values win. The main ones:
 
-| Variable                       | Default                     | Purpose                                                                                                                                                            |
-| ------------------------------ | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `DATA_DIR`                     | `./data`                    | Database, uploads and renders                                                                                                                                      |
-| `FFMPEG_PATH` / `FFPROBE_PATH` | `ffmpeg` / `ffprobe`        | Binaries                                                                                                                                                           |
-| `VIDEO_ENCODER`                | `libx264`                   | `libx264`, `auto` (first hardware H.264 encoder found) or a specific encoder. Anything but `libx264` turns hardware encoding on by default; Settings can toggle it |
-| `WHISPER_BIN`                  | `whisper-cli`               | whisper.cpp CLI                                                                                                                                                    |
-| `WHISPER_MODEL`                | `./models/ggml-base.en.bin` | Model file                                                                                                                                                         |
-| `WHISPER_LANGUAGE`             | `auto`                      | Default transcription language; overridable in Settings                                                                                                            |
-| `TRANSCRIBER`                  | `whisper`                   | `whisper` or `fake`                                                                                                                                                |
-| `YTDLP_PATH`                   | `yt-dlp`                    | yt-dlp binary for link imports                                                                                                                                     |
-| `DOWNLOADER`                   | `yt-dlp`                    | `yt-dlp` or `fake` (copies `FAKE_DOWNLOAD_FILE`)                                                                                                                   |
-| `HIGHLIGHT_SELECTOR`           | `heuristic`                 | `anthropic`, `manual` or `heuristic` (default for new projects; overridable in Settings)                                                                           |
-| `ANTHROPIC_API_KEY`            | —                           | Needed for the `anthropic` selector. Never sent to the browser                                                                                                     |
-| `ANTHROPIC_MODEL`              | `claude-sonnet-5-5`         | Model id                                                                                                                                                           |
-| `MAX_UPLOAD_BYTES`             | 21474836480                 | Upload limit (20 GiB)                                                                                                                                              |
-| `LOG_LEVEL`                    | `info`                      | pino level                                                                                                                                                         |
+| Variable                       | Default                                 | Purpose                                                                                                                                                            |
+| ------------------------------ | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `DATA_DIR`                     | `./data`                                | Database, uploads and renders                                                                                                                                      |
+| `FFMPEG_PATH` / `FFPROBE_PATH` | `ffmpeg` / `ffprobe`                    | Binaries                                                                                                                                                           |
+| `VIDEO_ENCODER`                | `libx264`                               | `libx264`, `auto` (first hardware H.264 encoder found) or a specific encoder. Anything but `libx264` turns hardware encoding on by default; Settings can toggle it |
+| `WHISPER_BIN`                  | `whisper-cli`                           | whisper.cpp CLI                                                                                                                                                    |
+| `WHISPER_MODEL`                | `./models/ggml-large-v3-turbo-q5_0.bin` | Model file                                                                                                                                                         |
+| `WHISPER_LANGUAGE`             | `auto`                                  | Default transcription language; overridable in Settings                                                                                                            |
+| `TRANSCRIBER`                  | `whisper`                               | `whisper` or `fake`                                                                                                                                                |
+| `YTDLP_PATH`                   | `yt-dlp`                                | yt-dlp binary for link imports                                                                                                                                     |
+| `DOWNLOADER`                   | `yt-dlp`                                | `yt-dlp` or `fake` (copies `FAKE_DOWNLOAD_FILE`)                                                                                                                   |
+| `HIGHLIGHT_SELECTOR`           | `heuristic`                             | `anthropic`, `manual` or `heuristic` (default for new projects; overridable in Settings)                                                                           |
+| `ANTHROPIC_API_KEY`            | —                                       | Needed for the `anthropic` selector. Never sent to the browser                                                                                                     |
+| `ANTHROPIC_MODEL`              | `claude-sonnet-5-5`                     | Model id                                                                                                                                                           |
+| `MAX_UPLOAD_BYTES`             | 21474836480                             | Upload limit (20 GiB)                                                                                                                                              |
+| `LOG_LEVEL`                    | `info`                                  | pino level                                                                                                                                                         |
 
 ## Scripts
 

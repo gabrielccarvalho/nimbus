@@ -116,7 +116,7 @@ export const renderEditStep: JobHandler = async ({
         seekMs: 0,
         graphFile: storage.resolve(workKey("graph.txt")),
         encoder,
-        crf: renderQualityCrf[settings.renderQuality],
+        crf: renderQualityCrf[project.settings.renderQuality],
         output: storage.resolve(workKey("mp4")),
       }),
       {

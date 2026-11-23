@@ -114,6 +114,13 @@ export function projectRepository(db: Db) {
         .where(eq(projects.id, id))
     },
 
+    async setSourceLanguage(id: string, language: string) {
+      await db
+        .update(projects)
+        .set({ sourceLanguage: language, updatedAt: now() })
+        .where(eq(projects.id, id))
+    },
+
     async updateSettings(id: string, settings: ProjectSettings) {
       await db
         .update(projects)

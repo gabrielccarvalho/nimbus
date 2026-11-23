@@ -62,10 +62,12 @@ describe("parseInfo", () => {
           live_status: "was_live",
           filesize_approx: 1_500_000_000,
           thumbnail: "https://i.ytimg.com/vi/abc/maxresdefault.jpg",
+          language: "pt-BR",
         })
       )
     ).toEqual({
       title: "My stream",
+      language: "pt-BR",
       durationMs: 3_725_500,
       isLive: false,
       approxBytes: 1_500_000_000,
@@ -81,6 +83,7 @@ describe("parseInfo", () => {
   it("tolerates missing fields", () => {
     expect(parseInfo("{}")).toEqual({
       title: "",
+      language: null,
       durationMs: null,
       isLive: false,
       approxBytes: null,

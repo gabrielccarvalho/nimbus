@@ -19,6 +19,7 @@ import {
 import { assetRepository, projectRepository } from "../../projects/repository"
 import { runFfmpeg } from "../../render/ffmpeg-runner"
 import { projectNameSchema } from "../../projects/schema"
+import { normalizeLanguage } from "../../transcription/language"
 import { beginStep, completeStep, throwIfAborted } from "./common"
 
 async function saveThumbnail(
@@ -85,6 +86,8 @@ export const downloadStep: JobHandler = async ({
   }
   const name = projectNameSchema.safeParse(info.title.slice(0, 120))
   if (name.success) await projects.rename(project.id, name.data)
+  const language = normalizeLanguage(info.language)
+  if (language) await projects.setSourceLanguage(project.id, language)
   if (info.thumbnailUrl && isPublicUrl(info.thumbnailUrl)) {
     await saveThumbnail(db, project.id, info.thumbnailUrl, signal).catch(
       (error: unknown) =>

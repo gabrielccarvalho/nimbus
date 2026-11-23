@@ -23,7 +23,10 @@ const envSchema = z.object({
     .enum(["auto", "libx264", "h264_videotoolbox", "h264_nvenc", "h264_qsv"])
     .default("libx264"),
   WHISPER_BIN: z.string().min(1).default("whisper-cli"),
-  WHISPER_MODEL: z.string().min(1).default("./models/ggml-base.en.bin"),
+  WHISPER_MODEL: z
+    .string()
+    .min(1)
+    .default("./models/ggml-large-v3-turbo-q5_0.bin"),
   WHISPER_LANGUAGE: z.string().min(1).default("auto"),
   WHISPER_THREADS: z.coerce.number().int().positive().default(4),
   TRANSCRIBER: z.enum(["whisper", "fake"]).default("whisper"),

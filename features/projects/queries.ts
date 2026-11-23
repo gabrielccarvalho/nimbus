@@ -3,6 +3,7 @@ import "server-only"
 import { connection } from "next/server"
 
 import { getDb, type Db } from "@/lib/db"
+import { getEnv } from "@/lib/env"
 import { mediaUrl, slugify } from "@/lib/format"
 
 import { normalizeLoudness } from "../analysis/loudness"
@@ -12,6 +13,7 @@ import { buildManualPrompt } from "../highlights/prompt"
 import { jobQueue } from "../jobs/queue"
 import { layoutRepository } from "../layout/repository"
 import { getProjectSnapshot } from "../pipeline/snapshot"
+import { isEnglishOnlyModel } from "../transcription/language"
 import { transcriptRepository } from "../transcription/repository"
 import { assetRepository, projectRepository } from "./repository"
 
@@ -233,3 +235,29 @@ export async function getProjectLayout(id: string) {
     hasPreset: Boolean(preset),
   }
 }
+
+export async function getProjectSettings(id: string) {
+  await connection()
+  const db = getDb()
+  const project = await projectRepository(db).get(id)
+  if (!project) return undefined
+  const [source, transcript] = await Promise.all([
+    assetRepository(db).findByKind(id, "source"),
+    transcriptRepository(db).get(id),
+  ])
+  const env = getEnv()
+  return {
+    project,
+    audioTracks: source?.audioTracks ?? [],
+    transcript: transcript
+      ? { language: transcript.language, source: transcript.languageSource }
+      : null,
+    claudeAvailable: Boolean(env.ANTHROPIC_API_KEY),
+    englishOnlyModel:
+      env.TRANSCRIBER === "whisper" && isEnglishOnlyModel(env.WHISPER_MODEL),
+  }
+}
+
+export type ProjectSettingsData = NonNullable<
+  Awaited<ReturnType<typeof getProjectSettings>>
+>

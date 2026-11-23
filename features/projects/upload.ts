@@ -23,9 +23,32 @@ import {
   type AcceptedVideoMime,
 } from "./media-type"
 import { assetRepository, projectRepository } from "./repository"
-import type { ProjectSettings } from "./schema"
+import {
+  importOptionsSchema,
+  type ImportOptions,
+  type ProjectSettings,
+} from "./schema"
 
 export const UPLOAD_FILENAME_HEADER = "x-file-name"
+export const UPLOAD_OPTIONS_HEADER = "x-import-options"
+
+export function parseImportOptions(input: unknown): ImportOptions {
+  const parsed = importOptionsSchema.safeParse(input ?? {})
+  if (!parsed.success) {
+    throw new AppError("VALIDATION", "Invalid import options")
+  }
+  return parsed.data
+}
+
+function optionsFromHeader(value: string | null) {
+  if (!value) return {}
+  try {
+    return parseImportOptions(JSON.parse(decodeURIComponent(value)))
+  } catch (error) {
+    if (error instanceof AppError) throw error
+    throw new AppError("VALIDATION", "Invalid import options")
+  }
+}
 
 function magicByteCheck(mime: AcceptedVideoMime) {
   let head = Buffer.alloc(0)
@@ -70,15 +93,20 @@ function magicByteCheck(mime: AcceptedVideoMime) {
   })
 }
 
-export async function projectSettingsFromApp(): Promise<ProjectSettings> {
+export async function projectSettingsFromApp(
+  options: ImportOptions = {}
+): Promise<ProjectSettings> {
   const app = await getAppSettings(getDb())
   return {
-    selectorMode: app.selectorMode,
+    selectorMode: options.selectorMode ?? app.selectorMode,
     clipMinMs: app.clipMinMs,
     clipMaxMs: app.clipMaxMs,
     targetClipCount: app.targetClipCount,
     captionStyle: app.captionStyle,
     captionsEnabled: app.captionsEnabled,
+    language: options.language ?? app.language,
+    audioTrack: null,
+    renderQuality: app.renderQuality,
   }
 }
 
@@ -88,6 +116,7 @@ export async function handleUpload(
   const env = getEnv()
   const rawName = request.headers.get(UPLOAD_FILENAME_HEADER)
   const fileName = rawName ? decodeURIComponent(rawName) : "upload.mp4"
+  const options = optionsFromHeader(request.headers.get(UPLOAD_OPTIONS_HEADER))
   const declared = (request.headers.get("content-type") ?? "")
     .split(";")[0]!
     .trim()
@@ -131,7 +160,7 @@ export async function handleUpload(
   await storage.move(tempKey, sourceKey)
   const db = getDb()
   try {
-    const settings = await projectSettingsFromApp()
+    const settings = await projectSettingsFromApp(options)
     await withTransaction(db, async (tx) => {
       await projectRepository(tx).create({
         id: projectId,
