@@ -18,11 +18,15 @@ export const selectStep: JobHandler = async ({
 }) => {
   const project = await beginStep(db, job.projectId, "selecting")
   const settings = project.settings
+  const more = job.payload.more === true
+  const existing = more
+    ? await clipRepository(db).listForProject(project.id)
+    : []
   const next = (await layoutRepository(db).get(project.id))?.confirmedByUser
     ? "ready_for_review"
     : "awaiting_layout"
 
-  if (settings.selectorMode === "manual") {
+  if (settings.selectorMode === "manual" && !more) {
     await projectRepository(db).setAwaitingManualSelection(project.id, true)
     await clipRepository(db).replaceCandidates(project.id, [])
     await completeStep(db, project.id, next)
@@ -35,7 +39,7 @@ export const selectStep: JobHandler = async ({
   reportProgress(10)
 
   const { candidates, fallbackReason } = await selectHighlights(
-    settings.selectorMode,
+    settings.selectorMode === "manual" ? "heuristic" : settings.selectorMode,
     {
       durationMs,
       words: transcript?.words ?? [],
@@ -51,13 +55,17 @@ export const selectStep: JobHandler = async ({
         maxMs: settings.clipMaxMs,
         maxCount: settings.targetClipCount,
       },
+      language: transcript?.language ?? settings.language,
+      reactionPhrases: settings.reactionPhrases,
+      exclude: existing,
       signal,
     },
     logger
   )
   throwIfAborted(signal)
 
-  await clipRepository(db).replaceCandidates(
+  const clips = clipRepository(db)
+  await (more ? clips.addCandidates : clips.replaceCandidates)(
     project.id,
     candidates.map((c) => ({
       startMs: c.startMs,
@@ -72,7 +80,7 @@ export const selectStep: JobHandler = async ({
   )
   await projectRepository(db).setAwaitingManualSelection(project.id, false)
   logger.info(
-    { candidates: candidates.length, fallback: Boolean(fallbackReason) },
+    { candidates: candidates.length, more, fallback: Boolean(fallbackReason) },
     "selected"
   )
   await completeStep(db, project.id, next)

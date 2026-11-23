@@ -15,6 +15,13 @@
       "when": 1795396153852,
       "tag": "0001_per_project_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795397212911,
+      "tag": "0002_reaction_phrases",
+      "breakpoints": true
     }
   ]
 }

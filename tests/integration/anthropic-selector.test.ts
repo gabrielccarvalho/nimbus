@@ -31,6 +31,8 @@ const input = {
     speechDensity: [],
   },
   limits: { minMs: 15_000, maxMs: 30_000, maxCount: 3 },
+  language: "en",
+  reactionPhrases: [],
 }
 const logger = pino({ level: "silent" })
 const create = () =>
@@ -98,6 +100,36 @@ describe("AnthropicSelector", () => {
     expect(JSON.stringify(body.messages)).toContain(
       "[0.0–5.5] go go go go go now!"
     )
+  })
+
+  it("splits very long transcripts into parts", async () => {
+    const prompts: string[] = []
+    server.use(
+      http.post(`${BASE}/v1/messages`, async ({ request }) => {
+        const body = (await request.json()) as {
+          messages: { content: string }[]
+        }
+        prompts.push(body.messages[0]!.content)
+        return HttpResponse.json(message(clipsJson))
+      })
+    )
+    const long = normalizeWords(
+      Array.from({ length: 20_000 }, (_, i) => ({
+        text: i % 10 === 9 ? " agora." : " palavra",
+        startMs: i * 500,
+        endMs: i * 500 + 400,
+      }))
+    )
+    await create().select({
+      ...input,
+      durationMs: 10_000_000,
+      words: long,
+      segments: buildSegments(long),
+      language: "pt",
+    })
+    expect(prompts.length).toBeGreaterThan(1)
+    expect(prompts[0]).toContain(`This is part 1 of ${prompts.length}`)
+    expect(prompts[0]).toContain("The streamer speaks Portuguese.")
   })
 
   it("asks once more when the reply doesn't parse", async () => {

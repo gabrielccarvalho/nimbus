@@ -217,11 +217,13 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 
 ### Phase 23: Highlights that adapt to the language
 
-- [ ] Segments that don't match the spoken language (low-confidence game dialogue) are down-weighted when finding highlights
-- [ ] Remove the hard-coded English keyword list. Score with signals that work in any language: loudness spikes against a rolling baseline, sudden speech-rate jumps, shouting and laughter, repeated words ("vai vai vai"), exclamations, a pause before a peak
-- [ ] Per-language reaction phrase lists as data files (en, pt, es to start), chosen from the transcript's language; extra phrases per project for a streamer's catchphrases
-- [ ] Claude selector: tell it the spoken language, write titles and hooks in that language, and split very long transcripts (multi-hour streams) into chunks
-- [ ] Tune weights against a few real streams with known good moments; keep the tuning set as a regression test
+- [x] Segments that don't match the spoken language (low-confidence game dialogue) are down-weighted: window score × (0.4 + 0.6 × mean word confidence); Claude sees them marked `(unclear)`
+- [x] Hard-coded English keywords removed. Signals that work in any language, each against the surrounding 2 minutes: loudness spike, speech-rate jump, laughter and exclamations, repeated words, a pause before the peak
+- [x] Reaction phrase lists as data (`features/highlights/phrases/{en,pt,es}.json`), picked by the transcript's language, plus per-project catchphrases (Settings → Highlights). Phrases count only above 1.5× the streamer's own rate, so verbal tics ("mano") don't dominate
+- [x] Claude selector: told the spoken language, writes titles and hooks in it, and long transcripts are split into overlapping parts sent in parallel
+- [~] Tuning: checked against the Portuguese transcript of the 3 h GTA 6 stream (top picks: "Corre, corre, corre…", "Meu Deus do céu… Não é possível", "Caralho, irmão, se você bater no meu carro de novo…"; the old scorer's 12-minute cluster around one sub-thanks segment is gone). The regression tests are synthetic (`heuristic.test.ts`); a real tuning set needs streams with known good moments, and the stream content isn't committed
+- [x] Rejected clips leave the clip list, with Undo in the toast and a "Show rejected" toggle
+- [x] "Find more highlights" adds candidates that don't overlap any existing clip, rejected ones included, without replacing anything
 
 ### Phase 24: Overview that changes with each step
 

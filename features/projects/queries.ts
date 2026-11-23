@@ -117,6 +117,8 @@ export async function getProjectClips(id: string) {
     const signals = await signalsRepository(db).get(id)
     manualPrompt = buildManualPrompt({
       durationMs,
+      words: transcript?.words ?? [],
+      language: transcript?.language ?? project.settings.language,
       segments: transcript?.segments ?? [],
       signals: signals ?? {
         silences: [],

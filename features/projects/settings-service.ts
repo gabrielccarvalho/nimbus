@@ -73,3 +73,25 @@ export async function rerunProject(db: Db, projectId: string, step: RerunStep) {
   })
   return 0
 }
+
+export async function findMoreHighlights(db: Db, projectId: string) {
+  const project = await projectRepository(db).getOrThrow(projectId)
+  if (
+    !["awaiting_layout", "ready_for_review", "done"].includes(project.status)
+  ) {
+    throw new AppError(
+      "CONFLICT",
+      isRunning(project.status)
+        ? "Wait for the current step to finish"
+        : "Highlights haven't been found yet"
+    )
+  }
+  await withTransaction(db, async (tx) => {
+    await projectRepository(tx).transition(projectId, "selecting")
+    await jobQueue(tx).enqueue({
+      type: "select",
+      projectId,
+      payload: { more: true },
+    })
+  })
+}

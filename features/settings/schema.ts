@@ -4,6 +4,7 @@ import {
   captionStyleRefSchema,
   defaultProjectSettings,
   languageSchema,
+  reactionPhrasesSchema,
   renderQualitySchema,
   selectorModeSchema,
   type RenderQuality,
@@ -21,6 +22,7 @@ export const appSettingsSchema = z
     captionStyle: captionStyleRefSchema,
     captionsEnabled: z.boolean(),
     renderQuality: renderQualitySchema,
+    reactionPhrases: reactionPhrasesSchema,
     hardwareEncoding: z.boolean(),
   })
   .refine((s) => s.clipMinMs < s.clipMaxMs, {
@@ -38,6 +40,7 @@ export const defaultAppSettings: AppSettings = {
   captionStyle: defaultProjectSettings.captionStyle,
   captionsEnabled: defaultProjectSettings.captionsEnabled,
   renderQuality: defaultProjectSettings.renderQuality,
+  reactionPhrases: defaultProjectSettings.reactionPhrases,
   hardwareEncoding: false,
 }
 

@@ -8,6 +8,7 @@ import {
   FileZipIcon,
   PencilSimpleIcon,
   PlayIcon,
+  SparkleIcon,
   XIcon,
 } from "@phosphor-icons/react"
 import Link from "next/link"
@@ -52,6 +53,7 @@ import {
 } from "@/features/clips/actions"
 import type { Clip } from "@/features/clips/repository"
 import type { ProjectSnapshot } from "@/features/pipeline/snapshot"
+import { findMoreHighlightsAction } from "@/features/projects/actions"
 import type { AudioSummary } from "@/features/projects/queries"
 import { renderClipsAction, renderEditAction } from "@/features/render/actions"
 import type { Result } from "@/lib/errors"
@@ -226,6 +228,21 @@ export function ClipsReview({
 }: ClipsReviewProps) {
   const snapshot = useProjectEvents(initialSnapshot)
   const [selectedId, setSelectedId] = React.useState(clips[0]?.id)
+  const [showRejected, setShowRejected] = React.useState(false)
+  const router = useRouter()
+  const [finding, startFinding] = React.useTransition()
+  const selecting = snapshot.status === "selecting"
+  const findMore = () =>
+    startFinding(async () => {
+      const result = await findMoreHighlightsAction(projectId)
+      if (!result.ok) toast.error(result.error.message)
+      else toast.success("Looking for more highlights")
+      router.refresh()
+    })
+  const rejected = clips.filter((clip) => clip.status === "rejected").length
+  const visible = showRejected
+    ? clips
+    : clips.filter((clip) => clip.status !== "rejected")
   return (
     <VideoPlayerProvider>
       <ExportPanel
@@ -254,19 +271,48 @@ export function ClipsReview({
             audio={audio}
           />
         </div>
-        <ol aria-label="Clip candidates" className="flex flex-col gap-3">
-          {clips.map((clip, index) => (
-            <ClipCard
-              key={clip.id}
-              rank={index + 1}
-              projectId={projectId}
-              clip={clip}
-              render={renders[clip.id]}
-              selected={clip.id === selectedId}
-              onSelect={() => setSelectedId(clip.id)}
-            />
-          ))}
-        </ol>
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
+            <span>
+              {rejected > 0 &&
+                `${rejected} rejected ${rejected === 1 ? "clip" : "clips"} ${showRejected ? "shown" : "hidden"}`}
+            </span>
+            <div className="flex gap-1">
+              {rejected > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-pressed={showRejected}
+                  onClick={() => setShowRejected((value) => !value)}
+                >
+                  {showRejected ? "Hide rejected" : "Show rejected"}
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={finding || selecting}
+                onClick={findMore}
+              >
+                <SparkleIcon data-icon="inline-start" aria-hidden />
+                {selecting ? "Finding highlights…" : "Find more highlights"}
+              </Button>
+            </div>
+          </div>
+          <ol aria-label="Clip candidates" className="flex flex-col gap-3">
+            {visible.map((clip, index) => (
+              <ClipCard
+                key={clip.id}
+                rank={index + 1}
+                projectId={projectId}
+                clip={clip}
+                render={renders[clip.id]}
+                selected={clip.id === selectedId}
+                onSelect={() => setSelectedId(clip.id)}
+              />
+            ))}
+          </ol>
+        </div>
       </div>
     </VideoPlayerProvider>
   )
@@ -342,6 +388,18 @@ function ClipCard({
       if (!result.ok) {
         toast.error(result.error.message)
         return
+      }
+      if (status === "rejected") {
+        toast(`Rejected “${clip.title}”`, {
+          action: {
+            label: "Undo",
+            onClick: () => {
+              void setClipStatusAction(projectId, clip.id, clip.status).then(
+                () => router.refresh()
+              )
+            },
+          },
+        })
       }
       router.refresh()
     })

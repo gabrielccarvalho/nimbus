@@ -1,5 +1,7 @@
 "use client"
 
+import * as React from "react"
+
 import {
   Field,
   FieldContent,
@@ -20,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { CAPTION_PRESETS } from "@/features/captions/styles"
 import type {
@@ -88,6 +91,7 @@ type Shared = Pick<
   | "captionsEnabled"
   | "captionStyle"
   | "renderQuality"
+  | "reactionPhrases"
 >
 
 type FieldsProps<T extends Shared> = {
@@ -225,7 +229,38 @@ export function HighlightFields<T extends Shared>({
           />
         </Field>
       </div>
+      <CatchphrasesField value={value} set={set} />
     </FieldGroup>
+  )
+}
+
+function CatchphrasesField<T extends Shared>({ value, set }: FieldsProps<T>) {
+  const [draft, setDraft] = React.useState(value.reactionPhrases.join("\n"))
+  return (
+    <Field>
+      <FieldLabel htmlFor="catchphrases">Catchphrases</FieldLabel>
+      <Textarea
+        id="catchphrases"
+        rows={3}
+        value={draft}
+        placeholder={"bora bill\nque isso, chat"}
+        onChange={(event) => {
+          setDraft(event.target.value)
+          set(
+            "reactionPhrases",
+            event.target.value
+              .split("\n")
+              .map((line) => line.trim())
+              .filter(Boolean) as T["reactionPhrases"]
+          )
+        }}
+      />
+      <FieldDescription>
+        One per line. Things the streamer says when something big happens, on
+        top of the usual reactions for the spoken language. Used by the built-in
+        selector.
+      </FieldDescription>
+    </Field>
   )
 }
 

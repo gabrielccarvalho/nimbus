@@ -11,7 +11,11 @@ import { projectRepository } from "./repository"
 import { rerunSteps } from "./rerun"
 import { projectNameSchema } from "./schema"
 import { cancelProject, deleteProject, retryProject } from "./service"
-import { rerunProject, updateProjectSettings } from "./settings-service"
+import {
+  findMoreHighlights,
+  rerunProject,
+  updateProjectSettings,
+} from "./settings-service"
 
 const parseId = (input: unknown) => parseAnyId(input, "project id")
 
@@ -79,4 +83,11 @@ export async function rerunProjectAction(projectId: unknown, step: unknown) {
     },
     [`/projects/${id}`]
   )
+}
+
+export async function findMoreHighlightsAction(projectId: unknown) {
+  const id = parseId(projectId)
+  return run("findMoreHighlights", () => findMoreHighlights(getDb(), id), [
+    `/projects/${id}`,
+  ])
 }

@@ -1,33 +1,31 @@
 import { normalizeLoudness } from "../analysis/loudness"
-import type { Segment } from "../transcription/schema"
+import type { Segment, Word } from "../transcription/schema"
+import {
+  countPhrases,
+  isExclamation,
+  isLaughter,
+  normalizeText,
+  reactionPhrases,
+} from "./phrases"
 import type { HighlightSelector, RawCandidate, SelectorInput } from "./types"
 
 export const HEURISTIC_WEIGHTS = {
-  loudness: 0.45,
-  density: 0.3,
-  keywords: 0.15,
-  questionAnswer: 0.1,
+  loudnessSpike: 0.3,
+  speechRate: 0.15,
+  excitement: 0.15,
+  phrases: 0.15,
+  repetition: 0.1,
+  pauseBeforePeak: 0.1,
+  questionAnswer: 0.05,
 } as const
 
-const KEYWORDS = [
-  "no way",
-  "let's go",
-  "lets go",
-  "oh my god",
-  "insane",
-  "crazy",
-  "clutch",
-  "wait",
-  "what",
-  "wow",
-  "holy",
-  "yes",
-  "did it",
-  "unbelievable",
-  "laugh",
-]
+type Feature = keyof typeof HEURISTIC_WEIGHTS
 
 const ANCHOR_STEP_MS = 5000
+const BASELINE_MS = 120_000
+const PAUSE_BEFORE_PEAK_MS = 3000
+const REPEAT_GAP_MS = 3000
+const BASELINE_MARGIN = 1.5
 
 function percentile(values: readonly number[], p: number) {
   if (values.length === 0) return 0
@@ -35,21 +33,25 @@ function percentile(values: readonly number[], p: number) {
   return sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))]!
 }
 
-function keywordHits(text: string) {
-  const lower = text.toLowerCase()
-  return KEYWORDS.reduce((sum, keyword) => {
-    const pattern = new RegExp(`\\b${keyword.replace(/'/g, "'?")}\\b`, "g")
-    return sum + (lower.match(pattern)?.length ?? 0)
-  }, 0)
+function prefixSums(values: readonly number[]) {
+  const sums = new Float64Array(values.length + 1)
+  values.forEach((value, i) => (sums[i + 1] = sums[i]! + value))
+  return (from: number, to: number) => {
+    const a = Math.max(0, Math.min(values.length, from))
+    const b = Math.max(a, Math.min(values.length, to))
+    return sums[b]! - sums[a]!
+  }
 }
 
-function hasQuestionAnswer(segments: readonly Segment[]) {
-  return segments.some(
-    (segment, i) =>
-      segment.text.trim().endsWith("?") &&
-      segments[i + 1] &&
-      !segments[i + 1]!.text.trim().endsWith("?")
-  )
+function lowerBound(values: readonly number[], target: number) {
+  let lo = 0
+  let hi = values.length
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (values[mid]! < target) lo = mid + 1
+    else hi = mid
+  }
+  return lo
 }
 
 function shorten(text: string, max: number) {
@@ -57,13 +59,26 @@ function shorten(text: string, max: number) {
   return `${text.slice(0, max - 1).replace(/\s+\S*$/, "")}…`
 }
 
+function repeatedWords(words: readonly Word[]) {
+  return words.map((word, i) => {
+    if (i < 2) return 0
+    const key = normalizeText(word.text)
+    if (key.length < 2) return 0
+    const a = words[i - 1]!
+    const b = words[i - 2]!
+    return normalizeText(a.text) === key &&
+      normalizeText(b.text) === key &&
+      word.startMs - b.startMs <= REPEAT_GAP_MS
+      ? 1
+      : 0
+  })
+}
+
 type Window = {
   startMs: number
   endMs: number
-  loudness: number
-  density: number
-  keywords: number
-  questionAnswer: number
+  values: Record<Feature, number>
+  confidence: number
   segments: Segment[]
 }
 
@@ -72,13 +87,39 @@ export function scoreWindows(
 ): RawCandidate[] {
   const { durationMs, words, segments, signals, limits } = input
   if (durationMs <= 0) return []
+  const phrases = reactionPhrases(input.language, input.reactionPhrases)
   const loudness = normalizeLoudness(signals.loudness)
   const interval = signals.loudnessIntervalMs
+  const loudnessSum = prefixSums(loudness)
+  const wordStarts = words.map((w) => w.startMs)
+  const wordsIn = (from: number, to: number): [number, number] => [
+    lowerBound(wordStarts, from),
+    lowerBound(wordStarts, to),
+  ]
+  const confidenceSum = prefixSums(words.map((w) => w.confidence))
+  const excitedSum = prefixSums(
+    words.map((w) => (isExclamation(w.text) || isLaughter(w.text) ? 1 : 0))
+  )
+  const repeatSum = prefixSums(repeatedWords(words))
+  const segmentStarts = segments.map((s) => s.startMs)
+  const segmentPhrases = segments.map((s) => countPhrases(s.text, phrases))
+  const phraseSum = prefixSums(segmentPhrases)
+  const silenceEnds = signals.silences.map((s) => s.endMs).sort((a, b) => a - b)
+
+  const rate = (from: number, to: number) => {
+    const [a, b] = wordsIn(from, to)
+    return (b - a) / Math.max(1, (to - from) / 1000)
+  }
+  const meanLoudness = (from: number, to: number) => {
+    const a = Math.floor(from / interval)
+    const b = Math.ceil(to / interval)
+    return b > a ? loudnessSum(a, b) / (b - a) : 0
+  }
+
   const lengths = [
     ...new Set([limits.minMs, Math.round((limits.minMs + limits.maxMs) / 2)]),
   ]
-
-  const anchors = new Set<number>(segments.map((s) => s.startMs))
+  const anchors = new Set<number>(segmentStarts)
   for (let ms = 0; ms < durationMs; ms += ANCHOR_STEP_MS) anchors.add(ms)
 
   const windows: Window[] = []
@@ -86,56 +127,100 @@ export function scoreWindows(
     for (const length of lengths) {
       const endMs = Math.min(durationMs, startMs + length)
       if (endMs - startMs < Math.min(limits.minMs, durationMs)) continue
-      const slice = loudness.slice(
-        Math.floor(startMs / interval),
-        Math.ceil(endMs / interval)
-      )
-      const wordCount = words.filter(
-        (w) => w.startMs >= startMs && w.startMs < endMs
-      ).length
-      const inside = segments.filter(
-        (s) => s.startMs >= startMs && s.startMs < endMs
-      )
+      const from = Math.floor(startMs / interval)
+      const slice = loudness.slice(from, Math.ceil(endMs / interval))
+      let peakIndex = 0
+      slice.forEach((v, i) => {
+        if (v > slice[peakIndex]!) peakIndex = i
+      })
+      const peakMs = (from + peakIndex) * interval
+      const baseFrom = Math.max(0, startMs - BASELINE_MS)
+      const baseTo = Math.min(durationMs, endMs + BASELINE_MS)
+      const [wa, wb] = wordsIn(startMs, endMs)
+      const sa = lowerBound(segmentStarts, startMs)
+      const sb = lowerBound(segmentStarts, endMs)
+      const inside = segments.slice(sa, sb)
+      const pause =
+        silenceEnds[lowerBound(silenceEnds, peakMs - PAUSE_BEFORE_PEAK_MS)]
+      const baselineRate = rate(baseFrom, baseTo)
+      const [ba, bb] = wordsIn(baseFrom, baseTo)
+      const bsa = lowerBound(segmentStarts, baseFrom)
+      const bsb = lowerBound(segmentStarts, baseTo)
+      const share = (endMs - startMs) / Math.max(1, baseTo - baseFrom)
       windows.push({
         startMs,
         endMs,
-        loudness: percentile(slice, 0.9),
-        density: wordCount / ((endMs - startMs) / 1000),
-        keywords: keywordHits(inside.map((s) => s.text).join(" ")),
-        questionAnswer: hasQuestionAnswer(inside) ? 1 : 0,
+        values: {
+          loudnessSpike: Math.max(
+            0,
+            percentile(slice, 0.9) - meanLoudness(baseFrom, baseTo)
+          ),
+          speechRate:
+            baselineRate > 0
+              ? Math.min(
+                  2,
+                  Math.max(0, rate(startMs, endMs) / baselineRate - 1)
+                )
+              : 0,
+          excitement: Math.max(
+            0,
+            excitedSum(wa, wb) - BASELINE_MARGIN * share * excitedSum(ba, bb)
+          ),
+          phrases: Math.max(
+            0,
+            phraseSum(sa, sb) - BASELINE_MARGIN * share * phraseSum(bsa, bsb)
+          ),
+          repetition: repeatSum(wa, wb),
+          pauseBeforePeak:
+            pause !== undefined && pause <= peakMs && pause >= startMs ? 1 : 0,
+          questionAnswer: inside.some(
+            (segment, i) =>
+              segment.text.trim().endsWith("?") &&
+              inside[i + 1] &&
+              !inside[i + 1]!.text.trim().endsWith("?")
+          )
+            ? 1
+            : 0,
+        },
+        confidence: wb > wa ? confidenceSum(wa, wb) / (wb - wa) : 1,
         segments: inside,
       })
     }
   }
 
-  const max = (key: "loudness" | "density" | "keywords") =>
-    Math.max(...windows.map((w) => w[key]), 0) || 1
-  const maxLoudness = max("loudness")
-  const maxDensity = max("density")
-  const maxKeywords = max("keywords")
+  const scale = Object.fromEntries(
+    (Object.keys(HEURISTIC_WEIGHTS) as Feature[]).map((key) => {
+      const nonZero = windows.map((w) => w.values[key]).filter((v) => v > 0)
+      return [key, percentile(nonZero, 0.95) || 1]
+    })
+  ) as Record<Feature, number>
 
   return windows.map((window) => {
-    const parts = {
-      loudness: window.loudness / maxLoudness,
-      density: window.density / maxDensity,
-      keywords: window.keywords / maxKeywords,
-      questionAnswer: window.questionAnswer,
-    }
-    const score =
-      HEURISTIC_WEIGHTS.loudness * parts.loudness +
-      HEURISTIC_WEIGHTS.density * parts.density +
-      HEURISTIC_WEIGHTS.keywords * parts.keywords +
-      HEURISTIC_WEIGHTS.questionAnswer * parts.questionAnswer
+    const parts = Object.fromEntries(
+      (Object.keys(HEURISTIC_WEIGHTS) as Feature[]).map((key) => [
+        key,
+        Math.min(1, window.values[key] / scale[key]),
+      ])
+    ) as Record<Feature, number>
+    const raw = (Object.keys(HEURISTIC_WEIGHTS) as Feature[]).reduce(
+      (sum, key) => sum + HEURISTIC_WEIGHTS[key] * parts[key],
+      0
+    )
+    const score = raw * (0.4 + 0.6 * window.confidence)
     const hookSegment =
-      [...window.segments].sort(
-        (a, b) => keywordHits(b.text) - keywordHits(a.text)
-      )[0] ?? window.segments[0]
+      window.segments.find(
+        (segment) =>
+          /[!?¡¿]/.test(segment.text) || countPhrases(segment.text, phrases) > 0
+      ) ?? window.segments[0]
     const reasons = [
-      parts.loudness >= 0.8 && "loud peak",
-      parts.density >= 0.8 && "fast talking",
-      window.keywords > 0 &&
-        `${window.keywords} hype ${window.keywords === 1 ? "word" : "words"}`,
-      window.questionAnswer && "question and answer",
+      parts.loudnessSpike >= 0.8 && "loud spike",
+      parts.speechRate >= 0.8 && "talking faster",
+      parts.excitement >= 0.5 && "laughing or shouting",
+      parts.phrases >= 0.5 && "reaction phrases",
+      window.values.repetition > 0 && "repeated words",
+      window.values.pauseBeforePeak && "pause before the peak",
+      window.values.questionAnswer && "question and answer",
+      window.confidence < 0.6 && "unclear speech, scored lower",
     ].filter(Boolean)
     return {
       startMs: window.startMs,

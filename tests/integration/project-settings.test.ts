@@ -6,6 +6,7 @@ import { importFromUrl } from "@/features/downloads/service"
 import { jobQueue } from "@/features/jobs/queue"
 import { projectRepository } from "@/features/projects/repository"
 import {
+  findMoreHighlights,
   rerunProject,
   updateProjectSettings,
 } from "@/features/projects/settings-service"
@@ -131,5 +132,46 @@ describe("project settings", () => {
     await expect(
       rerunProject(env.db, project.id, "render")
     ).rejects.toMatchObject({ code: "CONFLICT" })
+  })
+})
+
+describe("find more highlights", () => {
+  it("adds candidates without touching or repeating existing clips", async () => {
+    const project = await analyzedProject()
+    const clips = clipRepository(env.db)
+    const before = await clips.listForProject(project.id)
+    expect(before.length).toBeGreaterThan(0)
+    await setClipReviewStatus(env.db, project.id, before[0]!.id, "rejected")
+
+    await findMoreHighlights(env.db, project.id)
+    const projects = projectRepository(env.db)
+    expect((await projects.getOrThrow(project.id)).status).toBe("selecting")
+    await runJobs(env.db, ["select"])
+
+    const after = await clips.listForProject(project.id)
+    expect((await projects.getOrThrow(project.id)).status).toBe(
+      "awaiting_layout"
+    )
+    for (const clip of before) {
+      expect(after.find((c) => c.id === clip.id)).toBeDefined()
+    }
+    expect(await clips.get(before[0]!.id)).toMatchObject({ status: "rejected" })
+    const added = after.filter((c) => !before.some((b) => b.id === c.id))
+    for (const clip of added) {
+      for (const old of before) {
+        const overlap =
+          Math.min(clip.endMs, old.endMs) - Math.max(clip.startMs, old.startMs)
+        expect(
+          overlap / Math.min(clip.endMs - clip.startMs, old.endMs - old.startMs)
+        ).toBeLessThanOrEqual(0.2)
+      }
+    }
+  })
+
+  it("needs highlights to have been found first", async () => {
+    const { projectId } = await uploadFixture(fixtures.wide)
+    await expect(findMoreHighlights(env.db, projectId)).rejects.toMatchObject({
+      code: "CONFLICT",
+    })
   })
 })

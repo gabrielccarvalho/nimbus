@@ -26,6 +26,10 @@ export type RenderQuality = z.infer<typeof renderQualitySchema>
 
 export const languageSchema = z.string().trim().min(2).max(10)
 
+export const reactionPhrasesSchema = z
+  .array(z.string().trim().min(2).max(60))
+  .max(50)
+
 export const captionStyleRefSchema = z.object({
   presetId: z.string().min(1),
   overrides: z.record(z.string(), z.unknown()).default({}),
@@ -42,6 +46,7 @@ export const projectSettingsSchema = z
     language: languageSchema,
     audioTrack: z.number().int().min(0).max(31).nullable(),
     renderQuality: renderQualitySchema,
+    reactionPhrases: reactionPhrasesSchema,
   })
   .refine((s) => s.clipMinMs < s.clipMaxMs, {
     message: "Minimum clip length must be shorter than the maximum",
@@ -59,6 +64,7 @@ export const defaultProjectSettings: ProjectSettings = {
   language: "auto",
   audioTrack: null,
   renderQuality: "standard",
+  reactionPhrases: [],
 }
 
 export const importOptionsSchema = z.object({

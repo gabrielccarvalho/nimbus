@@ -5,7 +5,13 @@ export type RerunStep = (typeof rerunSteps)[number]
 
 const AFFECTS: Record<RerunStep, readonly (keyof ProjectSettings)[]> = {
   transcribe: ["language", "audioTrack"],
-  select: ["selectorMode", "clipMinMs", "clipMaxMs", "targetClipCount"],
+  select: [
+    "selectorMode",
+    "clipMinMs",
+    "clipMaxMs",
+    "targetClipCount",
+    "reactionPhrases",
+  ],
   render: ["captionStyle", "captionsEnabled", "renderQuality"],
 }
 

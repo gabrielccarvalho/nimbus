@@ -107,6 +107,7 @@ export async function projectSettingsFromApp(
     language: options.language ?? app.language,
     audioTrack: null,
     renderQuality: app.renderQuality,
+    reactionPhrases: app.reactionPhrases,
   }
 }
 

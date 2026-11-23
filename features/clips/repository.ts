@@ -65,6 +65,17 @@ export function clipRepository(db: Db) {
       })
     },
 
+    async addCandidates(
+      projectId: string,
+      candidates: NewClip[]
+    ): Promise<Clip[]> {
+      if (candidates.length === 0) return []
+      return db
+        .insert(clips)
+        .values(candidates.map((c) => ({ ...c, id: newId(), projectId })))
+        .returning()
+    },
+
     async update(
       id: string,
       patch: Partial<Omit<typeof clips.$inferInsert, "id" | "projectId">>
