@@ -197,12 +197,13 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 
 ### Phase 21: Postgres + Docker for local development
 
-- [ ] `docker-compose.yml` with Postgres 17 (volume, healthcheck); `pnpm dev` starts it first. Next and the worker stay on the host, because VideoToolbox and whisper's Metal acceleration don't work inside Docker on macOS
-- [ ] Drizzle pg schema and migrations; all repositories and their callers become async; transactions via `db.transaction`
-- [ ] Job queue claims with `SELECT … FOR UPDATE SKIP LOCKED`; `LISTEN/NOTIFY` for project events so SSE no longer polls the DB
-- [ ] Tests: PGlite (in-process Postgres) for unit and integration tests so they don't need Docker; e2e against the compose database
-- [ ] One-off script to copy existing SQLite projects into Postgres; `doctor` checks the database connection
-- [ ] ADR: why Postgres (concurrent workers, NOTIFY, standard tooling, path to hosting) and what it costs (Docker needed to run)
+- [x] `docker-compose.yml` with Postgres 17 (volume, healthcheck, port 5442); `pnpm dev` starts it and migrates first. Next and the worker stay on the host, because VideoToolbox and whisper's Metal acceleration don't work inside Docker on macOS
+- [x] Drizzle pg schema and migrations; all repositories and their callers become async; transactions via `db.transaction`. `no-floating-promises` and `no-misused-promises` are on so a missing `await` fails lint
+- [x] Job queue claims with `SELECT … FOR UPDATE SKIP LOCKED`, with a four-connection race test against real Postgres
+- [x] Dropped: `LISTEN/NOTIFY` for SSE. Each event still has to read the snapshot, so it would only save one cheap query per open tab every 500 ms (ADR-0041)
+- [x] Tests: PGlite (in-process Postgres) for unit and integration tests so they don't need Docker; e2e against a fresh `nimbus_e2e` database on the compose server
+- [x] One-off script to copy existing SQLite projects into Postgres (`pnpm db:import-sqlite`; the GTA 6 stream came over with its 12 clips); `doctor` checks the database connection
+- [x] ADR: why Postgres (concurrent workers, NOTIFY, standard tooling, path to hosting) and what it costs (Docker needed to run)
 
 ### Phase 22: Per-project settings and spoken language
 

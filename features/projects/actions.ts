@@ -39,13 +39,14 @@ export async function renameProjectAction(projectId: unknown, name: unknown) {
   const id = parseId(projectId)
   return run(
     "renameProject",
-    () => {
+    async () => {
       const parsed = projectNameSchema.safeParse(name)
       if (!parsed.success) {
         throw new AppError("VALIDATION", "Name must be 1–120 characters")
       }
-      projectRepository(getDb()).getOrThrow(id)
-      projectRepository(getDb()).rename(id, parsed.data)
+      const projects = projectRepository(getDb())
+      await projects.getOrThrow(id)
+      await projects.rename(id, parsed.data)
     },
     ["/"]
   )

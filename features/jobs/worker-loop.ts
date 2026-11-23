@@ -28,9 +28,9 @@ export type WorkerOptions = {
   pollMs: number
   leaseMs?: number
   timeoutMs?: (job: Job) => number
-  onSucceeded?: (job: Job) => void
-  onFinalFailure?: (job: Job, error: AppError) => void
-  onCancelled?: (job: Job) => void
+  onSucceeded?: (job: Job) => Promise<void> | void
+  onFinalFailure?: (job: Job, error: AppError) => Promise<void> | void
+  onCancelled?: (job: Job) => Promise<void> | void
 }
 
 const PROGRESS_WRITE_MS = 500
@@ -93,10 +93,19 @@ export function createWorker(options: WorkerOptions) {
       controller.abort(reason)
     }
 
+    let beating: Promise<void> | undefined
     const beat = () => {
-      const alive = queue.heartbeat(job.id, owner, leaseMs, progress)
+      if (beating) return
       lastWrite = Date.now()
-      if (!alive) abort(new AppError("CANCELLED", "Job was cancelled"))
+      beating = queue
+        .heartbeat(job.id, owner, leaseMs, progress)
+        .then((alive) => {
+          if (!alive) abort(new AppError("CANCELLED", "Job was cancelled"))
+        })
+        .catch((error: unknown) => log.warn({ err: error }, "heartbeat failed"))
+        .finally(() => {
+          beating = undefined
+        })
     }
 
     const heartbeat = setInterval(
@@ -127,23 +136,24 @@ export function createWorker(options: WorkerOptions) {
           if (Date.now() - lastWrite >= PROGRESS_WRITE_MS) beat()
         },
       })
+      await beating
       if (abortReason) throw abortReason
-      queue.complete(job.id, owner)
+      await queue.complete(job.id, owner)
       log.info("job succeeded")
-      options.onSucceeded?.(job)
+      await options.onSucceeded?.(job)
     } catch (caught) {
       const error = abortReason ?? toAppError(caught)
       if (error.code === "CANCELLED") {
-        queue.cancel(job.id)
+        await queue.cancel(job.id)
         log.info("job cancelled")
-        options.onCancelled?.(job)
+        await options.onCancelled?.(job)
         return
       }
       const stderrTail =
         typeof error.details?.stderrTail === "string"
           ? `\n${error.details.stderrTail}`
           : ""
-      const updated = queue.fail(
+      const updated = await queue.fail(
         job.id,
         owner,
         `${error.message}${stderrTail}`,
@@ -153,7 +163,7 @@ export function createWorker(options: WorkerOptions) {
       )
       if (updated?.status === "failed") {
         log.error({ err: error }, "job failed")
-        options.onFinalFailure?.(updated, error)
+        await options.onFinalFailure?.(updated, error)
       } else {
         log.warn(
           { err: error, attempts: job.attempts },
@@ -167,17 +177,21 @@ export function createWorker(options: WorkerOptions) {
     }
   }
 
-  function fill(lane: Lane, force = false): boolean {
+  async function fill(lane: Lane, force = false): Promise<boolean> {
     let started = false
     if (lane.types.length === 0) return false
     while ((running || force) && lane.active.size < lane.slots) {
-      const job = queue.lease({ owner, leaseMs, types: lane.types })
+      const job = await queue.lease({ owner, leaseMs, types: lane.types })
       if (!job) break
       started = true
-      const task = execute(job).finally(() => {
-        lane.active.delete(task)
-        wake?.()
-      })
+      const task = execute(job)
+        .catch((error: unknown) =>
+          logger.error({ err: error, jobId: job.id }, "job bookkeeping failed")
+        )
+        .finally(() => {
+          lane.active.delete(task)
+          wake?.()
+        })
       lane.active.add(task)
     }
     return started
@@ -185,7 +199,11 @@ export function createWorker(options: WorkerOptions) {
 
   async function loop() {
     while (running) {
-      lanes.forEach((lane) => fill(lane))
+      for (const lane of lanes) {
+        await fill(lane).catch((error: unknown) =>
+          logger.error({ err: error }, "couldn't lease jobs")
+        )
+      }
       await new Promise<void>((resolve) => {
         const timer = setTimeout(resolve, pollMs)
         wake = () => {
@@ -203,9 +221,13 @@ export function createWorker(options: WorkerOptions) {
     start() {
       if (running) return
       running = true
-      const recovered = queue.recoverExpired()
-      if (recovered) logger.warn({ recovered }, "recovered expired job leases")
-      loopPromise = loop()
+      loopPromise = (async () => {
+        const recovered = await queue.recoverExpired()
+        if (recovered) {
+          logger.warn({ recovered }, "recovered expired job leases")
+        }
+        await loop()
+      })()
     },
 
     async stop({ graceMs = 10_000 } = {}) {
@@ -227,7 +249,9 @@ export function createWorker(options: WorkerOptions) {
 
     async drain() {
       while (true) {
-        const started = lanes.map((lane) => fill(lane, true)).some(Boolean)
+        const started = (
+          await Promise.all(lanes.map((lane) => fill(lane, true)))
+        ).some(Boolean)
         const active = lanes.flatMap((lane) => [...lane.active])
         if (!started && active.length === 0) return
         await Promise.race(active)

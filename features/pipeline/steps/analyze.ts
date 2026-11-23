@@ -26,11 +26,12 @@ export const analyzeStep: JobHandler = async ({
   reportProgress,
   logger,
 }) => {
-  const project = beginStep(db, job.projectId, "analyzing")
+  const project = await beginStep(db, job.projectId, "analyzing")
   const storage = getStorage()
-  const source = sourceAsset(db, project)
+  const source = await sourceAsset(db, project)
   const durationMs = source.durationMs ?? 0
-  const input = assetRepository(db).findByKind(project.id, "audio") ?? source
+  const input =
+    (await assetRepository(db).findByKind(project.id, "audio")) ?? source
 
   const silences = createSilenceParser()
   const loudness = createLoudnessCollector(LOUDNESS_INTERVAL_MS)
@@ -57,17 +58,17 @@ export const analyzeStep: JobHandler = async ({
   )
   throwIfAborted(signal)
 
-  const words = transcriptRepository(db).get(project.id)?.words ?? []
+  const words = (await transcriptRepository(db).get(project.id))?.words ?? []
   const data = {
     silences: silences.finish(durationMs),
     loudness: loudness.finish(durationMs),
     loudnessIntervalMs: LOUDNESS_INTERVAL_MS,
     speechDensity: computeSpeechDensity(words, durationMs),
   }
-  signalsRepository(db).save(project.id, data)
+  await signalsRepository(db).save(project.id, data)
   logger.info(
     { silences: data.silences.length, samples: data.loudness.length },
     "analyzed"
   )
-  completeStep(db, project.id, "selecting", "select")
+  await completeStep(db, project.id, "selecting", "select")
 }

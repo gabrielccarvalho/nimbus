@@ -40,11 +40,11 @@ export async function setClipStatusAction(
   const clip = parseId(clipId, "clip id")
   return runAction(
     "setClipStatus",
-    () => {
+    async () => {
       const parsed = clipStatusSchema.safeParse(status)
       if (!parsed.success)
         throw new AppError("VALIDATION", "Invalid clip status")
-      setClipReviewStatus(getDb(), project, clip, parsed.data)
+      await setClipReviewStatus(getDb(), project, clip, parsed.data)
     },
     [`/projects/${project}`]
   )
@@ -59,7 +59,7 @@ export async function updateClipAction(
   const clip = parseId(clipId, "clip id")
   return runAction(
     "updateClip",
-    () => {
+    async () => {
       const parsed = clipEditSchema.safeParse(edit)
       if (!parsed.success) {
         throw new AppError(
@@ -67,7 +67,7 @@ export async function updateClipAction(
           parsed.error.issues[0]?.message ?? "Invalid clip"
         )
       }
-      updateClip(getDb(), project, clip, parsed.data)
+      await updateClip(getDb(), project, clip, parsed.data)
     },
     [`/projects/${project}`]
   )

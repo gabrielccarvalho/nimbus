@@ -10,8 +10,8 @@ import { createTestEnv, type TestEnv } from "../utils/test-env"
 
 let env: TestEnv
 
-beforeEach(() => {
-  env = createTestEnv()
+beforeEach(async () => {
+  env = await createTestEnv()
 })
 afterEach(() => env.cleanup())
 
@@ -26,60 +26,62 @@ describe("confirmLayout", () => {
   it("confirms, moves to review and saves a preset for the next upload", async () => {
     const { projectId } = await uploadFixture(fixtures.wide)
     await runJobs(env.db, ["probe", "transcribe", "analyze", "select"])
-    expect(projectRepository(env.db).getOrThrow(projectId).status).toBe(
+    expect((await projectRepository(env.db).getOrThrow(projectId)).status).toBe(
       "awaiting_layout"
     )
 
-    confirmLayout(env.db, projectId, camTop, {
+    await confirmLayout(env.db, projectId, camTop, {
       confidence: 0.9,
       savePreset: true,
     })
-    expect(projectRepository(env.db).getOrThrow(projectId).status).toBe(
+    expect((await projectRepository(env.db).getOrThrow(projectId)).status).toBe(
       "ready_for_review"
     )
-    expect(layoutRepository(env.db).get(projectId)).toMatchObject({
+    expect(await layoutRepository(env.db).get(projectId)).toMatchObject({
       ...camTop,
       sourceAspect: "16:9",
       confidence: 0.9,
       confirmedByUser: true,
     })
-    expect(layoutRepository(env.db).findPreset(1920, 1080)).toMatchObject(
+    expect(await layoutRepository(env.db).findPreset(1920, 1080)).toMatchObject(
       camTop
     )
 
     const second = await uploadFixture(fixtures.wide)
     await runJobs(env.db, ["probe", "transcribe", "analyze", "select"])
-    expect(projectRepository(env.db).getOrThrow(second.projectId).status).toBe(
-      "ready_for_review"
-    )
-    expect(layoutRepository(env.db).get(second.projectId)?.webcamRect).toEqual(
-      camTop.webcamRect
-    )
+    expect(
+      (await projectRepository(env.db).getOrThrow(second.projectId)).status
+    ).toBe("ready_for_review")
+    expect(
+      (await layoutRepository(env.db).get(second.projectId))?.webcamRect
+    ).toEqual(camTop.webcamRect)
   })
 
   it("saves edits later without changing the status", async () => {
     const { projectId } = await uploadFixture(fixtures.wide)
     await runJobs(env.db, ["probe", "transcribe", "analyze", "select"])
-    confirmLayout(env.db, projectId, camTop)
-    confirmLayout(env.db, projectId, {
+    await confirmLayout(env.db, projectId, camTop)
+    await confirmLayout(env.db, projectId, {
       ...camTop,
       webcamRect: null,
       mode: "no-cam-blur-fill",
     })
-    expect(projectRepository(env.db).getOrThrow(projectId).status).toBe(
+    expect((await projectRepository(env.db).getOrThrow(projectId)).status).toBe(
       "ready_for_review"
     )
-    expect(layoutRepository(env.db).get(projectId)?.mode).toBe(
+    expect((await layoutRepository(env.db).get(projectId))?.mode).toBe(
       "no-cam-blur-fill"
     )
   })
 
   it("rejects a webcam layout without a webcam and edits before probing", async () => {
     const { projectId } = await uploadFixture(fixtures.wide)
-    expect(() => confirmLayout(env.db, projectId, camTop)).toThrow(/probe/)
+    await expect(confirmLayout(env.db, projectId, camTop)).rejects.toThrow(
+      /probe/
+    )
     await runJobs(env.db, ["probe"])
-    expect(() =>
+    await expect(
       confirmLayout(env.db, projectId, { ...camTop, webcamRect: null })
-    ).toThrow(/Mark the webcam/)
+    ).rejects.toThrow(/Mark the webcam/)
   })
 })

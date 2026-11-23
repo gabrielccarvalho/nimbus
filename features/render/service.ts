@@ -11,21 +11,24 @@ import { projectRepository } from "../projects/repository"
 
 const RENDERABLE = new Set(["approved", "rendered", "failed"])
 
-export function startClipRenders(db: Db, projectId: string, clipIds: string[]) {
-  const projects = projectRepository(db)
-  const project = projects.getOrThrow(projectId)
+export async function startClipRenders(
+  db: Db,
+  projectId: string,
+  clipIds: string[]
+) {
+  const project = await projectRepository(db).getOrThrow(projectId)
   if (!["ready_for_review", "done", "rendering"].includes(project.status)) {
     throw new AppError(
       "CONFLICT",
       "Finish reviewing the project before rendering"
     )
   }
-  if (!layoutRepository(db).get(projectId)?.confirmedByUser) {
+  if (!(await layoutRepository(db).get(projectId))?.confirmedByUser) {
     throw new AppError("CONFLICT", "Confirm the layout before rendering")
   }
-  const clips = clipRepository(db)
-    .listForProject(projectId)
-    .filter((clip) => clipIds.includes(clip.id))
+  const clips = (await clipRepository(db).listForProject(projectId)).filter(
+    (clip) => clipIds.includes(clip.id)
+  )
   if (clips.length !== clipIds.length) {
     throw new AppError("NOT_FOUND", "Clip not found")
   }
@@ -35,16 +38,17 @@ export function startClipRenders(db: Db, projectId: string, clipIds: string[]) {
   ) {
     throw new AppError("VALIDATION", "Approve clips before rendering them")
   }
-  withTransaction(db, () => {
-    if (project.status !== "rendering")
-      projects.transition(projectId, "rendering")
-    enqueueClipRenders(db, projectId, clipIds)
+  await withTransaction(db, async (tx) => {
+    if (project.status !== "rendering") {
+      await projectRepository(tx).transition(projectId, "rendering")
+    }
+    await enqueueClipRenders(tx, projectId, clipIds)
   })
   return clips.length
 }
 
-export function startEditRender(db: Db, projectId: string) {
-  const project = projectRepository(db).getOrThrow(projectId)
+export async function startEditRender(db: Db, projectId: string) {
+  const project = await projectRepository(db).getOrThrow(projectId)
   if (!["ready_for_review", "rendering", "done"].includes(project.status)) {
     throw new AppError(
       "CONFLICT",
@@ -52,19 +56,21 @@ export function startEditRender(db: Db, projectId: string) {
     )
   }
   const queue = jobQueue(db)
-  if (queue.countActive(projectId, ["render_edit"]) > 0) {
+  if ((await queue.countActive(projectId, ["render_edit"])) > 0) {
     throw new AppError("CONFLICT", "The edit is already rendering")
   }
   return queue.enqueue({ type: "render_edit", projectId, payload: {} })
 }
 
-export function settleRendering(db: Db, projectId: string) {
+export async function settleRendering(db: Db, projectId: string) {
   const projects = projectRepository(db)
-  const project = projects.get(projectId)
+  const project = await projects.get(projectId)
   if (project?.status !== "rendering") return
-  if (jobQueue(db).countActive(projectId, ["render_clip"]) > 0) return
-  const rendered = clipRepository(db).listByStatus(projectId, ["rendered"])
-  projects.transition(
+  if ((await jobQueue(db).countActive(projectId, ["render_clip"])) > 0) return
+  const rendered = await clipRepository(db).listByStatus(projectId, [
+    "rendered",
+  ])
+  await projects.transition(
     projectId,
     rendered.length > 0 ? "done" : "ready_for_review"
   )

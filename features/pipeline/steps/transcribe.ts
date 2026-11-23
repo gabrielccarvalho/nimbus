@@ -18,9 +18,9 @@ export const transcribeStep: JobHandler = async ({
   reportProgress,
   logger,
 }) => {
-  const project = beginStep(db, job.projectId, "transcribing")
+  const project = await beginStep(db, job.projectId, "transcribing")
   const storage = getStorage()
-  const source = sourceAsset(db, project)
+  const source = await sourceAsset(db, project)
   const durationMs = source.durationMs ?? 0
   const audioKey = storageKeys.audio(project.id)
 
@@ -44,8 +44,8 @@ export const transcribeStep: JobHandler = async ({
     }
   )
   const assets = assetRepository(db)
-  if (!assets.findByKind(project.id, "audio")) {
-    assets.create({
+  if (!(await assets.findByKind(project.id, "audio"))) {
+    await assets.create({
       projectId: project.id,
       kind: "audio",
       storageKey: audioKey,
@@ -56,7 +56,7 @@ export const transcribeStep: JobHandler = async ({
   }
 
   const transcriber = getTranscriber()
-  const language = getAppSettings(db).transcriptionLanguage
+  const language = (await getAppSettings(db)).transcriptionLanguage
   const raw = await transcriber.transcribe({
     audioPath: storage.resolve(audioKey),
     durationMs,
@@ -69,7 +69,7 @@ export const transcribeStep: JobHandler = async ({
   const words = normalizeWords(raw.tokens).filter(
     (w) => w.startMs < durationMs || !durationMs
   )
-  transcriptRepository(db).save(project.id, {
+  await transcriptRepository(db).save(project.id, {
     language: raw.language,
     words,
     segments: buildSegments(words),
@@ -78,5 +78,5 @@ export const transcribeStep: JobHandler = async ({
     { transcriber: transcriber.id, words: words.length },
     "transcribed"
   )
-  completeStep(db, project.id, "analyzing", "analyze")
+  await completeStep(db, project.id, "analyzing", "analyze")
 }

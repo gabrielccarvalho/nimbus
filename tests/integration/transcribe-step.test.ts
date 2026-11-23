@@ -14,8 +14,8 @@ import { createTestEnv, type TestEnv } from "../utils/test-env"
 
 let env: TestEnv
 
-beforeEach(() => {
-  env = createTestEnv()
+beforeEach(async () => {
+  env = await createTestEnv()
 })
 afterEach(() => env.cleanup())
 
@@ -24,16 +24,16 @@ describe("transcribe step", () => {
     const { projectId } = await uploadFixture(fixtures.wide)
     await runJobs(env.db, ["probe", "transcribe"])
 
-    expect(projectRepository(env.db).getOrThrow(projectId).status).toBe(
+    expect((await projectRepository(env.db).getOrThrow(projectId)).status).toBe(
       "analyzing"
     )
-    const audio = assetRepository(env.db).findByKind(projectId, "audio")
+    const audio = await assetRepository(env.db).findByKind(projectId, "audio")
     expect(audio).toMatchObject({ mime: "audio/wav" })
     expect((await getStorage().stat(audio!.storageKey))?.bytes).toBeGreaterThan(
       16_000 * 2 * 19
     )
 
-    const transcript = transcriptRepository(env.db).get(projectId)
+    const transcript = await transcriptRepository(env.db).get(projectId)
     expect(transcript?.language).toBe("en")
     expect(transcript?.words[0]).toMatchObject({ text: "Okay", startMs: 200 })
     expect(transcript?.segments.map((s) => s.text)).toContain(
@@ -43,9 +43,9 @@ describe("transcribe step", () => {
       expect(word.endMs).toBeLessThanOrEqual(20_100)
 
     expect(
-      jobQueue(env.db)
-        .listForProject(projectId)
-        .find((j) => j.type === "analyze")?.status
+      (await jobQueue(env.db).listForProject(projectId)).find(
+        (j) => j.type === "analyze"
+      )?.status
     ).toBe("queued")
   })
 
@@ -53,15 +53,15 @@ describe("transcribe step", () => {
     const { projectId } = await uploadFixture(fixtures.wide)
     await runJobs(env.db, ["probe", "transcribe"])
     const projects = projectRepository(env.db)
-    projects.markFailed(projectId, "boom")
-    projects.resumeFailed(projectId, "transcribing")
-    jobQueue(env.db).enqueue({ type: "transcribe", projectId })
+    await projects.markFailed(projectId, "boom")
+    await projects.resumeFailed(projectId, "transcribing")
+    await jobQueue(env.db).enqueue({ type: "transcribe", projectId })
     await runJobs(env.db, ["transcribe"])
-    expect(projects.getOrThrow(projectId).status).toBe("analyzing")
+    expect((await projects.getOrThrow(projectId)).status).toBe("analyzing")
     expect(
-      assetRepository(env.db)
-        .listForProject(projectId)
-        .filter((a) => a.kind === "audio")
+      (await assetRepository(env.db).listForProject(projectId)).filter(
+        (a) => a.kind === "audio"
+      )
     ).toHaveLength(1)
   })
 })

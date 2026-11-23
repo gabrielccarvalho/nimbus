@@ -1,5 +1,7 @@
 import "server-only"
 
+import { mkdirSync } from "node:fs"
+
 import { getEnv } from "@/lib/env"
 
 import { LocalStorage } from "./local"
@@ -10,6 +12,7 @@ let instance: { root: string; storage: StorageAdapter } | undefined
 export function getStorage(): StorageAdapter {
   const root = getEnv().DATA_DIR
   if (!instance || instance.root !== root) {
+    mkdirSync(root, { recursive: true })
     instance = { root, storage: new LocalStorage(root) }
   }
   return instance.storage

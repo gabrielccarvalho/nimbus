@@ -27,26 +27,20 @@ export const sweepStep: JobHandler = async ({
   reportProgress(40)
 
   const projectIds = new Set(
-    db
-      .select({ id: projects.id })
-      .from(projects)
-      .all()
-      .map((row) => row.id)
+    (await db.select({ id: projects.id }).from(projects)).map((row) => row.id)
   )
   const busyProjectIds = new Set(
-    db
-      .select({ projectId: jobs.projectId })
-      .from(jobs)
-      .where(inArray(jobs.status, ["queued", "running"]))
-      .all()
-      .flatMap((row) => (row.projectId ? [row.projectId] : []))
+    (
+      await db
+        .select({ projectId: jobs.projectId })
+        .from(jobs)
+        .where(inArray(jobs.status, ["queued", "running"]))
+    ).flatMap((row) => (row.projectId ? [row.projectId] : []))
   )
   const referencedKeys = new Set(
-    db
-      .select({ key: assets.storageKey })
-      .from(assets)
-      .all()
-      .map((row) => row.key)
+    (await db.select({ key: assets.storageKey }).from(assets)).map(
+      (row) => row.key
+    )
   )
 
   const doomed = planSweep({

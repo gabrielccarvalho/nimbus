@@ -7,17 +7,18 @@ import { projectRepository } from "../projects/repository"
 import { projectSettingsFromApp } from "../projects/upload"
 import { parseVideoUrl, placeholderName } from "./url"
 
-export function importFromUrl(db: Db, input: unknown) {
+export async function importFromUrl(db: Db, input: unknown) {
   const url = parseVideoUrl(input)
   const projectId = newId()
-  withTransaction(db, () => {
-    projectRepository(db).create({
+  const settings = await projectSettingsFromApp()
+  await withTransaction(db, async (tx) => {
+    await projectRepository(tx).create({
       id: projectId,
       name: placeholderName(url).slice(0, 120),
-      settings: projectSettingsFromApp(),
+      settings,
       sourceUrl: url,
     })
-    jobQueue(db).enqueue({ type: "download", projectId })
+    await jobQueue(tx).enqueue({ type: "download", projectId })
   })
   return { projectId }
 }

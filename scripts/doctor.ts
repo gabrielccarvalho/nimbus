@@ -3,6 +3,8 @@ import "@/lib/load-env"
 import { access, constants, mkdir, rm, writeFile } from "node:fs/promises"
 import path from "node:path"
 
+import { Client } from "pg"
+
 import { chooseEncoder } from "@/features/render/filtergraph"
 import { getEnv } from "@/lib/env"
 import { getFfmpegCapabilities } from "@/lib/media/capabilities"
@@ -152,6 +154,30 @@ async function main() {
       "warn",
       "MediaPipe assets missing; run pnpm run setup:vision (border detection still works)"
     )
+  }
+
+  const client = new Client({
+    connectionString: env.DATABASE_URL,
+    connectionTimeoutMillis: 3_000,
+  })
+  try {
+    await client.connect()
+    const { rows } = await client.query<{ version: string }>(
+      "select current_setting('server_version') as version"
+    )
+    add(
+      "postgres",
+      "ok",
+      `${rows[0]?.version ?? "connected"} (${new URL(env.DATABASE_URL).host})`
+    )
+  } catch (error) {
+    add(
+      "postgres",
+      "fail",
+      `${String(error)}; start it with docker compose up -d db`
+    )
+  } finally {
+    await client.end().catch(() => undefined)
   }
 
   try {

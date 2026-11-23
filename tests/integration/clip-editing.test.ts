@@ -17,26 +17,26 @@ import { createTestEnv, type TestEnv } from "../utils/test-env"
 
 let env: TestEnv
 
-beforeEach(() => {
-  env = createTestEnv()
+beforeEach(async () => {
+  env = await createTestEnv()
 })
 afterEach(() => env.cleanup())
 
 async function reviewedProject() {
   const { projectId } = await uploadFixture(fixtures.wide)
   const projects = projectRepository(env.db)
-  projects.updateSettings(projectId, {
-    ...projects.getOrThrow(projectId).settings,
+  await projects.updateSettings(projectId, {
+    ...(await projects.getOrThrow(projectId)).settings,
     captionsEnabled: false,
   })
   await runJobs(env.db, ["probe", "transcribe", "analyze", "select"])
-  confirmLayout(env.db, projectId, {
+  await confirmLayout(env.db, projectId, {
     webcamRect: { x: 0.78, y: 0.77, w: 0.2, h: 0.2 },
     gameplayRect: { x: 0, y: 0, w: 1, h: 1 },
     gameplayFocusX: 0.5,
     mode: "cam-top",
   })
-  const [clip] = clipRepository(env.db).listForProject(projectId)
+  const [clip] = await clipRepository(env.db).listForProject(projectId)
   return { projectId, clip: clip! }
 }
 
@@ -57,7 +57,7 @@ const request = (projectId: string) =>
 describe("updateClip", () => {
   it("saves trim, text and caption edits", async () => {
     const { projectId, clip } = await reviewedProject()
-    const saved = updateClip(env.db, projectId, clip.id, {
+    const saved = await updateClip(env.db, projectId, clip.id, {
       ...edit(),
       startMs: clip.startMs,
       endMs: clip.endMs,
@@ -67,38 +67,38 @@ describe("updateClip", () => {
       { index: 0, text: "fixed text" },
     ])
 
-    const trimmed = updateClip(env.db, projectId, clip.id, edit())
+    const trimmed = await updateClip(env.db, projectId, clip.id, edit())
     expect(trimmed).toMatchObject({ startMs: 2000, endMs: 12_000 })
     expect(trimmed.captionOverrides?.pages).toEqual([])
   })
 
   it("rejects out-of-range, too short and rendering clips", async () => {
     const { projectId, clip } = await reviewedProject()
-    expect(() =>
+    await expect(
       updateClip(env.db, projectId, clip.id, edit({ endMs: 25_000 }))
-    ).toThrow(/inside the recording/)
-    expect(() =>
+    ).rejects.toThrow(/inside the recording/)
+    await expect(
       updateClip(env.db, projectId, clip.id, edit({ endMs: 4000 }))
-    ).toThrow(/between 3 and 180/)
-    expect(() => updateClip(env.db, "nope", clip.id, edit())).toThrow(
+    ).rejects.toThrow(/between 3 and 180/)
+    await expect(updateClip(env.db, "nope", clip.id, edit())).rejects.toThrow(
       /not found/
     )
-    clipRepository(env.db).setStatus([clip.id], "rendering")
-    expect(() => updateClip(env.db, projectId, clip.id, edit())).toThrow(
-      /rendering/
-    )
+    await clipRepository(env.db).setStatus([clip.id], "rendering")
+    await expect(
+      updateClip(env.db, projectId, clip.id, edit())
+    ).rejects.toThrow(/rendering/)
   })
 })
 
 describe("approveAllCandidates", () => {
   it("approves candidates and leaves rejected clips alone", async () => {
     const { projectId, clip } = await reviewedProject()
-    setClipReviewStatus(env.db, projectId, clip.id, "rejected")
-    expect(approveAllCandidates(env.db, projectId)).toBe(0)
-    expect(clipRepository(env.db).get(clip.id)?.status).toBe("rejected")
-    setClipReviewStatus(env.db, projectId, clip.id, "candidate")
-    expect(approveAllCandidates(env.db, projectId)).toBe(1)
-    expect(clipRepository(env.db).get(clip.id)?.status).toBe("approved")
+    await setClipReviewStatus(env.db, projectId, clip.id, "rejected")
+    expect(await approveAllCandidates(env.db, projectId)).toBe(0)
+    expect((await clipRepository(env.db).get(clip.id))?.status).toBe("rejected")
+    await setClipReviewStatus(env.db, projectId, clip.id, "candidate")
+    expect(await approveAllCandidates(env.db, projectId)).toBe(1)
+    expect((await clipRepository(env.db).get(clip.id))?.status).toBe("approved")
   })
 })
 
@@ -111,10 +111,10 @@ describe("export", () => {
 
   it("zips rendered clips with a manifest and marks edited clips stale", async () => {
     const { projectId, clip } = await reviewedProject()
-    setClipReviewStatus(env.db, projectId, clip.id, "approved")
-    startClipRenders(env.db, projectId, [clip.id])
+    await setClipReviewStatus(env.db, projectId, clip.id, "approved")
+    await startClipRenders(env.db, projectId, [clip.id])
     await runJobs(env.db, ["render_clip"])
-    expect(clipRepository(env.db).get(clip.id)?.status).toBe("rendered")
+    expect((await clipRepository(env.db).get(clip.id))?.status).toBe("rendered")
 
     const response = await request(projectId)
     expect(response.status).toBe(200)
@@ -132,7 +132,7 @@ describe("export", () => {
     expect(text).toContain("clips.json")
     expect(body.length).toBeGreaterThan(100_000)
 
-    const updated = updateClip(env.db, projectId, clip.id, {
+    const updated = await updateClip(env.db, projectId, clip.id, {
       ...edit(),
       startMs: clip.startMs,
       endMs: clip.endMs,

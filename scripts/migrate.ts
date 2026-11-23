@@ -1,5 +1,5 @@
-import { getDb } from "@/lib/db"
-import { getEnv } from "@/lib/env"
+import { closeDb, migrateDb } from "@/lib/db"
 
-getDb()
-console.log(`migrated ${getEnv().DATABASE_PATH}`)
+await migrateDb()
+await closeDb()
+console.log("database migrated")

@@ -57,11 +57,16 @@ Sites change often; if imports start failing, `brew upgrade yt-dlp` first.
 ```sh
 pnpm install
 cp .env.example .env.local   # then edit
+docker compose up -d db      # Postgres 17 on localhost:5442
 pnpm db:migrate
 pnpm run setup:vision        # copies MediaPipe WASM and downloads the face model into public/vendor
-pnpm run doctor                  # checks ffmpeg, libass, libx264, whisper, model, env, data dir
-pnpm dev                     # Next on :3000 + the worker
+pnpm run doctor              # checks ffmpeg, libass, libx264, whisper, model, env, Postgres, data dir
+pnpm dev                     # starts the database, migrates, then Next on :3000 + the worker
 ```
+
+Only Postgres runs in Docker. Next and the worker run on the host because VideoToolbox and whisper.cpp's Metal acceleration aren't available inside Docker on macOS.
+
+Projects from the earlier SQLite version can be copied over once with `pnpm db:import-sqlite [path/to/app.db]` (defaults to `DATA_DIR/app.db`). Media files stay where they are.
 
 ## Environment
 

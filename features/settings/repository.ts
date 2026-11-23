@@ -16,12 +16,11 @@ const APP_KEY = "app"
 
 export function settingsRepository(db: Db) {
   return {
-    get(fallbacks: Partial<AppSettings> = {}): AppSettings {
-      const row = db
+    async get(fallbacks: Partial<AppSettings> = {}): Promise<AppSettings> {
+      const [row] = await db
         .select()
         .from(settings)
         .where(eq(settings.key, APP_KEY))
-        .get()
       const defaults = { ...defaultAppSettings, ...fallbacks }
       if (!row) return defaults
       const parsed = appSettingsSchema.safeParse({
@@ -35,15 +34,15 @@ export function settingsRepository(db: Db) {
       return parsed.data
     },
 
-    save(value: AppSettings) {
+    async save(value: AppSettings): Promise<AppSettings> {
       const parsed = appSettingsSchema.parse(value)
-      db.insert(settings)
+      await db
+        .insert(settings)
         .values({ key: APP_KEY, value: parsed })
         .onConflictDoUpdate({
           target: settings.key,
           set: { value: parsed, updatedAt: now() },
         })
-        .run()
       return parsed
     },
   }

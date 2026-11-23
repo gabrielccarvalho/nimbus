@@ -13,7 +13,10 @@ const envSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   DATA_DIR: z.string().min(1).default("./data"),
-  DATABASE_PATH: z.string().min(1).optional(),
+  DATABASE_URL: z
+    .string()
+    .min(1)
+    .default("postgres://nimbus:nimbus@localhost:5442/nimbus"),
   FFMPEG_PATH: z.string().min(1).default("ffmpeg"),
   FFPROBE_PATH: z.string().min(1).default("ffprobe"),
   VIDEO_ENCODER: z
@@ -49,10 +52,7 @@ const envSchema = z.object({
 
 type RawEnv = z.infer<typeof envSchema>
 
-export type Env = Omit<RawEnv, "DATABASE_PATH" | "DATA_DIR"> & {
-  DATA_DIR: string
-  DATABASE_PATH: string
-}
+export type Env = RawEnv
 
 let cached: Env | undefined
 
@@ -61,14 +61,9 @@ export function parseEnv(source: Record<string, string | undefined>): Env {
     Object.entries(source).filter(([, v]) => v !== undefined && v !== "")
   )
   const raw = envSchema.parse(cleaned)
-  const dataDir = path.resolve(/* turbopackIgnore: true */ raw.DATA_DIR)
   return {
     ...raw,
-    DATA_DIR: dataDir,
-    DATABASE_PATH: path.resolve(
-      /* turbopackIgnore: true */
-      raw.DATABASE_PATH ?? path.join(dataDir, "app.db")
-    ),
+    DATA_DIR: path.resolve(/* turbopackIgnore: true */ raw.DATA_DIR),
   }
 }
 

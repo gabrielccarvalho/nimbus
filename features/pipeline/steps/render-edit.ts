@@ -38,13 +38,13 @@ export const renderEditStep: JobHandler = async ({
   logger,
 }) => {
   if (!job.projectId) throw new AppError("VALIDATION", "Job has no project")
-  const project = projectRepository(db).get(job.projectId)
+  const project = await projectRepository(db).get(job.projectId)
   if (!project) throw new AppError("CANCELLED", "Project was deleted")
   const source = await sourceFile(db, project)
   const durationMs = source.durationMs ?? 0
   const width = source.width ?? 1920
   const height = source.height ?? 1080
-  const signals = signalsRepository(db).get(project.id)
+  const signals = await signalsRepository(db).get(project.id)
   const keep = keepRanges(signals?.silences ?? [], durationMs)
   if (keep.length === 0) {
     throw new AppError("CONFLICT", "The recording is silent from start to end")
@@ -79,7 +79,7 @@ export const renderEditStep: JobHandler = async ({
     }
     const words = remapToEdit(
       wordsInRange(
-        transcriptRepository(db).get(project.id)?.words ?? [],
+        (await transcriptRepository(db).get(project.id))?.words ?? [],
         0,
         durationMs
       ),
@@ -103,7 +103,7 @@ export const renderEditStep: JobHandler = async ({
     workKey("graph.txt"),
     editGraph({ keep, subtitles })
   )
-  const settings = getAppSettings(db)
+  const settings = await getAppSettings(db)
   const encoder = chooseEncoder(
     encoderPreference(settings.hardwareEncoding, env.VIDEO_ENCODER),
     capabilities.encoders
@@ -136,8 +136,8 @@ export const renderEditStep: JobHandler = async ({
   }
 
   const assets = assetRepository(db)
-  const previous = assets.findByKind(project.id, "edit")
-  const asset = assets.create({
+  const previous = await assets.findByKind(project.id, "edit")
+  const asset = await assets.create({
     projectId: project.id,
     kind: "edit",
     storageKey: outputKey,
@@ -150,7 +150,7 @@ export const renderEditStep: JobHandler = async ({
     codec: encoder,
   })
   if (previous) {
-    assets.delete(previous.id)
+    await assets.delete(previous.id)
     await storage.remove(previous.storageKey)
   }
   logger.info(

@@ -28,7 +28,7 @@ async function saveThumbnail(
   signal: AbortSignal
 ) {
   const assets = assetRepository(db)
-  if (assets.findByKind(projectId, "thumbnail")) return
+  if (await assets.findByKind(projectId, "thumbnail")) return
   const storage = getStorage()
   const key = storageKeys.thumbnail(projectId)
   await mkdir(path.dirname(storage.resolve(key)), { recursive: true })
@@ -46,7 +46,7 @@ async function saveThumbnail(
     ],
     { signal, timeoutMs: 30_000 }
   )
-  assets.create({
+  await assets.create({
     projectId,
     kind: "thumbnail",
     storageKey: key,
@@ -63,9 +63,9 @@ export const downloadStep: JobHandler = async ({
   reportProgress,
   logger,
 }) => {
-  const project = beginStep(db, job.projectId, "downloading")
+  const project = await beginStep(db, job.projectId, "downloading")
   if (project.sourceAssetId) {
-    completeStep(db, project.id, "uploaded", "probe")
+    await completeStep(db, project.id, "uploaded", "probe")
     return
   }
   if (!project.sourceUrl) {
@@ -84,7 +84,7 @@ export const downloadStep: JobHandler = async ({
     )
   }
   const name = projectNameSchema.safeParse(info.title.slice(0, 120))
-  if (name.success) projects.rename(project.id, name.data)
+  if (name.success) await projects.rename(project.id, name.data)
   if (info.thumbnailUrl && isPublicUrl(info.thumbnailUrl)) {
     await saveThumbnail(db, project.id, info.thumbnailUrl, signal).catch(
       (error: unknown) =>
@@ -123,19 +123,19 @@ export const downloadStep: JobHandler = async ({
     const sourceKey = storageKeys.source(project.id, ACCEPTED_VIDEO_TYPES[mime])
     await storage.move(`${dirKey}/${path.basename(file)}`, sourceKey)
     const bytes = (await storage.stat(sourceKey))?.bytes ?? 0
-    withTransaction(db, () => {
-      const asset = assetRepository(db).create({
+    await withTransaction(db, async (tx) => {
+      const asset = await assetRepository(tx).create({
         projectId: project.id,
         kind: "source",
         storageKey: sourceKey,
         mime,
         bytes,
       })
-      projects.setSourceAsset(project.id, asset.id)
+      await projectRepository(tx).setSourceAsset(project.id, asset.id)
     })
     logger.info({ bytes, mime, downloader: downloader.id }, "downloaded")
   } finally {
     await storage.removePrefix(dirKey)
   }
-  completeStep(db, project.id, "uploaded", "probe")
+  await completeStep(db, project.id, "uploaded", "probe")
 }

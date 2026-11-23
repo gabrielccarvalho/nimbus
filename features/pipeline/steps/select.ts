@@ -16,22 +16,22 @@ export const selectStep: JobHandler = async ({
   reportProgress,
   logger,
 }) => {
-  const project = beginStep(db, job.projectId, "selecting")
+  const project = await beginStep(db, job.projectId, "selecting")
   const settings = project.settings
-  const next = layoutRepository(db).get(project.id)?.confirmedByUser
+  const next = (await layoutRepository(db).get(project.id))?.confirmedByUser
     ? "ready_for_review"
     : "awaiting_layout"
 
   if (settings.selectorMode === "manual") {
-    projectRepository(db).setAwaitingManualSelection(project.id, true)
-    clipRepository(db).replaceCandidates(project.id, [])
-    completeStep(db, project.id, next)
+    await projectRepository(db).setAwaitingManualSelection(project.id, true)
+    await clipRepository(db).replaceCandidates(project.id, [])
+    await completeStep(db, project.id, next)
     return
   }
 
-  const transcript = transcriptRepository(db).get(project.id)
-  const signals = signalsRepository(db).get(project.id)
-  const durationMs = sourceAsset(db, project).durationMs ?? 0
+  const transcript = await transcriptRepository(db).get(project.id)
+  const signals = await signalsRepository(db).get(project.id)
+  const durationMs = (await sourceAsset(db, project)).durationMs ?? 0
   reportProgress(10)
 
   const { candidates, fallbackReason } = await selectHighlights(
@@ -57,7 +57,7 @@ export const selectStep: JobHandler = async ({
   )
   throwIfAborted(signal)
 
-  clipRepository(db).replaceCandidates(
+  await clipRepository(db).replaceCandidates(
     project.id,
     candidates.map((c) => ({
       startMs: c.startMs,
@@ -70,10 +70,10 @@ export const selectStep: JobHandler = async ({
       score: c.score,
     }))
   )
-  projectRepository(db).setAwaitingManualSelection(project.id, false)
+  await projectRepository(db).setAwaitingManualSelection(project.id, false)
   logger.info(
     { candidates: candidates.length, fallback: Boolean(fallbackReason) },
     "selected"
   )
-  completeStep(db, project.id, next)
+  await completeStep(db, project.id, next)
 }

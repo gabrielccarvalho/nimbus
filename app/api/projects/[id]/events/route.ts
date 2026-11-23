@@ -10,7 +10,7 @@ export async function GET(
 ) {
   const { id } = await ctx.params
   const db = getDb()
-  if (!getProjectSnapshot(db, id)) {
+  if (!(await getProjectSnapshot(db, id))) {
     return new Response("Not found", { status: 404 })
   }
   const stream = createPollingStream({

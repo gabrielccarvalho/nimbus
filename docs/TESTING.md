@@ -4,7 +4,7 @@
 | ----------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- | ----------------------- |
 | Unit        | Vitest (node)                     | Pure logic: state machine, ASS, line breaking, filtergraphs, aspect classification, snapping/overlap, heuristic scorer, progress parser, normalization, border heuristic, zod schemas | `**/*.test.ts` beside source     | `pnpm test:unit`        |
 | Component   | Vitest (jsdom) + RTL + user-event | Custom components: variants, controlled/uncontrolled, keyboard, roles                                                                                                                 | `**/*.test.tsx`                  | `pnpm test:unit`        |
-| Integration | Vitest (node, sequential)         | Real SQLite in a temp file, real ffmpeg on generated fixtures, MSW for Anthropic. Repositories, migrations, queue, upload and media routes, pipeline steps, renders                   | `tests/integration/**/*.test.ts` | `pnpm test:integration` |
+| Integration | Vitest (node, sequential)         | PGlite (in-process Postgres), real ffmpeg on generated fixtures, MSW for Anthropic. Repositories, migrations, queue, upload and media routes, pipeline steps, renders                 | `tests/integration/**/*.test.ts` | `pnpm test:integration` |
 | Contract    | Vitest                            | Every Transcriber / HighlightSelector / StorageAdapter passes one shared suite                                                                                                        | `tests/contracts/`               | part of integration     |
 | E2E         | Playwright (Chromium)             | Golden path and key flows                                                                                                                                                             | `tests/e2e/*.spec.ts`            | `pnpm test:e2e`         |
 | A11y        | `@axe-core/playwright`            | No serious/critical violations on every screen                                                                                                                                        | in e2e                           |                         |
@@ -25,7 +25,9 @@ Vitest's integration global setup and Playwright's global setup both call the ge
 
 ## Environment in tests
 
-- Integration tests get a fresh temp `DATA_DIR` and SQLite file per file (`tests/utils/test-env.ts`).
+- Integration tests get a fresh temp `DATA_DIR` per test and share one migrated PGlite database per test file, truncated before each test (`tests/utils/test-env.ts`). No Docker needed.
+- `tests/integration/job-queue-postgres.test.ts` races four connections for 120 jobs against the compose Postgres in a scratch database; it skips when Postgres isn't reachable (`TEST_DATABASE_URL` overrides the default `localhost:5442`).
+- Playwright recreates a `nimbus_e2e` database on the compose server once per run (`tests/e2e/reset-db.ts`), so e2e needs `docker compose up -d db`.
 - `server-only` is aliased to an empty module in Vitest.
 - MSW intercepts `https://api.anthropic.com/*`. Unhandled requests fail the test (`onUnhandledFrame: "error"`). Tests never hit the real API.
 - The e2e worker runs with `NODE_ENV=production`, so it reads `.env.local` (with `ANTHROPIC_API_KEY` forced empty). The golden path renders with captions, so `FFMPEG_PATH` there must point at an ffmpeg with libass; `pnpm run doctor` says whether it does.

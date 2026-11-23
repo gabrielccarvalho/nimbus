@@ -11,8 +11,8 @@ import { createTestEnv, type TestEnv } from "../utils/test-env"
 
 let env: TestEnv
 
-beforeEach(() => {
-  env = createTestEnv()
+beforeEach(async () => {
+  env = await createTestEnv()
 })
 afterEach(() => env.cleanup())
 
@@ -35,8 +35,8 @@ describe("sweep", () => {
     await plant(storageKeys.render(projectId, "clip", 1), day)
 
     const before = await getStorage().list(storageKeys.projectPrefix(projectId))
-    jobQueue(env.db).enqueue({ type: "sweep", projectId: null })
-    expect(jobQueue(env.db).hasActiveOfType("sweep")).toBe(true)
+    await jobQueue(env.db).enqueue({ type: "sweep", projectId: null })
+    expect(await jobQueue(env.db).hasActiveOfType("sweep")).toBe(true)
     await runJobs(env.db, ["sweep"])
 
     const storage = getStorage()

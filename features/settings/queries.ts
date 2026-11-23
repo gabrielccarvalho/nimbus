@@ -18,7 +18,7 @@ export async function getSettingsPage() {
     capabilities.encoders
   )
   return {
-    settings: getAppSettings(getDb()),
+    settings: await getAppSettings(getDb()),
     claudeAvailable: Boolean(env.ANTHROPIC_API_KEY),
     hardwareEncoder: hardwareEncoder === "libx264" ? null : hardwareEncoder,
     englishOnlyModel: /\.en\.bin$/.test(env.WHISPER_MODEL),

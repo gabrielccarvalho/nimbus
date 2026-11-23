@@ -70,8 +70,8 @@ function magicByteCheck(mime: AcceptedVideoMime) {
   })
 }
 
-export function projectSettingsFromApp(): ProjectSettings {
-  const app = getAppSettings(getDb())
+export async function projectSettingsFromApp(): Promise<ProjectSettings> {
+  const app = await getAppSettings(getDb())
   return {
     selectorMode: app.selectorMode,
     clipMinMs: app.clipMinMs,
@@ -131,21 +131,22 @@ export async function handleUpload(
   await storage.move(tempKey, sourceKey)
   const db = getDb()
   try {
-    withTransaction(db, () => {
-      projectRepository(db).create({
+    const settings = await projectSettingsFromApp()
+    await withTransaction(db, async (tx) => {
+      await projectRepository(tx).create({
         id: projectId,
         name: projectNameFromFile(fileName),
-        settings: projectSettingsFromApp(),
+        settings,
       })
-      const asset = assetRepository(db).create({
+      const asset = await assetRepository(tx).create({
         projectId,
         kind: "source",
         storageKey: sourceKey,
         mime,
         bytes,
       })
-      projectRepository(db).setSourceAsset(projectId, asset.id)
-      jobQueue(db).enqueue({ type: "probe", projectId })
+      await projectRepository(tx).setSourceAsset(projectId, asset.id)
+      await jobQueue(tx).enqueue({ type: "probe", projectId })
     })
   } catch (error) {
     await storage.remove(sourceKey)

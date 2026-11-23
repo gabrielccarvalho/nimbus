@@ -1,8 +1,12 @@
 import { defineConfig } from "drizzle-kit"
 
 export default defineConfig({
-  dialect: "sqlite",
+  dialect: "postgresql",
   schema: "./lib/db/schema.ts",
   out: "./lib/db/migrations",
-  dbCredentials: { url: process.env.DATABASE_PATH ?? "./data/app.db" },
+  dbCredentials: {
+    url:
+      process.env.DATABASE_URL ??
+      "postgres://nimbus:nimbus@localhost:5442/nimbus",
+  },
 })

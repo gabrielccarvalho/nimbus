@@ -22,7 +22,7 @@ export const SSE_HEADERS = {
 } as const
 
 export type PollingStreamOptions<T> = {
-  poll: () => T | undefined
+  poll: () => T | undefined | Promise<T | undefined>
   signal: AbortSignal
   intervalMs?: number
   heartbeatMs?: number
@@ -39,13 +39,13 @@ export function createPollingStream<T>({
   isFinal,
 }: PollingStreamOptions<T>): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder()
-  let timer: ReturnType<typeof setInterval> | undefined
+  let timer: ReturnType<typeof setTimeout> | undefined
   let heartbeat: ReturnType<typeof setInterval> | undefined
   let closed = false
 
   const stop = () => {
     closed = true
-    if (timer) clearInterval(timer)
+    if (timer) clearTimeout(timer)
     if (heartbeat) clearInterval(heartbeat)
   }
 
@@ -68,11 +68,11 @@ export function createPollingStream<T>({
         } catch {}
       }
 
-      const tick = () => {
+      const tick = async () => {
         if (closed) return
         let snapshot: T | undefined
         try {
-          snapshot = poll()
+          snapshot = await poll()
         } catch {
           send(
             formatSSE({ event: "error", data: { message: "Lookup failed" } })
@@ -90,11 +90,14 @@ export function createPollingStream<T>({
           last = serialized
           send(formatSSE({ event, data: serialized, retry: 2000 }))
         }
-        if (isFinal?.(snapshot)) close()
+        if (isFinal?.(snapshot)) {
+          close()
+          return
+        }
+        if (!closed) timer = setTimeout(() => void tick(), intervalMs)
       }
 
-      tick()
-      timer = setInterval(tick, intervalMs)
+      void tick()
       heartbeat = setInterval(() => send(": keep-alive\n\n"), heartbeatMs)
       signal.addEventListener("abort", stop, { once: true })
     },

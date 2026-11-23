@@ -17,14 +17,14 @@ export const probeStep: JobHandler = async ({
   reportProgress,
   logger,
 }) => {
-  const project = beginStep(db, job.projectId, "probing")
+  const project = await beginStep(db, job.projectId, "probing")
   const storage = getStorage()
   const assets = assetRepository(db)
-  const source = sourceAsset(db, project)
+  const source = await sourceAsset(db, project)
   const sourcePath = storage.resolve(source.storageKey)
 
   const info = parseProbe(await runFfprobe(sourcePath, signal))
-  assets.update(source.id, {
+  await assets.update(source.id, {
     durationMs: info.durationMs,
     width: info.displayWidth,
     height: info.displayHeight,
@@ -34,7 +34,7 @@ export const probeStep: JobHandler = async ({
   reportProgress(10)
 
   const thumbKey = storageKeys.thumbnail(project.id)
-  if (!assets.findByKind(project.id, "thumbnail")) {
+  if (!(await assets.findByKind(project.id, "thumbnail"))) {
     await runFfmpeg(
       [
         "-ss",
@@ -51,7 +51,7 @@ export const probeStep: JobHandler = async ({
       ],
       { signal, timeoutMs: 60_000 }
     )
-    assets.create({
+    await assets.create({
       projectId: project.id,
       kind: "thumbnail",
       storageKey: thumbKey,
@@ -95,7 +95,7 @@ export const probeStep: JobHandler = async ({
       onProgress: (p) => reportProgress(20 + p * 0.8),
     }
   )
-  assets.create({
+  await assets.create({
     projectId: project.id,
     kind: "proxy",
     storageKey: proxyKey,
@@ -109,9 +109,9 @@ export const probeStep: JobHandler = async ({
   const layouts = layoutRepository(db)
   const sourceAspect = classifyAspect(info.displayWidth, info.displayHeight)
   const landscape = isLandscape(info.displayWidth, info.displayHeight)
-  const preset = layouts.findPreset(info.displayWidth, info.displayHeight)
+  const preset = await layouts.findPreset(info.displayWidth, info.displayHeight)
   if (preset) {
-    layouts.upsert(project.id, {
+    await layouts.upsert(project.id, {
       sourceAspect,
       webcamRect: preset.webcamRect,
       gameplayRect: preset.gameplayRect,
@@ -121,7 +121,7 @@ export const probeStep: JobHandler = async ({
       confirmedByUser: true,
     })
   } else {
-    layouts.upsert(project.id, {
+    await layouts.upsert(project.id, {
       sourceAspect,
       webcamRect: null,
       gameplayRect: FULL_FRAME,
@@ -132,5 +132,5 @@ export const probeStep: JobHandler = async ({
   }
 
   logger.info({ ...info, sourceAspect, preset: Boolean(preset) }, "probed")
-  completeStep(db, project.id, "transcribing", "transcribe")
+  await completeStep(db, project.id, "transcribing", "transcribe")
 }

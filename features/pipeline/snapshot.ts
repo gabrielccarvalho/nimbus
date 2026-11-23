@@ -29,27 +29,28 @@ export type ProjectSnapshot = {
   clips: Array<{ id: string; status: ClipStatus }>
 }
 
-export function getProjectSnapshot(
+export async function getProjectSnapshot(
   db: Db,
   projectId: string
-): ProjectSnapshot | undefined {
-  const project = projectRepository(db).get(projectId)
+): Promise<ProjectSnapshot | undefined> {
+  const project = await projectRepository(db).get(projectId)
   if (!project) return undefined
-  const jobs = jobQueue(db)
-    .listForProject(projectId)
-    .slice(0, 50)
-    .map((job) => ({
-      id: job.id,
-      type: job.type,
-      status: job.status,
-      progress: Math.round(job.progress),
-      attempts: job.attempts,
-      error: job.error ? job.error.split("\n")[0]! : null,
-      clipId:
-        typeof job.payload.clipId === "string" ? job.payload.clipId : null,
-    }))
-  const assets = assetRepository(db)
-    .listForProject(projectId)
+  const [jobRows, assetRows, layout, clipRows] = await Promise.all([
+    jobQueue(db).listForProject(projectId),
+    assetRepository(db).listForProject(projectId),
+    layoutRepository(db).get(projectId),
+    clipRepository(db).listForProject(projectId),
+  ])
+  const jobs = jobRows.slice(0, 50).map((job) => ({
+    id: job.id,
+    type: job.type,
+    status: job.status,
+    progress: Math.round(job.progress),
+    attempts: job.attempts,
+    error: job.error ? job.error.split("\n")[0]! : null,
+    clipId: typeof job.payload.clipId === "string" ? job.payload.clipId : null,
+  }))
+  const assets = assetRows
     .filter((asset) => asset.kind === "source" || asset.kind === "thumbnail")
     .map((asset) =>
       [asset.kind, asset.id, asset.durationMs, asset.width, asset.height].join(
@@ -58,12 +59,9 @@ export function getProjectSnapshot(
     )
   const revision = [
     project.name,
-    layoutRepository(db).get(projectId)?.sourceAspect ?? "",
+    layout?.sourceAspect ?? "",
     ...assets.sort(),
   ].join("|")
-  const clips = clipRepository(db)
-    .listForProject(projectId)
-    .map((clip) => ({ id: clip.id, status: clip.status }))
   return {
     id: project.id,
     status: project.status,
@@ -72,6 +70,6 @@ export function getProjectSnapshot(
     awaitingManualSelection: project.awaitingManualSelection,
     revision,
     jobs,
-    clips,
+    clips: clipRows.map((clip) => ({ id: clip.id, status: clip.status })),
   }
 }

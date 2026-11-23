@@ -20,12 +20,13 @@ export type ProjectListItem = Project & {
 }
 
 export function projectRepository(db: Db) {
-  function get(id: string): Project | undefined {
-    return db.select().from(projects).where(eq(projects.id, id)).get()
+  async function get(id: string): Promise<Project | undefined> {
+    const [row] = await db.select().from(projects).where(eq(projects.id, id))
+    return row
   }
 
-  function getOrThrow(id: string): Project {
-    const project = get(id)
+  async function getOrThrow(id: string): Promise<Project> {
+    const project = await get(id)
     if (!project) throw new AppError("NOT_FOUND", "Project not found")
     return project
   }
@@ -34,13 +35,13 @@ export function projectRepository(db: Db) {
     get,
     getOrThrow,
 
-    create(input: {
+    async create(input: {
       id?: string
       name: string
       settings: ProjectSettings
       sourceUrl?: string
-    }): Project {
-      return db
+    }): Promise<Project> {
+      const [row] = await db
         .insert(projects)
         .values({
           id: input.id ?? newId(),
@@ -50,33 +51,37 @@ export function projectRepository(db: Db) {
           settings: input.settings,
         })
         .returning()
-        .get()
+      return row!
     },
 
-    list({ limit = 100 }: { limit?: number } = {}): ProjectListItem[] {
-      const rows = db
+    async list({ limit = 100 }: { limit?: number } = {}): Promise<
+      ProjectListItem[]
+    > {
+      const rows = await db
         .select()
         .from(projects)
         .orderBy(desc(projects.createdAt))
         .limit(limit)
-        .all()
       if (rows.length === 0) return []
       const ids = rows.map((r) => r.id)
       const counts = new Map(
-        db
-          .select({ projectId: clips.projectId, count: sql<number>`count(*)` })
-          .from(clips)
-          .where(
-            and(
-              inArray(clips.projectId, ids),
-              sql`${clips.status} != 'rejected'`
+        (
+          await db
+            .select({
+              projectId: clips.projectId,
+              count: sql<number>`count(*)::int`,
+            })
+            .from(clips)
+            .where(
+              and(
+                inArray(clips.projectId, ids),
+                sql`${clips.status} != 'rejected'`
+              )
             )
-          )
-          .groupBy(clips.projectId)
-          .all()
-          .map((r) => [r.projectId, r.count])
+            .groupBy(clips.projectId)
+        ).map((r) => [r.projectId, r.count])
       )
-      const media = db
+      const media = await db
         .select({
           projectId: assets.projectId,
           kind: assets.kind,
@@ -90,7 +95,6 @@ export function projectRepository(db: Db) {
             inArray(assets.kind, ["source", "thumbnail"])
           )
         )
-        .all()
       return rows.map((row) => {
         const own = media.filter((m) => m.projectId === row.id)
         return {
@@ -103,44 +107,44 @@ export function projectRepository(db: Db) {
       })
     },
 
-    rename(id: string, name: string) {
-      db.update(projects)
+    async rename(id: string, name: string) {
+      await db
+        .update(projects)
         .set({ name, updatedAt: now() })
         .where(eq(projects.id, id))
-        .run()
     },
 
-    updateSettings(id: string, settings: ProjectSettings) {
-      db.update(projects)
+    async updateSettings(id: string, settings: ProjectSettings) {
+      await db
+        .update(projects)
         .set({ settings, updatedAt: now() })
         .where(eq(projects.id, id))
-        .run()
     },
 
-    setSourceAsset(id: string, assetId: string) {
-      db.update(projects)
+    async setSourceAsset(id: string, assetId: string) {
+      await db
+        .update(projects)
         .set({ sourceAssetId: assetId, updatedAt: now() })
         .where(eq(projects.id, id))
-        .run()
     },
 
-    setAwaitingManualSelection(id: string, value: boolean) {
-      db.update(projects)
+    async setAwaitingManualSelection(id: string, value: boolean) {
+      await db
+        .update(projects)
         .set({ awaitingManualSelection: value, updatedAt: now() })
         .where(eq(projects.id, id))
-        .run()
     },
 
-    transition(id: string, to: ProjectStatus): Project {
-      return withTransaction(db, () => {
-        const current = db
+    transition(id: string, to: ProjectStatus): Promise<Project> {
+      return withTransaction(db, async (tx) => {
+        const [current] = await tx
           .select()
           .from(projects)
           .where(eq(projects.id, id))
-          .get()
+          .for("update")
         if (!current) throw new AppError("NOT_FOUND", "Project not found")
         assertTransition(current.status, to)
-        return db
+        const [row] = await tx
           .update(projects)
           .set({
             status: to,
@@ -150,14 +154,17 @@ export function projectRepository(db: Db) {
           })
           .where(eq(projects.id, id))
           .returning()
-          .get()
+        return row!
       })
     },
 
-    markFailed(id: string, message: string): Project | undefined {
-      const current = get(id)
+    async markFailed(
+      id: string,
+      message: string
+    ): Promise<Project | undefined> {
+      const current = await get(id)
       if (!current || !isRunning(current.status)) return current
-      return db
+      const [row] = await db
         .update(projects)
         .set({
           status: "failed",
@@ -167,75 +174,73 @@ export function projectRepository(db: Db) {
         })
         .where(eq(projects.id, id))
         .returning()
-        .get()
+      return row
     },
 
-    resumeFailed(id: string, to: ProjectStatus): Project {
-      return db
+    async resumeFailed(id: string, to: ProjectStatus): Promise<Project> {
+      const [row] = await db
         .update(projects)
         .set({ status: to, error: null, failedStep: null, updatedAt: now() })
         .where(and(eq(projects.id, id), eq(projects.status, "failed")))
         .returning()
-        .get()
+      return row!
     },
 
-    delete(id: string) {
-      db.delete(projects).where(eq(projects.id, id)).run()
+    async delete(id: string) {
+      await db.delete(projects).where(eq(projects.id, id))
     },
   }
 }
 
 export function assetRepository(db: Db) {
   return {
-    create(input: NewAsset): Asset {
-      return db
+    async create(input: NewAsset): Promise<Asset> {
+      const [row] = await db
         .insert(assets)
         .values({ ...input, id: input.id ?? newId() })
         .returning()
-        .get()
+      return row!
     },
 
-    get(id: string): Asset | undefined {
-      return db.select().from(assets).where(eq(assets.id, id)).get()
+    async get(id: string): Promise<Asset | undefined> {
+      const [row] = await db.select().from(assets).where(eq(assets.id, id))
+      return row
     },
 
-    listForProject(projectId: string): Asset[] {
-      return db
-        .select()
-        .from(assets)
-        .where(eq(assets.projectId, projectId))
-        .all()
+    listForProject(projectId: string): Promise<Asset[]> {
+      return db.select().from(assets).where(eq(assets.projectId, projectId))
     },
 
-    findByKind(projectId: string, kind: Asset["kind"]): Asset | undefined {
-      return db
+    async findByKind(
+      projectId: string,
+      kind: Asset["kind"]
+    ): Promise<Asset | undefined> {
+      const [row] = await db
         .select()
         .from(assets)
         .where(and(eq(assets.projectId, projectId), eq(assets.kind, kind)))
         .orderBy(desc(assets.createdAt))
-        .get()
+        .limit(1)
+      return row
     },
 
-    update(
+    async update(
       id: string,
       patch: Partial<Omit<typeof assets.$inferInsert, "id" | "projectId">>
     ) {
-      db.update(assets)
+      await db
+        .update(assets)
         .set({ ...patch, updatedAt: now() })
         .where(eq(assets.id, id))
-        .run()
     },
 
-    delete(id: string) {
-      db.delete(assets).where(eq(assets.id, id)).run()
+    async delete(id: string) {
+      await db.delete(assets).where(eq(assets.id, id))
     },
 
-    allStorageKeys(): string[] {
-      return db
-        .select({ key: assets.storageKey })
-        .from(assets)
-        .all()
-        .map((r) => r.key)
+    async allStorageKeys(): Promise<string[]> {
+      const rows = await db.select({ key: assets.storageKey }).from(assets)
+      return rows.map((r) => r.key)
     },
   }
 }
