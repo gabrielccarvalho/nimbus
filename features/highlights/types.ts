@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import type { AudiencePoint, SignalsData, TimeRange } from "../analysis/schema"
+import { beatSchema } from "../effects/schema"
 import type { Segment, Word } from "../transcription/schema"
 import type { NicheProfile } from "./niches"
 
@@ -11,6 +12,7 @@ export const rawCandidateSchema = z.object({
   hook: z.string(),
   reason: z.string(),
   score: z.number(),
+  beats: z.array(beatSchema).optional(),
 })
 export type RawCandidate = z.infer<typeof rawCandidateSchema>
 

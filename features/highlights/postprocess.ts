@@ -117,6 +117,7 @@ export function postprocessCandidates(
       hook: candidate.hook.trim().slice(0, 200),
       reason: candidate.reason.trim().slice(0, 500),
       score: score * (1 - penalty),
+      beats: candidate.beats?.filter((b) => b.ms >= startMs && b.ms <= endMs),
     })
   }
 

@@ -1,10 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { clipRepository } from "@/features/clips/repository"
 import {
   applyManualSelection,
   setClipReviewStatus,
 } from "@/features/clips/service"
+import { HeuristicSelector } from "@/features/highlights/heuristic"
 import { layoutRepository } from "@/features/layout/repository"
 import { projectRepository } from "@/features/projects/repository"
 
@@ -12,9 +13,41 @@ import { fixtures } from "../../scripts/make-fixtures"
 import { runJobs, uploadFixture } from "../utils/pipeline"
 import { createTestEnv, type TestEnv } from "../utils/test-env"
 
+const review = vi.hoisted(() => ({ on: false }))
+
+vi.mock("@/features/highlights", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/features/highlights")>()
+  return {
+    ...actual,
+    selectHighlights: (
+      ...args: Parameters<typeof actual.selectHighlights>
+    ): ReturnType<typeof actual.selectHighlights> => {
+      if (!review.on) return actual.selectHighlights(...args)
+      const [, input, logger] = args
+      return actual.selectHighlights(
+        "anthropic",
+        { ...input, frames: async (at) => at.map(() => "") },
+        logger,
+        () => new HeuristicSelector(),
+        () => ({
+          review: async (candidates) =>
+            candidates.map((c) => ({
+              ...c,
+              beats: [
+                { ms: c.startMs + 5000, kind: "reaction" as const },
+                { ms: c.endMs + 60_000, kind: "reaction" as const },
+              ],
+            })),
+        })
+      )
+    },
+  }
+})
+
 let env: TestEnv
 
 beforeEach(async () => {
+  review.on = false
   env = await createTestEnv()
 })
 afterEach(() => env.cleanup())
@@ -93,6 +126,43 @@ describe("select step", () => {
     const [clip] = await clipRepository(env.db).listForProject(projectId)
     expect(clip).toMatchObject({ title: "The boss", endMs: 20_000 })
     expect(clip!.endMs - clip!.startMs).toBeGreaterThanOrEqual(15_000)
+  })
+})
+
+describe("auto effects at selection", () => {
+  const withReview = async (autoEffects: boolean) => {
+    review.on = true
+    return analyzed(async (id) => {
+      const projects = projectRepository(env.db)
+      await projects.updateSettings(id, {
+        ...(await projects.getOrThrow(id)).settings,
+        autoEffects,
+      })
+    })
+  }
+
+  it("stores beats and an auto effect track when autoEffects is on", async () => {
+    const projectId = await withReview(true)
+    const clips = await clipRepository(env.db).listForProject(projectId)
+    expect(clips.length).toBeGreaterThan(0)
+    for (const clip of clips) {
+      expect(clip.beats).toEqual([{ ms: expect.any(Number), kind: "reaction" }])
+      expect(clip.effects).toMatchObject({ edited: false })
+      for (const event of clip.effects!.events) {
+        expect(event.startMs).toBeGreaterThanOrEqual(clip.startMs)
+        expect(event.endMs).toBeLessThanOrEqual(clip.endMs)
+      }
+    }
+  })
+
+  it("leaves effects null when autoEffects is off", async () => {
+    const projectId = await withReview(false)
+    const clips = await clipRepository(env.db).listForProject(projectId)
+    expect(clips.length).toBeGreaterThan(0)
+    for (const clip of clips) {
+      expect(clip.beats).toHaveLength(1)
+      expect(clip.effects).toBeNull()
+    }
   })
 })
 

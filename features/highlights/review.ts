@@ -31,6 +31,7 @@ Then tighten the clip for retention:
 - endMs: right after the reaction lands. Keep the length within the limits you are given.
 - title and hook: say what is visible, concretely ("car launches into orbit off a curb"), in the language you are told. The hook is on-screen text for the first seconds, under 90 characters, and must make people want to see what happens.
 - reason: one sentence an editor can check: what the frames show and how the streamer reacts.
+- beats: up to 4 moments, each { ms, kind }. "reaction" where the streamer's face in the webcam visibly reacts (shock, laughter, screaming); "weird" where something strange or impactful happens in the game, with x and y (0–1 of the full frame) for where on screen. Use frame times.
 
 Return every candidate you were given, by id, even the bad ones, with an honest score.`
 
@@ -125,13 +126,16 @@ export function applyReviews(
       within(review.startMs) &&
       within(review.endMs) &&
       review.endMs > review.startMs
+    const startMs = moved ? review.startMs : candidate.startMs
+    const endMs = moved ? review.endMs : candidate.endMs
     return {
-      startMs: moved ? review.startMs : candidate.startMs,
-      endMs: moved ? review.endMs : candidate.endMs,
+      startMs,
+      endMs,
       title: review.title.trim() || candidate.title,
       hook: review.hook.trim() || candidate.hook,
       reason: review.reason.trim() || candidate.reason,
       score: review.score,
+      beats: review.beats?.filter((b) => b.ms >= startMs && b.ms <= endMs),
     }
   })
 }
