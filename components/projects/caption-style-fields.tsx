@@ -3,13 +3,23 @@
 import * as React from "react"
 
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
+  CAPTION_FONT_IDS,
+  CAPTION_FONTS,
   CAPTION_PRESETS,
   captionStyleOverridesSchema,
   resolveCaptionStyle,
+  type CaptionFontId,
   type CaptionStyleOverrides,
 } from "@/features/captions/styles"
 import type { ProjectSettings } from "@/features/projects/schema"
@@ -23,16 +33,23 @@ const CAPTION_POSITIONS = [
   { value: "bottom", label: "Bottom" },
 ] as const
 
+const fontItems = CAPTION_FONT_IDS.map((font) => ({
+  value: font,
+  label: CAPTION_FONTS[font].label,
+}))
+
 const sliderValue = (value: number | readonly number[]) =>
   Array.isArray(value) ? value[0] : (value as number)
 
 export function CaptionStyleFields({
   value,
   onValueChange,
+  installedFonts,
   disabled,
 }: {
   value: CaptionStyleRef
   onValueChange: (value: CaptionStyleRef) => void
+  installedFonts: readonly CaptionFontId[]
   disabled?: boolean
 }) {
   const id = React.useId()
@@ -73,6 +90,44 @@ export function CaptionStyleFields({
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
+      </div>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor={`${id}-font`}>Font</Label>
+        <Select
+          items={fontItems}
+          value={style.font}
+          disabled={disabled}
+          onValueChange={(next) => {
+            const font = shape.font.safeParse(next)
+            if (font.success) set("font", font.data)
+          }}
+        >
+          <SelectTrigger id={`${id}-font`} className="w-full max-w-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {fontItems.map((font) => {
+              const installed = installedFonts.includes(font.value)
+              return (
+                <SelectItem
+                  key={font.value}
+                  value={font.value}
+                  disabled={!installed}
+                  style={{
+                    fontFamily: CAPTION_FONTS[font.value].cssFontFamily,
+                  }}
+                >
+                  {font.label}
+                  {!installed && (
+                    <span className="font-sans text-xs text-muted-foreground">
+                      Not installed
+                    </span>
+                  )}
+                </SelectItem>
+              )
+            })}
+          </SelectContent>
+        </Select>
       </div>
       <div className="flex flex-col gap-2">
         <Label id={`${id}-position`}>Position</Label>

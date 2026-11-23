@@ -43,7 +43,35 @@ export function cssColor(token: CaptionColorToken, opacity = 1) {
   return `rgb(${r} ${g} ${b} / ${opacity})`
 }
 
+export const CAPTION_FONT_IDS = ["oxanium", "nunito", "pricedown"] as const
+export type CaptionFontId = (typeof CAPTION_FONT_IDS)[number]
+
+export const CAPTION_FONTS: Record<
+  CaptionFontId,
+  { label: string; fontFamily: string; cssFontFamily: string; file: string }
+> = {
+  oxanium: {
+    label: "Oxanium",
+    fontFamily: "Oxanium ExtraBold",
+    cssFontFamily: "var(--font-heading)",
+    file: "Oxanium-ExtraBold.ttf",
+  },
+  nunito: {
+    label: "Nunito Sans",
+    fontFamily: "Nunito Sans ExtraBold",
+    cssFontFamily: "var(--font-sans)",
+    file: "NunitoSans-ExtraBold.ttf",
+  },
+  pricedown: {
+    label: "Pricedown",
+    fontFamily: "Pricedown Black",
+    cssFontFamily: '"Pricedown Black", var(--font-heading)',
+    file: "Pricedown-Black.otf",
+  },
+}
+
 export const captionStyleOverridesSchema = z.object({
+  font: z.enum(CAPTION_FONT_IDS),
   fontSize: z.number().int().min(36).max(160),
   uppercase: z.boolean(),
   maxWordsPerPage: z.number().int().min(1).max(8),
@@ -56,8 +84,6 @@ export type CaptionStyleOverrides = z.infer<typeof captionStyleOverridesSchema>
 export type CaptionStyle = CaptionStyleOverrides & {
   id: string
   label: string
-  fontFamily: string
-  cssFontFamily: string
   text: CaptionColorToken
   highlightColor: CaptionColorToken
   outlineColor: CaptionColorToken
@@ -66,20 +92,11 @@ export type CaptionStyle = CaptionStyleOverrides & {
   box: boolean
 }
 
-const OXANIUM = {
-  fontFamily: "Oxanium ExtraBold",
-  cssFontFamily: "var(--font-heading)",
-}
-const NUNITO = {
-  fontFamily: "Nunito Sans ExtraBold",
-  cssFontFamily: "var(--font-sans)",
-}
-
 export const CAPTION_PRESETS: readonly CaptionStyle[] = [
   {
     id: "punch",
     label: "Punch",
-    ...OXANIUM,
+    font: "oxanium",
     fontSize: 92,
     uppercase: true,
     maxWordsPerPage: 3,
@@ -96,7 +113,7 @@ export const CAPTION_PRESETS: readonly CaptionStyle[] = [
   {
     id: "clean",
     label: "Clean",
-    ...NUNITO,
+    font: "nunito",
     fontSize: 72,
     uppercase: false,
     maxWordsPerPage: 4,
@@ -113,7 +130,7 @@ export const CAPTION_PRESETS: readonly CaptionStyle[] = [
   {
     id: "boxed",
     label: "Boxed",
-    ...NUNITO,
+    font: "nunito",
     fontSize: 68,
     uppercase: false,
     maxWordsPerPage: 4,
@@ -172,7 +189,7 @@ export function captionBaseline(
 
 export function cssCaptionStyle(style: CaptionStyle) {
   return {
-    fontFamily: style.cssFontFamily,
+    fontFamily: CAPTION_FONTS[style.font].cssFontFamily,
     fontSize: style.fontSize,
     uppercase: style.uppercase,
     color: cssColor(style.text),

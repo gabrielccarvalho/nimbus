@@ -116,6 +116,12 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+@font-face {
+  font-family: "Pricedown Black";
+  src: url("/api/fonts/pricedown") format("opentype");
+  font-display: swap;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

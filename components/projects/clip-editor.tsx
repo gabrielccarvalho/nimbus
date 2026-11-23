@@ -60,6 +60,7 @@ import {
   captionBaseline,
   cssCaptionStyle,
   resolveCaptionStyle,
+  type CaptionFontId,
 } from "@/features/captions/styles"
 import { setClipStatusAction, updateClipAction } from "@/features/clips/actions"
 import type { Clip } from "@/features/clips/repository"
@@ -96,6 +97,7 @@ type ClipEditorProps = {
   layout: LayoutInput
   words: Word[]
   settings: ProjectSettings
+  installedFonts: readonly CaptionFontId[]
   render?: { url: string; downloadUrl: string }
   snapshot: ProjectSnapshot
 }
@@ -218,6 +220,7 @@ export function ClipEditor({
   layout: projectLayout,
   words,
   settings,
+  installedFonts,
   render,
   snapshot: initialSnapshot,
 }: ClipEditorProps) {
@@ -526,6 +529,7 @@ export function ClipEditor({
                 <CaptionStyleFields
                   value={styleRef}
                   onValueChange={setStyleRef}
+                  installedFonts={installedFonts}
                 />
                 <ol aria-label="Caption text" className="flex flex-col gap-2">
                   {basePages.map((page) => {
