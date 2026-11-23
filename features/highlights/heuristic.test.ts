@@ -85,6 +85,18 @@ describe("heuristic scoring", () => {
     expect(top.reason).toMatch(/repeated words/)
   })
 
+  it("doesn't count game dialogue in another language as the streamer", () => {
+    const dialogue = Array.from(
+      { length: 28 },
+      (_, i) => ["you", "know", "what!", "I", "got", "it!", "the"][i % 7]!
+    )
+    const reasons = stream({ moment: dialogue })
+      .filter((c) => c.startMs >= 5 * MINUTE && c.startMs < 5 * MINUTE + 20_000)
+      .map((c) => c.reason)
+    expect(reasons.length).toBeGreaterThan(0)
+    expect(reasons.join(" ")).not.toMatch(/laughing or shouting/)
+  })
+
   it("only counts phrases from the spoken language and the catchphrases", () => {
     const moment = ["bora", "bill", "agora"]
     expect(best(stream({ moment, language: "en" })).reason).not.toMatch(

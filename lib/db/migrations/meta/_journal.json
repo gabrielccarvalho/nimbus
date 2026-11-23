@@ -43,6 +43,13 @@
       "when": 1795447182020,
       "tag": "0005_audience_heatmap",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795455537756,
+      "tag": "0006_signal_cuts",
+      "breakpoints": true
     }
   ]
 }

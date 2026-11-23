@@ -26,6 +26,29 @@ const raw = (startMs: number, endMs: number, score = 0.5): RawCandidate => ({
 })
 
 describe("postprocessCandidates", () => {
+  it("lowers the score of clips covered by game dialogue", () => {
+    const dialogue = normalizeWords(
+      Array.from({ length: 120 }, (_, i) => ({
+        text: i < 60 ? " you" : i % 10 === 9 ? " fim." : " vai",
+        startMs: i * 1000,
+        endMs: i * 1000 + 600,
+      }))
+    )
+    const clips = postprocessCandidates(
+      [raw(0, 30_000, 0.9), raw(70_000, 100_000, 0.6)],
+      {
+        ...context,
+        words: dialogue,
+        segments: buildSegments(dialogue),
+        language: "pt",
+      }
+    )
+    expect(clips.map((c) => [c.startMs, c.score])).toEqual([
+      [70_000, 0.6],
+      [0, expect.closeTo(0.9 * (1 - 0.6), 5)],
+    ])
+  })
+
   it("snaps to sentence boundaries within 1.5 s", () => {
     const [clip] = postprocessCandidates([raw(10_900, 30_200)], context)
     expect(clip).toMatchObject({

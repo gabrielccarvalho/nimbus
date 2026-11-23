@@ -107,6 +107,7 @@ export const signals = pgTable("signals", {
   loudness: jsonb("loudness").$type<number[]>().notNull(),
   loudnessIntervalMs: integer("loudness_interval_ms").notNull(),
   speechDensity: jsonb("speech_density").$type<DensityWindow[]>().notNull(),
+  cuts: jsonb("cuts").$type<number[]>().notNull().default([]),
   ...timestamps,
 })
 

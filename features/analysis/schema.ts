@@ -18,6 +18,7 @@ export const signalsSchema = z.object({
   loudness: z.array(z.number()),
   loudnessIntervalMs: z.number().int().positive(),
   speechDensity: z.array(densityWindowSchema),
+  cuts: z.array(z.number().int().nonnegative()).optional(),
 })
 export type SignalsData = z.infer<typeof signalsSchema>
 

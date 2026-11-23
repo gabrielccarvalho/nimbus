@@ -8,6 +8,8 @@ const words = normalizeWords([
   { text: " deus!", startMs: 500, endMs: 900, confidence: 0.95 },
   { text: " Get", startMs: 40_000, endMs: 40_400, confidence: 0.2 },
   { text: " down.", startMs: 40_500, endMs: 40_900, confidence: 0.3 },
+  { text: " Vai", startMs: 50_000, endMs: 50_400, confidence: 0.2 },
+  { text: " lá.", startMs: 50_500, endMs: 50_900, confidence: 0.3 },
 ])
 const base = {
   durationMs: 60_000,
@@ -24,13 +26,40 @@ const base = {
 }
 
 describe("selection prompt", () => {
-  it("names the spoken language and marks unclear speech", () => {
+  it("names the spoken language and marks game and unclear speech", () => {
     const prompt = buildSelectionPrompt(base)
     expect(languageName("pt")).toBe("Portuguese")
     expect(prompt).toContain("The streamer speaks Portuguese.")
     expect(prompt).toContain("Write titles and hooks in Portuguese.")
     expect(prompt).toContain("[0.0–0.9] Meu deus!")
-    expect(prompt).toMatch(/\[40\.0–40\.9\] \(unclear\) Get down\./)
+    expect(prompt).toContain("[40.0–40.9] (game) Get down.")
+    expect(prompt).toContain("[50.0–50.9] (unclear) Vai lá.")
+  })
+
+  it("lists game dialogue stretches and runs of camera cuts", () => {
+    const english = normalizeWords(
+      Array.from({ length: 60 }, (_, i) => ({
+        text: i % 6 === 5 ? " you." : " you",
+        startMs: 10_000 + i * 500,
+        endMs: 10_000 + i * 500 + 300,
+      }))
+    )
+    const prompt = buildSelectionPrompt({
+      ...base,
+      words: english,
+      segments: buildSegments(english),
+      signals: { ...base.signals, cuts: [2000, 6000, 9000, 30_000] },
+    })
+    expect(prompt).toContain(
+      "Game characters talking, likely cutscenes: 10.0–40.0s"
+    )
+    expect(prompt).toMatch(/Runs of hard camera cuts .*: 2\.0–9\.0s \(3 cuts\)/)
+  })
+
+  it("leaves out the cut and dialogue lines when there are none", () => {
+    const prompt = buildSelectionPrompt(base)
+    expect(prompt).not.toContain("Game characters talking")
+    expect(prompt).not.toContain("Runs of hard camera cuts")
   })
 
   it("limits a part to its own time range", () => {

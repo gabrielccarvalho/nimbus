@@ -2,8 +2,11 @@ import { z } from "zod"
 
 import { AppError } from "@/lib/errors"
 
+import { cutClusters } from "../analysis/cuts"
 import type { AudiencePoint, SignalsData, TimeRange } from "../analysis/schema"
+import { isForeignSegment } from "../captions/speaker"
 import type { Segment, Word } from "../transcription/schema"
+import { gameDialogueStretches } from "./game-dialogue"
 import {
   candidatesResponseSchema,
   type RawCandidate,
@@ -12,9 +15,23 @@ import {
 
 const seconds = (ms: number) => (ms / 1000).toFixed(1)
 
-export const SELECTION_SYSTEM_PROMPT = `You pick short-form highlight clips from long gameplay recordings that have a facecam. A good clip starts right before something happens, has a clear payoff (a reaction, a joke, a clutch play, a funny fail, a strong opinion) and makes sense without the rest of the video. Prefer moments where the streamer's speech and the audio energy both spike. Avoid clips that start mid-sentence, end before the payoff, or are mostly silence.
+export const SELECTION_SYSTEM_PROMPT = `You pick short-form clips (TikTok, Shorts, Reels) from long gameplay streams that have a facecam. A clip has to grab a viewer in its first seconds and pay off before it ends.
 
-Write titles and hooks in the streamer's language. Titles are under 60 characters and say what happens. Hooks are the on-screen text for the first seconds, under 90 characters. The reason is one sentence an editor can check against the transcript. Score each clip from 0 to 1 by how likely it is to hold a viewer.`
+What makes a clip, best first:
+1. Something happening in the game — a fight, shootout, chase, crash, death, fail, clutch play, jump scare, chaos — with the streamer reacting out loud.
+2. A big streamer reaction — screaming, panicking, raging, losing it laughing, disbelief — to something that just happened on screen.
+3. A funny bit or a heated, quotable rant, only when the streamer is clearly fired up.
+
+The best moments usually show up as a burst of short, loud lines from the streamer (swearing, shouting, repeated words) together with an audio spike.
+
+Don't pick:
+- Cutscenes and story dialogue, even when the streamer comments over them. Signs: game characters talking for a long stretch, lines marked (game), the streamer quiet or narrating the plot, runs of hard camera cuts.
+- Menus, maps, shops, settings, loading screens, customization, tutorials.
+- Calm driving, walking or exploring, reading messages, admiring graphics or music, talking to chat about the game, performance or the stream.
+
+A clip starts a few seconds before the action kicks off, contains the peak and ends right after the reaction lands. It has to make sense without the rest of the video. When the stream runs out of action, fill the list with the strongest reactions left and score them honestly, but never with anything from the "don't pick" list.
+
+Write titles and hooks in the streamer's language. Titles are under 60 characters and say what happens. Hooks are the on-screen text for the first seconds, under 90 characters. The reason is one sentence an editor can check against the transcript: what happens in the game and how the streamer reacts. Score each clip from 0 to 1 by how likely it is to hold a viewer: above 0.8 only for real action with a loud reaction, under 0.3 for anything from the "don't pick" list.`
 
 const UNCLEAR_CONFIDENCE = 0.5
 
@@ -80,20 +97,33 @@ export function buildSelectionPrompt({
       (p) =>
         `${seconds(p.startMs)}–${seconds(p.endMs)}s (${p.value.toFixed(2)})`
     )
+  const within = (r: TimeRange) => r.endMs > from && r.startMs < to
+  const gameDialogue = gameDialogueStretches(words, language)
+    .filter(within)
+    .map((r) => `${seconds(r.startMs)}–${seconds(r.endMs)}s`)
+  const cuts = cutClusters(signals.cuts ?? [])
+    .filter(within)
+    .map((c) => `${seconds(c.startMs)}–${seconds(c.endMs)}s (${c.count} cuts)`)
   const inside = segments.filter((s) => s.startMs >= from && s.startMs < to)
+  const mark = (s: Segment) =>
+    isForeignSegment(s.text, language)
+      ? " (game)"
+      : segmentConfidence(s, words) < UNCLEAR_CONFIDENCE
+        ? " (unclear)"
+        : ""
 
   const transcript = inside.length
     ? inside
         .map(
           (s) =>
-            `[${seconds(s.startMs)}–${seconds(s.endMs)}]${segmentConfidence(s, words) < UNCLEAR_CONFIDENCE ? " (unclear)" : ""} ${s.text}`
+            `[${seconds(s.startMs)}–${seconds(s.endMs)}]${mark(s)} ${s.text}`
         )
         .join("\n")
     : "(no speech detected)"
 
   const spoken =
     language && language !== "auto"
-      ? `The streamer speaks ${languageName(language)}. Game audio in other languages can appear in the transcript, often marked (unclear); it isn't the streamer reacting. Write titles and hooks in ${languageName(language)}.`
+      ? `The streamer speaks ${languageName(language)}. Game audio in other languages appears in the transcript, marked (game) or (unclear); it isn't the streamer reacting. Write titles and hooks in ${languageName(language)}.`
       : "Write titles and hooks in the language the streamer speaks."
 
   return `Recording length: ${seconds(durationMs)} s.${part ? ` This is part ${part.index + 1} of ${part.count}, from ${seconds(from)} s to ${seconds(to)} s; only pick clips inside it.` : ""}
@@ -104,7 +134,7 @@ Pick up to ${limits.maxCount} clips, each between ${seconds(limits.minMs)} and $
 
 ${exclude.length ? `Already clipped, don't pick these again or anything overlapping them: ${exclude.map((r) => `${seconds(r.startMs)}–${seconds(r.endMs)}s`).join(", ")}\n\n` : ""}Loudest moments: ${loudest.join(", ") || "none"}
 Silences: ${silences.map((s) => `${seconds(s.startMs)}–${seconds(s.endMs)}s`).join(", ") || "none"}
-${rewatched.length ? `Most rewatched on YouTube (viewer replays, 1 = the most replayed part of the video; each range is coarse, so find the moment inside it): ${rewatched.join(", ")}\n` : ""}
+${gameDialogue.length ? `Game characters talking, likely cutscenes: ${gameDialogue.join(", ")}\n` : ""}${cuts.length ? `Runs of hard camera cuts (gameplay cameras rarely cut, so these are usually cutscenes, menus or fail screens; a chase or fight can cut too): ${cuts.join(", ")}\n` : ""}${rewatched.length ? `Most rewatched on YouTube (viewer replays, 1 = the most replayed part of the video; each range is coarse, so find the moment inside it): ${rewatched.join(", ")}\n` : ""}
 Transcript (seconds):
 ${transcript}`
 }

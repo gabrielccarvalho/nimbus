@@ -1,5 +1,6 @@
 import { normalizeLoudness } from "../analysis/loudness"
 import type { AudiencePoint } from "../analysis/schema"
+import { speakerWords } from "../captions/speaker"
 import type { Segment, Word } from "../transcription/schema"
 import {
   countPhrases,
@@ -121,10 +122,16 @@ export function scoreWindows(
     lowerBound(wordStarts, to),
   ]
   const confidenceSum = prefixSums(words.map((w) => w.confidence))
+  const streamer = speakerWords({ language: input.language, words, segments })
+  const streamerStarts = streamer.map((w) => w.startMs)
+  const streamerIn = (from: number, to: number): [number, number] => [
+    lowerBound(streamerStarts, from),
+    lowerBound(streamerStarts, to),
+  ]
   const excitedSum = prefixSums(
-    words.map((w) => (isExclamation(w.text) || isLaughter(w.text) ? 1 : 0))
+    streamer.map((w) => (isExclamation(w.text) || isLaughter(w.text) ? 1 : 0))
   )
-  const repeatSum = prefixSums(repeatedWords(words))
+  const repeatSum = prefixSums(repeatedWords(streamer))
   const segmentStarts = segments.map((s) => s.startMs)
   const segmentPhrases = segments.map((s) => countPhrases(s.text, phrases))
   const phraseSum = prefixSums(segmentPhrases)
@@ -139,7 +146,7 @@ export function scoreWindows(
   )
 
   const rate = (from: number, to: number) => {
-    const [a, b] = wordsIn(from, to)
+    const [a, b] = streamerIn(from, to)
     return (b - a) / Math.max(1, (to - from) / 1000)
   }
   const meanLoudness = (from: number, to: number) => {
@@ -169,13 +176,14 @@ export function scoreWindows(
       const baseFrom = Math.max(0, startMs - BASELINE_MS)
       const baseTo = Math.min(durationMs, endMs + BASELINE_MS)
       const [wa, wb] = wordsIn(startMs, endMs)
+      const [sw, swb] = streamerIn(startMs, endMs)
       const sa = lowerBound(segmentStarts, startMs)
       const sb = lowerBound(segmentStarts, endMs)
       const inside = segments.slice(sa, sb)
       const pause =
         silenceEnds[lowerBound(silenceEnds, peakMs - PAUSE_BEFORE_PEAK_MS)]
       const baselineRate = rate(baseFrom, baseTo)
-      const [ba, bb] = wordsIn(baseFrom, baseTo)
+      const [ba, bb] = streamerIn(baseFrom, baseTo)
       const bsa = lowerBound(segmentStarts, baseFrom)
       const bsb = lowerBound(segmentStarts, baseTo)
       const share = (endMs - startMs) / Math.max(1, baseTo - baseFrom)
@@ -196,13 +204,13 @@ export function scoreWindows(
               : 0,
           excitement: Math.max(
             0,
-            excitedSum(wa, wb) - BASELINE_MARGIN * share * excitedSum(ba, bb)
+            excitedSum(sw, swb) - BASELINE_MARGIN * share * excitedSum(ba, bb)
           ),
           phrases: Math.max(
             0,
             phraseSum(sa, sb) - BASELINE_MARGIN * share * phraseSum(bsa, bsb)
           ),
-          repetition: repeatSum(wa, wb),
+          repetition: repeatSum(sw, swb),
           pauseBeforePeak:
             pause !== undefined && pause <= peakMs && pause >= startMs ? 1 : 0,
           questionAnswer: inside.some(
