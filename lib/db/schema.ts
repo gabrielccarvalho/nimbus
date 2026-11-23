@@ -14,7 +14,12 @@ import {
 import type { DensityWindow, TimeRange } from "@/features/analysis/schema"
 import type { CaptionOverrides, ClipStatus } from "@/features/clips/schema"
 import type { JobStatus, JobType } from "@/features/jobs/schema"
-import type { LayoutMode, Rect } from "@/features/layout/schema"
+import type {
+  CamPosition,
+  LayoutInput,
+  LayoutMode,
+  Rect,
+} from "@/features/layout/schema"
 import type {
   AssetKind,
   AudioTrack,
@@ -109,6 +114,10 @@ export const layouts = pgTable("layouts", {
   gameplayRect: jsonb("gameplay_rect").$type<Rect>().notNull(),
   gameplayFocusX: doublePrecision("gameplay_focus_x").notNull().default(0.5),
   mode: text("mode").$type<LayoutMode>().notNull(),
+  camPosition: text("cam_position")
+    .$type<CamPosition>()
+    .notNull()
+    .default("top"),
   confidence: doublePrecision("confidence").notNull().default(0),
   confirmedByUser: boolean("confirmed_by_user").notNull().default(false),
   ...timestamps,
@@ -124,6 +133,10 @@ export const layoutPresets = pgTable(
     gameplayRect: jsonb("gameplay_rect").$type<Rect>().notNull(),
     gameplayFocusX: doublePrecision("gameplay_focus_x").notNull().default(0.5),
     mode: text("mode").$type<LayoutMode>().notNull(),
+    camPosition: text("cam_position")
+      .$type<CamPosition>()
+      .notNull()
+      .default("top"),
     ...timestamps,
   },
   (t) => [uniqueIndex("layout_presets_resolution_idx").on(t.width, t.height)]
@@ -144,6 +157,7 @@ export const clips = pgTable(
     score: doublePrecision("score").notNull().default(0),
     status: text("status").$type<ClipStatus>().notNull().default("candidate"),
     captionOverrides: jsonb("caption_overrides").$type<CaptionOverrides>(),
+    layoutOverride: jsonb("layout_override").$type<LayoutInput>(),
     renderAssetId: text("render_asset_id").references(() => assets.id, {
       onDelete: "set null",
     }),

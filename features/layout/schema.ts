@@ -26,10 +26,14 @@ export function usesWebcam(mode: LayoutMode): mode is WebcamLayoutMode {
 
 export const FULL_FRAME: Rect = { x: 0, y: 0, w: 1, h: 1 }
 
+export const camPositionSchema = z.enum(["top", "bottom"])
+export type CamPosition = z.infer<typeof camPositionSchema>
+
 export const layoutInputSchema = z.object({
   webcamRect: rectSchema.nullable(),
   gameplayRect: rectSchema,
   gameplayFocusX: unit,
   mode: layoutModeSchema,
+  camPosition: camPositionSchema.default("top"),
 })
-export type LayoutInput = z.infer<typeof layoutInputSchema>
+export type LayoutInput = z.input<typeof layoutInputSchema>

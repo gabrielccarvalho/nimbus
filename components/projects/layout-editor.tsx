@@ -37,7 +37,9 @@ import {
 } from "@/features/layout/detect-webcam"
 import { planLayout } from "@/features/layout/geometry"
 import {
+  camPositionSchema,
   layoutModeSchema,
+  type CamPosition,
   usesWebcam,
   type LayoutInput,
   type LayoutMode,
@@ -46,14 +48,44 @@ import {
 
 import { VerticalPreviewCanvas } from "./vertical-preview"
 
-const MODES: { value: LayoutMode; label: string }[] = [
+export const LAYOUT_MODES: { value: LayoutMode; label: string }[] = [
   { value: "cam-top", label: "Webcam on top" },
   { value: "split-50", label: "Even split" },
   { value: "no-cam-fill", label: "Fill, no webcam" },
   { value: "no-cam-blur-fill", label: "Fit, no webcam" },
 ]
 
-const DEFAULT_WEBCAM: Rect = { x: 0.7, y: 0.7, w: 0.25, h: 0.25 }
+export const DEFAULT_WEBCAM: Rect = { x: 0.7, y: 0.7, w: 0.25, h: 0.25 }
+export function CamPositionField({
+  value,
+  onValueChange,
+  disabled,
+}: {
+  value: CamPosition
+  onValueChange: (value: CamPosition) => void
+  disabled?: boolean
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <Label id="cam-position-label">Webcam position</Label>
+      <ToggleGroup
+        aria-labelledby="cam-position-label"
+        variant="outline"
+        size="sm"
+        value={[value]}
+        onValueChange={(next) => {
+          const parsed = camPositionSchema.safeParse(next[0])
+          if (parsed.success) onValueChange(parsed.data)
+        }}
+        disabled={disabled}
+      >
+        <ToggleGroupItem value="top">Top</ToggleGroupItem>
+        <ToggleGroupItem value="bottom">Bottom</ToggleGroupItem>
+      </ToggleGroup>
+    </div>
+  )
+}
+
 function LayoutPreview({ layout }: { layout: LayoutInput }) {
   return (
     <VerticalPreviewCanvas
@@ -66,7 +98,7 @@ function LayoutPreview({ layout }: { layout: LayoutInput }) {
   )
 }
 
-function GameplayWindow({
+export function GameplayWindow({
   layout,
   width,
   height,
@@ -77,7 +109,10 @@ function GameplayWindow({
 }) {
   const plan = planLayout(layout, width, height)
   if (plan.mode === "no-cam-blur-fill") return null
-  const crop = plan.mode === "no-cam-fill" ? plan.crop : plan.regions[1].crop
+  const crop =
+    plan.mode === "no-cam-fill"
+      ? plan.crop
+      : plan.regions.find((region) => region.content === "gameplay")!.crop
   return (
     <div
       aria-hidden
@@ -122,12 +157,13 @@ export function LayoutEditor({
   const hasWebcam = usesWebcam(layout.mode)
 
   const applyDetection = React.useCallback((result: WebcamDetection) => {
-    setLayout({
+    setLayout((current) => ({
       webcamRect: result.webcamRect,
       gameplayRect: result.gameplayRect,
       gameplayFocusX: result.gameplayFocusX,
       mode: result.mode,
-    })
+      camPosition: current.camPosition,
+    }))
     setConfidence(result.confidence)
     setDetecting(false)
     if (result.mode === "no-cam-blur-fill") {
@@ -221,13 +257,21 @@ export function LayoutEditor({
                   }}
                   disabled={detecting}
                 >
-                  {MODES.map((mode) => (
+                  {LAYOUT_MODES.map((mode) => (
                     <ToggleGroupItem key={mode.value} value={mode.value}>
                       {mode.label}
                     </ToggleGroupItem>
                   ))}
                 </ToggleGroup>
               </div>
+
+              {hasWebcam && (
+                <CamPositionField
+                  value={layout.camPosition ?? "top"}
+                  onValueChange={(camPosition) => update({ camPosition })}
+                  disabled={detecting}
+                />
+              )}
 
               {layout.mode !== "no-cam-blur-fill" && (
                 <div className="flex flex-col gap-2">

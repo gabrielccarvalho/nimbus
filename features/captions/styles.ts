@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { OUTPUT_HEIGHT, SPLIT_HEIGHTS } from "../layout/geometry"
+
 export const CAPTION_TOKENS = {
   background: "oklch(1 0 0)",
   foreground: "oklch(0.145 0 0)",
@@ -151,12 +153,21 @@ export const BASELINE = {
 
 export function captionBaseline(
   style: Pick<CaptionStyle, "position">,
-  mode: keyof typeof BASELINE
+  layout: { mode: keyof typeof BASELINE; camPosition?: "top" | "bottom" }
 ) {
   if (style.position === "top") return 0.22
   if (style.position === "middle") return 0.55
   if (style.position === "bottom") return 0.86
-  return BASELINE[mode]
+  if (
+    layout.camPosition === "bottom" &&
+    (layout.mode === "cam-top" || layout.mode === "split-50")
+  ) {
+    const [cam] = SPLIT_HEIGHTS[layout.mode]
+    const camShare = cam / OUTPUT_HEIGHT
+    const within = (BASELINE[layout.mode] - camShare) / (1 - camShare)
+    return within * (1 - camShare)
+  }
+  return BASELINE[layout.mode]
 }
 
 export function cssCaptionStyle(style: CaptionStyle) {

@@ -46,6 +46,7 @@ const edit = (overrides: Partial<Parameters<typeof updateClip>[3]> = {}) => ({
   title: "Edited",
   hook: "New hook",
   captionOverrides: { pages: [{ index: 0, text: "fixed text" }] },
+  layoutOverride: null,
   ...overrides,
 })
 
@@ -55,6 +56,24 @@ const request = (projectId: string) =>
   })
 
 describe("updateClip", () => {
+  it("saves a layout for one clip and can go back to the project's", async () => {
+    const { projectId, clip } = await reviewedProject()
+    const layout = {
+      webcamRect: { x: 0.1, y: 0.1, w: 0.2, h: 0.2 },
+      gameplayRect: { x: 0, y: 0, w: 1, h: 1 },
+      gameplayFocusX: 0.4,
+      mode: "split-50" as const,
+      camPosition: "bottom" as const,
+    }
+    const saved = await updateClip(env.db, projectId, clip.id, {
+      ...edit(),
+      layoutOverride: layout,
+    })
+    expect(saved.layoutOverride).toEqual(layout)
+    const reset = await updateClip(env.db, projectId, clip.id, edit())
+    expect(reset.layoutOverride).toBeNull()
+  })
+
   it("saves trim, text and caption edits", async () => {
     const { projectId, clip } = await reviewedProject()
     const saved = await updateClip(env.db, projectId, clip.id, {

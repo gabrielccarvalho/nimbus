@@ -133,6 +133,8 @@ The Claude selector is told the spoken language (titles and hooks are written in
 
 - Every landscape source (`w ≥ 1.2 h`, whatever its class) goes through `awaiting_layout` with `cam-top` proposed. Square and portrait sources skip it with `no-cam-blur-fill`. A LayoutPreset for the exact source resolution also skips it (preset applied, `confirmedByUser = true`).
 - Detection proposes a rect plus confidence. Below 0.5 confidence or with no face, propose `no-cam-blur-fill`.
+- In webcam modes the webcam goes on top by default; `camPosition: "bottom"` swaps the two stacked regions, and "auto" captions move with the gameplay so they stay off the face.
+- A clip can override the project layout (mode, webcam box, webcam position) from its editor; renders use `clips.layout_override` when set. Caption position (auto, top, middle, bottom) is a per-clip caption style override.
 - Keyboard nudge: arrow = 0.5% of the frame, Shift+arrow = 5%.
 
 ### Rendering

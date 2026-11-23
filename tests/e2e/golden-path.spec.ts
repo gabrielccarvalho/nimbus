@@ -57,8 +57,34 @@ test("upload, confirm layout, render, download and edit a clip", async ({
     .getByLabel("Caption 1", { exact: false })
     .first()
     .fill("Edited caption")
+  const layoutMode = page.getByRole("group", { name: "Mode" })
+  await layoutMode.getByRole("button", { name: "Even split" }).click()
+  await expect(page.getByText("This clip has its own layout.")).toBeVisible()
+  await expect(page.getByRole("group", { name: "Webcam region" })).toBeVisible()
+  await page
+    .getByRole("group", { name: "Webcam position" })
+    .getByRole("button", { name: "Bottom" })
+    .click()
+  await page
+    .getByRole("group", { name: "Position", exact: true })
+    .getByRole("button", { name: "Top" })
+    .click()
   await page.getByRole("button", { name: "Save", exact: true }).click()
   await expect(page.getByText("Clip saved")).toBeVisible()
+  await page.reload()
+  await expect(
+    page
+      .getByRole("group", { name: "Webcam position" })
+      .getByRole("button", { name: "Bottom" })
+  ).toHaveAttribute("aria-pressed", "true")
+  await expect(
+    page
+      .getByRole("group", { name: "Position", exact: true })
+      .getByRole("button", { name: "Top" })
+  ).toHaveAttribute("aria-pressed", "true")
+  await expect(
+    page.getByRole("button", { name: "Use project layout" })
+  ).toBeVisible()
   await expect(page.getByTestId("clip-status")).toHaveText("Out of date")
   await expect(
     page.getByRole("heading", { name: "My best moment" })

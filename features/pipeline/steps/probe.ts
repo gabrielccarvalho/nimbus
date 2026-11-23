@@ -118,6 +118,7 @@ export const probeStep: JobHandler = async ({
       gameplayRect: preset.gameplayRect,
       gameplayFocusX: preset.gameplayFocusX,
       mode: preset.mode,
+      camPosition: preset.camPosition,
       confidence: 1,
       confirmedByUser: true,
     })

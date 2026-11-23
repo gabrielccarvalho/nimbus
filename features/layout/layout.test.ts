@@ -232,6 +232,26 @@ describe("layout geometry", () => {
     })
   })
 
+  it("puts the webcam at the bottom when asked", () => {
+    const plan = planLayout(
+      {
+        webcamRect: { x: 0.78, y: 0.77, w: 0.2, h: 0.2 },
+        gameplayRect: FULL_FRAME,
+        gameplayFocusX: 0.5,
+        mode: "cam-top",
+        camPosition: "bottom",
+      },
+      1920,
+      1080
+    )
+    expect(plan).toMatchObject({
+      regions: [
+        { name: "top", content: "gameplay", outHeight: 1248 },
+        { name: "bottom", content: "webcam", outHeight: 672 },
+      ],
+    })
+  })
+
   it("fits tall sources inside the frame in blur-fill", () => {
     const blur = { ...base, mode: "no-cam-blur-fill" as const }
     expect(planLayout(blur, 1080, 2400)).toMatchObject({
