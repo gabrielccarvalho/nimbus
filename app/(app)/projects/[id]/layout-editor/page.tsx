@@ -53,6 +53,7 @@ export default async function LayoutPage({
         gameplayRect: layout.gameplayRect,
         gameplayFocusX: layout.gameplayFocusX,
         mode: layout.mode,
+        camPosition: layout.camPosition,
       }}
       initialConfidence={layout.confidence}
       confirmed={layout.confirmedByUser}

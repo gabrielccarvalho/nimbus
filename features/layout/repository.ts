@@ -35,6 +35,7 @@ export function layoutRepository(db: Db) {
         gameplayRect: input.gameplayRect,
         gameplayFocusX: input.gameplayFocusX,
         mode: input.mode,
+        camPosition: input.camPosition ?? "top",
         confidence: input.confidence ?? 0,
         confirmedByUser: input.confirmedByUser ?? false,
       }
@@ -72,6 +73,7 @@ export function layoutRepository(db: Db) {
         gameplayRect: input.gameplayRect,
         gameplayFocusX: input.gameplayFocusX,
         mode: input.mode,
+        camPosition: input.camPosition ?? "top",
       }
       const [row] = await db
         .insert(layoutPresets)

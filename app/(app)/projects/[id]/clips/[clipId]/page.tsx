@@ -37,7 +37,10 @@ export default async function ClipEditorPage({
           gameplayRect: layout.gameplayRect,
           gameplayFocusX: layout.gameplayFocusX,
           mode: layout.mode,
+          camPosition: layout.camPosition,
         }}
+        sourceWidth={source.width ?? 1920}
+        sourceHeight={source.height ?? 1080}
         words={data.words.filter(
           (w) =>
             w.endMs >= clip.startMs - 60_000 && w.startMs <= clip.endMs + 60_000

@@ -55,6 +55,7 @@ export function coverCrop(
 
 export type LayoutRegion = {
   name: "top" | "bottom"
+  content: "webcam" | "gameplay"
   crop: PixelRect
   outHeight: number
 }
@@ -92,27 +93,35 @@ export function planLayout(
       foreground: { w: even(width * scale), h: even(height * scale) },
     }
   }
-  const [top, bottom] = SPLIT_HEIGHTS[layout.mode]
+  const [camHeight, gameplayHeight] = SPLIT_HEIGHTS[layout.mode]
+  const cam = {
+    content: "webcam" as const,
+    crop: coverCrop(
+      toPixels(layout.webcamRect, width, height),
+      OUTPUT_WIDTH / camHeight
+    ),
+    outHeight: camHeight,
+  }
+  const gameplay = {
+    content: "gameplay" as const,
+    crop: coverCrop(
+      toPixels(layout.gameplayRect, width, height),
+      OUTPUT_WIDTH / gameplayHeight,
+      layout.gameplayFocusX
+    ),
+    outHeight: gameplayHeight,
+  }
   return {
     mode: layout.mode,
-    regions: [
-      {
-        name: "top",
-        crop: coverCrop(
-          toPixels(layout.webcamRect, width, height),
-          OUTPUT_WIDTH / top
-        ),
-        outHeight: top,
-      },
-      {
-        name: "bottom",
-        crop: coverCrop(
-          toPixels(layout.gameplayRect, width, height),
-          OUTPUT_WIDTH / bottom,
-          layout.gameplayFocusX
-        ),
-        outHeight: bottom,
-      },
-    ],
+    regions:
+      layout.camPosition === "bottom"
+        ? [
+            { name: "top", ...gameplay },
+            { name: "bottom", ...cam },
+          ]
+        : [
+            { name: "top", ...cam },
+            { name: "bottom", ...gameplay },
+          ],
   }
 }

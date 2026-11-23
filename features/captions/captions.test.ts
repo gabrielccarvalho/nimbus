@@ -201,8 +201,21 @@ describe("styles", () => {
       position: "top",
     })
     expect(resolveCaptionStyle({ presetId: "missing" }).id).toBe("punch")
-    expect(captionBaseline(style, "cam-top")).toBe(0.22)
-    expect(captionBaseline({ position: "auto" }, "no-cam-blur-fill")).toBe(0.8)
+    expect(captionBaseline(style, { mode: "cam-top" })).toBe(0.22)
+    expect(
+      captionBaseline({ position: "auto" }, { mode: "no-cam-blur-fill" })
+    ).toBe(0.8)
+  })
+
+  it("keeps auto captions on the gameplay when the camera is at the bottom", () => {
+    const top = captionBaseline({ position: "auto" }, { mode: "cam-top" })
+    const bottom = captionBaseline(
+      { position: "auto" },
+      { mode: "cam-top", camPosition: "bottom" }
+    )
+    expect(top).toBe(0.72)
+    expect(bottom).toBeGreaterThan(0.3)
+    expect(bottom).toBeLessThan(1 - 672 / 1920)
   })
 })
 

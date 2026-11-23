@@ -52,7 +52,8 @@ export const renderClipStep: JobHandler = async ({
   if (!clip || clip.projectId !== project.id) {
     throw new AppError("CANCELLED", "Clip was deleted")
   }
-  const layout = await layoutRepository(db).get(project.id)
+  const layout =
+    clip.layoutOverride ?? (await layoutRepository(db).get(project.id))
   if (!layout) throw new AppError("CONFLICT", "The layout is missing")
   const source = await sourceFile(db, project)
   if (!source.width || !source.height) {
@@ -95,7 +96,7 @@ export const renderClipStep: JobHandler = async ({
     )
     await storage.writeBuffer(
       workKey("ass"),
-      buildAss({ pages, style, baseline: captionBaseline(style, layout.mode) })
+      buildAss({ pages, style, baseline: captionBaseline(style, layout) })
     )
     subtitles = {
       file: storage.resolve(workKey("ass")),

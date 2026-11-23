@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { layoutInputSchema } from "../layout/schema"
+
 export const clipStatuses = [
   "candidate",
   "approved",
@@ -39,5 +41,6 @@ export const clipEditSchema = clipTextSchema.extend({
   startMs: z.number().int().nonnegative(),
   endMs: z.number().int().positive(),
   captionOverrides: captionOverridesSchema,
+  layoutOverride: layoutInputSchema.nullable().default(null),
 })
 export type ClipEdit = z.infer<typeof clipEditSchema>

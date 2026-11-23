@@ -115,6 +115,7 @@ export async function updateClip(
       ...edit.captionOverrides,
       pages: trimmed ? [] : edit.captionOverrides.pages,
     },
+    layoutOverride: edit.layoutOverride,
     status: clip.status === "rendered" ? "approved" : clip.status,
   })
 }

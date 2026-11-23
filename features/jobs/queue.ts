@@ -241,9 +241,10 @@ export function jobQueue(db: Db) {
         .select()
         .from(jobs)
         .where(and(eq(jobs.status, "running"), lt(jobs.leasedUntil, at)))
+      let recovered = 0
       for (const job of expired) {
         const exhausted = job.attempts >= job.maxAttempts
-        await db
+        const updated = await db
           .update(jobs)
           .set(
             exhausted
@@ -262,9 +263,17 @@ export function jobQueue(db: Db) {
                   updatedAt: at,
                 }
           )
-          .where(and(eq(jobs.id, job.id), eq(jobs.status, "running")))
+          .where(
+            and(
+              eq(jobs.id, job.id),
+              eq(jobs.status, "running"),
+              lt(jobs.leasedUntil, at)
+            )
+          )
+          .returning({ id: jobs.id })
+        recovered += updated.length
       }
-      return expired.length
+      return recovered
     },
 
     async get(id: string): Promise<Job | undefined> {

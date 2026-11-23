@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises"
 import type { JobType } from "@/features/jobs/schema"
 import { createWorker, type JobHandlers } from "@/features/jobs/worker-loop"
 import {
-  jobTimeoutMs,
+  jobStallTimeoutMs,
   onJobCancelled,
   onJobFinalFailure,
   onJobSucceeded,
@@ -38,7 +38,7 @@ export function testWorker(db: Db, handlers: JobHandlers = pipelineHandlers) {
     renderConcurrency: 1,
     pollMs: 10,
     leaseMs: 60_000,
-    timeoutMs: jobTimeoutMs,
+    stallTimeoutMs: jobStallTimeoutMs,
     onSucceeded: (job) => onJobSucceeded(db, job),
     onFinalFailure: (job, error) => onJobFinalFailure(db, job, error),
     onCancelled: (job) => onJobCancelled(db, job),

@@ -226,7 +226,7 @@ describe("worker loop", () => {
     expect(onCancelled).toHaveBeenCalledOnce()
   })
 
-  it("times out slow jobs", async () => {
+  it("fails jobs that stop making progress", async () => {
     const queue = jobQueue(env.db)
     const job = await queue.enqueue({
       type: "probe",
@@ -240,11 +240,70 @@ describe("worker loop", () => {
             signal.addEventListener("abort", () => resolve())
           ),
       },
-      { timeoutMs: () => 50 }
+      { stallTimeoutMs: () => 50 }
     )
     await w.drain()
     expect(await queue.get(job.id)).toMatchObject({ status: "failed" })
-    expect((await queue.get(job.id))?.error).toMatch(/timed out/)
+    expect((await queue.get(job.id))?.error).toMatch(/no progress for 50 ms/)
+  })
+
+  it("lets long jobs run as long as they keep making progress", async () => {
+    const queue = jobQueue(env.db)
+    const job = await queue.enqueue({
+      type: "probe",
+      projectId: (await project()).id,
+      maxAttempts: 1,
+    })
+    const w = worker(
+      {
+        probe: async ({ reportProgress }) => {
+          for (let i = 1; i <= 8; i++) {
+            await new Promise((resolve) => setTimeout(resolve, 30))
+            reportProgress(i * 12)
+          }
+        },
+      },
+      { stallTimeoutMs: () => 80 }
+    )
+    await w.drain()
+    expect(await queue.get(job.id)).toMatchObject({ status: "succeeded" })
+  })
+
+  it("still caps the total run time", async () => {
+    const queue = jobQueue(env.db)
+    const job = await queue.enqueue({
+      type: "probe",
+      projectId: (await project()).id,
+      maxAttempts: 1,
+    })
+    const w = worker(
+      {
+        probe: ({ signal, reportProgress }) =>
+          new Promise<void>((resolve) => {
+            const tick = setInterval(() => reportProgress(50), 10)
+            signal.addEventListener("abort", () => {
+              clearInterval(tick)
+              resolve()
+            })
+          }),
+      },
+      { stallTimeoutMs: () => 50, maxRuntimeMs: 150 }
+    )
+    await w.drain()
+    expect((await queue.get(job.id))?.error).toMatch(/ran longer than 150 ms/)
+  })
+
+  it("picks up jobs orphaned by a worker that died after this one started", async () => {
+    const queue = jobQueue(env.db)
+    const handled = vi.fn()
+    const w = worker({ probe: async () => handled() }, { leaseMs: 100 })
+    w.start()
+    await queue.enqueue({ type: "probe", projectId: (await project()).id })
+    await queue.lease({ owner: "dead-worker", leaseMs: 50 })
+    await vi.waitFor(() => expect(handled).toHaveBeenCalledOnce(), {
+      timeout: 3000,
+    })
+    await w.stop()
   })
 
   it("limits render concurrency separately", async () => {

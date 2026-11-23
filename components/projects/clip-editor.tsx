@@ -17,11 +17,16 @@ import {
 } from "@/components/ui/caption-preview"
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import {
+  CropRegion,
+  CropRegionEditor,
+} from "@/components/ui/crop-region-editor"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -54,12 +59,17 @@ import {
 import {
   CAPTION_PRESETS,
   captionBaseline,
+  captionStyleOverridesSchema,
   cssCaptionStyle,
   resolveCaptionStyle,
 } from "@/features/captions/styles"
 import { setClipStatusAction, updateClipAction } from "@/features/clips/actions"
 import type { Clip } from "@/features/clips/repository"
-import type { LayoutInput } from "@/features/layout/schema"
+import {
+  layoutModeSchema,
+  usesWebcam,
+  type LayoutInput,
+} from "@/features/layout/schema"
 import type { ProjectSnapshot } from "@/features/pipeline/snapshot"
 import type { ProjectSettings } from "@/features/projects/schema"
 import { renderClipsAction } from "@/features/render/actions"
@@ -67,6 +77,12 @@ import type { Word } from "@/features/transcription/schema"
 import { formatTimestamp } from "@/lib/format"
 
 import { useProjectEvents } from "./use-project-events"
+import {
+  CamPositionField,
+  DEFAULT_WEBCAM,
+  GameplayWindow,
+  LAYOUT_MODES,
+} from "./layout-editor"
 import { VerticalPreviewCanvas } from "./vertical-preview"
 
 const WINDOW_PADDING_MS = 10_000
@@ -76,6 +92,8 @@ type ClipEditorProps = {
   clip: Clip
   src: string
   sourceDurationMs: number
+  sourceWidth: number
+  sourceHeight: number
   layout: LayoutInput
   words: Word[]
   settings: ProjectSettings
@@ -84,6 +102,13 @@ type ClipEditorProps = {
 }
 
 const seconds = (ms: number) => (ms / 1000).toFixed(1)
+
+const CAPTION_POSITIONS = [
+  { value: "auto", label: "Auto" },
+  { value: "top", label: "Top" },
+  { value: "middle", label: "Middle" },
+  { value: "bottom", label: "Bottom" },
+] as const
 
 function ClipLoop({ startMs, endMs }: { startMs: number; endMs: number }) {
   const { currentMs, paused, seek } = useVideoPlayer()
@@ -154,7 +179,7 @@ function ClipPreview({
           pages={pages}
           currentMs={currentMs - startMs}
           captionStyle={cssCaptionStyle(captionStyle)}
-          baseline={captionBaseline(captionStyle, layout.mode)}
+          baseline={captionBaseline(captionStyle, layout)}
         />
       )}
     </CaptionPreview>
@@ -196,7 +221,9 @@ export function ClipEditor({
   clip,
   src,
   sourceDurationMs,
-  layout,
+  sourceWidth,
+  sourceHeight,
+  layout: projectLayout,
   words,
   settings,
   render,
@@ -212,6 +239,15 @@ export function ClipEditor({
   const [styleRef, setStyleRef] = React.useState(
     clip.captionOverrides?.style ?? settings.captionStyle
   )
+  const [layoutOverride, setLayoutOverride] =
+    React.useState<LayoutInput | null>(clip.layoutOverride)
+  const layout = layoutOverride ?? projectLayout
+  const hasWebcam = usesWebcam(layout.mode)
+  const editLayout = (patch: Partial<LayoutInput>) =>
+    setLayoutOverride((current) => ({
+      ...(current ?? projectLayout),
+      ...patch,
+    }))
   const [pageTexts, setPageTexts] = React.useState<Record<number, string>>(() =>
     Object.fromEntries(
       (clip.captionOverrides?.pages ?? []).map((p) => [p.index, p.text])
@@ -271,6 +307,7 @@ export function ClipEditor({
         title,
         hook,
         captionOverrides: { pages: overrides, style: styleRef },
+        layoutOverride,
       })
       if (!saved.ok) {
         toast.error(saved.error.message)
@@ -304,11 +341,28 @@ export function ClipEditor({
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className="flex min-w-0 flex-col gap-4">
           <div className="overflow-hidden rounded-xl bg-black">
-            <VideoPlayerVideo
-              src={src}
-              aria-label="Source video"
-              className="max-h-[40vh]"
-            />
+            <CropRegionEditor
+              value={layout.webcamRect ?? DEFAULT_WEBCAM}
+              onValueChange={(webcamRect) => editLayout({ webcamRect })}
+              disabled={!hasWebcam}
+              className="mx-auto w-full rounded-none"
+              style={{
+                aspectRatio: `${sourceWidth} / ${sourceHeight}`,
+                maxWidth: `calc(40vh * ${sourceWidth / sourceHeight})`,
+              }}
+            >
+              <VideoPlayerVideo
+                src={src}
+                aria-label="Source video"
+                className="size-full"
+              />
+              <GameplayWindow
+                layout={layout}
+                width={sourceWidth}
+                height={sourceHeight}
+              />
+              {hasWebcam && <CropRegion aria-label="Webcam region" />}
+            </CropRegionEditor>
             <VideoPlayerControls>
               <VideoPlayerPlayButton />
               <VideoPlayerTime />
@@ -408,6 +462,67 @@ export function ClipEditor({
 
             <Card>
               <CardHeader>
+                <CardTitle>Layout</CardTitle>
+                <CardDescription>
+                  {layoutOverride
+                    ? "This clip has its own layout."
+                    : "Uses the project layout. Changes here apply to this clip only."}
+                  {hasWebcam && " Drag the box on the video over the webcam."}
+                </CardDescription>
+                {layoutOverride && (
+                  <CardAction>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setLayoutOverride(null)}
+                    >
+                      <ArrowCounterClockwiseIcon
+                        data-icon="inline-start"
+                        aria-hidden
+                      />
+                      Use project layout
+                    </Button>
+                  </CardAction>
+                )}
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label id="clip-layout-mode-label">Mode</Label>
+                  <ToggleGroup
+                    aria-labelledby="clip-layout-mode-label"
+                    variant="outline"
+                    size="sm"
+                    value={[layout.mode]}
+                    onValueChange={(value) => {
+                      const mode = layoutModeSchema.safeParse(value[0])
+                      if (!mode.success) return
+                      editLayout({
+                        mode: mode.data,
+                        webcamRect: usesWebcam(mode.data)
+                          ? (layout.webcamRect ?? DEFAULT_WEBCAM)
+                          : layout.webcamRect,
+                      })
+                    }}
+                  >
+                    {LAYOUT_MODES.map((mode) => (
+                      <ToggleGroupItem key={mode.value} value={mode.value}>
+                        {mode.label}
+                      </ToggleGroupItem>
+                    ))}
+                  </ToggleGroup>
+                </div>
+                {hasWebcam && (
+                  <CamPositionField
+                    value={layout.camPosition ?? "top"}
+                    onValueChange={(camPosition) => editLayout({ camPosition })}
+                  />
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
                 <CardTitle>Captions</CardTitle>
                 <CardDescription>
                   {settings.captionsEnabled
@@ -425,12 +540,50 @@ export function ClipEditor({
                     value={[style.id]}
                     onValueChange={(value) => {
                       if (value[0])
-                        setStyleRef({ presetId: value[0], overrides: {} })
+                        setStyleRef({
+                          presetId: value[0],
+                          overrides:
+                            styleRef.overrides?.position === undefined
+                              ? {}
+                              : { position: styleRef.overrides.position },
+                        })
                     }}
                   >
                     {CAPTION_PRESETS.map((preset) => (
                       <ToggleGroupItem key={preset.id} value={preset.id}>
                         {preset.label}
+                      </ToggleGroupItem>
+                    ))}
+                  </ToggleGroup>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label id="caption-position-label">Position</Label>
+                  <ToggleGroup
+                    aria-labelledby="caption-position-label"
+                    variant="outline"
+                    size="sm"
+                    value={[style.position]}
+                    onValueChange={(value) => {
+                      const position =
+                        captionStyleOverridesSchema.shape.position.safeParse(
+                          value[0]
+                        )
+                      if (!position.success) return
+                      setStyleRef((current) => ({
+                        ...current,
+                        overrides: {
+                          ...current.overrides,
+                          position: position.data,
+                        },
+                      }))
+                    }}
+                  >
+                    {CAPTION_POSITIONS.map((position) => (
+                      <ToggleGroupItem
+                        key={position.value}
+                        value={position.value}
+                      >
+                        {position.label}
                       </ToggleGroupItem>
                     ))}
                   </ToggleGroup>
