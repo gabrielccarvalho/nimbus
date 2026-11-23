@@ -39,16 +39,21 @@ Return every candidate you were given, by id, even the bad ones, with an honest 
 
 const lenientBeatSchema = z.object({
   ms: z.number(),
-  kind: z.enum(["reaction", "weird"]),
+  kind: z.string(),
   x: z.number().optional(),
   y: z.number().optional(),
 })
+
+type LenientBeat = z.infer<typeof lenientBeatSchema>
 
 export const reviewResponseSchema = z.object({
   clips: z.array(
     rawCandidateSchema.omit({ beats: true }).extend({
       id: z.number().int(),
-      beats: z.array(z.unknown()).optional().catch(undefined),
+      beats: z
+        .array(lenientBeatSchema.nullable().catch(null))
+        .optional()
+        .catch(undefined),
     })
   ),
 })
@@ -124,12 +129,14 @@ export function buildReviewContent(
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value))
 
-function normalizeBeats(raw: readonly unknown[] | undefined, range: TimeRange) {
+function normalizeBeats(
+  raw: readonly (LenientBeat | null)[] | undefined,
+  range: TimeRange
+) {
   const beats: Beat[] = []
   for (const item of raw ?? []) {
-    const lenient = lenientBeatSchema.safeParse(item)
-    if (!lenient.success) continue
-    const { ms, kind, x, y } = lenient.data
+    if (!item) continue
+    const { ms, kind, x, y } = item
     const beat = beatSchema.safeParse({
       ms: Math.round(ms),
       kind,
