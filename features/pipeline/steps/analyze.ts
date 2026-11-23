@@ -17,6 +17,13 @@ import type { JobHandler } from "../../jobs/worker-loop"
 import { assetRepository } from "../../projects/repository"
 import { runFfmpeg } from "../../render/ffmpeg-runner"
 import { transcriptRepository } from "../../transcription/repository"
+import {
+  DETAIL_INTERVAL_MS,
+  downsampleMax,
+  MAX_DETAIL_SILENCES,
+  WAVEFORM_POINTS,
+  type StepDetail,
+} from "../detail"
 import { beginStep, completeStep, sourceAsset, throwIfAborted } from "./common"
 
 export const analyzeStep: JobHandler = async ({
@@ -24,6 +31,7 @@ export const analyzeStep: JobHandler = async ({
   db,
   signal,
   reportProgress,
+  reportDetail,
   logger,
 }) => {
   const project = await beginStep(db, job.projectId, "analyzing")
@@ -37,6 +45,17 @@ export const analyzeStep: JobHandler = async ({
 
   const silences = createSilenceParser()
   const loudness = createLoudnessCollector(LOUDNESS_INTERVAL_MS)
+  let lastDetail = 0
+  const publish = () => {
+    lastDetail = Date.now()
+    reportDetail({
+      kind: "analyze",
+      durationMs,
+      analyzedMs: Math.min(durationMs, loudness.analyzedMs()),
+      waveform: downsampleMax(loudness.finish(durationMs), WAVEFORM_POINTS),
+      silences: silences.found().slice(0, MAX_DETAIL_SILENCES),
+    } satisfies StepDetail)
+  }
   await runFfmpeg(
     [
       "-i",
@@ -51,7 +70,10 @@ export const analyzeStep: JobHandler = async ({
     {
       signal,
       expectedDurationMs: durationMs,
-      onProgress: (p) => reportProgress(p * 0.95),
+      onProgress: (p) => {
+        reportProgress(p * 0.95)
+        if (Date.now() - lastDetail >= DETAIL_INTERVAL_MS) publish()
+      },
       onStderrLine: (line) => {
         silences.push(line)
         loudness.push(line)
@@ -59,6 +81,7 @@ export const analyzeStep: JobHandler = async ({
     }
   )
   throwIfAborted(signal)
+  publish()
 
   const words = (await transcriptRepository(db).get(project.id))?.words ?? []
   const data = {

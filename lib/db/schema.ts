@@ -169,6 +169,7 @@ export const jobs = pgTable(
     leasedUntil: timestamptz("leased_until"),
     leaseOwner: text("lease_owner"),
     progress: doublePrecision("progress").notNull().default(0),
+    detail: jsonb("detail").$type<Record<string, unknown>>(),
     error: text("error"),
     startedAt: timestamptz("started_at"),
     finishedAt: timestamptz("finished_at"),

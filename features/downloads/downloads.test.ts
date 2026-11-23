@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 
+import type { DownloadProgress } from "./downloader"
 import { isPublicUrl, parseVideoUrl, placeholderName } from "./url"
 import {
   describeYtDlpError,
@@ -102,8 +103,18 @@ describe("parseInfo", () => {
 
 describe("progress", () => {
   it("parses progress lines", () => {
-    expect(parseProgressLine("progress 50 200 NA")).toBe(25)
-    expect(parseProgressLine("progress 50 NA 100")).toBe(50)
+    expect(parseProgressLine("progress 50 200 NA 25 6")).toEqual({
+      percent: 25,
+      downloadedBytes: 50,
+      totalBytes: 200,
+      bytesPerSecond: 25,
+      etaSeconds: 6,
+    })
+    expect(parseProgressLine("progress 50 NA 100 NA NA")).toMatchObject({
+      percent: 50,
+      bytesPerSecond: null,
+      etaSeconds: null,
+    })
     expect(parseProgressLine("progress 10 NA NA")).toBeNull()
     expect(parseProgressLine("[download] Destination: x")).toBeNull()
   })
@@ -117,7 +128,12 @@ describe("progress", () => {
     line("[download] Destination: dir/source.f140.m4a")
     line("progress 100 100 NA")
     line("[Merger] Merging formats into dir/source.mp4")
-    expect(onProgress.mock.calls.map(([p]) => p)).toEqual([45, 90, 100])
+    const calls = onProgress.mock.calls.map(([p]) => p as DownloadProgress)
+    expect(calls.map((p) => p.percent)).toEqual([45, 90, 100])
+    expect(calls.at(-1)).toMatchObject({
+      downloadedBytes: 200,
+      totalBytes: 200,
+    })
   })
 })
 

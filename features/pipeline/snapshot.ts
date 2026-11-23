@@ -9,6 +9,7 @@ import type { JobStatus, JobType } from "../jobs/schema"
 import { layoutRepository } from "../layout/repository"
 import { assetRepository, projectRepository } from "../projects/repository"
 import type { ProjectStatus } from "../projects/schema"
+import { stepDetailSchema, type StepDetail } from "./detail"
 
 export type ProjectSnapshot = {
   id: string
@@ -25,6 +26,8 @@ export type ProjectSnapshot = {
     attempts: number
     error: string | null
     clipId: string | null
+    startedAt: string | null
+    detail: StepDetail | null
   }>
   clips: Array<{ id: string; status: ClipStatus }>
 }
@@ -49,6 +52,11 @@ export async function getProjectSnapshot(
     attempts: job.attempts,
     error: job.error ? job.error.split("\n")[0]! : null,
     clipId: typeof job.payload.clipId === "string" ? job.payload.clipId : null,
+    startedAt: job.startedAt?.toISOString() ?? null,
+    detail:
+      job.status === "running"
+        ? (stepDetailSchema.safeParse(job.detail).data ?? null)
+        : null,
   }))
   const assets = assetRows
     .filter((asset) => asset.kind === "source" || asset.kind === "thumbnail")

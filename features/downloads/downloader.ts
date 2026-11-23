@@ -12,7 +12,15 @@ export type DownloadInput = {
   dir: string
   maxBytes: number
   signal?: AbortSignal
-  onProgress?: (percent: number) => void
+  onProgress?: (progress: DownloadProgress) => void
+}
+
+export type DownloadProgress = {
+  percent: number
+  downloadedBytes: number
+  totalBytes: number | null
+  bytesPerSecond: number | null
+  etaSeconds: number | null
 }
 
 export interface Downloader {

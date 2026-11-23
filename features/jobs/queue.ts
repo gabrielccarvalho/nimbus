@@ -91,6 +91,7 @@ export function jobQueue(db: Db) {
             leaseOwner: owner,
             leasedUntil: new Date(at.getTime() + leaseMs),
             attempts: sql`${jobs.attempts} + 1`,
+            detail: null,
             startedAt: sql`coalesce(${jobs.startedAt}, ${at.toISOString()}::timestamptz)`,
             updatedAt: at,
           })
@@ -104,7 +105,8 @@ export function jobQueue(db: Db) {
       id: string,
       owner: string,
       leaseMs: number,
-      progress?: number
+      progress?: number,
+      detail?: Record<string, unknown>
     ): Promise<boolean> {
       const at = now()
       return changed(
@@ -116,6 +118,7 @@ export function jobQueue(db: Db) {
             ...(progress === undefined
               ? {}
               : { progress: Math.max(0, Math.min(100, progress)) }),
+            ...(detail === undefined ? {} : { detail }),
           })
           .where(
             and(

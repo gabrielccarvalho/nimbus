@@ -13,6 +13,7 @@ import {
 } from "../../transcription/language"
 import { buildSegments, normalizeWords } from "../../transcription/normalize"
 import { transcriptRepository } from "../../transcription/repository"
+import { textTail, type StepDetail } from "../detail"
 import { beginStep, completeStep, sourceAsset, throwIfAborted } from "./common"
 
 const DETECTION_WINDOW_MS = 30_000
@@ -72,9 +73,20 @@ export const transcribeStep: JobHandler = async ({
   db,
   signal,
   reportProgress,
+  reportDetail,
   logger,
 }) => {
   const project = await beginStep(db, job.projectId, "transcribing")
+  const live: Extract<StepDetail, { kind: "transcribe" }> = {
+    kind: "transcribe",
+    phase: "extracting",
+    language: null,
+    languageSource: null,
+    text: "",
+    words: 0,
+    audioMs: 0,
+  }
+  reportDetail(live)
   const storage = getStorage()
   const source = await sourceAsset(db, project)
   const durationMs = source.durationMs ?? 0
@@ -123,11 +135,16 @@ export const transcribeStep: JobHandler = async ({
   }
 
   const audioPath = storage.resolve(audioKey)
+  reportDetail({ ...live, phase: "detecting" })
   const chosen = await chooseLanguage(project, audioPath, durationMs, {
     signal,
     logger,
   })
   reportProgress(15)
+  live.phase = "transcribing"
+  live.language = chosen.language === "auto" ? null : chosen.language
+  live.languageSource = chosen.source
+  reportDetail({ ...live })
 
   const transcriber = getTranscriber()
   const raw = await transcriber.transcribe({
@@ -136,6 +153,12 @@ export const transcribeStep: JobHandler = async ({
     language: chosen.language,
     signal,
     onProgress: (p) => reportProgress(15 + p * 0.85),
+    onWord: (word) => {
+      live.text = textTail(`${live.text} ${word.text}`.trim())
+      live.words++
+      live.audioMs = Math.max(live.audioMs, word.startMs)
+      reportDetail({ ...live })
+    },
   })
   throwIfAborted(signal)
 

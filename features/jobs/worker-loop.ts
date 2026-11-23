@@ -13,6 +13,7 @@ export type JobContext = {
   logger: Logger
   signal: AbortSignal
   reportProgress: (percent: number) => void
+  reportDetail: (detail: Record<string, unknown>) => void
 }
 
 export type JobHandler = (ctx: JobContext) => Promise<void>
@@ -84,6 +85,8 @@ export function createWorker(options: WorkerOptions) {
     const controller = new AbortController()
     controllers.set(job.id, controller)
     let progress = job.progress
+    let detail: Record<string, unknown> | undefined
+    let detailWritten = true
     let lastWrite = 0
     let abortReason: AppError | undefined
 
@@ -97,8 +100,9 @@ export function createWorker(options: WorkerOptions) {
     const beat = () => {
       if (beating) return
       lastWrite = Date.now()
+      detailWritten = true
       beating = queue
-        .heartbeat(job.id, owner, leaseMs, progress)
+        .heartbeat(job.id, owner, leaseMs, progress, detail)
         .then((alive) => {
           if (!alive) abort(new AppError("CANCELLED", "Job was cancelled"))
         })
@@ -135,8 +139,17 @@ export function createWorker(options: WorkerOptions) {
           progress = Math.max(0, Math.min(100, percent))
           if (Date.now() - lastWrite >= PROGRESS_WRITE_MS) beat()
         },
+        reportDetail(next) {
+          detail = next
+          detailWritten = false
+          if (Date.now() - lastWrite >= PROGRESS_WRITE_MS) beat()
+        },
       })
       await beating
+      if (!detailWritten) {
+        beat()
+        await beating
+      }
       if (abortReason) throw abortReason
       await queue.complete(job.id, owner)
       log.info("job succeeded")

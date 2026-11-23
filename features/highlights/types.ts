@@ -34,6 +34,10 @@ export type SelectorInput = {
   language: string
   reactionPhrases: readonly string[]
   exclude?: readonly TimeRange[]
+  onPart?: (
+    candidates: RawCandidate[],
+    parts: { done: number; total: number }
+  ) => void
   signal?: AbortSignal
 }
 

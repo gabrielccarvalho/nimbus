@@ -1,4 +1,4 @@
-import { copyFile, mkdir } from "node:fs/promises"
+import { copyFile, mkdir, stat } from "node:fs/promises"
 import path from "node:path"
 
 import { AppError } from "@/lib/errors"
@@ -36,7 +36,14 @@ export class FakeDownloader implements Downloader {
     await mkdir(dir, { recursive: true })
     const target = path.join(dir, `source${path.extname(this.file)}`)
     await copyFile(this.file, target)
-    onProgress?.(100)
+    const { size } = await stat(target)
+    onProgress?.({
+      percent: 100,
+      downloadedBytes: size,
+      totalBytes: size,
+      bytesPerSecond: null,
+      etaSeconds: null,
+    })
     return target
   }
 }

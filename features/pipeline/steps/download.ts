@@ -20,6 +20,7 @@ import { assetRepository, projectRepository } from "../../projects/repository"
 import { runFfmpeg } from "../../render/ffmpeg-runner"
 import { projectNameSchema } from "../../projects/schema"
 import { normalizeLanguage } from "../../transcription/language"
+import type { StepDetail } from "../detail"
 import { beginStep, completeStep, throwIfAborted } from "./common"
 
 async function saveThumbnail(
@@ -62,6 +63,7 @@ export const downloadStep: JobHandler = async ({
   db,
   signal,
   reportProgress,
+  reportDetail,
   logger,
 }) => {
   const project = await beginStep(db, job.projectId, "downloading")
@@ -113,7 +115,10 @@ export const downloadStep: JobHandler = async ({
       dir: storage.resolve(dirKey),
       maxBytes: env.MAX_UPLOAD_BYTES,
       signal,
-      onProgress: (percent) => reportProgress(2 + percent * 0.98),
+      onProgress: ({ percent, ...stats }) => {
+        reportProgress(2 + percent * 0.98)
+        reportDetail({ kind: "download", ...stats } satisfies StepDetail)
+      },
     })
     throwIfAborted(signal)
     const mime = mimeFromFileName(file)

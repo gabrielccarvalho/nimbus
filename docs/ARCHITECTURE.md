@@ -146,7 +146,7 @@ interface HighlightSelector {
 
 ## Realtime
 
-The worker writes `jobs.progress` and project status to Postgres. `/api/projects/[id]/events` polls the DB every 500 ms (the next poll starts after the previous one finishes) within the request and emits SSE events only when the snapshot changes, with a heartbeat comment every 15 s. The client falls back to `router.refresh()` polling if `EventSource` errors repeatedly.
+The worker writes `jobs.progress`, `jobs.detail` and project status to Postgres. `detail` is a small step-specific JSON object (`features/pipeline/detail.ts`: download bytes and speed, the transcript's last few hundred characters, a 240-point waveform, candidates found so far), written with the heartbeat at most every 500 ms, flushed before the job completes and cleared when it's leased again. The snapshot only includes it for running jobs. `/api/projects/[id]/events` polls the DB every 500 ms (the next poll starts after the previous one finishes) within the request and emits SSE events only when the snapshot changes, with a heartbeat comment every 15 s. The client falls back to `router.refresh()` polling if `EventSource` errors repeatedly.
 
 ## server-only in the worker
 

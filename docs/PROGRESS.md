@@ -227,18 +227,18 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 
 ### Phase 24: Overview that changes with each step
 
-- [ ] The worker publishes step details (stored with the job, pushed over SSE), not just a percentage
-- [ ] Downloading: thumbnail, title, channel, speed, ETA, size so far
-- [ ] Probing: metadata cards fill in as they're read; preview frames appear
-- [ ] Transcribing: the transcript streams in live, with detected language and words per minute
-- [ ] Analyzing: the loudness waveform draws as it's computed, with silences marked
-- [ ] Finding highlights: candidate clips appear as they're found, with scores
-- [ ] Rendering: a grid of clips, each with its own progress and poster frame
-- [ ] Elapsed time and an estimate for each step
+- [x] The worker publishes step details (`jobs.detail`, validated by `stepDetailSchema`, pushed in the SSE snapshot for running jobs), not just a percentage
+- [x] Downloading: size so far, speed and time left from yt-dlp; title and thumbnail were already there. Channel isn't shown (not stored)
+- [~] Probing: the metadata cards fill in when probe saves the source (existing revision refresh). Preview frames: not done, probe takes under a second on local files
+- [x] Transcribing: phase (extracting, detecting language, transcribing), language and how it was chosen, word count, words per minute, position, and the latest words as whisper prints them. Checked with real whisper on an 11-minute video
+- [x] Analyzing: the loudness waveform and silences draw as ffmpeg reads the audio; the part not read yet is greyed out
+- [x] Finding highlights: candidates with scores appear as Claude's parts come back (the built-in selector finishes at once)
+- [x] Rendering: a grid of the clips being rendered, each with its own progress and a poster frame from the proxy
+- [x] Elapsed time and an estimate for the running step
 
 ### Not verified
 
 - MediaPipe face detection on a real face (fixtures have none; the code path is unit tested and the model loads in e2e).
-- Real multi-hour recordings (10 minutes verified). Very long transcripts go to Claude in one request; past the model's context limit the project falls back to the heuristic with "the transcript is too long for one request". Chunking isn't implemented.
+- Real multi-hour recordings end to end (a 3 h stream was transcribed and scored; rendering from it wasn't). Claude's chunking of long transcripts is tested against a mocked API only.
 - Hardware encoders other than VideoToolbox.
 - Linux and Windows.

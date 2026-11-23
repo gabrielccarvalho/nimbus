@@ -27,6 +27,9 @@ export function createSilenceParser() {
         openStart = null
       }
     },
+    found(): readonly TimeRange[] {
+      return ranges
+    },
     finish(durationMs: number): TimeRange[] {
       if (openStart !== null && durationMs > openStart) {
         ranges.push({ startMs: openStart, endMs: durationMs })

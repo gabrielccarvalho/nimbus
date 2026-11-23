@@ -7,7 +7,10 @@ export type TranscribeInput = {
   language?: string
   signal?: AbortSignal
   onProgress?: (percent: number) => void
+  onWord?: (word: LiveWord) => void
 }
+
+export type LiveWord = { text: string; startMs: number }
 
 export type RawTranscript = {
   language: string

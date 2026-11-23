@@ -32,9 +32,10 @@ export class AnthropicSelector implements HighlightSelector {
   async select(input: SelectorInput) {
     const ranges = chunkRanges(input.segments, input.durationMs)
     if (ranges.length === 1) return this.selectPart(input, input)
+    let done = 0
     const results = await Promise.all(
-      ranges.map((range, index) =>
-        this.selectPart(
+      ranges.map(async (range, index) => {
+        const part = await this.selectPart(
           {
             ...input,
             limits: {
@@ -49,7 +50,9 @@ export class AnthropicSelector implements HighlightSelector {
           },
           input
         )
-      )
+        input.onPart?.(part, { done: ++done, total: ranges.length })
+        return part
+      })
     )
     return results.flat()
   }

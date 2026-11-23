@@ -17,6 +17,7 @@ export class FakeTranscriber implements Transcriber {
     language,
     signal,
     onProgress,
+    onWord,
   }: TranscribeInput): Promise<RawTranscript> {
     const tokens: RawToken[] = []
     const loops = Math.max(1, Math.ceil(durationMs / data.durationMs))
@@ -36,6 +37,7 @@ export class FakeTranscriber implements Transcriber {
             endMs: Math.min(durationMs, Math.round(startMs + step * 0.9)),
             confidence: 0.95,
           })
+          onWord?.({ text: word, startMs })
         })
       }
       onProgress?.(((loop + 1) / loops) * 100)

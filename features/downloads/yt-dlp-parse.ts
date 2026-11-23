@@ -1,9 +1,10 @@
+import type { DownloadProgress } from "./downloader"
 import { AppError } from "@/lib/errors"
 
 import type { VideoInfo } from "./downloader"
 
 export const PROGRESS_PREFIX = "progress"
-export const PROGRESS_TEMPLATE = `download:${PROGRESS_PREFIX} %(progress.downloaded_bytes)s %(progress.total_bytes)s %(progress.total_bytes_estimate)s`
+export const PROGRESS_TEMPLATE = `download:${PROGRESS_PREFIX} %(progress.downloaded_bytes)s %(progress.total_bytes)s %(progress.total_bytes_estimate)s %(progress.speed)s %(progress.eta)s`
 
 export function parseInfo(json: string): VideoInfo {
   let raw: Record<string, unknown>
@@ -40,31 +41,53 @@ export function parseInfo(json: string): VideoInfo {
   }
 }
 
+const positive = (value: string | undefined) => {
+  const number = Number(value)
+  return Number.isFinite(number) && number > 0 ? number : null
+}
+
 export function parseProgressLine(line: string) {
   const parts = line.trim().split(/\s+/)
   if (parts[0] !== PROGRESS_PREFIX) return null
   const downloaded = Number(parts[1])
-  const total = Number(parts[2]) || Number(parts[3])
+  const total = positive(parts[2]) ?? positive(parts[3])
   if (!Number.isFinite(downloaded) || !total) return null
-  return Math.min(100, Math.max(0, (downloaded / total) * 100))
+  return {
+    percent: Math.min(100, Math.max(0, (downloaded / total) * 100)),
+    downloadedBytes: downloaded,
+    totalBytes: total,
+    bytesPerSecond: positive(parts[4]),
+    etaSeconds: positive(parts[5]),
+  }
 }
 
 const VIDEO_SHARE = 90
 
-export function downloadProgress(onProgress: (percent: number) => void) {
+export function downloadProgress(
+  onProgress: (progress: DownloadProgress) => void
+) {
   let streams = 0
+  let finishedBytes = 0
+  let current = 0
   return (line: string) => {
     if (line.startsWith("[download] Destination:")) {
       streams++
+      finishedBytes += current
+      current = 0
       return
     }
-    const percent = parseProgressLine(line)
-    if (percent === null) return
-    onProgress(
-      streams <= 1
-        ? (percent * VIDEO_SHARE) / 100
-        : VIDEO_SHARE + (percent * (100 - VIDEO_SHARE)) / 100
-    )
+    const parsed = parseProgressLine(line)
+    if (parsed === null) return
+    current = parsed.downloadedBytes
+    onProgress({
+      ...parsed,
+      percent:
+        streams <= 1
+          ? (parsed.percent * VIDEO_SHARE) / 100
+          : VIDEO_SHARE + (parsed.percent * (100 - VIDEO_SHARE)) / 100,
+      downloadedBytes: finishedBytes + parsed.downloadedBytes,
+      totalBytes: finishedBytes + parsed.totalBytes,
+    })
   }
 }
 

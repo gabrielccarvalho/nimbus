@@ -17,7 +17,11 @@ import type {
   TranscribeInput,
   Transcriber,
 } from "./transcriber"
-import { parseWhisperJson, parseWhisperProgress } from "./whisper-parse"
+import {
+  parseWhisperJson,
+  parseWhisperProgress,
+  parseWhisperSegmentLine,
+} from "./whisper-parse"
 
 export type WhisperOptions = {
   binary: string
@@ -76,6 +80,7 @@ export class WhisperCppTranscriber implements Transcriber {
     language = "auto",
     signal,
     onProgress,
+    onWord,
   }: TranscribeInput): Promise<RawTranscript> {
     await this.assertModel()
     const prefix = path.join(path.dirname(audioPath), "whisper")
@@ -104,6 +109,10 @@ export class WhisperCppTranscriber implements Transcriber {
         signal,
         timeoutMs: Math.max(10 * 60_000, durationMs * 4),
         collectStdout: false,
+        onStdoutLine: (line) => {
+          const word = parseWhisperSegmentLine(line)
+          if (word) onWord?.(word)
+        },
         onStderrLine: (line) => {
           const progress = parseWhisperProgress(line)
           if (progress !== null) onProgress?.(progress)

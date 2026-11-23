@@ -3,10 +3,13 @@ import "server-only"
 import { signalsRepository } from "../../analysis/repository"
 import { clipRepository } from "../../clips/repository"
 import { selectHighlights } from "../../highlights"
+import { postprocessCandidates } from "../../highlights/postprocess"
+import type { Candidate, RawCandidate } from "../../highlights/types"
 import type { JobHandler } from "../../jobs/worker-loop"
 import { layoutRepository } from "../../layout/repository"
 import { projectRepository } from "../../projects/repository"
 import { transcriptRepository } from "../../transcription/repository"
+import { MAX_DETAIL_CANDIDATES, type StepDetail } from "../detail"
 import { beginStep, completeStep, sourceAsset, throwIfAborted } from "./common"
 
 export const selectStep: JobHandler = async ({
@@ -14,6 +17,7 @@ export const selectStep: JobHandler = async ({
   db,
   signal,
   reportProgress,
+  reportDetail,
   logger,
 }) => {
   const project = await beginStep(db, job.projectId, "selecting")
@@ -37,6 +41,26 @@ export const selectStep: JobHandler = async ({
   const signals = await signalsRepository(db).get(project.id)
   const durationMs = (await sourceAsset(db, project)).durationMs ?? 0
   reportProgress(10)
+  const limits = {
+    minMs: settings.clipMinMs,
+    maxMs: settings.clipMaxMs,
+    maxCount: settings.targetClipCount,
+  }
+  const showCandidates = (
+    candidates: readonly Candidate[],
+    parts: { done: number; total: number } | null
+  ) =>
+    reportDetail({
+      kind: "select",
+      candidates: candidates.slice(0, MAX_DETAIL_CANDIDATES).map((c) => ({
+        startMs: c.startMs,
+        endMs: c.endMs,
+        title: c.title,
+        score: c.score,
+      })),
+      parts,
+    } satisfies StepDetail)
+  const found: RawCandidate[] = []
 
   const { candidates, fallbackReason } = await selectHighlights(
     settings.selectorMode === "manual" ? "heuristic" : settings.selectorMode,
@@ -50,19 +74,30 @@ export const selectStep: JobHandler = async ({
         loudnessIntervalMs: 250,
         speechDensity: [],
       },
-      limits: {
-        minMs: settings.clipMinMs,
-        maxMs: settings.clipMaxMs,
-        maxCount: settings.targetClipCount,
-      },
+      limits,
       language: transcript?.language ?? settings.language,
       reactionPhrases: settings.reactionPhrases,
       exclude: existing,
+      onPart: (candidates, parts) => {
+        found.push(...candidates)
+        reportProgress(10 + (80 * parts.done) / parts.total)
+        showCandidates(
+          postprocessCandidates(found, {
+            durationMs,
+            words: transcript?.words ?? [],
+            segments: transcript?.segments ?? [],
+            limits,
+            exclude: existing,
+          }),
+          parts
+        )
+      },
       signal,
     },
     logger
   )
   throwIfAborted(signal)
+  showCandidates(candidates, null)
 
   const clips = clipRepository(db)
   await (more ? clips.addCandidates : clips.replaceCandidates)(
