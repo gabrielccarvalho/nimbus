@@ -30,22 +30,18 @@ export const pipelineHandlers: JobHandlers = {
 
 const MINUTE = 60_000
 
-export function jobTimeoutMs(job: Job): number {
+export function jobStallTimeoutMs(job: Job): number {
   switch (job.type) {
     case "download":
-      return 3 * 60 * MINUTE
-    case "probe":
-      return 10 * MINUTE
     case "transcribe":
-      return 6 * 60 * MINUTE
-    case "analyze":
+    case "render_edit":
       return 30 * MINUTE
     case "select":
-      return 10 * MINUTE
+      return 20 * MINUTE
+    case "probe":
+    case "analyze":
     case "render_clip":
-      return 30 * MINUTE
-    case "render_edit":
-      return 6 * 60 * MINUTE
+      return 15 * MINUTE
     case "sweep":
       return 10 * MINUTE
   }

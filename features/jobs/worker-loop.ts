@@ -28,13 +28,26 @@ export type WorkerOptions = {
   renderConcurrency: number
   pollMs: number
   leaseMs?: number
-  timeoutMs?: (job: Job) => number
+  stallTimeoutMs?: (job: Job) => number
+  maxRuntimeMs?: number
   onSucceeded?: (job: Job) => Promise<void> | void
   onFinalFailure?: (job: Job, error: AppError) => Promise<void> | void
   onCancelled?: (job: Job) => Promise<void> | void
 }
 
 const PROGRESS_WRITE_MS = 500
+
+function formatLimit(ms: number) {
+  if (ms >= 60 * 60_000 && ms % (60 * 60_000) === 0) {
+    const hours = ms / (60 * 60_000)
+    return `${hours} ${hours === 1 ? "hour" : "hours"}`
+  }
+  if (ms >= 60_000 && ms % 60_000 === 0) {
+    const minutes = ms / 60_000
+    return `${minutes} ${minutes === 1 ? "minute" : "minutes"}`
+  }
+  return `${ms} ms`
+}
 
 type Lane = {
   name: string
@@ -51,7 +64,8 @@ export function createWorker(options: WorkerOptions) {
     owner,
     pollMs,
     leaseMs = 30_000,
-    timeoutMs = () => 30 * 60_000,
+    stallTimeoutMs = () => 30 * 60_000,
+    maxRuntimeMs = 24 * 60 * 60_000,
   } = options
   const queue = jobQueue(db)
   const controllers = new Map<string, AbortController>()
@@ -116,12 +130,28 @@ export function createWorker(options: WorkerOptions) {
       beat,
       Math.min(2_000, Math.max(100, Math.floor(leaseMs / 3)))
     )
-    const timeout = setTimeout(
+    const stallMs = stallTimeoutMs(job)
+    const stalled = () =>
+      abort(
+        new AppError(
+          "TIMEOUT",
+          `Job made no progress for ${formatLimit(stallMs)}`
+        )
+      )
+    let stall = setTimeout(stalled, stallMs)
+    const alive = () => {
+      clearTimeout(stall)
+      stall = setTimeout(stalled, stallMs)
+    }
+    const cap = setTimeout(
       () =>
         abort(
-          new AppError("TIMEOUT", `Job timed out after ${timeoutMs(job)} ms`)
+          new AppError(
+            "TIMEOUT",
+            `Job ran longer than ${formatLimit(maxRuntimeMs)}`
+          )
         ),
-      timeoutMs(job)
+      maxRuntimeMs
     )
 
     try {
@@ -136,10 +166,12 @@ export function createWorker(options: WorkerOptions) {
         logger: log,
         signal: controller.signal,
         reportProgress(percent) {
+          alive()
           progress = Math.max(0, Math.min(100, percent))
           if (Date.now() - lastWrite >= PROGRESS_WRITE_MS) beat()
         },
         reportDetail(next) {
+          alive()
           detail = next
           detailWritten = false
           if (Date.now() - lastWrite >= PROGRESS_WRITE_MS) beat()
@@ -185,7 +217,8 @@ export function createWorker(options: WorkerOptions) {
       }
     } finally {
       clearInterval(heartbeat)
-      clearTimeout(timeout)
+      clearTimeout(stall)
+      clearTimeout(cap)
       controllers.delete(job.id)
     }
   }
@@ -210,8 +243,20 @@ export function createWorker(options: WorkerOptions) {
     return started
   }
 
+  let lastRecovery = 0
+  async function recover() {
+    lastRecovery = Date.now()
+    const recovered = await queue.recoverExpired()
+    if (recovered) logger.warn({ recovered }, "recovered expired job leases")
+  }
+
   async function loop() {
     while (running) {
+      if (Date.now() - lastRecovery >= leaseMs) {
+        await recover().catch((error: unknown) =>
+          logger.error({ err: error }, "couldn't recover expired leases")
+        )
+      }
       for (const lane of lanes) {
         await fill(lane).catch((error: unknown) =>
           logger.error({ err: error }, "couldn't lease jobs")
@@ -235,10 +280,6 @@ export function createWorker(options: WorkerOptions) {
       if (running) return
       running = true
       loopPromise = (async () => {
-        const recovered = await queue.recoverExpired()
-        if (recovered) {
-          logger.warn({ recovered }, "recovered expired job leases")
-        }
         await loop()
       })()
     },

@@ -178,7 +178,7 @@ The worker enqueues one `sweep` on start and every 6 h (never two at once). It d
 
 ## Cancellation and timeouts
 
-The runner accepts an `AbortSignal`. Abort sends `SIGTERM`, then `SIGKILL` after 3 s. Per-job timeout defaults: probe 2 min, transcribe 4× media duration (min 10 min), analyze 15 min, render 3× clip duration (min 5 min). The last 4 KB of stderr is stored in `jobs.error` on failure.
+The runner accepts an `AbortSignal`. Abort sends `SIGTERM`, then `SIGKILL` after 3 s. Jobs fail when they stop making progress, not after a fixed time, so a 7-hour recording isn't killed for being long: any `reportProgress` or `reportDetail` call resets the watchdog. Limits without progress (`jobStallTimeoutMs`): download, transcribe and edit renders 30 min; highlights 20 min; probe, analysis and clip renders 15 min; sweep 10 min. Every job is also capped at 24 h in total. The worker re-queues jobs whose lease expired (their worker died) on startup and every lease interval after that. The last 4 KB of stderr is stored in `jobs.error` on failure.
 
 ## Captions (`features/captions`)
 

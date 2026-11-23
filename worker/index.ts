@@ -5,7 +5,7 @@ import os from "node:os"
 import { jobQueue } from "@/features/jobs/queue"
 import { createWorker } from "@/features/jobs/worker-loop"
 import {
-  jobTimeoutMs,
+  jobStallTimeoutMs,
   onJobCancelled,
   onJobFinalFailure,
   onJobSucceeded,
@@ -28,7 +28,7 @@ const worker = createWorker({
   concurrency: env.WORKER_CONCURRENCY,
   renderConcurrency: env.WORKER_RENDER_CONCURRENCY,
   pollMs: env.WORKER_POLL_MS,
-  timeoutMs: jobTimeoutMs,
+  stallTimeoutMs: jobStallTimeoutMs,
   onSucceeded: (job) => onJobSucceeded(db, job),
   onFinalFailure: (job, error) => onJobFinalFailure(db, job, error),
   onCancelled: (job) => onJobCancelled(db, job),
