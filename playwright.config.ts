@@ -5,10 +5,7 @@ import { defineConfig, devices } from "@playwright/test"
 
 const PORT = Number(process.env.E2E_PORT ?? 3217)
 
-process.env.E2E_DATA_DIR ??= path.join(
-  os.tmpdir(),
-  `autoclipper-e2e-${Date.now()}`
-)
+process.env.E2E_DATA_DIR ??= path.join(os.tmpdir(), `nimbus-e2e-${Date.now()}`)
 
 const testEnv = {
   NODE_ENV: "production",

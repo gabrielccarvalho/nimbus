@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { importFromUrl } from "@/features/downloads/service"
 import { jobQueue } from "@/features/jobs/queue"
+import { getProjectSnapshot } from "@/features/pipeline/snapshot"
 import {
   assetRepository,
   projectRepository,
@@ -41,13 +42,14 @@ describe("importFromUrl", () => {
         .map((j) => j.type)
     ).toEqual(["download"])
 
-    await runJobs(env.db, [
-      "download",
-      "probe",
-      "transcribe",
-      "analyze",
-      "select",
-    ])
+    const revisions = [getProjectSnapshot(env.db, projectId)!.revision]
+    await runJobs(env.db, ["download"])
+    revisions.push(getProjectSnapshot(env.db, projectId)!.revision)
+    await runJobs(env.db, ["probe"])
+    revisions.push(getProjectSnapshot(env.db, projectId)!.revision)
+    expect(new Set(revisions).size).toBe(3)
+
+    await runJobs(env.db, ["transcribe", "analyze", "select"])
 
     const project = projects.getOrThrow(projectId)
     expect(project.name).toBe("Imported recording")

@@ -189,10 +189,11 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 
 ### Phase 20: Quick wins
 
-- [ ] Live project page: the snapshot carries name, source metadata (duration, resolution, size), aspect and thumbnail, and the page updates whenever any of them change, not just on status changes. Fixes the stale title after a link import and the empty stat cards
-- [ ] Thumbnail from the start: link imports save yt-dlp's thumbnail before downloading; uploads capture a frame in the browser and send it with the file. Probe still writes its own frame later. An empty thumbnail shows a placeholder, not a blank card
-- [ ] Cancel button: replace the square stop icon (reads as a checkbox) with a plain "Cancel" or an X
-- [ ] Rename Auto-Clipper → Nimbus: app name, page titles, sidebar, README, CLAUDE.md, package name, e2e assertions
+- [x] Live project page: the snapshot carries a `revision` (name, source and thumbnail assets, aspect) and the page refreshes when it changes, not only on status changes. Fixes the stale title after a link import and the empty stat cards
+- [x] Thumbnail early: link imports save the site's thumbnail (ffmpeg reads the URL from yt-dlp's details, ~0.6 s) before the download starts; probe keeps an existing thumbnail. Uploads show a frame captured in the browser while uploading; the project's own thumbnail comes from probe a few seconds after the upload ends (sending the browser frame to the server wasn't worth an extra endpoint). Empty thumbnails show a placeholder
+- [x] Cancel button uses an X instead of the square stop icon
+- [x] Renamed Auto-Clipper → Nimbus (title, sidebar, README, CLAUDE.md, architecture doc, temp dir prefixes)
+- [x] Verified by hand with yt-dlp against YouTube: title set ~3 s after import, YouTube thumbnail saved and kept through probe
 
 ### Phase 21: Postgres + Docker for local development
 

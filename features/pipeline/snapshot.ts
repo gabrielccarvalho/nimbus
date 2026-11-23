@@ -6,7 +6,8 @@ import { clipRepository } from "../clips/repository"
 import type { ClipStatus } from "../clips/schema"
 import { jobQueue } from "../jobs/queue"
 import type { JobStatus, JobType } from "../jobs/schema"
-import { projectRepository } from "../projects/repository"
+import { layoutRepository } from "../layout/repository"
+import { assetRepository, projectRepository } from "../projects/repository"
 import type { ProjectStatus } from "../projects/schema"
 
 export type ProjectSnapshot = {
@@ -15,6 +16,7 @@ export type ProjectSnapshot = {
   failedStep: ProjectStatus | null
   error: string | null
   awaitingManualSelection: boolean
+  revision: string
   jobs: Array<{
     id: string
     type: JobType
@@ -46,6 +48,19 @@ export function getProjectSnapshot(
       clipId:
         typeof job.payload.clipId === "string" ? job.payload.clipId : null,
     }))
+  const assets = assetRepository(db)
+    .listForProject(projectId)
+    .filter((asset) => asset.kind === "source" || asset.kind === "thumbnail")
+    .map((asset) =>
+      [asset.kind, asset.id, asset.durationMs, asset.width, asset.height].join(
+        ":"
+      )
+    )
+  const revision = [
+    project.name,
+    layoutRepository(db).get(projectId)?.sourceAspect ?? "",
+    ...assets.sort(),
+  ].join("|")
   const clips = clipRepository(db)
     .listForProject(projectId)
     .map((clip) => ({ id: clip.id, status: clip.status }))
@@ -55,6 +70,7 @@ export function getProjectSnapshot(
     failedStep: project.failedStep,
     error: project.error,
     awaitingManualSelection: project.awaitingManualSelection,
+    revision,
     jobs,
     clips,
   }

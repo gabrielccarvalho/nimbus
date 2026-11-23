@@ -34,30 +34,32 @@ export const probeStep: JobHandler = async ({
   reportProgress(10)
 
   const thumbKey = storageKeys.thumbnail(project.id)
-  await runFfmpeg(
-    [
-      "-ss",
-      String((info.durationMs * 0.1) / 1000),
-      "-i",
-      sourcePath,
-      "-frames:v",
-      "1",
-      "-vf",
-      "scale=640:-2",
-      "-q:v",
-      "4",
-      storage.resolve(thumbKey),
-    ],
-    { signal, timeoutMs: 60_000 }
-  )
-  assets.create({
-    projectId: project.id,
-    kind: "thumbnail",
-    storageKey: thumbKey,
-    mime: "image/jpeg",
-    bytes: (await storage.stat(thumbKey))?.bytes ?? 0,
-    width: 640,
-  })
+  if (!assets.findByKind(project.id, "thumbnail")) {
+    await runFfmpeg(
+      [
+        "-ss",
+        String((info.durationMs * 0.1) / 1000),
+        "-i",
+        sourcePath,
+        "-frames:v",
+        "1",
+        "-vf",
+        "scale=640:-2",
+        "-q:v",
+        "4",
+        storage.resolve(thumbKey),
+      ],
+      { signal, timeoutMs: 60_000 }
+    )
+    assets.create({
+      projectId: project.id,
+      kind: "thumbnail",
+      storageKey: thumbKey,
+      mime: "image/jpeg",
+      bytes: (await storage.stat(thumbKey))?.bytes ?? 0,
+      width: 640,
+    })
+  }
   reportProgress(20)
 
   const proxyKey = storageKeys.proxy(project.id)

@@ -42,6 +42,15 @@ export function parseVideoUrl(input: unknown): string {
   return url.toString()
 }
 
+export function isPublicUrl(input: string) {
+  try {
+    parseVideoUrl(input)
+    return true
+  } catch {
+    return false
+  }
+}
+
 export function placeholderName(url: string) {
   const { hostname, pathname, searchParams } = new URL(url)
   const site = hostname.replace(/^(www|m)\./, "")

@@ -12,7 +12,7 @@ import {
   deleteProject,
   retryProject,
 } from "@/features/projects/service"
-import { getStorage } from "@/lib/storage"
+import { getStorage, storageKeys } from "@/lib/storage"
 
 import { fixtures } from "../../scripts/make-fixtures"
 import { runJobs, uploadFixture } from "../utils/pipeline"
@@ -66,6 +66,25 @@ describe("probe step", () => {
       ["transcribe", "queued"],
       ["probe", "succeeded"],
     ])
+  })
+
+  it("keeps a thumbnail that already exists", async () => {
+    const { projectId } = await uploadFixture(fixtures.wide)
+    const key = storageKeys.thumbnail(projectId)
+    await getStorage().writeBuffer(key, "from the site")
+    assetRepository(env.db).create({
+      projectId,
+      kind: "thumbnail",
+      storageKey: key,
+      mime: "image/jpeg",
+      bytes: 13,
+    })
+    await runJobs(env.db, ["probe"])
+    const thumbnails = assetRepository(env.db)
+      .listForProject(projectId)
+      .filter((asset) => asset.kind === "thumbnail")
+    expect(thumbnails).toHaveLength(1)
+    expect((await getStorage().stat(key))?.bytes).toBe(13)
   })
 
   it("applies a saved layout preset for the resolution", async () => {

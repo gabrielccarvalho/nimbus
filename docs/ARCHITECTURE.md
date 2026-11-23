@@ -1,6 +1,6 @@
 # Architecture
 
-Auto-Clipper is one Next.js app plus one long-running Node worker process. They share a SQLite database and a data directory on local disk. Nothing leaves the machine except optional calls to the Anthropic API.
+Nimbus is one Next.js app plus one long-running Node worker process. They share a SQLite database and a data directory on local disk. Nothing leaves the machine except optional calls to the Anthropic API.
 
 ## System diagram
 

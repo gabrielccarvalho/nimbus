@@ -1,4 +1,4 @@
-# Auto-Clipper
+# Nimbus
 
 Turn long gameplay or screen recordings into vertical 9:16 clips with word-by-word captions. Upload a video and the app transcribes it, finds the best moments, detects the webcam overlay and renders drafts. You review, tweak and export them. Everything runs locally; the only optional network call is the Anthropic API for highlight selection.
 

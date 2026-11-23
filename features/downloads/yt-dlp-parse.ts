@@ -32,6 +32,10 @@ export function parseInfo(json: string): VideoInfo {
       raw.live_status === "is_upcoming" ||
       raw.live_status === "post_live",
     approxBytes: number(raw.filesize_approx) ?? number(raw.filesize),
+    thumbnailUrl:
+      typeof raw.thumbnail === "string" && raw.thumbnail.startsWith("https://")
+        ? raw.thumbnail
+        : null,
   }
 }
 

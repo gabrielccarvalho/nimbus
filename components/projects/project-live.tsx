@@ -2,7 +2,7 @@
 
 import {
   ArrowClockwiseIcon,
-  StopIcon,
+  XIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react"
 import * as React from "react"
@@ -78,7 +78,7 @@ export function ProjectLive({ initial }: { initial: ProjectSnapshot }) {
             disabled={pending}
             onClick={() => act(cancelProjectAction, "Cancelled")}
           >
-            <StopIcon data-icon="inline-start" aria-hidden />
+            <XIcon data-icon="inline-start" aria-hidden />
             Cancel
           </Button>
         )}

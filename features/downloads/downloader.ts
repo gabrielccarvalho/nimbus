@@ -3,6 +3,7 @@ export type VideoInfo = {
   durationMs: number | null
   isLive: boolean
   approxBytes: number | null
+  thumbnailUrl: string | null
 }
 
 export type DownloadInput = {

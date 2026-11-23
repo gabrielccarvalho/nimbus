@@ -12,7 +12,7 @@ export type TestEnv = {
 }
 
 export function createTestEnv(overrides: Record<string, string> = {}): TestEnv {
-  const dataDir = mkdtempSync(path.join(os.tmpdir(), "autoclipper-test-"))
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), "nimbus-test-"))
   const previous = { ...process.env }
   Object.assign(process.env, {
     DATA_DIR: dataDir,

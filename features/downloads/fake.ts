@@ -19,6 +19,7 @@ export class FakeDownloader implements Downloader {
       durationMs: null,
       isLive: url.includes("live"),
       approxBytes: null,
+      thumbnailUrl: null,
     }
   }
 

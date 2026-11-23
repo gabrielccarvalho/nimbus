@@ -12,6 +12,7 @@ function fingerprint(snapshot: ProjectSnapshot) {
   return [
     snapshot.status,
     snapshot.awaitingManualSelection,
+    snapshot.revision,
     snapshot.clips.map((c) => c.status).join(","),
   ].join("|")
 }

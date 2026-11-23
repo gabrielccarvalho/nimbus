@@ -1,22 +1,60 @@
 import "server-only"
 
+import { mkdir } from "node:fs/promises"
 import path from "node:path"
 
 import { getEnv } from "@/lib/env"
-import { withTransaction } from "@/lib/db"
+import { withTransaction, type Db } from "@/lib/db"
 import { AppError } from "@/lib/errors"
 import { getStorage, storageKeys } from "@/lib/storage"
 import { assertDiskSpace } from "@/lib/storage/disk"
 
 import { getDownloader } from "../../downloads"
+import { isPublicUrl } from "../../downloads/url"
 import type { JobHandler } from "../../jobs/worker-loop"
 import {
   ACCEPTED_VIDEO_TYPES,
   mimeFromFileName,
 } from "../../projects/media-type"
 import { assetRepository, projectRepository } from "../../projects/repository"
+import { runFfmpeg } from "../../render/ffmpeg-runner"
 import { projectNameSchema } from "../../projects/schema"
 import { beginStep, completeStep, throwIfAborted } from "./common"
+
+async function saveThumbnail(
+  db: Db,
+  projectId: string,
+  url: string,
+  signal: AbortSignal
+) {
+  const assets = assetRepository(db)
+  if (assets.findByKind(projectId, "thumbnail")) return
+  const storage = getStorage()
+  const key = storageKeys.thumbnail(projectId)
+  await mkdir(path.dirname(storage.resolve(key)), { recursive: true })
+  await runFfmpeg(
+    [
+      "-i",
+      url,
+      "-frames:v",
+      "1",
+      "-vf",
+      "scale=640:-2",
+      "-q:v",
+      "4",
+      storage.resolve(key),
+    ],
+    { signal, timeoutMs: 30_000 }
+  )
+  assets.create({
+    projectId,
+    kind: "thumbnail",
+    storageKey: key,
+    mime: "image/jpeg",
+    bytes: (await storage.stat(key))?.bytes ?? 0,
+    width: 640,
+  })
+}
 
 export const downloadStep: JobHandler = async ({
   job,
@@ -47,6 +85,12 @@ export const downloadStep: JobHandler = async ({
   }
   const name = projectNameSchema.safeParse(info.title.slice(0, 120))
   if (name.success) projects.rename(project.id, name.data)
+  if (info.thumbnailUrl && isPublicUrl(info.thumbnailUrl)) {
+    await saveThumbnail(db, project.id, info.thumbnailUrl, signal).catch(
+      (error: unknown) =>
+        logger.warn({ err: error }, "couldn't save the video's thumbnail")
+    )
+  }
   if (info.approxBytes) {
     if (info.approxBytes > env.MAX_UPLOAD_BYTES) {
       throw new AppError(

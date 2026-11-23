@@ -20,6 +20,7 @@ yt-dlp --no-playlist --no-warnings --ignore-config [--ffmpeg-location FFMPEG_PAT
 
 - At most 1080p: vertical output is 1080 wide, so anything larger only costs download time. H.264/AAC is preferred so the MP4 merge is a remux.
 - Live, upcoming and still-processing streams, playlists and channel pages are rejected before downloading. The project takes the video's title.
+- The site's thumbnail (yt-dlp's `thumbnail` field, https and public hosts only) is saved with `ffmpeg -i <url> -frames:v 1 -vf scale=640:-2` before the download starts. Failing to fetch it only logs a warning. Probe doesn't replace an existing thumbnail.
 - Progress: the first stream (video) maps to 0–90%, the second (audio) to 90–100%, switching on yt-dlp's `[download] Destination:` lines.
 - yt-dlp errors are mapped to readable reasons (`describeYtDlpError`): private, members-only, age-restricted and removed videos fail without retrying; rate limits and network errors retry with backoff.
 - Retrying a failed download re-runs the step; a project that already has its source skips straight to probe.

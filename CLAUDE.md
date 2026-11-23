@@ -1,6 +1,6 @@
 @AGENTS.md
 
-# Auto-Clipper (repo: nimbus)
+# Nimbus
 
 Local-first web app: upload a long 16:9 / 21:9 recording (gameplay + webcam overlay) → transcribe → detect silences/loudness → pick highlight candidates → detect the webcam → render vertical 9:16 clips with word-by-word burned-in captions (plus an optional silence-trimmed horizontal edit) → human review and export. Nothing is auto-published.
 

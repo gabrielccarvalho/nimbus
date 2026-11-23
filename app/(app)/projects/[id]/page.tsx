@@ -1,5 +1,6 @@
 import {
   ClockIcon,
+  FilmSlateIcon,
   FilmStripIcon,
   FrameCornersIcon,
   HardDrivesIcon,
@@ -113,7 +114,11 @@ export default async function ProjectOverviewPage({
               sizes="20rem"
               className="object-cover"
             />
-          ) : null}
+          ) : (
+            <div className="flex size-full items-center justify-center text-muted-foreground">
+              <FilmSlateIcon className="size-8" aria-hidden />
+            </div>
+          )}
         </div>
         <ProjectActions projectId={project.id} projectName={project.name} />
       </aside>

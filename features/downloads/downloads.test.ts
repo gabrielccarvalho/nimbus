@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { parseVideoUrl, placeholderName } from "./url"
+import { isPublicUrl, parseVideoUrl, placeholderName } from "./url"
 import {
   describeYtDlpError,
   parseInfo,
@@ -38,6 +38,11 @@ describe("parseVideoUrl", () => {
     expect(() => parseVideoUrl(input)).toThrow("Paste a link to a video")
   })
 
+  it("checks thumbnail links the same way", () => {
+    expect(isPublicUrl("https://i.ytimg.com/vi/abc/hq.jpg")).toBe(true)
+    expect(isPublicUrl("https://127.0.0.1/hq.jpg")).toBe(false)
+  })
+
   it("names a project from the video id until the title is known", () => {
     expect(placeholderName("https://www.youtube.com/watch?v=abc123")).toBe(
       "youtube.com abc123"
@@ -56,6 +61,7 @@ describe("parseInfo", () => {
           duration: 3725.5,
           live_status: "was_live",
           filesize_approx: 1_500_000_000,
+          thumbnail: "https://i.ytimg.com/vi/abc/maxresdefault.jpg",
         })
       )
     ).toEqual({
@@ -63,6 +69,7 @@ describe("parseInfo", () => {
       durationMs: 3_725_500,
       isLive: false,
       approxBytes: 1_500_000_000,
+      thumbnailUrl: "https://i.ytimg.com/vi/abc/maxresdefault.jpg",
     })
   })
 
@@ -77,7 +84,11 @@ describe("parseInfo", () => {
       durationMs: null,
       isLive: false,
       approxBytes: null,
+      thumbnailUrl: null,
     })
+    expect(
+      parseInfo('{"thumbnail":"file:///etc/passwd"}').thumbnailUrl
+    ).toBeNull()
   })
 
   it("rejects playlists and garbage", () => {
