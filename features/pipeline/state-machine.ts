@@ -4,6 +4,7 @@ import { projectStatuses, type ProjectStatus } from "../projects/schema"
 import type { JobType } from "../jobs/schema"
 
 export const RUNNING_STATUSES = [
+  "downloading",
   "probing",
   "transcribing",
   "analyzing",
@@ -14,6 +15,7 @@ export const RUNNING_STATUSES = [
 export type RunningStatus = (typeof RUNNING_STATUSES)[number]
 
 const forward: Record<ProjectStatus, readonly ProjectStatus[]> = {
+  downloading: ["uploaded"],
   uploaded: ["probing"],
   probing: ["transcribing"],
   transcribing: ["analyzing"],
@@ -68,6 +70,7 @@ export function retryTarget(
 }
 
 const statusForJob: Record<JobType, RunningStatus | null> = {
+  download: "downloading",
   probe: "probing",
   transcribe: "transcribing",
   analyze: "analyzing",
@@ -82,6 +85,7 @@ export function statusForJobType(type: JobType): RunningStatus | null {
 }
 
 const jobForStatus: Record<RunningStatus, JobType | null> = {
+  downloading: "download",
   probing: "probe",
   transcribing: "transcribe",
   analyzing: "analyze",
@@ -100,7 +104,7 @@ export type PipelineStep = {
 }
 
 export const PIPELINE_STEPS: readonly PipelineStep[] = [
-  { id: "upload", label: "Upload", statuses: ["uploaded"] },
+  { id: "upload", label: "Upload", statuses: ["downloading", "uploaded"] },
   { id: "probe", label: "Probe", statuses: ["probing"] },
   { id: "transcribe", label: "Transcribe", statuses: ["transcribing"] },
   { id: "analyze", label: "Analyze", statuses: ["analyzing"] },

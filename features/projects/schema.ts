@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 export const projectStatuses = [
+  "downloading",
   "uploaded",
   "probing",
   "transcribing",

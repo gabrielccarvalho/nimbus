@@ -29,6 +29,7 @@ export const storageKeys = {
   work: (projectId: string, name: string) =>
     `projects/${projectId}/work/${name}`,
   uploadTemp: (id: string) => `tmp/uploads/${id}.part`,
+  downloadDir: (id: string) => `tmp/downloads/${id}`,
 }
 
 const SERVABLE_KEY =

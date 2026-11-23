@@ -18,6 +18,7 @@ import {
 } from "./state-machine"
 
 const legal: Array<[ProjectStatus, ProjectStatus]> = [
+  ["downloading", "uploaded"],
   ["uploaded", "probing"],
   ["probing", "transcribing"],
   ["transcribing", "analyzing"],

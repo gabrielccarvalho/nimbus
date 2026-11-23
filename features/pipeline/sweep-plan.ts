@@ -26,7 +26,10 @@ export function planSweep({
   return files
     .filter((file) => {
       const parts = file.key.split("/")
-      if (parts[0] === "tmp" && parts[1] === "uploads") {
+      if (
+        parts[0] === "tmp" &&
+        (parts[1] === "uploads" || parts[1] === "downloads")
+      ) {
         return stale(file, SWEEP_MIN_AGE_MS.upload)
       }
       if (parts[0] !== "projects" || !parts[1]) return false

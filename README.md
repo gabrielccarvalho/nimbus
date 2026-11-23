@@ -42,6 +42,16 @@ curl -L -o models/ggml-base.en.bin \
 
 Use `ggml-small.bin` or larger for non-English or better accuracy.
 
+### yt-dlp (optional)
+
+Needed only to import videos from a link (YouTube, Twitch VODs and the other sites yt-dlp supports). Uploads work without it.
+
+```sh
+brew install yt-dlp
+```
+
+Sites change often; if imports start failing, `brew upgrade yt-dlp` first.
+
 ## Setup
 
 ```sh
@@ -66,6 +76,8 @@ See `.env.example` for the full list. Values that also appear in Settings are on
 | `WHISPER_MODEL`                | `./models/ggml-base.en.bin` | Model file                                                                                                                                                         |
 | `WHISPER_LANGUAGE`             | `auto`                      | Default transcription language; overridable in Settings                                                                                                            |
 | `TRANSCRIBER`                  | `whisper`                   | `whisper` or `fake`                                                                                                                                                |
+| `YTDLP_PATH`                   | `yt-dlp`                    | yt-dlp binary for link imports                                                                                                                                     |
+| `DOWNLOADER`                   | `yt-dlp`                    | `yt-dlp` or `fake` (copies `FAKE_DOWNLOAD_FILE`)                                                                                                                   |
 | `HIGHLIGHT_SELECTOR`           | `heuristic`                 | `anthropic`, `manual` or `heuristic` (default for new projects; overridable in Settings)                                                                           |
 | `ANTHROPIC_API_KEY`            | —                           | Needed for the `anthropic` selector. Never sent to the browser                                                                                                     |
 | `ANTHROPIC_MODEL`              | `claude-sonnet-5-5`         | Model id                                                                                                                                                           |

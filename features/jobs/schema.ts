@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 export const jobTypes = [
+  "download",
   "probe",
   "transcribe",
   "analyze",
@@ -23,6 +24,7 @@ export const jobStatusSchema = z.enum(jobStatuses)
 export type JobStatus = z.infer<typeof jobStatusSchema>
 
 export const jobPayloadSchemas = {
+  download: z.object({}),
   probe: z.object({}),
   transcribe: z.object({}),
   analyze: z.object({}),

@@ -60,6 +60,13 @@ stateDiagram-v2
 
 ## Rules and defaults
 
+### Link imports
+
+- Accepted: `http`/`https` links with a public hostname. `localhost`, `*.local`, `*.localhost`, `*.internal`, IP literals in private ranges and IPv6 literals are rejected ("Paste a link to a video"). The fragment is dropped; max 2048 characters.
+- The project is named `<site> <video id>` until yt-dlp returns the title, then renamed to the title (first 120 characters).
+- The same `MAX_UPLOAD_BYTES` limit applies, checked against yt-dlp's size estimate and enforced with `--max-filesize`. Disk space is checked against the estimate.
+- Only import videos you own or have rights to; the dashboard says so.
+
 ### Probing
 
 - Accepted containers: mp4, mov, mkv, webm. Must contain at least one video stream and one audio stream. Otherwise fail with a human-readable message ("This file has no audio track").

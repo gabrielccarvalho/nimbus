@@ -24,6 +24,9 @@ const envSchema = z.object({
   WHISPER_LANGUAGE: z.string().min(1).default("auto"),
   WHISPER_THREADS: z.coerce.number().int().positive().default(4),
   TRANSCRIBER: z.enum(["whisper", "fake"]).default("whisper"),
+  YTDLP_PATH: z.string().min(1).default("yt-dlp"),
+  DOWNLOADER: z.enum(["yt-dlp", "fake"]).default("yt-dlp"),
+  FAKE_DOWNLOAD_FILE: z.string().min(1).optional(),
   HIGHLIGHT_SELECTOR: z
     .enum(["anthropic", "manual", "heuristic"])
     .default("heuristic"),

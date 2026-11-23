@@ -8,6 +8,7 @@ import type { Job } from "../jobs/queue"
 import type { JobHandlers } from "../jobs/worker-loop"
 import { projectRepository } from "../projects/repository"
 import { analyzeStep } from "./steps/analyze"
+import { downloadStep } from "./steps/download"
 import { settleRendering } from "../render/service"
 import { probeStep } from "./steps/probe"
 import { renderClipStep } from "./steps/render-clip"
@@ -17,6 +18,7 @@ import { sweepStep } from "./steps/sweep"
 import { transcribeStep } from "./steps/transcribe"
 
 export const pipelineHandlers: JobHandlers = {
+  download: downloadStep,
   probe: probeStep,
   transcribe: transcribeStep,
   analyze: analyzeStep,
@@ -30,6 +32,8 @@ const MINUTE = 60_000
 
 export function jobTimeoutMs(job: Job): number {
   switch (job.type) {
+    case "download":
+      return 3 * 60 * MINUTE
     case "probe":
       return 10 * MINUTE
     case "transcribe":

@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import type { ProjectStatus } from "@/features/projects/schema"
 
 const LABELS: Record<ProjectStatus, string> = {
+  downloading: "Downloading",
   uploaded: "Uploaded",
   probing: "Probing",
   transcribing: "Transcribing",
@@ -29,6 +30,7 @@ export function projectStatusLabel(status: ProjectStatus) {
 
 export function ProjectStatusBadge({ status }: { status: ProjectStatus }) {
   switch (status) {
+    case "downloading":
     case "probing":
     case "transcribing":
     case "analyzing":

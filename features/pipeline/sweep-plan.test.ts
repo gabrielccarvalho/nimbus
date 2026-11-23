@@ -21,6 +21,8 @@ describe("planSweep", () => {
       plan([
         { key: "tmp/uploads/a.part", mtimeMs: old },
         { key: "tmp/uploads/b.part", mtimeMs: fresh },
+        { key: "tmp/downloads/p1/source.mp4.part", mtimeMs: old },
+        { key: "tmp/downloads/p2/source.mp4.part", mtimeMs: fresh },
         { key: "projects/gone/source.mp4", mtimeMs: old },
         { key: "projects/gone/new.mp4", mtimeMs: fresh },
         { key: "projects/live/work/x-graph.txt", mtimeMs: old },
@@ -34,6 +36,7 @@ describe("planSweep", () => {
       ])
     ).toEqual([
       "tmp/uploads/a.part",
+      "tmp/downloads/p1/source.mp4.part",
       "projects/gone/source.mp4",
       "projects/live/work/x-graph.txt",
       "projects/live/renders/stray.mp4",

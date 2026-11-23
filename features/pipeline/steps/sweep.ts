@@ -17,7 +17,7 @@ export const sweepStep: JobHandler = async ({
 }) => {
   const storage = getStorage()
   const files: SweepFile[] = []
-  for (const prefix of ["tmp/uploads", "projects"]) {
+  for (const prefix of ["tmp/uploads", "tmp/downloads", "projects"]) {
     for (const key of await storage.list(prefix)) {
       const info = await storage.stat(key)
       if (info) files.push({ key, mtimeMs: info.mtimeMs })

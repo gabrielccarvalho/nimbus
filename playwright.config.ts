@@ -14,6 +14,10 @@ const testEnv = {
   NODE_ENV: "production",
   DATA_DIR: process.env.E2E_DATA_DIR,
   TRANSCRIBER: "fake",
+  DOWNLOADER: "fake",
+  FAKE_DOWNLOAD_FILE: path.resolve(
+    "tests/fixtures/.generated/gameplay-16x9.mp4"
+  ),
   HIGHLIGHT_SELECTOR: "heuristic",
   E2E: "1",
   WORKER_POLL_MS: "250",

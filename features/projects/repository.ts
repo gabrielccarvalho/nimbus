@@ -38,13 +38,15 @@ export function projectRepository(db: Db) {
       id?: string
       name: string
       settings: ProjectSettings
+      sourceUrl?: string
     }): Project {
       return db
         .insert(projects)
         .values({
           id: input.id ?? newId(),
           name: input.name,
-          status: "uploaded",
+          status: input.sourceUrl ? "downloading" : "uploaded",
+          sourceUrl: input.sourceUrl ?? null,
           settings: input.settings,
         })
         .returning()

@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 
 import { ProjectCard } from "@/components/projects/project-card"
 import { ProjectUploader } from "@/components/projects/project-uploader"
+import { UrlImportForm } from "@/components/projects/url-import-form"
 import {
   Empty,
   EmptyDescription,
@@ -23,11 +24,14 @@ export default async function ProjectsPage() {
       <div className="flex flex-col gap-1">
         <h1 className="font-heading text-2xl font-semibold">Projects</h1>
         <p className="text-sm text-muted-foreground">
-          Upload a recording to find clip-worthy moments. Every clip is a draft
-          for you to review.
+          Upload a recording or paste a video link to find clip-worthy moments.
+          Every clip is a draft for you to review.
         </p>
       </div>
-      <ProjectUploader maxBytes={getEnv().MAX_UPLOAD_BYTES} />
+      <div className="flex flex-col gap-4">
+        <ProjectUploader maxBytes={getEnv().MAX_UPLOAD_BYTES} />
+        <UrlImportForm />
+      </div>
       <section
         aria-labelledby="projects-heading"
         className="flex flex-col gap-3"

@@ -107,6 +107,24 @@ async function main() {
     )
   }
   try {
+    const ytdlp = await runProcess(env.YTDLP_PATH, ["--version"], {
+      timeoutMs: 10_000,
+    })
+    add(
+      "yt-dlp",
+      ytdlp.code === 0 ? "ok" : "warn",
+      ytdlp.code === 0
+        ? `${ytdlp.stdout.trim()} (link imports)`
+        : `${env.YTDLP_PATH} failed; link imports won't work`
+    )
+  } catch {
+    add(
+      "yt-dlp",
+      "warn",
+      `${env.YTDLP_PATH} not found; link imports won't work (brew install yt-dlp)`
+    )
+  }
+  try {
     await access(path.resolve(env.WHISPER_MODEL), constants.R_OK)
     add("whisper model", "ok", env.WHISPER_MODEL)
   } catch {

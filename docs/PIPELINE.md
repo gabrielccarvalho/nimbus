@@ -4,6 +4,26 @@ Every step runs in the worker as a job. Each handler reads inputs from the DB an
 
 All ffmpeg invocations use `-hide_banner -nostdin -y`. Long-running ones add `-progress pipe:1 -nostats` so the runner can parse progress (see "Progress").
 
+## 0. download (`downloading → uploaded`, link imports only)
+
+`importFromUrl` validates the link (http/https, public host, no fragment), creates the project in `downloading` with `sourceUrl` and enqueues `download`. The step (`features/pipeline/steps/download.ts`) asks the Downloader (`features/downloads`) for the video's details, then downloads into `tmp/downloads/<projectId>/`, moves the file to the project's source key, creates the source asset and continues to `probe`. The download dir is removed whatever happens; the sweep clears anything older than 24 h.
+
+```
+yt-dlp --no-playlist --no-warnings --ignore-config [--ffmpeg-location FFMPEG_PATH] \
+  --flat-playlist --dump-single-json --skip-download URL
+yt-dlp --no-playlist --no-warnings --ignore-config [--ffmpeg-location FFMPEG_PATH] \
+  --format "bv*[height<=1080][vcodec^=avc1]+ba[acodec^=mp4a]/bv*[height<=1080]+ba/b[height<=1080]/b" \
+  --merge-output-format mp4/mkv --max-filesize MAX_UPLOAD_BYTES \
+  --newline --progress-template "download:progress %(progress.downloaded_bytes)s %(progress.total_bytes)s %(progress.total_bytes_estimate)s" \
+  --paths <download dir> --output "source.%(ext)s" URL
+```
+
+- At most 1080p: vertical output is 1080 wide, so anything larger only costs download time. H.264/AAC is preferred so the MP4 merge is a remux.
+- Live, upcoming and still-processing streams, playlists and channel pages are rejected before downloading. The project takes the video's title.
+- Progress: the first stream (video) maps to 0–90%, the second (audio) to 90–100%, switching on yt-dlp's `[download] Destination:` lines.
+- yt-dlp errors are mapped to readable reasons (`describeYtDlpError`): private, members-only, age-restricted and removed videos fail without retrying; rate limits and network errors retry with backoff.
+- Retrying a failed download re-runs the step; a project that already has its source skips straight to probe.
+
 ## 1. probe (`uploaded → probing → transcribing`)
 
 Input: source asset. Output: asset metadata, `thumbnail` and `proxy` assets, layout row with `sourceAspect`.

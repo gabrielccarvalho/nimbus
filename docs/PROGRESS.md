@@ -178,6 +178,15 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 - [x] Tests: 4:3 fixture (probe, detection in Node, fill render 1080×1920), fill golden graph, decoy-outline unit test, Shorts e2e (4:3 → Fill → Approve all → render → download)
 - Known issue: on the synthetic 4:3 fixture, browser detection scores the webcam border just under the 0.6 threshold (Node, same frames: 0.66), so it proposes "no webcam". Pixel data matches ffmpeg's closely; the margin is simply thin for this fixture. Real webcams usually get confirmed by face detection; worth re-checking on a real 4:3 recording.
 
+### Phase 19: Import from a link
+
+- [x] `downloading` status and `download` job before probe; `projects.source_url` (migration `0001_source_url`); ADR-0040
+- [x] `features/downloads`: link validation, yt-dlp adapter (info, ≤1080p download, progress, readable errors), fake downloader; `doctor` check
+- [x] Dashboard "Or import from a link" field; project takes the video title
+- [x] Sweep clears stale `tmp/downloads`
+- [x] Tests: link validation and yt-dlp parsing units, integration (import → download → highlights, private video failure and retry, live stream refusal), e2e (import from link, readable failure)
+- [x] Verified by hand against YouTube with yt-dlp 2026.10.26: 10-minute video downloaded and merged to H.264/AAC MP4 with progress to 100%; removed video and playlist links fail with readable reasons in ~2 s
+
 ### Not verified
 
 - MediaPipe face detection on a real face (fixtures have none; the code path is unit tested and the model loads in e2e).

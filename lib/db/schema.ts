@@ -38,6 +38,7 @@ export const projects = sqliteTable(
     failedStep: text("failed_step").$type<ProjectStatus>(),
     error: text("error"),
     sourceAssetId: text("source_asset_id"),
+    sourceUrl: text("source_url"),
     settings: text("settings", { mode: "json" })
       .$type<ProjectSettings>()
       .notNull(),
