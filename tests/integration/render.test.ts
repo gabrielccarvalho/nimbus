@@ -9,7 +9,13 @@ import {
   assetRepository,
   projectRepository,
 } from "@/features/projects/repository"
-import { startClipRenders, startEditRender } from "@/features/render/service"
+import { jobQueue } from "@/features/jobs/queue"
+import {
+  cancelClipRenders,
+  cancelEditRender,
+  startClipRenders,
+  startEditRender,
+} from "@/features/render/service"
 import { getEnv } from "@/lib/env"
 import { getFfmpegCapabilities } from "@/lib/media/capabilities"
 import { getStorage } from "@/lib/storage"
@@ -155,6 +161,39 @@ describe("render_clip", () => {
     await expect(
       startClipRenders(env.db, projectId, [clip!.id])
     ).rejects.toThrow(/Confirm the layout|review/)
+  })
+})
+
+describe("cancelling renders", () => {
+  it("puts queued clips back to approved and returns to review", async () => {
+    const { projectId, clipId } = await readyProject(false)
+    await startClipRenders(env.db, projectId, [clipId])
+    await cancelClipRenders(env.db, projectId)
+    expect(await clipRepository(env.db).get(clipId)).toMatchObject({
+      status: "approved",
+    })
+    expect((await projectRepository(env.db).getOrThrow(projectId)).status).toBe(
+      "ready_for_review"
+    )
+    expect(await jobQueue(env.db).countActive(projectId, ["render_clip"])).toBe(
+      0
+    )
+    await expect(cancelClipRenders(env.db, projectId)).rejects.toThrow(
+      /No clips/
+    )
+  })
+
+  it("cancels the edit render and lets it start again", async () => {
+    const { projectId } = await readyProject(false)
+    await startEditRender(env.db, projectId)
+    await cancelEditRender(env.db, projectId)
+    expect(await jobQueue(env.db).countActive(projectId, ["render_edit"])).toBe(
+      0
+    )
+    await expect(cancelEditRender(env.db, projectId)).rejects.toThrow(
+      /isn't rendering/
+    )
+    await expect(startEditRender(env.db, projectId)).resolves.toBeDefined()
   })
 })
 

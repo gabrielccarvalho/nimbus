@@ -62,6 +62,36 @@ export async function startEditRender(db: Db, projectId: string) {
   return queue.enqueue({ type: "render_edit", projectId, payload: {} })
 }
 
+export async function cancelClipRenders(db: Db, projectId: string) {
+  await projectRepository(db).getOrThrow(projectId)
+  const cancelled = await withTransaction(db, async (tx) => {
+    const count = await jobQueue(tx).cancelForProject(projectId, [
+      "render_clip",
+    ])
+    if (count === 0) return 0
+    const clips = clipRepository(tx)
+    const rendering = (await clips.listByStatus(projectId, ["rendering"])).map(
+      (clip) => clip.id
+    )
+    await clips.setStatus(rendering, "approved")
+    return count
+  })
+  if (cancelled === 0) {
+    throw new AppError("CONFLICT", "No clips are rendering")
+  }
+  await settleRendering(db, projectId)
+}
+
+export async function cancelEditRender(db: Db, projectId: string) {
+  await projectRepository(db).getOrThrow(projectId)
+  const cancelled = await jobQueue(db).cancelForProject(projectId, [
+    "render_edit",
+  ])
+  if (cancelled === 0) {
+    throw new AppError("CONFLICT", "The edit isn't rendering")
+  }
+}
+
 export async function settleRendering(db: Db, projectId: string) {
   const projects = projectRepository(db)
   const project = await projects.get(projectId)
