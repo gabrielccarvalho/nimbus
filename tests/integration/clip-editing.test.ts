@@ -47,6 +47,7 @@ const edit = (overrides: Partial<Parameters<typeof updateClip>[3]> = {}) => ({
   hook: "New hook",
   captionOverrides: { pages: [{ index: 0, text: "fixed text" }] },
   layoutOverride: null,
+  effects: null,
   ...overrides,
 })
 

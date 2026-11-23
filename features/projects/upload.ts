@@ -109,6 +109,7 @@ export async function projectSettingsFromApp(
     renderQuality: app.renderQuality,
     reactionPhrases: app.reactionPhrases,
     niche: app.niche,
+    autoEffects: app.autoEffects,
   }
 }
 

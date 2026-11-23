@@ -103,6 +103,7 @@ type Shared = Pick<
   | "renderQuality"
   | "reactionPhrases"
   | "niche"
+  | "autoEffects"
 >
 
 type FieldsProps<T extends Shared> = {
@@ -190,6 +191,22 @@ export function HighlightFields<T extends Shared>({
         </RadioGroup>
       </FieldSet>
       <NicheField value={value} set={set} />
+      <Field orientation="horizontal">
+        <FieldContent>
+          <FieldLabel htmlFor="auto-effects">Auto effects</FieldLabel>
+          <FieldDescription>
+            Add full-cam, zoom and shake effects to the moments that call for
+            them. You can edit them per clip.
+          </FieldDescription>
+        </FieldContent>
+        <Switch
+          id="auto-effects"
+          checked={value.autoEffects}
+          onCheckedChange={(checked) =>
+            set("autoEffects", checked as T["autoEffects"])
+          }
+        />
+      </Field>
       <div className="grid gap-4 sm:grid-cols-3">
         <Field>
           <FieldLabel htmlFor="clip-min">Shortest clip (s)</FieldLabel>
