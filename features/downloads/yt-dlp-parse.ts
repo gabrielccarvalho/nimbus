@@ -171,7 +171,7 @@ export function describeYtDlpError(
       "DEPENDENCY_MISSING",
       withCookies
         ? "YouTube still wants a sign-in to confirm this isn't a bot. Sign in to YouTube in the browser set in YTDLP_COOKIES_FROM_BROWSER (or refresh YTDLP_COOKIES) and try again."
-        : "YouTube wants a sign-in to confirm this isn't a bot. Set YTDLP_COOKIES_FROM_BROWSER (e.g. chrome) in .env.local, restart, and try again."
+        : "YouTube wants a sign-in to confirm this isn't a bot. Set YTDLP_COOKIES_FROM_BROWSER to a browser you're signed in to (dia, chrome, safari, firefox, ...) in .env.local, restart, and try again."
     )
   }
   for (const [pattern, code, message] of KNOWN_ERRORS) {

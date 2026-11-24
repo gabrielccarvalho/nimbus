@@ -6,6 +6,7 @@ import path from "node:path"
 import { AppError } from "@/lib/errors"
 import { runProcess } from "@/lib/process/run"
 
+import type { ExportedCookies } from "./browser-cookies"
 import type { DownloadInput, Downloader, VideoInfo } from "./downloader"
 import {
   describeYtDlpError,
@@ -32,10 +33,20 @@ export class YtDlpDownloader implements Downloader {
       ffmpeg: string
       cookiesFromBrowser?: string
       cookiesFile?: string
+      exportCookies?: () => Promise<ExportedCookies>
     }
   ) {}
 
-  private baseArgs() {
+  private async withArgs<T>(run: (args: string[]) => Promise<T>): Promise<T> {
+    const exported = await this.options.exportCookies?.()
+    try {
+      return await run(this.baseArgs(exported?.file))
+    } finally {
+      await exported?.cleanup()
+    }
+  }
+
+  private baseArgs(cookiesFile = this.options.cookiesFile) {
     const args = ["--no-playlist", "--no-warnings", "--ignore-config"]
     if (this.options.ffmpeg.includes("/")) {
       args.push("--ffmpeg-location", this.options.ffmpeg)
@@ -43,8 +54,8 @@ export class YtDlpDownloader implements Downloader {
     if (this.options.cookiesFromBrowser) {
       args.push("--cookies-from-browser", this.options.cookiesFromBrowser)
     }
-    if (this.options.cookiesFile) {
-      args.push("--cookies", this.options.cookiesFile)
+    if (cookiesFile) {
+      args.push("--cookies", cookiesFile)
     }
     return args
   }
@@ -52,22 +63,26 @@ export class YtDlpDownloader implements Downloader {
   private describeError(stderr: string) {
     return describeYtDlpError(stderr, {
       withCookies: Boolean(
-        this.options.cookiesFromBrowser || this.options.cookiesFile
+        this.options.cookiesFromBrowser ||
+        this.options.cookiesFile ||
+        this.options.exportCookies
       ),
     })
   }
 
   async info(url: string, signal?: AbortSignal): Promise<VideoInfo> {
-    const result = await runProcess(
-      this.options.binary,
-      [
-        ...this.baseArgs(),
-        "--flat-playlist",
-        "--dump-single-json",
-        "--skip-download",
-        url,
-      ],
-      { signal, timeoutMs: INFO_TIMEOUT_MS, stderrTailBytes: 8192 }
+    const result = await this.withArgs((args) =>
+      runProcess(
+        this.options.binary,
+        [
+          ...args,
+          "--flat-playlist",
+          "--dump-single-json",
+          "--skip-download",
+          url,
+        ],
+        { signal, timeoutMs: INFO_TIMEOUT_MS, stderrTailBytes: 8192 }
+      )
     )
     if (result.code !== 0) throw this.describeError(result.stderrTail)
     return parseInfo(result.stdout)
@@ -81,31 +96,33 @@ export class YtDlpDownloader implements Downloader {
     onProgress,
   }: DownloadInput): Promise<string> {
     const onLine = onProgress ? downloadProgress(onProgress) : undefined
-    const result = await runProcess(
-      this.options.binary,
-      [
-        ...this.baseArgs(),
-        "--format",
-        FORMAT,
-        "--merge-output-format",
-        "mp4/mkv",
-        "--max-filesize",
-        String(maxBytes),
-        "--newline",
-        "--progress-template",
-        PROGRESS_TEMPLATE,
-        "--paths",
-        dir,
-        "--output",
-        "source.%(ext)s",
-        url,
-      ],
-      {
-        signal,
-        collectStdout: false,
-        stderrTailBytes: 8192,
-        onStdoutLine: onLine,
-      }
+    const result = await this.withArgs((args) =>
+      runProcess(
+        this.options.binary,
+        [
+          ...args,
+          "--format",
+          FORMAT,
+          "--merge-output-format",
+          "mp4/mkv",
+          "--max-filesize",
+          String(maxBytes),
+          "--newline",
+          "--progress-template",
+          PROGRESS_TEMPLATE,
+          "--paths",
+          dir,
+          "--output",
+          "source.%(ext)s",
+          url,
+        ],
+        {
+          signal,
+          collectStdout: false,
+          stderrTailBytes: 8192,
+          onStdoutLine: onLine,
+        }
+      )
     )
     if (result.code !== 0) throw this.describeError(result.stderrTail)
     const file = (await readdir(dir)).find((name) =>

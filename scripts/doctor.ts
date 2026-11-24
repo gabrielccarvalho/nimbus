@@ -5,6 +5,8 @@ import path from "node:path"
 
 import { Client } from "pg"
 
+import { cookieDatabasePath } from "@/features/downloads/browser-cookies"
+import { parseBrowserSpec } from "@/features/downloads/chromium-cookies"
 import { CAPTION_FONT_IDS, CAPTION_FONTS } from "@/features/captions/styles"
 import { chooseEncoder } from "@/features/render/filtergraph"
 import { installedCaptionFonts } from "@/features/render/fonts"
@@ -134,6 +136,20 @@ async function main() {
       `browser: ${env.YTDLP_COOKIES_FROM_BROWSER}`,
     env.YTDLP_COOKIES && `file: ${env.YTDLP_COOKIES}`,
   ].filter(Boolean)
+  const browser = env.YTDLP_COOKIES_FROM_BROWSER
+    ? parseBrowserSpec(env.YTDLP_COOKIES_FROM_BROWSER)
+    : null
+  if (browser) {
+    try {
+      await access(cookieDatabasePath(browser), constants.R_OK)
+    } catch {
+      add(
+        "yt-dlp cookies",
+        "warn",
+        `no cookies for ${browser.browser} profile "${browser.profile}" at ${cookieDatabasePath(browser)}`
+      )
+    }
+  }
   add(
     "yt-dlp cookies",
     cookies.length > 0 ? "ok" : "warn",
