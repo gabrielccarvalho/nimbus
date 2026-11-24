@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+import { clipEffectsSchema } from "../effects/schema"
 import { layoutInputSchema } from "../layout/schema"
 
 export const clipStatuses = [
@@ -42,5 +43,14 @@ export const clipEditSchema = clipTextSchema.extend({
   endMs: z.number().int().positive(),
   captionOverrides: captionOverridesSchema,
   layoutOverride: layoutInputSchema.nullable().default(null),
+  effects: clipEffectsSchema.nullable().default(null),
 })
 export type ClipEdit = z.infer<typeof clipEditSchema>
+
+export const clipPlanSchema = clipEditSchema
+  .pick({ startMs: true, endMs: true, layoutOverride: true })
+  .refine((plan) => plan.endMs > plan.startMs, {
+    message: "The clip must end after it starts",
+    path: ["endMs"],
+  })
+export type ClipPlan = z.infer<typeof clipPlanSchema>

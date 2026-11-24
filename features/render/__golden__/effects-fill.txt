@@ -1,0 +1,4 @@
+[0:v]trim=start=2.000:end=17.000,setpts=PTS-STARTPTS,fps=30,sendcmd=f=/data/work/c1.cmds.txt,split=1[s0];
+[s0]crop=606:1080:250:0,scale@e0=1080:1920,crop@e0=1080:1920:0:0:exact=1,setsar=1[r0];
+[r0]null,format=yuv420p,ass=filename=/data/work/c1.ass:fontsdir=/app/assets/fonts[v];
+[0:a]atrim=start=2.000:end=17.000,asetpts=PTS-STARTPTS[a]

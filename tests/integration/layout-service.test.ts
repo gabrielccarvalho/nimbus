@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import { clipRepository } from "@/features/clips/repository"
+import { autoEffectsFor } from "@/features/effects/service"
 import { layoutRepository } from "@/features/layout/repository"
 import { confirmLayout } from "@/features/layout/service"
 import { projectRepository } from "@/features/projects/repository"
@@ -83,5 +85,51 @@ describe("confirmLayout", () => {
     await expect(
       confirmLayout(env.db, projectId, { ...camTop, webcamRect: null })
     ).rejects.toThrow(/Mark the webcam/)
+  })
+
+  it("re-plans auto tracks planned against the probe placeholder", async () => {
+    const { projectId } = await uploadFixture(fixtures.wide)
+    await runJobs(env.db, ["probe", "transcribe", "analyze", "select"])
+    const clips = clipRepository(env.db)
+    const [selected] = await clips.listForProject(projectId)
+    const clip = await clips.update(selected!.id, {
+      beats: [{ ms: selected!.startMs + 4000, kind: "reaction" }],
+    })
+    const placeholder = (await autoEffectsFor(env.db, projectId, [clip])).get(
+      clip.id
+    )!
+    expect(placeholder.events.some((e) => e.kind === "focus")).toBe(false)
+    await clips.update(clip.id, { effects: placeholder })
+
+    await confirmLayout(env.db, projectId, camTop)
+    const replanned = (await clips.getOrThrow(clip.id)).effects
+    expect(replanned?.edited).toBe(false)
+    expect(replanned?.events.some((e) => e.kind === "focus")).toBe(true)
+
+    const edited = { edited: true, events: [] }
+    await clips.update(clip.id, { effects: edited })
+    await confirmLayout(env.db, projectId, { ...camTop, gameplayFocusX: 0.6 })
+    expect((await clips.getOrThrow(clip.id)).effects).toEqual(edited)
+
+    await clips.update(clip.id, {
+      effects: null,
+      layoutOverride: { ...camTop, webcamRect: null, mode: "no-cam-fill" },
+    })
+    await confirmLayout(env.db, projectId, camTop)
+    expect((await clips.getOrThrow(clip.id)).effects).toBeNull()
+  })
+
+  it("leaves tracks alone when autoEffects is off", async () => {
+    const { projectId } = await uploadFixture(fixtures.wide)
+    const projects = projectRepository(env.db)
+    await projects.updateSettings(projectId, {
+      ...(await projects.getOrThrow(projectId)).settings,
+      autoEffects: false,
+    })
+    await runJobs(env.db, ["probe", "transcribe", "analyze", "select"])
+    await confirmLayout(env.db, projectId, camTop)
+    for (const clip of await clipRepository(env.db).listForProject(projectId)) {
+      expect(clip.effects).toBeNull()
+    }
   })
 })

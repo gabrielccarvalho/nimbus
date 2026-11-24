@@ -103,6 +103,7 @@ The configured HighlightSelector returns raw candidates. Shared post-processing 
 - The prompt (`features/highlights/prompt.ts`) contains the timestamped transcript (lines in another language marked `(game)`), the 15 loudest 250 ms buckets, silences, game dialogue stretches, runs of camera cuts, the niche's "look for" list and the length/count limits. Manual mode shows the same prompt plus a JSON reply format.
 - **manual**: the step finishes with zero candidates and sets `awaitingManualSelection`; the Clips page shows the prompt and accepts pasted JSON (prose around the JSON is ignored), which goes through the same post-processing.
 - **heuristic** (`features/highlights/heuristic.ts`): windows anchored at every sentence start and every 5 s, at the minimum length and at the midpoint of min/max. Loudness is the 90th percentile of normalized loudness in the window; density is words per second; keywords count hype phrases; question/answer is 1 when a question is followed by a non-question.
+- **effects** (`features/effects/planner.ts`, pure): with the project's `autoEffects` on (default), every new clip gets a track planned from loudness, speech rate and the review's beats (`clips.beats`, kept so a reset never calls Claude again), using the layout stored at probe time. Without a preset that's a webcam-less placeholder, so confirming the layout re-plans the un-edited tracks. Rules in BUSINESS_LOGIC. Heuristic and manual clips get audio-only placement.
 
 ## 5. layout (`awaiting_layout → ready_for_review`)
 
@@ -112,7 +113,7 @@ Client-side (`features/layout/detect-webcam.ts`). An off-screen `<video>` seeks 
 - **Face detection**: MediaPipe Tasks Vision `blaze_face_short_range` (CPU, WASM served from `public/vendor/mediapipe`, installed by `pnpm run setup:vision`). It runs on the border box crop first (webcam faces are tiny in the full frame), then on the whole frame. If the assets are missing it is skipped and the border result stands.
 - **Combining** (`detection.ts`, pure): border score ≥ 0.6 with a face inside → `cam-top` at ≥ 0.9 confidence; border alone → 0.8 × score; no border but a steady small face in ≥ half the frames → a 16:9 box around the face; otherwise `no-cam-blur-fill`.
 
-The user adjusts the box in the layout editor, with a live 9:16 canvas preview drawn from the same `planLayout()` used by the renderer, and confirms (Server Action `confirmLayoutAction` → `awaiting_layout → ready_for_review`). "Use for every W×H recording" saves a LayoutPreset. Skipped automatically for square or portrait sources or when a preset matches the resolution. The layout can be edited again later without changing the status.
+The user adjusts the box in the layout editor, with a live 9:16 canvas preview drawn from the same `planLayout()` used by the renderer, and confirms (Server Action `confirmLayoutAction` → `awaiting_layout → ready_for_review`), re-planning un-edited effect tracks when `autoEffects` is on. "Use for every W×H recording" saves a LayoutPreset. Skipped automatically for square or portrait sources or when a preset matches the resolution. The layout can be edited again later without changing the status.
 
 ## 6. render_clip (`ready_for_review → rendering → done`)
 
@@ -143,6 +144,10 @@ Crop values are computed in TypeScript as even integers from normalized rects an
 ```
 
 Golden copies of all three graphs and the edit graph live in `features/render/__golden__`.
+
+### Effects
+
+A clip with effect events renders through `effectsGraph` (`features/render/effects-graph.ts`) instead of `verticalGraph` (ADR-0053). `effectCommands` samples `frameAt` (`features/effects/frame.ts`, the same function the canvas preview draws) once per output frame and writes a `sendcmd` file: each region crops its layout rect, `scale@eN` resizes it so the zoomed or shaken crop lands at the destination size, and a fixed `crop@eN` picks the offset. Focus overlays a full-frame webcam branch with `enable='between(t,…)'`. Captions are burned on top of the final frame, so effects never move them. Clips with no effects (`effects` null or empty) keep the plain graph and its goldens.
 
 ### Output encoding
 

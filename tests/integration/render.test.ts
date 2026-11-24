@@ -4,6 +4,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { clipRepository } from "@/features/clips/repository"
 import { setClipReviewStatus } from "@/features/clips/service"
+import { frameAt, type FrameRegion } from "@/features/effects/frame"
+import type { Effect } from "@/features/effects/schema"
+import type { LayoutInput } from "@/features/layout/schema"
 import { confirmLayout } from "@/features/layout/service"
 import {
   assetRepository,
@@ -49,7 +52,7 @@ function probe(file: string) {
   }
 }
 
-function grayFrame(file: string, atS: number) {
+function rawFrame(file: string, atS: number, pixFmt: "gray" | "rgb24") {
   return execFileSync(
     getEnv().FFMPEG_PATH,
     [
@@ -64,10 +67,82 @@ function grayFrame(file: string, atS: number) {
       "-f",
       "rawvideo",
       "-pix_fmt",
+      pixFmt,
+      "-",
+    ],
+    { maxBuffer: 16 * 1024 ** 2 }
+  )
+}
+
+const grayFrame = (file: string, atS: number) => rawFrame(file, atS, "gray")
+
+function nthFrame(file: string, n: number) {
+  return execFileSync(
+    getEnv().FFMPEG_PATH,
+    [
+      "-v",
+      "error",
+      "-i",
+      file,
+      "-vf",
+      `select=eq(n\\,${n})`,
+      "-frames:v",
+      "1",
+      "-f",
+      "rawvideo",
+      "-pix_fmt",
       "gray",
       "-",
     ],
     { maxBuffer: 16 * 1024 ** 2 }
+  )
+}
+
+function regionDiff(rendered: Buffer, source: Buffer, region: FrameRegion) {
+  const { crop, dest } = region
+  const at = (x: number, y: number) => source[y * 1920 + x]!
+  let sum = 0
+  let count = 0
+  for (let v = 8; v < dest.h - 8; v += 4) {
+    for (let u = 8; u < dest.w - 8; u += 4) {
+      const sx = Math.min(1918, crop.x + ((u + 0.5) * crop.w) / dest.w - 0.5)
+      const sy = Math.min(1078, crop.y + ((v + 0.5) * crop.h) / dest.h - 0.5)
+      const x = Math.floor(sx)
+      const y = Math.floor(sy)
+      const fx = sx - x
+      const fy = sy - y
+      const expected =
+        (at(x, y) * (1 - fx) + at(x + 1, y) * fx) * (1 - fy) +
+        (at(x, y + 1) * (1 - fx) + at(x + 1, y + 1) * fx) * fy
+      sum += Math.abs(expected - rendered[(dest.y + v) * 1080 + dest.x + u]!)
+      count++
+    }
+  }
+  return sum / count
+}
+
+function columnColors(
+  frame: Buffer,
+  width: number,
+  rect: { x: number; y: number; w: number; h: number },
+  columns = 6
+) {
+  return Array.from({ length: columns }, (_, col) => {
+    const fromX = rect.x + Math.round((rect.w * col) / columns)
+    const toX = rect.x + Math.round((rect.w * (col + 1)) / columns)
+    const sum = [0, 0, 0]
+    for (let y = rect.y; y < rect.y + rect.h; y++) {
+      for (let x = fromX; x < toX; x++) {
+        for (let c = 0; c < 3; c++) sum[c]! += frame[(y * width + x) * 3 + c]!
+      }
+    }
+    return sum.map((s) => s / ((toX - fromX) * rect.h))
+  })
+}
+
+function colorDistance(a: number[][], b: number[][]) {
+  return Math.max(
+    ...a.flatMap((cell, i) => cell.map((c, j) => Math.abs(c - b[i]![j]!)))
   )
 }
 
@@ -77,6 +152,13 @@ function bandDiff(a: Buffer, b: Buffer, fromY: number, toY: number) {
   return sum / ((toY - fromY) * 1080)
 }
 
+const camTop = {
+  webcamRect: { x: 0.7833, y: 0.7704, w: 0.2, h: 0.2 },
+  gameplayRect: { x: 0, y: 0, w: 1, h: 1 },
+  gameplayFocusX: 0.5,
+  mode: "cam-top",
+} satisfies LayoutInput
+
 async function readyProject(captionsEnabled: boolean) {
   const { projectId } = await uploadFixture(fixtures.wide)
   const projects = projectRepository(env.db)
@@ -85,12 +167,7 @@ async function readyProject(captionsEnabled: boolean) {
     captionsEnabled,
   })
   await runJobs(env.db, ["probe", "transcribe", "analyze", "select"])
-  await confirmLayout(env.db, projectId, {
-    webcamRect: { x: 0.7833, y: 0.7704, w: 0.2, h: 0.2 },
-    gameplayRect: { x: 0, y: 0, w: 1, h: 1 },
-    gameplayFocusX: 0.5,
-    mode: "cam-top",
-  })
+  await confirmLayout(env.db, projectId, camTop)
   const [clip] = await clipRepository(env.db).listForProject(projectId)
   await setClipReviewStatus(env.db, projectId, clip!.id, "approved")
   return { projectId, clipId: clip!.id }
@@ -194,6 +271,126 @@ describe("cancelling renders", () => {
       /isn't rendering/
     )
     await expect(startEditRender(env.db, projectId)).resolves.toBeDefined()
+  })
+})
+
+describe("render_clip with effects", () => {
+  const noCam = {
+    webcamRect: null,
+    gameplayRect: { x: 0, y: 0, w: 1, h: 1 },
+    gameplayFocusX: 0.5,
+    mode: "no-cam-blur-fill",
+  } satisfies LayoutInput
+  const focusFromS = 3
+  const insideS = 4.5
+
+  const focusFrom = (startMs: number): Effect[] => [
+    {
+      kind: "focus",
+      startMs: startMs + focusFromS * 1000,
+      endMs: startMs + (focusFromS + 3) * 1000,
+    },
+  ]
+
+  async function renderWith(
+    events: ((startMs: number) => Effect[]) | null,
+    layoutOverride: LayoutInput | null = null
+  ) {
+    const { projectId, clipId } = await readyProject(false)
+    const clips = clipRepository(env.db)
+    const { startMs, endMs } = (await clips.get(clipId))!
+    expect(endMs - startMs).toBeGreaterThan(7000)
+    await clips.update(clipId, {
+      layoutOverride,
+      effects: events ? { events: events(startMs), edited: true } : null,
+    })
+    await startClipRenders(env.db, projectId, [clipId])
+    await runJobs(env.db, ["render_clip"])
+    const clip = (await clips.get(clipId))!
+    expect(clip.status).toBe("rendered")
+    const asset = (await assetRepository(env.db).get(clip.renderAssetId!))!
+    return { clip, file: getStorage().resolve(asset.storageKey) }
+  }
+
+  it("renders a focus range as webcam content", async () => {
+    const plain = await renderWith(null)
+    const focused = await renderWith(focusFrom)
+
+    const { crop } = frameAt(
+      camTop,
+      { width: 1920, height: 1080 },
+      [{ kind: "focus", startMs: 0, endMs: 1 }],
+      0
+    ).regions[0]!
+    const band = { x: 0, y: 800, w: 1080, h: 300 }
+    const webcam = columnColors(
+      rawFrame(fixtures.wide, focused.clip.startMs / 1000 + insideS, "rgb24"),
+      1920,
+      {
+        x: Math.round(crop.x),
+        y: Math.round(crop.y + (crop.h * band.y) / 1920),
+        w: Math.round(crop.w),
+        h: Math.round((crop.h * band.h) / 1920),
+      }
+    )
+    const at = (file: string) =>
+      columnColors(rawFrame(file, insideS, "rgb24"), 1080, band)
+    expect(colorDistance(at(focused.file), webcam)).toBeLessThan(15)
+    expect(colorDistance(at(plain.file), webcam)).toBeGreaterThan(40)
+    expect(
+      bandDiff(
+        grayFrame(plain.file, insideS),
+        grayFrame(focused.file, insideS),
+        800,
+        1100
+      )
+    ).toBeGreaterThan(10)
+    expect(
+      bandDiff(grayFrame(plain.file, 1), grayFrame(focused.file, 1), 0, 1920)
+    ).toBeLessThan(1.5)
+  })
+
+  it("puts zoom and shake crops on the frames frameAt gives them", async () => {
+    const { clip, file } = await renderWith((startMs) => [
+      {
+        kind: "zoom",
+        startMs: startMs + 2000,
+        endMs: startMs + 5000,
+        scale: 1.6,
+        focus: { x: 0.3, y: 0.4 },
+      },
+      {
+        kind: "shake",
+        startMs: startMs + 3000,
+        endMs: startMs + 3600,
+        intensity: "strong",
+      },
+    ])
+    const n = 100
+    const tMs = (frame: number) => clip.startMs + (frame * 1000) / 30
+    const gameplayAt = (frame: number, events = clip.effects!.events) =>
+      frameAt(camTop, { width: 1920, height: 1080 }, events, tMs(frame))
+        .regions[1]!
+    const rendered = nthFrame(file, n)
+    const source = grayFrame(fixtures.wide, tMs(n) / 1000)
+    const diff = (region: FrameRegion) => regionDiff(rendered, source, region)
+    expect(diff(gameplayAt(n))).toBeLessThan(2)
+    expect(diff(gameplayAt(n - 1))).toBeGreaterThan(4)
+    expect(diff(gameplayAt(n + 1))).toBeGreaterThan(4)
+    expect(diff(gameplayAt(n, []))).toBeGreaterThan(20)
+  })
+
+  it("ignores focus when the clip's layout has no webcam", async () => {
+    const plain = await renderWith(null, noCam)
+    const focused = await renderWith(focusFrom, noCam)
+    expect(
+      bandDiff(
+        grayFrame(plain.file, insideS),
+        grayFrame(focused.file, insideS),
+        0,
+        1920
+      )
+    ).toBeLessThan(1.5)
   })
 })
 

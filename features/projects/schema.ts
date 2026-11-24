@@ -50,6 +50,7 @@ export const projectSettingsSchema = z
     renderQuality: renderQualitySchema,
     reactionPhrases: reactionPhrasesSchema,
     niche: nicheSchema,
+    autoEffects: z.boolean(),
   })
   .refine((s) => s.clipMinMs < s.clipMaxMs, {
     message: "Minimum clip length must be shorter than the maximum",
@@ -72,6 +73,7 @@ export const defaultProjectSettings: ProjectSettings = {
   renderQuality: "standard",
   reactionPhrases: [],
   niche: "auto",
+  autoEffects: true,
 }
 
 export const importOptionsSchema = z.object({

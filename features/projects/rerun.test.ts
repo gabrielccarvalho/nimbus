@@ -20,6 +20,12 @@ describe("rerunStepFor", () => {
     expect(rerunStepFor(base, { ...base, targetClipCount: 3 })).toBe("select")
   })
 
+  it("autoEffects change asks for the render step", () => {
+    expect(
+      rerunStepFor(base, { ...base, autoEffects: !base.autoEffects })
+    ).toBe("render")
+  })
+
   it("re-renders for captions and quality", () => {
     expect(rerunStepFor(base, { ...base, renderQuality: "high" })).toBe(
       "render"

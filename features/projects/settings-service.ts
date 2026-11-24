@@ -4,6 +4,7 @@ import { withTransaction, type Db } from "@/lib/db"
 import { AppError } from "@/lib/errors"
 
 import { clipRepository } from "../clips/repository"
+import { syncAutoEffects } from "../effects/service"
 import { jobQueue } from "../jobs/queue"
 import { isRunning } from "../pipeline/state-machine"
 import { startClipRenders } from "../render/service"
@@ -31,7 +32,12 @@ export async function updateProjectSettings(
       "Wait for the current step to finish before changing settings"
     )
   }
-  await projects.updateSettings(projectId, parsed.data)
+  await withTransaction(db, async (tx) => {
+    await projectRepository(tx).updateSettings(projectId, parsed.data)
+    if (project.settings.autoEffects !== parsed.data.autoEffects) {
+      await syncAutoEffects(tx, projectId, parsed.data.autoEffects)
+    }
+  })
   const step = rerunStepFor(project.settings, parsed.data)
   if (!step || !project.sourceAssetId) return { rerun: null }
   if (step === "render") {

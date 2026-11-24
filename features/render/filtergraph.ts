@@ -17,10 +17,10 @@ export function outputFps(sourceFps: number | null | undefined) {
   return Math.round(sourceFps * 1000) / 1000
 }
 
-const seconds = (ms: number) => (Math.round(ms) / 1000).toFixed(3)
+export const seconds = (ms: number) => (Math.round(ms) / 1000).toFixed(3)
 const crop = (r: PixelRect) => `crop=${r.w}:${r.h}:${r.x}:${r.y}`
 
-function subtitleFilter(subtitles?: Subtitles) {
+export function subtitleFilter(subtitles?: Subtitles) {
   return subtitles
     ? `,ass=filename=${escapeFilterPath(subtitles.file)}:fontsdir=${escapeFilterPath(subtitles.fontsDir)}`
     : ""

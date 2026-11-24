@@ -5,6 +5,7 @@ import { getStorage } from "@/lib/storage"
 import { signalsRepository } from "../../analysis/repository"
 import { clipRepository } from "../../clips/repository"
 import { loadAudienceHeatmap } from "../../downloads/service"
+import { autoEffectsFor } from "../../effects/service"
 import { selectHighlights } from "../../highlights"
 import { proxyFrameSource } from "../../highlights/frames"
 import { NICHE_PROFILES, resolveNiche } from "../../highlights/niches"
@@ -119,7 +120,7 @@ export const selectStep: JobHandler = async ({
   showCandidates(candidates, null)
 
   const clips = clipRepository(db)
-  await (more ? clips.addCandidates : clips.replaceCandidates)(
+  const inserted = await (more ? clips.addCandidates : clips.replaceCandidates)(
     project.id,
     candidates.map((c) => ({
       startMs: c.startMs,
@@ -132,8 +133,13 @@ export const selectStep: JobHandler = async ({
           ? `Not checked against the video (${reviewFailure}). ${c.reason}`
           : c.reason,
       score: c.score,
+      beats: c.beats ?? null,
     }))
   )
+  if (settings.autoEffects) {
+    const tracks = await autoEffectsFor(db, project.id, inserted)
+    for (const [id, effects] of tracks) await clips.update(id, { effects })
+  }
   await projectRepository(db).setAwaitingManualSelection(project.id, false)
   logger.info(
     {

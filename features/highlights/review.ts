@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import type { TimeRange } from "../analysis/schema"
+import { beatSchema, type Beat } from "../effects/schema"
 import { languageName, transcriptLines } from "./prompt"
 import {
   rawCandidateSchema,
@@ -31,11 +33,29 @@ Then tighten the clip for retention:
 - endMs: right after the reaction lands. Keep the length within the limits you are given.
 - title and hook: say what is visible, concretely ("car launches into orbit off a curb"), in the language you are told. The hook is on-screen text for the first seconds, under 90 characters, and must make people want to see what happens.
 - reason: one sentence an editor can check: what the frames show and how the streamer reacts.
+- beats: up to 4 moments, each { ms, kind }. "reaction" where the streamer's face in the webcam visibly reacts (shock, laughter, screaming); "weird" where something strange or impactful happens in the game, with x and y (0–1 of the full frame) for where on screen. Use frame times.
 
 Return every candidate you were given, by id, even the bad ones, with an honest score.`
 
+const lenientBeatSchema = z.object({
+  ms: z.number(),
+  kind: z.string(),
+  x: z.number().optional(),
+  y: z.number().optional(),
+})
+
+type LenientBeat = z.infer<typeof lenientBeatSchema>
+
 export const reviewResponseSchema = z.object({
-  clips: z.array(rawCandidateSchema.extend({ id: z.number().int() })),
+  clips: z.array(
+    rawCandidateSchema.omit({ beats: true }).extend({
+      id: z.number().int(),
+      beats: z
+        .array(lenientBeatSchema.nullable().catch(null))
+        .optional()
+        .catch(undefined),
+    })
+  ),
 })
 export type ReviewedCandidate = z.infer<
   typeof reviewResponseSchema
@@ -107,6 +127,32 @@ export function buildReviewContent(
   return blocks
 }
 
+const clamp01 = (value: number) => Math.min(1, Math.max(0, value))
+
+function normalizeBeats(
+  raw: readonly (LenientBeat | null)[] | undefined,
+  range: TimeRange
+) {
+  const beats: Beat[] = []
+  for (const item of raw ?? []) {
+    if (!item) continue
+    const { ms, kind, x, y } = item
+    const beat = beatSchema.safeParse({
+      ms: Math.round(ms),
+      kind,
+      ...(x === undefined ? {} : { x: clamp01(x) }),
+      ...(y === undefined ? {} : { y: clamp01(y) }),
+    })
+    if (
+      beat.success &&
+      beat.data.ms >= range.startMs &&
+      beat.data.ms <= range.endMs
+    )
+      beats.push(beat.data)
+  }
+  return beats
+}
+
 export function applyReviews(
   candidates: readonly Candidate[],
   reviews: readonly ReviewedCandidate[]
@@ -125,13 +171,18 @@ export function applyReviews(
       within(review.startMs) &&
       within(review.endMs) &&
       review.endMs > review.startMs
+    const startMs = moved ? review.startMs : candidate.startMs
+    const endMs = moved ? review.endMs : candidate.endMs
     return {
-      startMs: moved ? review.startMs : candidate.startMs,
-      endMs: moved ? review.endMs : candidate.endMs,
+      startMs,
+      endMs,
       title: review.title.trim() || candidate.title,
       hook: review.hook.trim() || candidate.hook,
       reason: review.reason.trim() || candidate.reason,
       score: review.score,
+      ...(review.beats
+        ? { beats: normalizeBeats(review.beats, { startMs, endMs }) }
+        : {}),
     }
   })
 }

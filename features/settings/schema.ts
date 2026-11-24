@@ -26,6 +26,7 @@ export const appSettingsSchema = z
     renderQuality: renderQualitySchema,
     reactionPhrases: reactionPhrasesSchema,
     niche: nicheSchema,
+    autoEffects: z.boolean(),
     hardwareEncoding: z.boolean(),
   })
   .refine((s) => s.clipMinMs < s.clipMaxMs, {
@@ -45,6 +46,7 @@ export const defaultAppSettings: AppSettings = {
   renderQuality: defaultProjectSettings.renderQuality,
   reactionPhrases: defaultProjectSettings.reactionPhrases,
   niche: defaultProjectSettings.niche,
+  autoEffects: defaultProjectSettings.autoEffects,
   hardwareEncoding: false,
 }
 

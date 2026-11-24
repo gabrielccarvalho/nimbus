@@ -22,15 +22,25 @@ test("upload, confirm layout, render, download and edit a clip", async ({
 
   await page.getByRole("link", { name: "Clips" }).click()
   const first = page
-    .getByRole("list", { name: "Clip candidates" })
-    .getByRole("listitem")
+    .getByRole("list", { name: "Clips" })
+    .getByRole("button")
     .first()
-  await first.getByRole("button", { name: "Approve" }).click()
-  await expect(first).toContainText("Approved")
+  await first.click()
+  const dialog = page.getByRole("dialog")
+  await dialog.getByRole("button", { name: "Approve" }).click()
+  await expect(dialog.getByRole("button", { name: "Approve" })).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  )
+  await page.keyboard.press("Escape")
+  await expect(first).toHaveAccessibleDescription(/Approved/)
   await page.getByRole("button", { name: "Render approved clips" }).click()
-  await expect(first).toContainText("Rendered", { timeout: 120_000 })
+  await expect(first).toHaveAccessibleDescription(/Rendered/, {
+    timeout: 120_000,
+  })
 
-  const download = first.getByRole("link", { name: /Download/ })
+  await first.click()
+  const download = dialog.getByRole("link", { name: /Download/ })
   const clipResponse = await page.request.get(
     (await download.getAttribute("href"))!
   )
@@ -39,13 +49,17 @@ test("upload, confirm layout, render, download and edit a clip", async ({
   expect(clipResponse.headers()["content-disposition"]).toMatch(/attachment/)
   expect((await clipResponse.body()).length).toBeGreaterThan(100_000)
 
+  await page.keyboard.press("Escape")
+  await expect(dialog).toBeHidden()
+
   const zip = await page.request.get(`/api${projectPath}/export`)
   expect(zip.status()).toBe(200)
   expect((await zip.body()).subarray(0, 2).toString()).toBe("PK")
   await expect(page.getByRole("link", { name: "Download all" })).toBeVisible()
   await expectNoSeriousA11yViolations(page)
 
-  await first.getByRole("link", { name: /Edit/ }).click()
+  await first.click()
+  await dialog.getByRole("link", { name: /Edit/ }).click()
   await expect(page.getByLabel("Title")).toBeVisible()
   await expect(page.getByTestId("clip-status")).toHaveText("Up to date")
   await expect(

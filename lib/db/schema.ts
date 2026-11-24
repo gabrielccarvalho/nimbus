@@ -17,6 +17,7 @@ import type {
   TimeRange,
 } from "@/features/analysis/schema"
 import type { CaptionOverrides, ClipStatus } from "@/features/clips/schema"
+import type { Beat, ClipEffects } from "@/features/effects/schema"
 import type { JobStatus, JobType } from "@/features/jobs/schema"
 import type {
   CamPosition,
@@ -164,6 +165,8 @@ export const clips = pgTable(
     status: text("status").$type<ClipStatus>().notNull().default("candidate"),
     captionOverrides: jsonb("caption_overrides").$type<CaptionOverrides>(),
     layoutOverride: jsonb("layout_override").$type<LayoutInput>(),
+    effects: jsonb("effects").$type<ClipEffects | null>(),
+    beats: jsonb("beats").$type<Beat[] | null>(),
     renderAssetId: text("render_asset_id").references(() => assets.id, {
       onDelete: "set null",
     }),

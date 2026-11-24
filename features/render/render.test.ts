@@ -6,6 +6,7 @@ import { hasRoomFor } from "@/lib/storage/disk"
 
 import { estimateRenderBytes } from "./disk"
 import { editedDuration, keepRanges, remapToEdit } from "./edit"
+import { effectCommands, effectsGraph } from "./effects-graph"
 import {
   chooseEncoder,
   encoderPreference,
@@ -99,6 +100,184 @@ describe("verticalGraph", () => {
       subtitles,
     })
     await expect(graph).toMatchFileSnapshot("./__golden__/blur-fill.txt")
+  })
+})
+
+describe("effectsGraph", () => {
+  const camTop = {
+    webcamRect,
+    gameplayRect: FULL_FRAME,
+    gameplayFocusX: 0.5,
+    mode: "cam-top" as const,
+  }
+  const source = { width: 1920, height: 1080 }
+
+  it("builds zoom+shake+focus on cam-top", async () => {
+    const graph = effectsGraph({
+      layout: camTop,
+      source,
+      events: [
+        {
+          kind: "zoom",
+          startMs: 14_000,
+          endMs: 17_000,
+          scale: 1.4,
+          focus: { x: 0.5, y: 0.5 },
+        },
+        { kind: "shake", startMs: 16_000, endMs: 16_600, intensity: "strong" },
+        { kind: "focus", startMs: 21_000, endMs: 24_500 },
+      ],
+      startMs: 12_000,
+      endMs: 41_500,
+      fps: 30,
+      commandsFile: "/data/work/c1.cmds.txt",
+      subtitles,
+    })
+    await expect(graph).toMatchFileSnapshot("./__golden__/effects-cam-top.txt")
+  })
+
+  const zoomAndShake = [
+    {
+      kind: "zoom",
+      startMs: 33_000,
+      endMs: 37_000,
+      scale: 1.6,
+      focus: { x: 0.3, y: 0.6 },
+    },
+    { kind: "shake", startMs: 36_000, endMs: 36_700, intensity: "light" },
+  ] as const
+
+  it("builds zoom+shake on no-cam-blur-fill", async () => {
+    const graph = effectsGraph({
+      layout: {
+        webcamRect: null,
+        gameplayRect: FULL_FRAME,
+        gameplayFocusX: 0.5,
+        mode: "no-cam-blur-fill",
+      },
+      source,
+      events: zoomAndShake,
+      startMs: 30_000,
+      endMs: 45_000,
+      fps: 29.97,
+      commandsFile: "/data/work/c1.cmds.txt",
+      subtitles,
+    })
+    await expect(graph).toMatchFileSnapshot(
+      "./__golden__/effects-blur-fill.txt"
+    )
+  })
+
+  it("builds zoom+shake on no-cam-fill from a 4:3 source", async () => {
+    const graph = effectsGraph({
+      layout: {
+        webcamRect: null,
+        gameplayRect: FULL_FRAME,
+        gameplayFocusX: 0.3,
+        mode: "no-cam-fill",
+      },
+      source: { width: 1440, height: 1080 },
+      events: zoomAndShake,
+      startMs: 30_000,
+      endMs: 45_000,
+      fps: 30,
+      commandsFile: "/data/work/c1.cmds.txt",
+      subtitles,
+    })
+    await expect(graph).toMatchFileSnapshot("./__golden__/effects-fill.txt")
+  })
+
+  it("leaves sendcmd out without a commands file", () => {
+    const graph = effectsGraph({
+      layout: camTop,
+      source,
+      events: [{ kind: "focus", startMs: 13_000, endMs: 15_000 }],
+      startMs: 12_000,
+      endMs: 20_000,
+      fps: 30,
+    })
+    expect(graph).not.toContain("sendcmd")
+    expect(graph).toContain("enable='between(t,0.983,2.983)'")
+  })
+
+  it("leaves clips without effects on the unchanged verticalGraph", async () => {
+    const graph = verticalGraph({
+      plan: planLayout(camTop, 1920, 1080),
+      startMs: 12_000,
+      endMs: 41_500,
+      fps: 30,
+      subtitles,
+    })
+    await expect(graph).toMatchFileSnapshot("./__golden__/cam-top.txt")
+  })
+})
+
+describe("effectCommands", () => {
+  const layout = {
+    webcamRect,
+    gameplayRect: FULL_FRAME,
+    gameplayFocusX: 0.5,
+    mode: "cam-top" as const,
+  }
+  const base = {
+    layout,
+    source: { width: 1920, height: 1080 },
+    startMs: 10_000,
+    endMs: 14_000,
+    fps: 30,
+  }
+  const times = (commands: string) =>
+    commands
+      .trim()
+      .split("\n")
+      .map((line) => Number(line.split(" ")[0]))
+
+  it("emits nothing when idle", () => {
+    expect(effectCommands({ ...base, events: [] })).toBe("")
+    expect(
+      effectCommands({
+        ...base,
+        layout: { ...layout, webcamRect: null, mode: "no-cam-blur-fill" },
+        events: [{ kind: "focus", startMs: 11_000, endMs: 12_000 }],
+      })
+    ).toBe("")
+  })
+
+  it("emits one entry per output frame where the crop changes", () => {
+    const commands = effectCommands({
+      ...base,
+      events: [
+        {
+          kind: "zoom",
+          startMs: 11_000,
+          endMs: 13_000,
+          scale: 1.4,
+          focus: { x: 0.5, y: 0.5 },
+        },
+      ],
+    })
+    const at = times(commands)
+    expect(new Set(at).size).toBe(at.length)
+    expect(at.every((t) => t > 0.99 && t < 3.01)).toBe(true)
+    expect(at.filter((t) => t > 1.2 && t < 2.8)).toEqual([])
+    expect(at.length).toBeGreaterThanOrEqual(8)
+    expect(at.length).toBeLessThanOrEqual(12)
+    expect(commands.split("\n")[0]).toMatch(
+      /^\d\.\d{4} scale@e1 w \d+, scale@e1 h \d+, crop@e1 x \d+, crop@e1 y \d+;$/
+    )
+  })
+
+  it("moves every frame while shaking and drives the focus slot", () => {
+    const commands = effectCommands({
+      ...base,
+      events: [
+        { kind: "focus", startMs: 11_000, endMs: 12_000 },
+        { kind: "shake", startMs: 11_000, endMs: 11_500, intensity: "light" },
+      ],
+    })
+    const at = times(commands)
+    expect(at.length).toBe(16)
+    expect(commands).toContain("crop@e2 x")
   })
 })
 

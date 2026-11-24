@@ -24,6 +24,7 @@ import {
   TimelinePlayhead,
   TimelineRange,
 } from "@/components/ui/timeline"
+import { TimelineBlock, TimelineTrack } from "@/components/ui/timeline-track"
 import {
   VideoPlayer,
   VideoPlayerControls,
@@ -64,6 +65,56 @@ const SAMPLE_PAGES = buildCaptionPages(
     .map((text, i) => ({ text, startMs: i * 350, endMs: i * 350 + 300 })),
   4000
 )
+
+type ExampleBlock = { id: string; startMs: number; endMs: number }
+
+function TimelineTrackExample() {
+  const [blocks, setBlocks] = React.useState<ExampleBlock[]>([
+    { id: "a", startMs: 8000, endMs: 14_000 },
+    { id: "b", startMs: 30_000, endMs: 33_000 },
+  ])
+  const [selected, setSelected] = React.useState<string | null>("a")
+  return (
+    <div className="flex max-w-xl flex-col gap-3">
+      <TimelineTrack aria-label="Effects track" durationMs={60_000}>
+        {blocks.map((block) => (
+          <TimelineBlock
+            key={block.id}
+            aria-label={`Effect ${block.id}`}
+            startMs={block.startMs}
+            endMs={block.endMs}
+            selected={selected === block.id}
+            onSelect={() => setSelected(block.id)}
+            onChange={(startMs, endMs) =>
+              setBlocks((all) =>
+                all.map((b) =>
+                  b.id === block.id ? { ...b, startMs, endMs } : b
+                )
+              )
+            }
+            onDelete={() =>
+              setBlocks((all) => all.filter((b) => b.id !== block.id))
+            }
+          >
+            Zoom
+          </TimelineBlock>
+        ))}
+      </TimelineTrack>
+      <TimelineTrack aria-label="Locked track" durationMs={60_000}>
+        <TimelineBlock
+          aria-label="Locked effect"
+          variant="muted"
+          resizable={false}
+          startMs={20_000}
+          endMs={40_000}
+          onChange={() => {}}
+        >
+          Full cam
+        </TimelineBlock>
+      </TimelineTrack>
+    </div>
+  )
+}
 
 function CaptionPreviewExample() {
   const [ms, setMs] = React.useState(500)
@@ -228,6 +279,10 @@ export function ComponentGallery() {
             <TimelineLoudness values={SAMPLE_LOUDNESS} />
           </Timeline>
         </div>
+      </Section>
+
+      <Section title="TimelineTrack">
+        <TimelineTrackExample />
       </Section>
 
       <Section title="CaptionPreview">

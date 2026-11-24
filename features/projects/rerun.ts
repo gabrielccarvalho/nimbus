@@ -13,7 +13,7 @@ const AFFECTS: Record<RerunStep, readonly (keyof ProjectSettings)[]> = {
     "reactionPhrases",
     "niche",
   ],
-  render: ["captionStyle", "captionsEnabled", "renderQuality"],
+  render: ["captionStyle", "captionsEnabled", "renderQuality", "autoEffects"],
 }
 
 export function rerunStepFor(

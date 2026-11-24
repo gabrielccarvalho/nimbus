@@ -8,6 +8,7 @@ import {
   REVIEW_LEAD_MS,
   reviewFrameTimes,
   reviewPoolSize,
+  reviewResponseSchema,
   UNREVIEWED_PENALTY,
 } from "./review"
 import type { Candidate } from "./types"
@@ -161,5 +162,71 @@ describe("visual review", () => {
       score: 0.7,
     })
     expect(reviewFrameTimes(candidate(0, 0), 60_000)).toEqual([0])
+  })
+
+  it("keeps beats inside the reviewed range and drops the rest", () => {
+    const [clip] = applyReviews(
+      [candidate(20_000, 40_000)],
+      [
+        {
+          id: 0,
+          startMs: 25_000,
+          endMs: 40_000,
+          title: "t",
+          hook: "h",
+          reason: "r",
+          score: 0.9,
+          beats: [
+            { ms: 22_000, kind: "reaction" },
+            { ms: 30_000, kind: "weird", x: 0.4, y: 0.6 },
+            { ms: 41_000, kind: "reaction" },
+          ],
+        },
+      ]
+    )
+    expect(clip!.beats).toEqual([{ ms: 30_000, kind: "weird", x: 0.4, y: 0.6 }])
+  })
+
+  it("accepts candidates without beats", () => {
+    const parsed = reviewResponseSchema.parse({
+      clips: [
+        {
+          id: 0,
+          startMs: 1,
+          endMs: 2,
+          title: "t",
+          hook: "h",
+          reason: "r",
+          score: 0.5,
+        },
+      ],
+    })
+    expect(parsed.clips[0]!.beats).toBeUndefined()
+  })
+
+  it("drops malformed beats and normalises sloppy ones without failing the review", () => {
+    const review = reviewResponseSchema.parse({
+      clips: [
+        {
+          id: 0,
+          startMs: 20_000,
+          endMs: 40_000,
+          title: "t",
+          hook: "h",
+          reason: "r",
+          score: 0.9,
+          beats: [
+            { ms: 25_000.6, kind: "weird", x: 1.2, y: -0.1 },
+            { ms: -5, kind: "reaction" },
+            { ms: "soon", kind: "reaction" },
+            { ms: 30_000, kind: "laugh" },
+            null,
+          ],
+        },
+      ],
+    })
+    const [clip] = applyReviews([candidate(20_000, 40_000)], review.clips)
+    expect(clip).toMatchObject({ score: 0.9 })
+    expect(clip!.beats).toEqual([{ ms: 25_001, kind: "weird", x: 1, y: 0 }])
   })
 })

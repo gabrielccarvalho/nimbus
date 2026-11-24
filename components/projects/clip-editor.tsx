@@ -12,10 +12,6 @@ import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
-  CaptionPreview,
-  CaptionPreviewText,
-} from "@/components/ui/caption-preview"
-import {
   Card,
   CardAction,
   CardContent,
@@ -54,11 +50,8 @@ import {
   applyPageOverrides,
   buildCaptionPages,
   wordsInRange,
-  type CaptionPage,
 } from "@/features/captions/pages"
 import {
-  captionBaseline,
-  cssCaptionStyle,
   resolveCaptionStyle,
   type CaptionFontId,
 } from "@/features/captions/styles"
@@ -76,6 +69,8 @@ import type { Word } from "@/features/transcription/schema"
 import { formatTimestamp } from "@/lib/format"
 
 import { CaptionStyleFields } from "./caption-style-fields"
+import { ClipEffectsCard, ClipEffectsPreview } from "./clip-effects"
+import { ClipLoop } from "./clip-preview"
 import { useProjectEvents } from "./use-project-events"
 import {
   CamPositionField,
@@ -83,7 +78,6 @@ import {
   GameplayWindow,
   LAYOUT_MODES,
 } from "./layout-editor"
-import { VerticalPreviewCanvas } from "./vertical-preview"
 
 const WINDOW_PADDING_MS = 10_000
 
@@ -103,14 +97,6 @@ type ClipEditorProps = {
 }
 
 const seconds = (ms: number) => (ms / 1000).toFixed(1)
-
-function ClipLoop({ startMs, endMs }: { startMs: number; endMs: number }) {
-  const { currentMs, paused, seek } = useVideoPlayer()
-  React.useEffect(() => {
-    if (currentMs < startMs - 250 || currentMs >= endMs) seek(startMs)
-  }, [currentMs, paused, startMs, endMs, seek])
-  return null
-}
 
 function TrimTimeline({
   windowStartMs,
@@ -140,43 +126,6 @@ function TrimTimeline({
       />
       <TimelinePlayhead />
     </Timeline>
-  )
-}
-
-function ClipPreview({
-  layout,
-  pages,
-  startMs,
-  captionStyle,
-  captionsEnabled,
-}: {
-  layout: LayoutInput
-  pages: CaptionPage[]
-  startMs: number
-  captionStyle: ReturnType<typeof resolveCaptionStyle>
-  captionsEnabled: boolean
-}) {
-  const { currentMs } = useVideoPlayer()
-  return (
-    <CaptionPreview
-      role="img"
-      aria-label="Vertical preview with captions"
-      className="mx-auto max-w-[260px]"
-    >
-      <VerticalPreviewCanvas
-        layout={layout}
-        aria-hidden
-        className="absolute inset-0 size-full"
-      />
-      {captionsEnabled && (
-        <CaptionPreviewText
-          pages={pages}
-          currentMs={currentMs - startMs}
-          captionStyle={cssCaptionStyle(captionStyle)}
-          baseline={captionBaseline(captionStyle, layout)}
-        />
-      )}
-    </CaptionPreview>
   )
 }
 
@@ -238,6 +187,10 @@ export function ClipEditor({
     React.useState<LayoutInput | null>(clip.layoutOverride)
   const layout = layoutOverride ?? projectLayout
   const hasWebcam = usesWebcam(layout.mode)
+  const [effects, setEffects] = React.useState(clip.effects)
+  const [selectedEffect, setSelectedEffect] = React.useState<number | null>(
+    null
+  )
   const editLayout = (patch: Partial<LayoutInput>) =>
     setLayoutOverride((current) => ({
       ...(current ?? projectLayout),
@@ -303,6 +256,7 @@ export function ClipEditor({
         hook,
         captionOverrides: { pages: overrides, style: styleRef },
         layoutOverride,
+        effects,
       })
       if (!saved.ok) {
         toast.error(saved.error.message)
@@ -423,6 +377,20 @@ export function ClipEditor({
                 />
               </CardContent>
             </Card>
+
+            <ClipEffectsCard
+              projectId={projectId}
+              clipId={clip.id}
+              startMs={startMs}
+              endMs={endMs}
+              layoutOverride={layoutOverride}
+              hasWebcam={hasWebcam && Boolean(layout.webcamRect)}
+              effects={effects}
+              onEffectsChange={setEffects}
+              selected={selectedEffect}
+              onSelectedChange={setSelectedEffect}
+              disabled={pending || rendering}
+            />
 
             <Card>
               <CardHeader>
@@ -605,8 +573,12 @@ export function ClipEditor({
         </div>
 
         <div className="flex flex-col gap-4">
-          <ClipPreview
+          <ClipEffectsPreview
             layout={layout}
+            source={{ width: sourceWidth, height: sourceHeight }}
+            effects={effects}
+            selected={selectedEffect}
+            onEffectsChange={setEffects}
             pages={pages}
             startMs={startMs}
             captionStyle={style}

@@ -3,6 +3,8 @@ import "server-only"
 import type { Db } from "@/lib/db"
 import { AppError } from "@/lib/errors"
 
+import { normalizeEffects, type ClipEffects } from "../effects/schema"
+import { autoEffectsFor } from "../effects/service"
 import { postprocessCandidates } from "../highlights/postprocess"
 import { parseCandidatesJson } from "../highlights/prompt"
 import { assetRepository, projectRepository } from "../projects/repository"
@@ -12,6 +14,7 @@ import {
   CLIP_MAX_EDIT_MS,
   CLIP_MIN_EDIT_MS,
   type ClipEdit,
+  type ClipPlan,
   type ClipStatus,
 } from "./schema"
 
@@ -47,10 +50,12 @@ export async function applyManualSelection(
       "None of those clips fit the recording and length limits"
     )
   }
-  const clips = await clipRepository(db).replaceCandidates(
-    projectId,
-    candidates
-  )
+  const repository = clipRepository(db)
+  const clips = await repository.replaceCandidates(projectId, candidates)
+  if (project.settings.autoEffects) {
+    const tracks = await autoEffectsFor(db, projectId, clips)
+    for (const [id, effects] of tracks) await repository.update(id, { effects })
+  }
   await projectRepository(db).setAwaitingManualSelection(projectId, false)
   return clips.length
 }
@@ -106,6 +111,27 @@ export async function updateClip(
     )
   }
   const trimmed = edit.startMs !== clip.startMs || edit.endMs !== clip.endMs
+  const range = { startMs: edit.startMs, endMs: edit.endMs }
+  const stored = edit.effects ?? clip.effects
+  let effects: ClipEffects | null | undefined
+  if (stored?.edited) {
+    effects = {
+      edited: true,
+      events: normalizeEffects(stored.events, range),
+    }
+  } else if (trimmed && stored) {
+    effects =
+      (
+        await autoEffectsFor(db, projectId, [
+          { ...clip, ...range, layoutOverride: edit.layoutOverride },
+        ])
+      ).get(clip.id) ?? null
+  } else if (edit.effects) {
+    effects = {
+      edited: false,
+      events: normalizeEffects(edit.effects.events, range),
+    }
+  }
   return clips.update(clipId, {
     startMs: edit.startMs,
     endMs: edit.endMs,
@@ -116,6 +142,7 @@ export async function updateClip(
       pages: trimmed ? [] : edit.captionOverrides.pages,
     },
     layoutOverride: edit.layoutOverride,
+    ...(effects === undefined ? {} : { effects }),
     status: clip.status === "rendered" ? "approved" : clip.status,
   })
 }
@@ -127,4 +154,23 @@ export async function approveAllCandidates(db: Db, projectId: string) {
     .map((clip) => clip.id)
   await clips.setStatus(ids, "approved")
   return ids.length
+}
+
+export async function planClipEffects(
+  db: Db,
+  projectId: string,
+  clipId: string,
+  plan: ClipPlan
+): Promise<ClipEffects> {
+  const clip = await clipRepository(db).getOrThrow(clipId)
+  if (clip.projectId !== projectId) {
+    throw new AppError("NOT_FOUND", "Clip not found")
+  }
+  const effects = (
+    await autoEffectsFor(db, projectId, [{ ...clip, ...plan }])
+  ).get(clip.id)
+  if (!effects) {
+    throw new AppError("CONFLICT", "Confirm the layout before planning effects")
+  }
+  return effects
 }

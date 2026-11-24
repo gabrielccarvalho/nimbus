@@ -150,6 +150,24 @@ describe("postprocessCandidates", () => {
   })
 })
 
+describe("beats", () => {
+  it("survive postprocessing and are dropped when the range no longer contains them", () => {
+    const beats = [
+      { ms: 12_000, kind: "reaction" as const },
+      { ms: 29_000, kind: "weird" as const, x: 0.5, y: 0.5 },
+      { ms: 95_000, kind: "reaction" as const },
+    ]
+    const [clip] = postprocessCandidates([{ ...raw(10_000, 30_000), beats }], {
+      ...context,
+    })
+    expect(clip!.beats).toEqual(beats.slice(0, 2))
+    const [moved] = postprocessCandidates([{ ...raw(15_000, 30_000), beats }], {
+      ...context,
+    })
+    expect(moved!.beats).toEqual([beats[1]])
+  })
+})
+
 describe("excluded ranges", () => {
   it("drops candidates that overlap existing clips", () => {
     const words = normalizeWords(

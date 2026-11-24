@@ -3,72 +3,58 @@
 import * as React from "react"
 
 import { useVideoPlayer } from "@/components/ui/video-player"
-import {
-  OUTPUT_HEIGHT,
-  OUTPUT_WIDTH,
-  planLayout,
-} from "@/features/layout/geometry"
+import { frameAt } from "@/features/effects/frame"
+import type { Effect } from "@/features/effects/schema"
+import { OUTPUT_HEIGHT, OUTPUT_WIDTH } from "@/features/layout/geometry"
 import type { LayoutInput } from "@/features/layout/schema"
 import { cn } from "@/lib/utils"
 
 const PREVIEW_WIDTH = 270
+const NO_EFFECTS: readonly Effect[] = []
 
 function drawPreview(
   canvas: HTMLCanvasElement,
   video: HTMLVideoElement,
-  layout: LayoutInput
+  layout: LayoutInput,
+  effects: readonly Effect[],
+  tMs: number
 ) {
   const context = canvas.getContext("2d")
   if (!context || !video.videoWidth) return
   const scale = canvas.width / OUTPUT_WIDTH
-  const plan = planLayout(layout, video.videoWidth, video.videoHeight)
+  const { regions } = frameAt(
+    layout,
+    { width: video.videoWidth, height: video.videoHeight },
+    effects,
+    tMs
+  )
   context.fillStyle = "#000"
   context.fillRect(0, 0, canvas.width, canvas.height)
-  if (plan.mode === "no-cam-blur-fill") {
-    const { x, y, w, h } = plan.background
-    context.filter = "blur(6px) brightness(0.85)"
-    context.drawImage(video, x, y, w, h, 0, 0, canvas.width, canvas.height)
-    context.filter = "none"
-    const width = plan.foreground.w * scale
-    const height = plan.foreground.h * scale
-    context.drawImage(
-      video,
-      (canvas.width - width) / 2,
-      (canvas.height - height) / 2,
-      width,
-      height
-    )
-    return
-  }
-  if (plan.mode === "no-cam-fill") {
-    const { x, y, w, h } = plan.crop
-    context.drawImage(video, x, y, w, h, 0, 0, canvas.width, canvas.height)
-    return
-  }
-  let top = 0
-  for (const { crop, outHeight } of plan.regions) {
-    const height = outHeight * scale
+  for (const { crop, dest, blur } of regions) {
+    context.filter = blur ? "blur(6px) brightness(0.85)" : "none"
     context.drawImage(
       video,
       crop.x,
       crop.y,
       crop.w,
       crop.h,
-      0,
-      top,
-      canvas.width,
-      height
+      dest.x * scale,
+      dest.y * scale,
+      dest.w * scale,
+      dest.h * scale
     )
-    top += height
   }
+  context.filter = "none"
 }
 
 export function VerticalPreviewCanvas({
   layout,
+  effects = NO_EFFECTS,
   className,
   ...props
 }: Omit<React.ComponentProps<"canvas">, "width" | "height"> & {
   layout: LayoutInput
+  effects?: readonly Effect[]
 }) {
   const { videoRef, currentMs } = useVideoPlayer()
   const canvasRef = React.useRef<HTMLCanvasElement>(null)
@@ -77,7 +63,7 @@ export function VerticalPreviewCanvas({
     const video = videoRef.current
     const canvas = canvasRef.current
     if (!video || !canvas) return
-    const draw = () => drawPreview(canvas, video, layout)
+    const draw = () => drawPreview(canvas, video, layout, effects, currentMs)
     draw()
     video.addEventListener("loadeddata", draw)
     video.addEventListener("seeked", draw)
@@ -85,7 +71,7 @@ export function VerticalPreviewCanvas({
       video.removeEventListener("loadeddata", draw)
       video.removeEventListener("seeked", draw)
     }
-  }, [videoRef, layout, currentMs])
+  }, [videoRef, layout, effects, currentMs])
 
   return (
     <canvas

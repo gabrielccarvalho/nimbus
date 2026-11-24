@@ -7,11 +7,7 @@ import { getStorage, storageKeys } from "@/lib/storage"
 import { assertDiskSpace } from "@/lib/storage/disk"
 
 import { buildAss } from "../../captions/ass"
-import {
-  applyPageOverrides,
-  buildCaptionPages,
-  wordsInRange,
-} from "../../captions/pages"
+import { clipCaptionPages } from "../../captions/pages"
 import { captionBaseline, resolveCaptionStyle } from "../../captions/styles"
 import { clipRepository } from "../../clips/repository"
 import type { JobHandler } from "../../jobs/worker-loop"
@@ -19,6 +15,7 @@ import { OUTPUT_HEIGHT, OUTPUT_WIDTH, planLayout } from "../../layout/geometry"
 import { layoutRepository } from "../../layout/repository"
 import { assetRepository, projectRepository } from "../../projects/repository"
 import { estimateRenderBytes } from "../../render/disk"
+import { effectCommands, effectsGraph } from "../../render/effects-graph"
 import { runFfmpeg } from "../../render/ffmpeg-runner"
 import {
   chooseEncoder,
@@ -82,18 +79,10 @@ export const renderClipStep: JobHandler = async ({
     const style = resolveCaptionStyle(
       clip.captionOverrides?.style ?? project.settings.captionStyle
     )
-    const words = wordsInRange(
+    const pages = clipCaptionPages(
       speakerTranscriptWords(await transcriptRepository(db).get(project.id)),
-      clip.startMs,
-      clip.endMs
-    )
-    const pages = applyPageOverrides(
-      buildCaptionPages(words, durationMs, {
-        maxWordsPerPage: style.maxWordsPerPage,
-        maxCharsPerLine: style.maxCharsPerLine,
-      }),
-      clip.captionOverrides?.pages ?? [],
-      { maxCharsPerLine: style.maxCharsPerLine, maxLines: 2 }
+      clip,
+      style
     )
     await storage.writeBuffer(
       workKey("ass"),
@@ -106,13 +95,32 @@ export const renderClipStep: JobHandler = async ({
   }
 
   const fps = outputFps(source.fps)
-  const graph = verticalGraph({
-    plan: planLayout(layout, source.width, source.height),
-    startMs: clip.startMs,
-    endMs: clip.endMs,
-    fps,
-    subtitles,
-  })
+  const events = clip.effects?.events ?? []
+  const range = { startMs: clip.startMs, endMs: clip.endMs, fps }
+  let graph: string
+  let commands = ""
+  if (events.length > 0) {
+    const effects = {
+      layout,
+      source: { width: source.width, height: source.height },
+      events,
+      ...range,
+    }
+    commands = effectCommands(effects)
+    // sendcmd refuses an empty file.
+    if (commands) await storage.writeBuffer(workKey("cmds.txt"), commands)
+    graph = effectsGraph({
+      ...effects,
+      commandsFile: commands ? storage.resolve(workKey("cmds.txt")) : undefined,
+      subtitles,
+    })
+  } else {
+    graph = verticalGraph({
+      plan: planLayout(layout, source.width, source.height),
+      ...range,
+      subtitles,
+    })
+  }
   await storage.writeBuffer(workKey("graph.txt"), graph)
   const settings = await getAppSettings(db)
   const encoder = chooseEncoder(
@@ -145,6 +153,7 @@ export const renderClipStep: JobHandler = async ({
     throw error
   } finally {
     await storage.remove(workKey("graph.txt"))
+    if (commands) await storage.remove(workKey("cmds.txt"))
     if (subtitles) await storage.remove(workKey("ass"))
   }
 

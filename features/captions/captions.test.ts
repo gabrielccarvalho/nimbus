@@ -10,6 +10,7 @@ import {
   applyPageOverrides,
   breakLines,
   buildCaptionPages,
+  clipCaptionPages,
   DEFAULT_PAGING,
   pageAt,
   sampleCaptionWords,
@@ -189,6 +190,30 @@ describe("wordsInRange and lookup", () => {
       "HAPPENED",
     ])
     expect(edited[0]!.words.at(-1)!.endMs).toBe(1300)
+  })
+
+  it("builds a clip's pages from its range, style and page overrides", () => {
+    const style = { maxWordsPerPage: 2, maxCharsPerLine: 28 }
+    const pages = clipCaptionPages(
+      transcript,
+      {
+        startMs: 10_000,
+        endMs: 15_000,
+        captionOverrides: { pages: [{ index: 0, text: "WAIT" }] },
+      },
+      style
+    )
+    expect(pages[0]!.words.map((x) => x.text)).toEqual(["WAIT"])
+    expect(pages.slice(1)).toEqual(
+      buildCaptionPages(sample, 5000, style).slice(1)
+    )
+    expect(
+      clipCaptionPages(
+        transcript,
+        { startMs: 10_000, endMs: 15_000, captionOverrides: null },
+        style
+      )
+    ).toEqual(buildCaptionPages(sample, 5000, style))
   })
 })
 
