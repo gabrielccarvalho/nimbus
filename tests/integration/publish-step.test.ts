@@ -13,6 +13,7 @@ import {
   projectRepository,
 } from "@/features/projects/repository"
 import { defaultProjectSettings } from "@/features/projects/schema"
+import { cancelProject } from "@/features/projects/service"
 import { nextQuotaReset, pacificDay } from "@/features/publishing/quota"
 import { publishingRepository } from "@/features/publishing/repository"
 import type { PublishInput } from "@/features/publishing/schema"
@@ -25,6 +26,7 @@ import {
   projects,
   user,
   workspaces,
+  youtubeQuotaUsage,
 } from "@/lib/db/schema"
 import { AppError } from "@/lib/errors"
 import { getStorage, storageKeys } from "@/lib/storage"
@@ -126,6 +128,20 @@ function enqueuePublish(projectId: string, publicationId: string) {
     projectId,
     payload: { publicationId },
   })
+}
+
+async function rerender(clipId: string, projectId: string) {
+  const storageKey = storageKeys.render(projectId, clipId, 2)
+  await getStorage().writeBuffer(storageKey, Buffer.alloc(BYTES))
+  const asset = await assetRepository(env.db).create({
+    projectId,
+    kind: "render",
+    storageKey,
+    mime: "video/mp4",
+    bytes: BYTES,
+  })
+  await clipRepository(env.db).update(clipId, { renderAssetId: asset.id })
+  return asset
 }
 
 const publishJobs = () =>
@@ -381,13 +397,80 @@ describe("publish_clip", () => {
   })
 
   it("marks the publication failed when its job is cancelled", async () => {
-    const { repo, publication, job } = await seed()
+    const { repo, publication, job, clip, asset } = await seed()
+    const rerendered = await rerender(clip.id, clip.projectId)
 
     await onJobCancelled(env.db, job)
 
     const saved = (await repo.getPublication(publication.id))!
     expect(saved.status).toBe("failed")
     expect(saved.error).toBe("Cancelled")
+    expect(await assetRepository(env.db).get(asset.id)).toBeUndefined()
+    expect(await assetRepository(env.db).get(rerendered.id)).toBeDefined()
+  })
+
+  it("deletes the replaced asset when the publish fails for good", async () => {
+    const { repo, publication, job, clip, asset } = await seed()
+    const rerendered = await rerender(clip.id, clip.projectId)
+    vi.spyOn(getYouTubeClient(), "uploadFrom").mockRejectedValue(
+      new AppError("VALIDATION", "Invalid video")
+    )
+
+    await runPublish()
+
+    expect((await jobQueue(env.db).get(job.id))!.status).toBe("failed")
+    expect((await repo.getPublication(publication.id))!.status).toBe("failed")
+    const assets = assetRepository(env.db)
+    expect(await assets.get(asset.id)).toBeUndefined()
+    expect(await getStorage().stat(asset.storageKey)).toBeFalsy()
+    expect(await assets.get(rerendered.id)).toBeDefined()
+    expect(await getStorage().stat(rerendered.storageKey)).toBeTruthy()
+  })
+
+  it("does nothing for a publication that isn't waiting to upload", async () => {
+    const { repo, publication, job } = await seed()
+    await repo.updatePublication(publication.id, {
+      status: "failed",
+      error: "Earlier failure",
+    })
+    const start = vi.spyOn(getYouTubeClient(), "startUpload")
+
+    await runPublish()
+
+    expect((await jobQueue(env.db).get(job.id))!.status).toBe("succeeded")
+    expect(start).not.toHaveBeenCalled()
+    expect(await env.db.select().from(youtubeQuotaUsage)).toHaveLength(0)
+    const saved = (await repo.getPublication(publication.id))!
+    expect(saved.status).toBe("failed")
+    expect(saved.error).toBe("Earlier failure")
+  })
+
+  it("fails with a clear message when the channel no longer matches", async () => {
+    const { repo, publication, job, project } = await seed()
+    await env.db
+      .update(projects)
+      .set({ workspaceId: null })
+      .where(eq(projects.id, project.id))
+
+    await runPublish()
+
+    expect((await jobQueue(env.db).get(job.id))!.status).toBe("failed")
+    const saved = (await repo.getPublication(publication.id))!
+    expect(saved.status).toBe("failed")
+    expect(saved.error).toBe("The YouTube channel was disconnected")
+  })
+
+  it("leaves a waiting publish alone when the project is cancelled", async () => {
+    const { repo, publication, job, project } = await seed()
+    await repo.updatePublication(publication.id, { status: "waiting_quota" })
+    await projectRepository(env.db).transition(project.id, "probing")
+
+    await cancelProject(env.db, project.id)
+
+    expect((await jobQueue(env.db).get(job.id))!.status).toBe("queued")
+    expect((await repo.getPublication(publication.id))!.status).toBe(
+      "waiting_quota"
+    )
   })
 })
 

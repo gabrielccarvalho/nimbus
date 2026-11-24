@@ -1,6 +1,6 @@
 import "server-only"
 
-import { now } from "@/lib/db"
+import { now, withTransaction } from "@/lib/db"
 import { getEnv } from "@/lib/env"
 import { AppError } from "@/lib/errors"
 import { getStorage } from "@/lib/storage"
@@ -23,9 +23,16 @@ import {
   publishingRepository,
   type Publication,
 } from "../../publishing/repository"
-import type { PublishInput } from "../../publishing/schema"
+import type { PublicationStatus, PublishInput } from "../../publishing/schema"
+import { releaseRenderAsset } from "../../publishing/service"
 import { getYouTubeClient } from "../../publishing/youtube"
 import { transcriptRepository } from "../../transcription/repository"
+
+const RUNNABLE: ReadonlySet<PublicationStatus> = new Set([
+  "queued",
+  "waiting_quota",
+  "uploading",
+])
 
 const hasCause = (error: unknown, cause: string) =>
   error instanceof AppError && error.cause === cause
@@ -53,6 +60,13 @@ export const publishClipStep: JobHandler = async ({
   const publishing = publishingRepository(db)
   const publication = await publishing.getPublication(publicationId)
   if (!publication) throw new AppError("CANCELLED", "Publication was deleted")
+  if (!RUNNABLE.has(publication.status)) {
+    logger.warn(
+      { publicationId, status: publication.status },
+      "publication isn't waiting to upload, skipping"
+    )
+    return
+  }
   const clips = clipRepository(db)
   const clip = await clips.get(publication.clipId)
   if (!clip) throw new AppError("CANCELLED", "Clip was deleted")
@@ -62,7 +76,7 @@ export const publishClipStep: JobHandler = async ({
     ? await publishing.getChannel(project.workspaceId)
     : undefined
   if (!channel || channel.id !== publication.channelId) {
-    throw new AppError("CANCELLED", "The YouTube channel was disconnected")
+    throw new AppError("NOT_FOUND", "The YouTube channel was disconnected")
   }
   if (channel.status === "needs_reconnect") {
     throw new AppError("UNAUTHORIZED", RECONNECT_MESSAGE)
@@ -82,14 +96,16 @@ export const publishClipStep: JobHandler = async ({
   }
 
   const waitForQuota = async () => {
-    await publishing.updatePublication(publication.id, {
-      status: "waiting_quota",
-    })
-    await jobQueue(db).enqueue({
-      type: "publish_clip",
-      projectId: project.id,
-      payload: { publicationId },
-      runAfter: nextQuotaReset(now()),
+    await withTransaction(db, async (tx) => {
+      await publishingRepository(tx).updatePublication(publication.id, {
+        status: "waiting_quota",
+      })
+      await jobQueue(tx).enqueue({
+        type: "publish_clip",
+        projectId: project.id,
+        payload: { publicationId },
+        runAfter: nextQuotaReset(now()),
+      })
     })
     logger.info({ publicationId }, "YouTube quota spent, waiting for reset")
   }
@@ -167,20 +183,13 @@ export const publishClipStep: JobHandler = async ({
   }
   const { videoId } = video
 
-  await publishing.updatePublication(publication.id, {
+  const published = await publishing.updatePublication(publication.id, {
     status: "published",
     videoId,
     url: `https://youtube.com/shorts/${videoId}`,
     publishedAt: now(),
     error: null,
   })
-  const current = await clips.get(clip.id)
-  if (
-    current?.renderAssetId !== asset.id &&
-    !(await publishing.assetInActiveUse(asset.id))
-  ) {
-    await assets.delete(asset.id)
-    await storage.remove(asset.storageKey)
-  }
+  await releaseRenderAsset(db, published)
   logger.info({ publicationId, videoId, bytes }, "clip published")
 }

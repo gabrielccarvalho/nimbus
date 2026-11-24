@@ -1,14 +1,21 @@
 import "server-only"
 
 import { YOUTUBE_SCOPES } from "@/features/accounts/schema"
+import { clipRepository } from "@/features/clips/repository"
+import { assetRepository } from "@/features/projects/repository"
 import type { Db } from "@/lib/db"
 import { getEnv } from "@/lib/env"
 import { AppError } from "@/lib/errors"
 import { logger } from "@/lib/logger"
+import { getStorage } from "@/lib/storage"
 
 import { accessTokenForAccount } from "./google-token"
 import { LIST_UNITS, pacificDay } from "./quota"
-import { publishingRepository, type YouTubeChannel } from "./repository"
+import {
+  publishingRepository,
+  type Publication,
+  type YouTubeChannel,
+} from "./repository"
 import { getYouTubeClient } from "./youtube"
 
 export async function ensureYouTubeChannel(
@@ -104,4 +111,17 @@ export async function syncYouTubeChannel(
     })
     return { channel: await repo.getChannel(workspaceId), error: message }
   }
+}
+
+export async function releaseRenderAsset(db: Db, publication: Publication) {
+  const assetId = publication.renderAssetId
+  if (!assetId) return
+  const clip = await clipRepository(db).get(publication.clipId)
+  if (clip?.renderAssetId === assetId) return
+  if (await publishingRepository(db).assetInActiveUse(assetId)) return
+  const assets = assetRepository(db)
+  const asset = await assets.get(assetId)
+  if (!asset) return
+  await assets.delete(asset.id)
+  await getStorage().remove(asset.storageKey)
 }

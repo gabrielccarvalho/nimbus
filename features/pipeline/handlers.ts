@@ -8,6 +8,7 @@ import type { Job } from "../jobs/queue"
 import type { JobHandlers } from "../jobs/worker-loop"
 import { projectRepository } from "../projects/repository"
 import { publishingRepository } from "../publishing/repository"
+import { releaseRenderAsset } from "../publishing/service"
 import { analyzeStep } from "./steps/analyze"
 import { downloadStep } from "./steps/download"
 import { settleRendering } from "../render/service"
@@ -64,10 +65,13 @@ async function failPublication(db: Db, job: Job, message: string) {
     typeof publicationId === "string" &&
     (await publishing.getPublication(publicationId))
   ) {
-    await publishing.updatePublication(publicationId, {
-      status: "failed",
-      error: message,
-    })
+    await releaseRenderAsset(
+      db,
+      await publishing.updatePublication(publicationId, {
+        status: "failed",
+        error: message,
+      })
+    )
   }
 }
 
