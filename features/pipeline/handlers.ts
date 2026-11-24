@@ -1,16 +1,18 @@
 import "server-only"
 
 import type { Db } from "@/lib/db"
-import type { AppError } from "@/lib/errors"
+import { toUserMessage, type AppError } from "@/lib/errors"
 
 import { clipRepository } from "../clips/repository"
 import type { Job } from "../jobs/queue"
 import type { JobHandlers } from "../jobs/worker-loop"
 import { projectRepository } from "../projects/repository"
+import { publishingRepository } from "../publishing/repository"
 import { analyzeStep } from "./steps/analyze"
 import { downloadStep } from "./steps/download"
 import { settleRendering } from "../render/service"
 import { probeStep } from "./steps/probe"
+import { publishClipStep } from "./steps/publish-clip"
 import { renderClipStep } from "./steps/render-clip"
 import { renderEditStep } from "./steps/render-edit"
 import { selectStep } from "./steps/select"
@@ -26,6 +28,7 @@ export const pipelineHandlers: JobHandlers = {
   render_clip: renderClipStep,
   render_edit: renderEditStep,
   sweep: sweepStep,
+  publish_clip: publishClipStep,
 }
 
 const MINUTE = 60_000
@@ -35,6 +38,7 @@ export function jobStallTimeoutMs(job: Job): number {
     case "download":
     case "transcribe":
     case "render_edit":
+    case "publish_clip":
       return 30 * MINUTE
     case "select":
       return 20 * MINUTE
@@ -53,7 +57,25 @@ export async function onJobSucceeded(db: Db, job: Job) {
   }
 }
 
+async function failPublication(db: Db, job: Job, message: string) {
+  const publicationId = job.payload.publicationId
+  const publishing = publishingRepository(db)
+  if (
+    typeof publicationId === "string" &&
+    (await publishing.getPublication(publicationId))
+  ) {
+    await publishing.updatePublication(publicationId, {
+      status: "failed",
+      error: message,
+    })
+  }
+}
+
 export async function onJobFinalFailure(db: Db, job: Job, error: AppError) {
+  if (job.type === "publish_clip") {
+    await failPublication(db, job, toUserMessage(error))
+    return
+  }
   if (!job.projectId) return
   if (job.type === "render_clip") {
     const clipId = job.payload.clipId
@@ -69,6 +91,10 @@ export async function onJobFinalFailure(db: Db, job: Job, error: AppError) {
 }
 
 export async function onJobCancelled(db: Db, job: Job) {
+  if (job.type === "publish_clip") {
+    await failPublication(db, job, "Cancelled")
+    return
+  }
   if (job.type !== "render_clip") return
   const clipId = job.payload.clipId
   const clips = clipRepository(db)

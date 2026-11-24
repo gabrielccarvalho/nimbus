@@ -12,6 +12,9 @@ import { publishingRepository, type YouTubeChannel } from "./repository"
 const TOKEN_URL = "https://oauth2.googleapis.com/token"
 const FRESH_FOR_MS = 60_000
 
+export const RECONNECT_MESSAGE =
+  "Reconnect YouTube in Settings › Connected channels"
+
 export function googleAccessToken(
   db: Db,
   channel: YouTubeChannel,
@@ -31,10 +34,7 @@ export async function accessTokenForAccount(
 ): Promise<string> {
   const [row] = await db.select().from(account).where(eq(account.id, accountId))
   if (!row?.refreshToken) {
-    throw new AppError(
-      "UNAUTHORIZED",
-      "Reconnect YouTube in Settings › Connected channels"
-    )
+    throw new AppError("UNAUTHORIZED", RECONNECT_MESSAGE)
   }
 
   const expiresAt = row.accessTokenExpiresAt?.getTime() ?? 0
@@ -71,10 +71,7 @@ export async function accessTokenForAccount(
     }
     if (body.error === "invalid_grant") {
       await opts.onRevoked?.()
-      throw new AppError(
-        "UNAUTHORIZED",
-        "Reconnect YouTube in Settings › Connected channels"
-      )
+      throw new AppError("UNAUTHORIZED", RECONNECT_MESSAGE)
     }
     throw new AppError(
       "EXTERNAL",
