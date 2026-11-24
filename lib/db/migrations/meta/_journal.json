@@ -85,6 +85,13 @@
       "when": 1795534206497,
       "tag": "0011_workspace_image",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1795544935293,
+      "tag": "0012_youtube_publishing",
+      "breakpoints": true
     }
   ]
 }

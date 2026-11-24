@@ -9,6 +9,7 @@ export type Plan = {
   renderMinutes: number | null
   storageBytes: number | null
   claudeRuns: number | null
+  publishesPerDay: number | null
 }
 
 const GB = 1024 ** 3
@@ -20,6 +21,7 @@ export const PLANS: Record<PlanId, Plan> = {
     renderMinutes: 60,
     storageBytes: 25 * GB,
     claudeRuns: 10,
+    publishesPerDay: 2,
   },
   creator: {
     id: "creator",
@@ -27,6 +29,7 @@ export const PLANS: Record<PlanId, Plan> = {
     renderMinutes: 300,
     storageBytes: 100 * GB,
     claudeRuns: 40,
+    publishesPerDay: 5,
   },
   studio: {
     id: "studio",
@@ -34,6 +37,7 @@ export const PLANS: Record<PlanId, Plan> = {
     renderMinutes: 1200,
     storageBytes: 500 * GB,
     claudeRuns: 200,
+    publishesPerDay: 15,
   },
   admin: {
     id: "admin",
@@ -41,6 +45,7 @@ export const PLANS: Record<PlanId, Plan> = {
     renderMinutes: null,
     storageBytes: null,
     claudeRuns: null,
+    publishesPerDay: null,
   },
 }
 
@@ -126,5 +131,6 @@ export type ChannelProvider = (typeof channelProviders)[number]
 export const YOUTUBE_SCOPES = [
   "https://www.googleapis.com/auth/youtube.readonly",
   "https://www.googleapis.com/auth/youtube.upload",
+  "https://www.googleapis.com/auth/yt-analytics.readonly",
 ]
 export const TWITCH_SCOPES = ["user:read:broadcast"]
