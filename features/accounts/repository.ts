@@ -18,7 +18,7 @@ import {
   LEGACY_SETTINGS_KEY,
   workspaceSettingsKey,
 } from "../settings/repository"
-import type { UsageKind } from "./schema"
+import { planForEmail, type UsageKind } from "./schema"
 
 export type Workspace = typeof workspaces.$inferSelect
 export type User = typeof user.$inferSelect
@@ -44,7 +44,11 @@ export function accountRepository(db: Db) {
       return row
     },
 
-    createPersonalWorkspace(owner: { id: string; name: string }) {
+    createPersonalWorkspace(owner: {
+      id: string
+      name: string
+      email: string
+    }) {
       return withTransaction(db, async (tx) => {
         const [first] = await tx
           .select({ count: sql<number>`count(*)::int` })
@@ -56,6 +60,7 @@ export function accountRepository(db: Db) {
           .values({
             id: newId(),
             name: `${firstName}'s studio`,
+            plan: planForEmail(owner.email),
           })
           .returning()
         await tx.insert(workspaceMembers).values({

@@ -1,9 +1,16 @@
-import { eq } from "drizzle-orm"
+import { readFileSync } from "node:fs"
+
+import { eq, sql } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { decryptSecret, encryptSecret } from "@/features/accounts/crypto"
 import { accountRepository } from "@/features/accounts/repository"
-import { initials, keyHint, usagePeriod } from "@/features/accounts/schema"
+import {
+  initials,
+  keyHint,
+  planForEmail,
+  usagePeriod,
+} from "@/features/accounts/schema"
 import {
   deleteOwnedWorkspaces,
   saveAnthropicKey,
@@ -29,10 +36,11 @@ beforeEach(async () => {
 })
 afterEach(() => env.cleanup())
 
-async function createUser(name: string) {
+async function createUser(name: string, email?: string) {
   const id = crypto.randomUUID()
-  await env.db.insert(user).values({ id, name, email: `${id}@example.com` })
-  return { id, name }
+  const created = { id, name, email: email ?? `${id}@example.com` }
+  await env.db.insert(user).values(created)
+  return created
 }
 
 describe("workspaces", () => {
@@ -157,6 +165,55 @@ describe("usage", () => {
       claudeRuns: 1,
       plan: { id: "free" },
     })
+  })
+})
+
+describe("admin plan", () => {
+  it("goes to accounts on the nimbus.dev domain only", () => {
+    expect(planForEmail("gabe@nimbus.dev")).toBe("admin")
+    expect(planForEmail(" Gabe@Nimbus.DEV ")).toBe("admin")
+    expect(planForEmail("gabe@example.com")).toBe("free")
+    expect(planForEmail("gabe@nimbus.dev.evil.com")).toBe("free")
+    expect(planForEmail("gabe@mail.nimbus.dev")).toBe("free")
+    expect(planForEmail("gabe@notnimbus.dev")).toBe("free")
+  })
+
+  it("is given to new nimbus.dev workspaces, with no limits", async () => {
+    const accounts = accountRepository(env.db)
+    const admin = await accounts.createPersonalWorkspace(
+      await createUser("Ada", "ada@nimbus.dev")
+    )
+    const regular = await accounts.createPersonalWorkspace(
+      await createUser("Bo")
+    )
+    expect(admin.plan).toBe("admin")
+    expect(regular.plan).toBe("free")
+    expect((await usageSummary(env.db, admin)).plan).toMatchObject({
+      name: "Admin",
+      renderMinutes: null,
+      storageBytes: null,
+      claudeRuns: null,
+    })
+  })
+
+  it("is backfilled for existing nimbus.dev owners", async () => {
+    const accounts = accountRepository(env.db)
+    const existing = await accounts.createPersonalWorkspace(
+      await createUser("Cy", "cy@example.com")
+    )
+    await env.db
+      .update(user)
+      .set({ email: "cy@nimbus.dev" })
+      .where(eq(user.name, "Cy"))
+    const other = await accounts.createPersonalWorkspace(await createUser("Di"))
+    await env.db.execute(
+      sql.raw(readFileSync("lib/db/migrations/0010_admin_plan.sql", "utf8"))
+    )
+    const plans = Object.fromEntries(
+      (await env.db.select().from(workspaces)).map((w) => [w.id, w.plan])
+    )
+    expect(plans[existing.id]).toBe("admin")
+    expect(plans[other.id]).toBe("free")
   })
 })
 

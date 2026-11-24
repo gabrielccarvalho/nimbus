@@ -54,8 +54,8 @@ afterEach(() => env.cleanup())
 
 async function createAccount(name: string) {
   const id = crypto.randomUUID()
-  const account = { id, name }
-  await env.db.insert(user).values({ ...account, email: `${id}@example.com` })
+  const account = { id, name, email: `${id}@example.com` }
+  await env.db.insert(user).values(account)
   await accountRepository(env.db).createPersonalWorkspace(account)
   return account
 }

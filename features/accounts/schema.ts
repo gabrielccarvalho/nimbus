@@ -1,14 +1,14 @@
 import { z } from "zod"
 
-export const planIds = ["free", "creator", "studio"] as const
+export const planIds = ["free", "creator", "studio", "admin"] as const
 export type PlanId = (typeof planIds)[number]
 
 export type Plan = {
   id: PlanId
   name: string
-  renderMinutes: number
-  storageBytes: number
-  claudeRuns: number
+  renderMinutes: number | null
+  storageBytes: number | null
+  claudeRuns: number | null
 }
 
 const GB = 1024 ** 3
@@ -35,6 +35,21 @@ export const PLANS: Record<PlanId, Plan> = {
     storageBytes: 500 * GB,
     claudeRuns: 200,
   },
+  admin: {
+    id: "admin",
+    name: "Admin",
+    renderMinutes: null,
+    storageBytes: null,
+    claudeRuns: null,
+  },
+}
+
+export const ADMIN_EMAIL_DOMAIN = "nimbus.dev"
+
+export function planForEmail(email: string): PlanId {
+  return email.trim().toLowerCase().endsWith(`@${ADMIN_EMAIL_DOMAIN}`)
+    ? "admin"
+    : "free"
 }
 
 export const usageKinds = ["render_seconds", "claude_run"] as const
