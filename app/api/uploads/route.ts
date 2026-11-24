@@ -1,9 +1,10 @@
+import { workspaceId } from "@/features/accounts/session"
 import { handleUpload } from "@/features/projects/upload"
 import { errorResponse } from "@/lib/http/responses"
 
 export async function POST(request: Request) {
   try {
-    const result = await handleUpload(request)
+    const result = await handleUpload(request, await workspaceId())
     return Response.json(result, { status: 201 })
   } catch (error) {
     return errorResponse(error, { route: "uploads" })

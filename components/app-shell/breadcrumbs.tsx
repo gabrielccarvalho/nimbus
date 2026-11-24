@@ -24,11 +24,10 @@ const BreadcrumbLabelsContext = React.createContext<{
 const STATIC_LABELS: Labels = {
   settings: "Settings",
   channels: "Channels",
-  account: "Account",
+  profile: "Profile",
   workspace: "Workspace",
-  plan: "Plan & billing",
-  defaults: "Defaults",
-  shortcuts: "Keyboard shortcuts",
+  plan: "Plan & usage",
+  security: "Sign-in & security",
 }
 
 const PROJECT_TABS = new Set(["transcript", "layout", "clips"])

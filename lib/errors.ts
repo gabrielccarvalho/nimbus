@@ -1,5 +1,6 @@
 export const appErrorCodes = [
   "VALIDATION",
+  "UNAUTHORIZED",
   "NOT_FOUND",
   "CONFLICT",
   "INVALID_TRANSITION",
@@ -50,6 +51,7 @@ export function toAppError(error: unknown): AppError {
 
 const nonRetryable: ReadonlySet<AppErrorCode> = new Set([
   "VALIDATION",
+  "UNAUTHORIZED",
   "NOT_FOUND",
   "INVALID_TRANSITION",
   "DEPENDENCY_MISSING",
@@ -60,6 +62,7 @@ const nonRetryable: ReadonlySet<AppErrorCode> = new Set([
 
 const userErrors: ReadonlySet<AppErrorCode> = new Set([
   "VALIDATION",
+  "UNAUTHORIZED",
   "NOT_FOUND",
   "CONFLICT",
   "INVALID_TRANSITION",

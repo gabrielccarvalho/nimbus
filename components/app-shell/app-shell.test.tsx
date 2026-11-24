@@ -64,11 +64,22 @@ describe("AppSidebar", () => {
   const recent = [
     { id: "p1", name: "Ranked", status: "awaiting_layout" as const },
   ]
+  const shell = {
+    recent,
+    projectCount: 4,
+    account: { name: "Gabe", email: "g@example.com", initials: "G" },
+    workspace: { name: "Gabe's studio", initials: "GS", planName: "Free" },
+    usage: {
+      renderMinutes: 12,
+      renderMinutesLimit: 60,
+      resetsAt: "2026-12-01T00:00:00.000Z",
+    },
+  }
 
   it("lists recent projects with their status and marks the current one", () => {
     render(
       <TooltipProvider>
-        <AppSidebar recent={recent} projectCount={4} />
+        <AppSidebar {...shell} />
       </TooltipProvider>
     )
     const link = screen.getByRole("link", { name: /Ranked/ })
@@ -83,7 +94,7 @@ describe("AppSidebar", () => {
     window.matchMedia = vi.fn().mockReturnValue({ matches: true })
     render(
       <TooltipProvider>
-        <AppSidebar recent={recent} projectCount={4} />
+        <AppSidebar {...shell} />
       </TooltipProvider>
     )
     await userEvent.click(
@@ -95,10 +106,23 @@ describe("AppSidebar", () => {
     expect(document.cookie).toContain("sidebar_state=false")
   })
 
+  it("shows the workspace, render minutes and the account", () => {
+    render(
+      <TooltipProvider>
+        <AppSidebar {...shell} />
+      </TooltipProvider>
+    )
+    expect(
+      screen.getByRole("button", { name: /Gabe's studio/ })
+    ).toHaveTextContent("Personal · Free plan")
+    expect(screen.getByText("12 / 60")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /g@example.com/ })).toBeVisible()
+  })
+
   it("opens a new project with N", async () => {
     render(
       <TooltipProvider>
-        <AppSidebar recent={recent} projectCount={4} />
+        <AppSidebar {...shell} />
       </TooltipProvider>
     )
     await userEvent.keyboard("n")

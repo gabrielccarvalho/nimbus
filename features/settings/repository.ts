@@ -12,15 +12,20 @@ import {
   type AppSettings,
 } from "./schema"
 
-const APP_KEY = "app"
+export const LEGACY_SETTINGS_KEY = "app"
 
-export function settingsRepository(db: Db) {
+export function workspaceSettingsKey(workspaceId: string | null) {
+  return workspaceId ? `workspace:${workspaceId}` : LEGACY_SETTINGS_KEY
+}
+
+export function settingsRepository(db: Db, workspaceId: string | null = null) {
+  const key = workspaceSettingsKey(workspaceId)
   return {
     async get(fallbacks: Partial<AppSettings> = {}): Promise<AppSettings> {
       const [row] = await db
         .select()
         .from(settings)
-        .where(eq(settings.key, APP_KEY))
+        .where(eq(settings.key, key))
       const defaults = { ...defaultAppSettings, ...fallbacks }
       if (!row) return defaults
       const parsed = appSettingsSchema.safeParse({
@@ -38,7 +43,7 @@ export function settingsRepository(db: Db) {
       const parsed = appSettingsSchema.parse(value)
       await db
         .insert(settings)
-        .values({ key: APP_KEY, value: parsed })
+        .values({ key, value: parsed })
         .onConflictDoUpdate({
           target: settings.key,
           set: { value: parsed, updatedAt: now() },

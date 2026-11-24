@@ -182,6 +182,26 @@ async function main() {
       : "ANTHROPIC_API_KEY missing"
   )
 
+  const unsetSecrets = ["BETTER_AUTH_SECRET", "NIMBUS_SECRET_KEY"].filter(
+    (name) => !process.env[name]
+  )
+  const socialProviders = [
+    env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && "Google",
+    env.TWITCH_CLIENT_ID && env.TWITCH_CLIENT_SECRET && "Twitch",
+  ].filter(Boolean)
+  add(
+    "accounts",
+    unsetSecrets.length ? "warn" : "ok",
+    [
+      unsetSecrets.length
+        ? `${unsetSecrets.join(" and ")} unset: using development secrets (required in production)`
+        : "secrets configured",
+      socialProviders.length
+        ? `sign-in with ${socialProviders.join(" and ")}`
+        : "email and password only",
+    ].join("; ")
+  )
+
   try {
     await access(modelFile, constants.R_OK)
     add("face detection", "ok", path.relative(process.cwd(), modelFile))

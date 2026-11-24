@@ -6,6 +6,8 @@ import { getDb, type Db } from "@/lib/db"
 import { getEnv } from "@/lib/env"
 import { mediaUrl, slugify } from "@/lib/format"
 
+import { getSession, requireViewer } from "../accounts/session"
+import { claudeAvailable } from "../accounts/usage"
 import { normalizeLoudness } from "../analysis/loudness"
 import { signalsRepository } from "../analysis/repository"
 import { clipCaptionPages, sampleCaptionWords } from "../captions/pages"
@@ -20,6 +22,21 @@ import { getProjectSnapshot } from "../pipeline/snapshot"
 import { isEnglishOnlyModel } from "../transcription/language"
 import { transcriptRepository } from "../transcription/repository"
 import { assetRepository, projectRepository, type Project } from "./repository"
+
+async function visibleProject(db: Db, id: string) {
+  const [viewer, project] = await Promise.all([
+    getSession(),
+    projectRepository(db).get(id),
+  ])
+  if (!viewer || !project || project.workspaceId !== viewer.workspace.id) {
+    return undefined
+  }
+  return project
+}
+
+async function viewerWorkspaceId() {
+  return (await requireViewer()).workspace.id
+}
 
 async function audioSummary(db: Db, project: Project) {
   const signals = await signalsRepository(db).get(project.id)
@@ -36,35 +53,40 @@ export type AudioSummary = NonNullable<Awaited<ReturnType<typeof audioSummary>>>
 
 export async function listProjects() {
   await connection()
-  return projectRepository(getDb()).list()
+  return projectRepository(getDb()).list({
+    workspaceId: await viewerWorkspaceId(),
+  })
 }
 
 export async function listRecentProjects(limit = 5) {
   await connection()
-  return (await projectRepository(getDb()).list({ limit })).map((p) => ({
-    id: p.id,
-    name: p.name,
-    status: p.status,
-    failedStep: p.failedStep,
-    awaitingManualSelection: p.awaitingManualSelection,
-    reviewCount: p.reviewCount,
-  }))
+  const workspaceId = await viewerWorkspaceId()
+  return (await projectRepository(getDb()).list({ limit, workspaceId })).map(
+    (p) => ({
+      id: p.id,
+      name: p.name,
+      status: p.status,
+      failedStep: p.failedStep,
+      awaitingManualSelection: p.awaitingManualSelection,
+      reviewCount: p.reviewCount,
+    })
+  )
 }
 
 export async function countProjects() {
   await connection()
-  return projectRepository(getDb()).count()
+  return projectRepository(getDb()).count(await viewerWorkspaceId())
 }
 
 export async function getProject(id: string) {
   await connection()
-  return projectRepository(getDb()).get(id)
+  return visibleProject(getDb(), id)
 }
 
 export async function getProjectHeader(id: string) {
   await connection()
   const db = getDb()
-  const project = await projectRepository(db).get(id)
+  const project = await visibleProject(db, id)
   if (!project) return undefined
   const [source, layout, clips, transcript] = await Promise.all([
     assetRepository(db).findByKind(id, "source"),
@@ -97,10 +119,14 @@ export type ProjectHeaderData = NonNullable<
   Awaited<ReturnType<typeof getProjectHeader>>
 >
 
+export async function getSearchIndex() {
+  return projectRepository(getDb()).searchIndex(await viewerWorkspaceId())
+}
+
 export async function getProjectOverview(id: string) {
   await connection()
   const db = getDb()
-  const project = await projectRepository(db).get(id)
+  const project = await visibleProject(db, id)
   if (!project) return undefined
   const [assets, layout, audio, clips, jobs, snapshot] = await Promise.all([
     assetRepository(db).listForProject(id),
@@ -130,7 +156,7 @@ export type ProjectOverview = NonNullable<
 export async function getProjectTranscript(id: string) {
   await connection()
   const db = getDb()
-  const project = await projectRepository(db).get(id)
+  const project = await visibleProject(db, id)
   if (!project) return undefined
   const [assets, transcript, audio] = await Promise.all([
     assetRepository(db).listForProject(id),
@@ -149,7 +175,7 @@ export async function getProjectTranscript(id: string) {
 export async function getProjectClips(id: string) {
   await connection()
   const db = getDb()
-  const project = await projectRepository(db).get(id)
+  const project = await visibleProject(db, id)
   if (!project) return undefined
   const [assets, clips, audio, layout, transcript, snapshot] =
     await Promise.all([
@@ -251,7 +277,7 @@ export async function getClipEditor(projectId: string, clipId: string) {
   await connection()
   const db = getDb()
   const [project, clip] = await Promise.all([
-    projectRepository(db).get(projectId),
+    visibleProject(db, projectId),
     clipRepository(db).get(clipId),
   ])
   if (!project || !clip || clip.projectId !== project.id) return undefined
@@ -288,7 +314,7 @@ export async function getClipEditor(projectId: string, clipId: string) {
 export async function getProjectLayout(id: string) {
   await connection()
   const db = getDb()
-  const project = await projectRepository(db).get(id)
+  const project = await visibleProject(db, id)
   if (!project) return undefined
   const [assets, layout, transcript] = await Promise.all([
     assetRepository(db).listForProject(id),
@@ -314,7 +340,7 @@ export async function getProjectLayout(id: string) {
 export async function getProjectSettings(id: string) {
   await connection()
   const db = getDb()
-  const project = await projectRepository(db).get(id)
+  const project = await visibleProject(db, id)
   if (!project) return undefined
   const [source, transcript] = await Promise.all([
     assetRepository(db).findByKind(id, "source"),
@@ -327,7 +353,7 @@ export async function getProjectSettings(id: string) {
     transcript: transcript
       ? { language: transcript.language, source: transcript.languageSource }
       : null,
-    claudeAvailable: Boolean(env.ANTHROPIC_API_KEY),
+    claudeAvailable: claudeAvailable((await requireViewer()).workspace),
     englishOnlyModel:
       env.TRANSCRIBER === "whisper" && isEnglishOnlyModel(env.WHISPER_MODEL),
   }

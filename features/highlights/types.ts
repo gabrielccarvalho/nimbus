@@ -40,6 +40,7 @@ export type SelectorInput = {
   exclude?: readonly TimeRange[]
   niche?: NicheProfile
   frames?: FrameSource
+  apiKey?: string
   onPart?: (
     candidates: RawCandidate[],
     parts: { done: number; total: number }

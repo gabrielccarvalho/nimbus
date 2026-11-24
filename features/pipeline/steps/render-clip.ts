@@ -27,6 +27,7 @@ import {
 } from "../../render/filtergraph"
 import { CAPTION_FONTS_DIR } from "../../render/fonts"
 import { renderQualityCrf } from "../../settings/schema"
+import { recordUsage } from "../../accounts/usage"
 import { getAppSettings } from "../../settings/service"
 import { speakerTranscriptWords } from "../../captions/speaker"
 import { transcriptRepository } from "../../transcription/repository"
@@ -122,7 +123,7 @@ export const renderClipStep: JobHandler = async ({
     })
   }
   await storage.writeBuffer(workKey("graph.txt"), graph)
-  const settings = await getAppSettings(db)
+  const settings = await getAppSettings(db, project.workspaceId)
   const encoder = chooseEncoder(
     encoderPreference(settings.hardwareEncoding, env.VIDEO_ENCODER),
     capabilities.encoders
@@ -182,6 +183,7 @@ export const renderClipStep: JobHandler = async ({
     await assets.delete(previous.id)
     await storage.remove(previous.storageKey)
   }
+  await recordUsage(db, project, "render_seconds", durationMs / 1000)
   logger.info(
     { clipId: clip.id, encoder, captions, bytes: asset.bytes },
     "clip rendered"

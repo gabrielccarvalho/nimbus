@@ -15,10 +15,14 @@ export function envDefaults(): Partial<AppSettings> {
   }
 }
 
-export function getAppSettings(db: Db) {
-  return settingsRepository(db).get(envDefaults())
+export function getAppSettings(db: Db, workspaceId: string | null = null) {
+  return settingsRepository(db, workspaceId).get(envDefaults())
 }
 
-export function saveAppSettings(db: Db, value: AppSettings) {
-  return settingsRepository(db).save(value)
+export function saveAppSettings(
+  db: Db,
+  value: AppSettings,
+  workspaceId: string | null = null
+) {
+  return settingsRepository(db, workspaceId).save(value)
 }

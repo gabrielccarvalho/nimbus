@@ -3,7 +3,7 @@ import { Readable } from "node:stream"
 import yazl from "yazl"
 
 import { exportContents } from "@/features/clips/export"
-import { projectRepository } from "@/features/projects/repository"
+import { assertProjectAccess } from "@/features/accounts/session"
 import { getDb } from "@/lib/db"
 import { AppError } from "@/lib/errors"
 import { slugify } from "@/lib/format"
@@ -17,7 +17,7 @@ export async function GET(
   try {
     const { id } = await ctx.params
     const db = getDb()
-    const project = await projectRepository(db).getOrThrow(id)
+    const project = await assertProjectAccess(id)
     const storage = getStorage()
     const contents = await exportContents(db, id)
     const present = await Promise.all(

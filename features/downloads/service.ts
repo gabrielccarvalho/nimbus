@@ -13,14 +13,19 @@ import { parseVideoUrl, placeholderName } from "./url"
 export async function importFromUrl(
   db: Db,
   input: unknown,
-  options: unknown = {}
+  options: unknown = {},
+  workspaceId: string | null = null
 ) {
   const url = parseVideoUrl(input)
   const projectId = newId()
-  const settings = await projectSettingsFromApp(parseImportOptions(options))
+  const settings = await projectSettingsFromApp(
+    parseImportOptions(options),
+    workspaceId
+  )
   await withTransaction(db, async (tx) => {
     await projectRepository(tx).create({
       id: projectId,
+      workspaceId,
       name: placeholderName(url).slice(0, 120),
       settings,
       sourceUrl: url,

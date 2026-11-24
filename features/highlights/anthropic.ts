@@ -31,9 +31,9 @@ import {
 
 type JsonFormat<T extends z.ZodType> = ReturnType<typeof betaZodOutputFormat<T>>
 
-function createClient() {
+export function createClient(apiKey = getEnv().ANTHROPIC_API_KEY) {
   return new Anthropic({
-    apiKey: getEnv().ANTHROPIC_API_KEY,
+    apiKey,
     baseURL: getEnv().ANTHROPIC_BASE_URL,
   })
 }

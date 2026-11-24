@@ -23,6 +23,7 @@ import {
 } from "../../render/filtergraph"
 import { CAPTION_FONTS_DIR } from "../../render/fonts"
 import { renderQualityCrf } from "../../settings/schema"
+import { recordUsage } from "../../accounts/usage"
 import { getAppSettings } from "../../settings/service"
 import { speakerTranscriptWords } from "../../captions/speaker"
 import { transcriptRepository } from "../../transcription/repository"
@@ -104,7 +105,7 @@ export const renderEditStep: JobHandler = async ({
     workKey("graph.txt"),
     editGraph({ keep, subtitles })
   )
-  const settings = await getAppSettings(db)
+  const settings = await getAppSettings(db, project.workspaceId)
   const encoder = chooseEncoder(
     encoderPreference(settings.hardwareEncoding, env.VIDEO_ENCODER),
     capabilities.encoders
@@ -154,6 +155,7 @@ export const renderEditStep: JobHandler = async ({
     await assets.delete(previous.id)
     await storage.remove(previous.storageKey)
   }
+  await recordUsage(db, project, "render_seconds", outputMs / 1000)
   logger.info(
     {
       cuts: keep.length - 1,

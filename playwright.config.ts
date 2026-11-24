@@ -27,7 +27,12 @@ const testEnv = {
   WORKER_POLL_MS: "250",
   LOG_LEVEL: "warn",
   ANTHROPIC_API_KEY: "",
+  BETTER_AUTH_URL: `http://127.0.0.1:${PORT}`,
+  BETTER_AUTH_SECRET: "e2e-only-auth-secret-0123456789abcdef",
+  NIMBUS_SECRET_KEY: "e2e-only-encryption-key-0123456789abcdef",
 }
+
+export const STORAGE_STATE = "tests/e2e/.auth/user.json"
 
 export default defineConfig({
   testDir: "tests/e2e",
@@ -47,7 +52,14 @@ export default defineConfig({
     // Settled colours for axe: transitions collapse under reduced motion.
     reducedMotion: "reduce",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    { name: "setup", testMatch: /auth\.setup\.ts/ },
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"], storageState: STORAGE_STATE },
+      dependencies: ["setup"],
+    },
+  ],
   webServer: [
     {
       command: `pnpm run setup:vision && pnpm exec next build && pnpm exec next start -p ${PORT} -H 127.0.0.1`,
