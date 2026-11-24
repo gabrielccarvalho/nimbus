@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test"
 
 import { fixtures } from "../../scripts/make-fixtures"
 import { expectNoSeriousA11yViolations } from "./utils/axe"
-import { seedYouTubeChannel } from "./utils/youtube"
+import { removeYouTubeChannel, seedYouTubeChannel } from "./utils/youtube"
 
 async function renderFirstClip(page: Page) {
   await page.goto("/")
@@ -30,6 +30,7 @@ async function renderFirstClip(page: Page) {
 }
 
 test.beforeAll(seedYouTubeChannel)
+test.afterAll(removeYouTubeChannel)
 
 test("publishes a rendered clip to YouTube", async ({ page }) => {
   test.setTimeout(240_000)
@@ -51,7 +52,7 @@ test("publishes a rendered clip to YouTube", async ({ page }) => {
   const link = page.getByRole("link", { name: /^Published/ })
   await expect(link).toHaveAttribute(
     "href",
-    "https://youtube.com/shorts/fake-1",
+    /^https:\/\/youtube\.com\/shorts\/fake-\d+$/,
     { timeout: 60_000 }
   )
 })

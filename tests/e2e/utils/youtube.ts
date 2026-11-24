@@ -29,3 +29,14 @@ export async function seedYouTubeChannel() {
     await client.end()
   }
 }
+
+export async function removeYouTubeChannel() {
+  const client = new Client({ connectionString: process.env.E2E_DATABASE_URL })
+  await client.connect()
+  try {
+    await client.query(`delete from youtube_channels where id = 'e2e-channel'`)
+    await client.query(`delete from account where id = 'e2e-google-account'`)
+  } finally {
+    await client.end()
+  }
+}
