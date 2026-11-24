@@ -15,8 +15,14 @@ import { Switch } from "@/components/ui/switch"
 import { saveSettingsAction } from "@/features/settings/actions"
 import type { AppSettings } from "@/features/settings/schema"
 
+import { CaptionStyleFields } from "@/components/projects/caption-style-fields"
+import { CaptionStylePreview } from "@/components/projects/caption-style-preview"
 import {
-  CaptionFields,
+  resolveCaptionStyle,
+  type CaptionFontId,
+} from "@/features/captions/styles"
+
+import {
   HighlightFields,
   LanguageField,
   NicheField,
@@ -24,16 +30,38 @@ import {
 } from "./settings-fields"
 import { SettingsSection, SettingsSectionHeader } from "./section"
 
+const TITLES = {
+  defaults: {
+    title: "Project defaults",
+    description:
+      "Where every new import starts. Imports can override them, and each project keeps its own copy.",
+  },
+  captions: {
+    title: "Captions",
+    description:
+      "How captions look on new projects. Each project and each clip can still change them.",
+  },
+  rendering: {
+    title: "Rendering",
+    description:
+      "Quality is the default for new projects. Hardware encoding applies to every render on this machine.",
+  },
+} as const
+
 export function SettingsForm({
-  initial,
+  section,
+  settings: initial,
   claudeAvailable,
   hardwareEncoder,
   englishOnlyModel,
+  installedFonts,
 }: {
-  initial: AppSettings
+  section: keyof typeof TITLES
+  settings: AppSettings
   claudeAvailable: boolean
   hardwareEncoder: string | null
   englishOnlyModel: boolean
+  installedFonts: readonly CaptionFontId[]
 }) {
   const router = useRouter()
   const [pending, startTransition] = React.useTransition()
@@ -52,65 +80,93 @@ export function SettingsForm({
         return
       }
       setError(null)
-      toast.success("Defaults saved")
+      toast.success(`${TITLES[section].title} saved`)
       router.refresh()
     })
   }
 
   return (
     <form onSubmit={submit} className="grid gap-[18px]">
-      <SettingsSection id="defaults" aria-labelledby="defaults-title">
-        <SettingsSectionHeader
-          id="defaults-title"
-          title="Project defaults"
-          description="Where every new import starts. Imports can override them, and each project keeps its own copy."
-        />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <LanguageField
-            value={settings}
-            set={set}
-            englishOnlyModel={englishOnlyModel}
-          />
-          <NicheField value={settings} set={set} />
-        </div>
-        <HighlightFields
-          value={settings}
-          set={set}
-          claudeAvailable={claudeAvailable}
-        />
-      </SettingsSection>
-
-      <SettingsSection id="rendering" aria-labelledby="rendering-title">
-        <SettingsSectionHeader
-          id="rendering-title"
-          title="Captions & rendering"
-          description="Quality is the default for new projects. Hardware encoding applies to every render on this machine."
-        />
-        <CaptionFields value={settings} set={set} />
-        <QualityField value={settings} set={set} />
-        <Field orientation="horizontal" data-disabled={!hardwareEncoder}>
-          <FieldContent>
-            <FieldLabel htmlFor="hardware-encoding">
-              Hardware encoding
-            </FieldLabel>
-            <FieldDescription>
-              {hardwareEncoder
-                ? `Faster renders with ${hardwareEncoder}. Output can differ slightly between machines.`
-                : "No hardware encoder found in this ffmpeg."}
-            </FieldDescription>
-          </FieldContent>
-          <Switch
-            id="hardware-encoding"
-            checked={settings.hardwareEncoding && Boolean(hardwareEncoder)}
-            disabled={!hardwareEncoder}
-            onCheckedChange={(checked) => set("hardwareEncoding", checked)}
-          />
-        </Field>
+      <SettingsSection aria-labelledby={`${section}-title`}>
+        <SettingsSectionHeader id={`${section}-title`} {...TITLES[section]} />
+        {section === "defaults" && (
+          <>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <LanguageField
+                value={settings}
+                set={set}
+                englishOnlyModel={englishOnlyModel}
+              />
+              <NicheField value={settings} set={set} />
+            </div>
+            <HighlightFields
+              value={settings}
+              set={set}
+              claudeAvailable={claudeAvailable}
+            />
+          </>
+        )}
+        {section === "captions" && (
+          <div className="flex flex-wrap items-start gap-[22px]">
+            <div className="grid min-w-0 flex-[999_1_360px] gap-5">
+              <Field orientation="horizontal">
+                <FieldContent>
+                  <FieldLabel htmlFor="captions-enabled">
+                    Burn in captions
+                  </FieldLabel>
+                  <FieldDescription>
+                    Word-by-word captions on vertical clips and the edit.
+                  </FieldDescription>
+                </FieldContent>
+                <Switch
+                  id="captions-enabled"
+                  checked={settings.captionsEnabled}
+                  onCheckedChange={(checked) => set("captionsEnabled", checked)}
+                />
+              </Field>
+              <CaptionStyleFields
+                value={settings.captionStyle}
+                onValueChange={(captionStyle) =>
+                  set("captionStyle", captionStyle)
+                }
+                installedFonts={installedFonts}
+                disabled={!settings.captionsEnabled}
+              />
+            </div>
+            <CaptionStylePreview
+              style={resolveCaptionStyle(settings.captionStyle)}
+              className="max-w-[220px] flex-[1_1_180px] rounded-2xl md:sticky md:top-6"
+            />
+          </div>
+        )}
+        {section === "rendering" && (
+          <>
+            <QualityField value={settings} set={set} />
+            <Field orientation="horizontal" data-disabled={!hardwareEncoder}>
+              <FieldContent>
+                <FieldLabel htmlFor="hardware-encoding">
+                  Hardware encoding
+                </FieldLabel>
+                <FieldDescription>
+                  {hardwareEncoder
+                    ? `Faster renders with ${hardwareEncoder}. Output can differ slightly between machines.`
+                    : "No hardware encoder found in this ffmpeg."}
+                </FieldDescription>
+              </FieldContent>
+              <Switch
+                id="hardware-encoding"
+                checked={settings.hardwareEncoding && Boolean(hardwareEncoder)}
+                disabled={!hardwareEncoder}
+                onCheckedChange={(checked) => set("hardwareEncoding", checked)}
+              />
+            </Field>
+          </>
+        )}
       </SettingsSection>
 
       <div className="flex flex-wrap items-center gap-3">
         <Button type="submit" variant="primary" disabled={pending}>
-          Save defaults
+          Save {TITLES[section].title.toLowerCase()}
         </Button>
         {error && (
           <p role="alert" className="text-sm text-pink">

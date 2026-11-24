@@ -2,53 +2,92 @@ import { expect, test } from "@playwright/test"
 
 import { expectNoSeriousA11yViolations } from "./utils/axe"
 
+const DEFAULTS = "/settings/workspace/defaults"
+const CAPTIONS = "/settings/workspace/captions"
+const RENDERING = "/settings/workspace/rendering"
+
 test.afterEach(async ({ page }) => {
-  await page.goto("/settings")
+  await page.goto(DEFAULTS)
   await page.getByLabel("Shortest clip (s)").fill("15")
   await page.getByLabel("Longest clip (s)").fill("60")
   await page.getByLabel("Clips to find").fill("12")
+  await page.getByRole("button", { name: "Save project defaults" }).click()
+  await expect(page.getByText("Project defaults saved")).toBeVisible()
+
+  await page.goto(RENDERING)
   await page.getByRole("radio", { name: /Standard/ }).check()
+  await page.getByRole("button", { name: "Save rendering" }).click()
+  await expect(page.getByText("Rendering saved")).toBeVisible()
+
+  await page.goto(CAPTIONS)
   const captions = page.getByRole("switch", { name: "Burn in captions" })
   if (!(await captions.isChecked())) await captions.click()
   await page.getByRole("button", { name: "Punch" }).click()
-  await page.getByRole("button", { name: "Save defaults" }).click()
-  await expect(page.getByText("Defaults saved")).toBeVisible()
+  await page.getByRole("button", { name: "Save captions" }).click()
+  await expect(page.getByText("Captions saved")).toBeVisible()
 })
 
-test("settings persist and validate", async ({ page }) => {
+test("workspace settings persist and validate", async ({ page }) => {
   await page.goto("/settings")
-  await expect(
-    page.getByRole("heading", { name: "Settings", level: 1 })
-  ).toBeVisible()
+  await expect(page).toHaveURL(/\/settings\/profile$/)
+  const nav = page.getByRole("navigation", { name: "Settings sections" })
+  await nav.getByRole("link", { name: "Project defaults" }).click()
+  await expect(page).toHaveURL(new RegExp(`${DEFAULTS}$`))
   await expect(page.getByRole("radio", { name: /Claude/ })).toBeDisabled()
   await expectNoSeriousA11yViolations(page)
 
   await page.getByLabel("Clips to find").fill("4")
-  await page.getByRole("radio", { name: /Draft/ }).check()
-  await page.getByRole("switch", { name: "Burn in captions" }).click()
-  await page.getByRole("button", { name: "Clean" }).click()
-  await page.getByRole("button", { name: "Save defaults" }).click()
-  await expect(page.getByText("Defaults saved")).toBeVisible()
-
+  await page.getByRole("button", { name: "Save project defaults" }).click()
+  await expect(page.getByText("Project defaults saved")).toBeVisible()
   await page.reload()
   await expect(page.getByLabel("Clips to find")).toHaveValue("4")
-  await expect(page.getByRole("radio", { name: /Draft/ })).toBeChecked()
-  await expect(
-    page.getByRole("switch", { name: "Burn in captions" })
-  ).not.toBeChecked()
-  await expect(page.getByRole("button", { name: "Clean" })).toHaveAttribute(
-    "aria-pressed",
-    "true"
-  )
 
   await page.getByLabel("Shortest clip (s)").fill("90")
   await page.getByLabel("Longest clip (s)").fill("30")
-  await page.getByRole("button", { name: "Save defaults" }).click()
+  await page.getByRole("button", { name: "Save project defaults" }).click()
   await expect(
     page.getByRole("alert").filter({ hasText: "shorter than the maximum" })
   ).toBeVisible()
   await page.reload()
   await expect(page.getByLabel("Shortest clip (s)")).not.toHaveValue("90")
+
+  await nav.getByRole("link", { name: "Rendering" }).click()
+  await page.getByRole("radio", { name: /Draft/ }).check()
+  await page.getByRole("button", { name: "Save rendering" }).click()
+  await expect(page.getByText("Rendering saved")).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole("radio", { name: /Draft/ })).toBeChecked()
+})
+
+test("workspace caption defaults: style, font and position", async ({
+  page,
+}) => {
+  await page.goto(CAPTIONS)
+  await expect(page.getByRole("img", { name: "Caption preview" })).toBeVisible()
+  await expectNoSeriousA11yViolations(page)
+  await page.getByRole("button", { name: "Clean" }).click()
+  await page
+    .getByRole("group", { name: "Position", exact: true })
+    .getByRole("button", { name: "Top" })
+    .click()
+  await page.getByRole("switch", { name: "Burn in captions" }).click()
+  await page.getByRole("button", { name: "Save captions" }).click()
+  await expect(page.getByText("Captions saved")).toBeVisible()
+
+  await page.reload()
+  await expect(
+    page.getByRole("switch", { name: "Burn in captions" })
+  ).not.toBeChecked()
+  await page.getByRole("switch", { name: "Burn in captions" }).click()
+  await expect(page.getByRole("button", { name: "Clean" })).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  )
+  await expect(
+    page
+      .getByRole("group", { name: "Position", exact: true })
+      .getByRole("button", { name: "Top" })
+  ).toHaveAttribute("aria-pressed", "true")
 })
 
 test("each project keeps its own settings and offers to re-run", async ({
@@ -81,6 +120,6 @@ test("each project keeps its own settings and offers to re-run", async ({
     page.getByRole("listitem").filter({ hasText: "Find highlights, completed" })
   ).toBeVisible({ timeout: 30_000 })
 
-  await page.goto("/settings")
+  await page.goto(DEFAULTS)
   await expect(page.getByLabel("Clips to find")).toHaveValue("12")
 })

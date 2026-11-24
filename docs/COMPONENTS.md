@@ -238,3 +238,7 @@ A person's photo (circle, violet initials fallback) or a workspace logo (`shape=
 ### AvatarField (`components/settings/avatar-field.tsx`)
 
 Upload, change or remove the profile photo (`target="user"`) or workspace logo (`target="workspace"`). The browser crops the image to a square and re-encodes it at 256 px before sending it, so uploads stay a few kilobytes.
+
+### CaptionStylePreview (`components/projects/caption-style-preview.tsx`)
+
+A 9:16 mock frame (webcam band over gameplay) with a sample caption page in the given resolved `CaptionStyle`, at the baseline the renderer would use. Used on the workspace Captions page.

@@ -1,6 +1,9 @@
 import type { Metadata } from "next"
 
-import { WorkspaceName } from "@/components/settings/account-settings"
+import {
+  ClaudeKeyRow,
+  WorkspaceName,
+} from "@/components/settings/account-settings"
 import { AvatarField } from "@/components/settings/avatar-field"
 import {
   SettingRow,
@@ -19,8 +22,8 @@ export default async function WorkspacePage() {
   return (
     <SettingsSection>
       <SettingsSectionHeader
-        title="Workspace"
-        description="Projects, defaults and the Claude key belong to the workspace."
+        title="General"
+        description="Projects, the plan, the Claude key and every default belong to the workspace."
       />
       <AvatarField
         target="workspace"
@@ -30,6 +33,7 @@ export default async function WorkspacePage() {
         shape="square"
       />
       <WorkspaceName name={workspace.name} />
+      <ClaudeKeyRow keyHint={workspace.keyHint} />
       <SettingRow
         title="Members"
         description="Personal workspace. Inviting people comes later."

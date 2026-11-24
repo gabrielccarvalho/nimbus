@@ -1,5 +1,7 @@
 import "server-only"
 
+import { installedCaptionFonts } from "@/features/render/fonts"
+
 import { connection } from "next/server"
 
 import { getDb } from "@/lib/db"
@@ -27,6 +29,7 @@ export async function getSettingsPage() {
     hardwareEncoder: hardwareEncoder === "libx264" ? null : hardwareEncoder,
     englishOnlyModel:
       env.TRANSCRIBER === "whisper" && isEnglishOnlyModel(env.WHISPER_MODEL),
+    installedFonts: installedCaptionFonts(),
   }
 }
 

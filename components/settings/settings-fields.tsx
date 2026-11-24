@@ -176,7 +176,7 @@ export function HighlightFields<T extends Shared>({
                     <FieldTitle>{selector.label}</FieldTitle>
                     <FieldDescription>
                       {disabled
-                        ? "Add a Claude API key in Sign-in & security to use Claude."
+                        ? "Add a Claude API key in Workspace settings to use Claude."
                         : selector.description}
                     </FieldDescription>
                   </FieldContent>

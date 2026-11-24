@@ -129,7 +129,10 @@ export function CommandPaletteProvider({
                 New project
                 <CommandShortcut>N</CommandShortcut>
               </CommandItem>
-              <CommandItem value="Settings" onSelect={() => go("/settings")}>
+              <CommandItem
+                value="Settings"
+                onSelect={() => go("/settings/profile")}
+              >
                 <GearSixIcon aria-hidden />
                 Settings
               </CommandItem>

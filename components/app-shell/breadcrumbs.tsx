@@ -28,6 +28,9 @@ const STATIC_LABELS: Labels = {
   workspace: "Workspace",
   plan: "Plan & usage",
   security: "Sign-in & security",
+  defaults: "Project defaults",
+  captions: "Captions",
+  rendering: "Rendering",
 }
 
 const PROJECT_TABS = new Set(["transcript", "layout", "clips"])

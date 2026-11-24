@@ -22,6 +22,6 @@ export async function saveSettingsAction(input: unknown) {
       }
       return saveAppSettings(getDb(), parsed.data, await workspaceId())
     },
-    ["/settings"]
+    ["/settings/workspace"]
   )
 }

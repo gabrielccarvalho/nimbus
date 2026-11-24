@@ -165,7 +165,7 @@ export function UsageCard({
       <div className="flex justify-between gap-2 text-xs text-tertiary">
         <span>Resets {resets.format(new Date(usage.resetsAt))}</span>
         <Link
-          href="/settings/plan"
+          href="/settings/workspace/plan"
           className="font-medium text-muted-foreground hover:text-foreground"
         >
           {planName} plan
@@ -221,7 +221,7 @@ export function AccountMenu({
   const router = useRouter()
   const [shortcuts, setShortcuts] = React.useState(false)
 
-  useHotkey(",", () => router.push("/settings"))
+  useHotkey(",", () => router.push("/settings/profile"))
   useHotkey("?", () => setShortcuts(true))
 
   const signOut = async () => {
@@ -281,11 +281,11 @@ export function AccountMenu({
             <UserCircleIcon aria-hidden />
             Account
           </DropdownMenuItem>
-          <DropdownMenuItem render={<Link href="/settings/plan" />}>
+          <DropdownMenuItem render={<Link href="/settings/workspace/plan" />}>
             <CreditCardIcon aria-hidden />
             Plan & usage
           </DropdownMenuItem>
-          <DropdownMenuItem render={<Link href="/settings" />}>
+          <DropdownMenuItem render={<Link href="/settings/profile" />}>
             <SlidersHorizontalIcon aria-hidden />
             Settings
             <DropdownMenuShortcut>,</DropdownMenuShortcut>

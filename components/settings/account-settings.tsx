@@ -411,10 +411,7 @@ function ApiKeyDialog({
 }
 
 export function SecuritySettingsView({ data }: { data: SecuritySettings }) {
-  const [dialog, setDialog] = React.useState<"password" | "2fa" | "key" | null>(
-    null
-  )
-  const { pending, run } = useAction()
+  const [dialog, setDialog] = React.useState<"password" | "2fa" | null>(null)
   return (
     <>
       <SettingsSection className="gap-1">
@@ -445,31 +442,12 @@ export function SecuritySettingsView({ data }: { data: SecuritySettings }) {
             />
           </SettingRow>
         )}
-        <SettingRow
-          title="Claude API key"
-          description="Used by the Claude highlight selector. Stored encrypted."
-        >
-          {data.keyHint && (
-            <span className="font-mono text-[13px] text-muted-foreground">
-              {data.keyHint}
-            </span>
-          )}
-          <Button size="sm" onClick={() => setDialog("key")}>
-            {data.keyHint ? "Replace" : "Add key"}
-          </Button>
-          {data.keyHint && (
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={pending}
-              onClick={() =>
-                run(() => removeAnthropicKeyAction(), "Claude API key removed")
-              }
-            >
-              Remove
-            </Button>
-          )}
-        </SettingRow>
+        {!data.hasPassword && (
+          <SettingRow
+            title="Password"
+            description="You sign in with a connected account."
+          />
+        )}
         <PasswordDialog
           open={dialog === "password"}
           onOpenChange={(o) => setDialog(o ? "password" : null)}
@@ -479,13 +457,42 @@ export function SecuritySettingsView({ data }: { data: SecuritySettings }) {
           open={dialog === "2fa"}
           onOpenChange={(o) => setDialog(o ? "2fa" : null)}
         />
-        <ApiKeyDialog
-          open={dialog === "key"}
-          onOpenChange={(o) => setDialog(o ? "key" : null)}
-        />
       </SettingsSection>
       <SessionList sessions={data.sessions} />
     </>
+  )
+}
+
+export function ClaudeKeyRow({ keyHint }: { keyHint: string | null }) {
+  const [open, setOpen] = React.useState(false)
+  const { pending, run } = useAction()
+  return (
+    <SettingRow
+      title="Claude API key"
+      description="Used by the Claude highlight selector. Stored encrypted."
+    >
+      {keyHint && (
+        <span className="font-mono text-[13px] text-muted-foreground">
+          {keyHint}
+        </span>
+      )}
+      <Button size="sm" onClick={() => setOpen(true)}>
+        {keyHint ? "Replace" : "Add key"}
+      </Button>
+      {keyHint && (
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={pending}
+          onClick={() =>
+            run(() => removeAnthropicKeyAction(), "Claude API key removed")
+          }
+        >
+          Remove
+        </Button>
+      )}
+      <ApiKeyDialog open={open} onOpenChange={setOpen} />
+    </SettingRow>
   )
 }
 

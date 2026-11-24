@@ -40,7 +40,7 @@ export async function getWorkspaceSettings() {
 
 export async function getSecuritySettings() {
   await connection()
-  const { user, session, workspace } = await requireViewer()
+  const { user, session } = await requireViewer()
   const [linked, sessions] = await Promise.all([
     accountRepository(getDb()).linkedAccounts(user.id),
     getAuth().api.listSessions({ headers: await headers() }),
@@ -50,7 +50,6 @@ export async function getSecuritySettings() {
     hasPassword: Boolean(credential),
     passwordChangedAt: credential?.updatedAt ?? null,
     twoFactorEnabled: Boolean(user.twoFactorEnabled),
-    keyHint: workspace.anthropicKeyHint,
     sessions: sessions
       .map((s) => ({
         id: s.id,

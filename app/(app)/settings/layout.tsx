@@ -16,8 +16,8 @@ export default function SettingsLayout({
       <PageHeader>
         <PageTitle>Settings</PageTitle>
         <PageLede>
-          Your account, your plan, and the defaults every new project starts
-          with. Each project can still change its own.
+          Your account, and the workspace your projects live in: its plan, its
+          Claude key and the defaults every new project starts with.
         </PageLede>
       </PageHeader>
       <div className="flex flex-wrap items-start gap-10">
