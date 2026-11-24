@@ -33,6 +33,9 @@ export const storageKeys = {
     `projects/${projectId}/renders/edit-${stamp}.mp4`,
   work: (projectId: string, name: string) =>
     `projects/${projectId}/work/${name}`,
+  avatar: (owner: AvatarOwner, id: string, stamp: number, ext: string) =>
+    `avatars/${owner}/${id}/${stamp}.${ext}`,
+  avatarPrefix: (owner: AvatarOwner, id: string) => `avatars/${owner}/${id}`,
   uploadTemp: (id: string) => `tmp/uploads/${id}.part`,
   downloadDir: (id: string) => `tmp/downloads/${id}`,
 }
@@ -42,6 +45,17 @@ const SERVABLE_KEY =
 
 export function isServableKey(key: string) {
   return SERVABLE_KEY.test(key) && !key.includes("..")
+}
+
+export type AvatarOwner = "users" | "workspaces"
+
+const AVATAR_KEY =
+  /^avatars\/(users|workspaces)\/([\w-]+)\/\d+\.(?:png|jpg|webp)$/
+
+export function parseAvatarKey(key: string) {
+  const match = AVATAR_KEY.exec(key)
+  if (!match || key.includes("..")) return null
+  return { owner: match[1] as AvatarOwner, id: match[2]! }
 }
 
 export type { StorageAdapter } from "./types"

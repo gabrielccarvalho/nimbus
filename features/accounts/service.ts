@@ -6,6 +6,7 @@ import type { z } from "zod"
 import type { Db } from "@/lib/db"
 import { projects, workspaceMembers, workspaces } from "@/lib/db/schema"
 import { AppError } from "@/lib/errors"
+import { storageKeys } from "@/lib/storage"
 import type { StorageAdapter } from "@/lib/storage/types"
 
 import { deleteProject } from "../projects/service"
@@ -68,6 +69,8 @@ export async function deleteOwnedWorkspaces(
       .from(projects)
       .where(eq(projects.workspaceId, id))
     for (const project of rows) await deleteProject(db, storage, project.id)
+    await storage.removePrefix(storageKeys.avatarPrefix("workspaces", id))
     await db.delete(workspaces).where(eq(workspaces.id, id))
   }
+  await storage.removePrefix(storageKeys.avatarPrefix("users", userId))
 }

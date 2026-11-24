@@ -17,6 +17,7 @@ export async function getProfileSettings() {
   return {
     name: user.name,
     email: user.email,
+    image: user.image ?? null,
     memberSince: user.createdAt,
   }
 }
@@ -30,7 +31,11 @@ export async function getPlanSettings() {
 export async function getWorkspaceSettings() {
   await connection()
   const { workspace } = await requireViewer()
-  return { name: workspace.name, keyHint: workspace.anthropicKeyHint }
+  return {
+    name: workspace.name,
+    image: workspace.image,
+    keyHint: workspace.anthropicKeyHint,
+  }
 }
 
 export async function getSecuritySettings() {

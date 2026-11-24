@@ -47,10 +47,12 @@ export default async function AppLayout({
             name: user.name,
             email: user.email,
             initials: initials(user.name),
+            image: user.image ?? null,
           }}
           workspace={{
             name: workspace.name,
             initials: initials(workspace.name),
+            image: workspace.image,
             planName: usage.plan.name,
           }}
           usage={{

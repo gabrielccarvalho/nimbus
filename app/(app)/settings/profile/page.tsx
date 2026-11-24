@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 
 import { ProfileName } from "@/components/settings/account-settings"
+import { AvatarField } from "@/components/settings/avatar-field"
 import {
   SettingsSection,
   SettingsSectionHeader,
@@ -19,16 +20,16 @@ export default async function ProfilePage() {
   return (
     <SettingsSection>
       <SettingsSectionHeader title="Profile" />
-      <div className="flex items-center gap-4">
-        <span className="grid size-16 place-items-center rounded-full bg-linear-160 from-violet to-violet-deep text-[22px] font-semibold text-white">
-          {initials(profile.name)}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <AvatarField
+          target="user"
+          image={profile.image}
+          initials={initials(profile.name)}
+          label="Photo"
+        />
+        <span className="text-[13px] text-tertiary">
+          Member since {since.format(profile.memberSince)}
         </span>
-        <div className="grid gap-0.5">
-          <b className="font-semibold">{profile.name}</b>
-          <span className="text-[13px] text-tertiary">
-            Member since {since.format(profile.memberSince)}
-          </span>
-        </div>
       </div>
       <ProfileName name={profile.name} />
       <Field>
