@@ -50,7 +50,7 @@ export type SidebarWorkspace = {
 
 export type SidebarUsage = {
   renderMinutes: number
-  renderMinutesLimit: number
+  renderMinutesLimit: number | null
   resetsAt: string
 }
 
@@ -128,20 +128,25 @@ export function WorkspaceButton({
 }
 
 export function UsageCard({ usage }: { usage: SidebarUsage }) {
+  const limit = usage.renderMinutesLimit
   return (
     <div className="grid gap-2.5 rounded-[14px] bg-graphite p-3.5">
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-[13px] font-medium">Render minutes</span>
         <span className="font-mono text-xs text-muted-foreground tabular-nums">
-          {usage.renderMinutes} / {usage.renderMinutesLimit}
+          {limit === null
+            ? `${usage.renderMinutes} · Unlimited`
+            : `${usage.renderMinutes} / ${limit}`}
         </span>
       </div>
-      <DotMeter
-        value={usage.renderMinutes}
-        max={usage.renderMinutesLimit}
-        tone={usage.renderMinutes >= usage.renderMinutesLimit ? "amber" : "lav"}
-        aria-label="Render minutes used this month"
-      />
+      {limit !== null && (
+        <DotMeter
+          value={usage.renderMinutes}
+          max={limit}
+          tone={usage.renderMinutes >= limit ? "amber" : "lav"}
+          aria-label="Render minutes used this month"
+        />
+      )}
       <div className="flex justify-between gap-2 text-xs text-tertiary">
         <span>Resets {resets.format(new Date(usage.resetsAt))}</span>
         <Link

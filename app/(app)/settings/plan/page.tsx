@@ -25,7 +25,7 @@ function Meter({
 }: {
   label: string
   value: number
-  max: number
+  max: number | null
   display: string
   limit: string
 }) {
@@ -34,14 +34,18 @@ function Meter({
       <span className="text-[13px] text-muted-foreground">{label}</span>
       <span className="font-mono text-2xl font-semibold tracking-[-0.03em] tabular-nums">
         {display}{" "}
-        <span className="text-sm font-normal text-tertiary">/ {limit}</span>
+        <span className="text-sm font-normal text-tertiary">
+          {max === null ? "· Unlimited" : `/ ${limit}`}
+        </span>
       </span>
-      <DotMeter
-        value={value}
-        max={max}
-        tone={value >= max ? "amber" : "lav"}
-        aria-label={label}
-      />
+      {max !== null && (
+        <DotMeter
+          value={value}
+          max={max}
+          tone={value >= max ? "amber" : "lav"}
+          aria-label={label}
+        />
+      )}
     </div>
   )
 }
@@ -52,7 +56,11 @@ export default async function PlanPage() {
     <SettingsSection>
       <SettingsSectionHeader
         title="Plan & usage"
-        description={`${usage.plan.name} plan · resets ${day.format(usage.resetsAt)}. Usage is tracked but not limited; billing isn't set up yet.`}
+        description={
+          usage.plan.id === "admin"
+            ? `Admin plan · resets ${day.format(usage.resetsAt)}. No limits; usage is still tracked.`
+            : `${usage.plan.name} plan · resets ${day.format(usage.resetsAt)}. Usage is tracked but not limited; billing isn't set up yet.`
+        }
       />
       <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3">
         <Meter
@@ -67,7 +75,7 @@ export default async function PlanPage() {
           value={usage.storageBytes}
           max={usage.plan.storageBytes}
           display={formatBytes(usage.storageBytes)}
-          limit={formatBytes(usage.plan.storageBytes)}
+          limit={formatBytes(usage.plan.storageBytes ?? 0)}
         />
         <Meter
           label="Highlight runs with Claude"
