@@ -33,11 +33,7 @@ export function ClipPreview({
 }) {
   const { currentMs } = useVideoPlayer()
   return (
-    <CaptionPreview
-      role="img"
-      aria-label="Vertical preview with captions"
-      className="mx-auto max-w-[260px]"
-    >
+    <CaptionPreview role="img" aria-label="Vertical preview with captions">
       <VerticalPreviewCanvas
         layout={layout}
         effects={effects}

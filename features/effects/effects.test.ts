@@ -285,26 +285,58 @@ describe("frameAt", () => {
   it("zoomFocusAt maps an output point into the gameplay region", () => {
     const gameplay = frameAt(camTop, source, [], 0).regions[1]!.dest
     expect(
-      zoomFocusAt(camTop, source, {
+      zoomFocusAt(camTop, source, [], 0, {
         x: gameplay.x + gameplay.w * 0.25,
         y: gameplay.y + gameplay.h * 0.75,
       })
     ).toEqual({ x: 0.25, y: 0.75 })
-    expect(zoomFocusAt(camTop, source, { x: -50, y: 0 })).toEqual({
+    expect(zoomFocusAt(camTop, source, [], 0, { x: -50, y: 0 })).toEqual({
       x: 0,
       y: 0,
     })
-    expect(zoomFocusAt(fill, source, { x: 540, y: 1920 })).toEqual({
+    expect(zoomFocusAt(fill, source, [], 0, { x: 540, y: 1920 })).toEqual({
       x: 0.5,
       y: 1,
     })
     const foreground = frameAt(blur, source, [], 0).regions[1]!.dest
     expect(
-      zoomFocusAt(blur, source, {
+      zoomFocusAt(blur, source, [], 0, {
         x: foreground.x + foreground.w / 2,
         y: foreground.y,
       })
     ).toEqual({ x: 0.5, y: 0 })
+  })
+
+  it("zoomFocusAt maps through the zoom on screen", () => {
+    const gameplay = frameAt(camTop, source, [], 0).regions[1]!.dest
+    const events = [zoomAt(2)]
+    const corner = { x: gameplay.x, y: gameplay.y }
+    const centre = {
+      x: gameplay.x + gameplay.w / 2,
+      y: gameplay.y + gameplay.h / 2,
+    }
+    expect(zoomFocusAt(camTop, source, events, 2000, corner)).toEqual({
+      x: 0.25,
+      y: 0.25,
+    })
+    expect(zoomFocusAt(camTop, source, events, 2000, centre)).toEqual({
+      x: 0.5,
+      y: 0.5,
+    })
+    expect(zoomFocusAt(camTop, source, events, 5000, corner)).toEqual({
+      x: 0,
+      y: 0,
+    })
+  })
+
+  it("zoomFocusAt ignores a full cam on screen", () => {
+    const gameplay = frameAt(camTop, source, [], 0).regions[1]!.dest
+    expect(
+      zoomFocusAt(camTop, source, [focus(1000, 3000)], 2000, {
+        x: gameplay.x,
+        y: gameplay.y,
+      })
+    ).toEqual({ x: 0, y: 0 })
   })
 })
 

@@ -2,7 +2,7 @@ import { z } from "zod"
 
 import type { TimeRange } from "../analysis/schema"
 
-const MIN_EFFECT_MS = 100
+export const MIN_EFFECT_MS = 100
 
 const ms = z.number().int().nonnegative()
 const unit = z.number().min(0).max(1)

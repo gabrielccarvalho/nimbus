@@ -6,11 +6,11 @@ import { getDb } from "@/lib/db"
 import { AppError } from "@/lib/errors"
 import { parseId, runAction } from "@/lib/server-action"
 
-import { clipEditSchema, clipStatusSchema } from "./schema"
+import { clipEditSchema, clipPlanSchema, clipStatusSchema } from "./schema"
 import {
   applyManualSelection,
   approveAllCandidates,
-  resetClipEffects,
+  planClipEffects,
   setClipReviewStatus,
   updateClip,
 } from "./service"
@@ -74,16 +74,26 @@ export async function updateClipAction(
   )
 }
 
-export async function resetClipEffectsAction(
+export async function planClipEffectsAction(
   projectId: unknown,
-  clipId: unknown
+  clipId: unknown,
+  plan: unknown
 ) {
   const project = parseId(projectId, "project id")
   const clip = parseId(clipId, "clip id")
   return runAction(
-    "resetClipEffects",
-    () => resetClipEffects(getDb(), project, clip),
-    [`/projects/${project}`]
+    "planClipEffects",
+    () => {
+      const parsed = clipPlanSchema.safeParse(plan)
+      if (!parsed.success) {
+        throw new AppError(
+          "VALIDATION",
+          parsed.error.issues[0]?.message ?? "Invalid clip range"
+        )
+      }
+      return planClipEffects(getDb(), project, clip, parsed.data)
+    },
+    []
   )
 }
 

@@ -14,6 +14,7 @@ import {
   CLIP_MAX_EDIT_MS,
   CLIP_MIN_EDIT_MS,
   type ClipEdit,
+  type ClipPlan,
   type ClipStatus,
 } from "./schema"
 
@@ -152,27 +153,21 @@ export async function approveAllCandidates(db: Db, projectId: string) {
   return ids.length
 }
 
-export async function resetClipEffects(
+export async function planClipEffects(
   db: Db,
   projectId: string,
-  clipId: string
+  clipId: string,
+  plan: ClipPlan
 ): Promise<ClipEffects> {
-  const clips = clipRepository(db)
-  const clip = await clips.getOrThrow(clipId)
+  const clip = await clipRepository(db).getOrThrow(clipId)
   if (clip.projectId !== projectId) {
     throw new AppError("NOT_FOUND", "Clip not found")
   }
-  if (clip.status === "rendering") {
-    throw new AppError("CONFLICT", "Wait for this clip to finish rendering")
-  }
-  const effects = (await autoEffectsFor(db, projectId, [clip])).get(clip.id)
+  const effects = (
+    await autoEffectsFor(db, projectId, [{ ...clip, ...plan }])
+  ).get(clip.id)
   if (!effects) {
     throw new AppError("CONFLICT", "Confirm the layout before planning effects")
   }
-  const changed = JSON.stringify(effects) !== JSON.stringify(clip.effects)
-  await clips.update(clipId, {
-    effects,
-    status: changed && clip.status === "rendered" ? "approved" : clip.status,
-  })
   return effects
 }

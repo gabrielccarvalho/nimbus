@@ -20,10 +20,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { normalizeEffects, type Effect } from "@/features/effects/schema"
+import { MIN_EFFECT_MS, type Effect } from "@/features/effects/schema"
 import { formatTimestamp } from "@/lib/format"
-
-export const EFFECT_FOCUS_PICKER = "data-effect-focus-picker"
 
 const ROWS = [
   {
@@ -78,34 +76,63 @@ function blockText(effect: Effect) {
   return null
 }
 
+type Range = { startMs: number; endMs: number }
+
+function freeGap(
+  events: readonly Effect[],
+  kind: Effect["kind"],
+  range: Range,
+  around: Range,
+  skip?: number
+): Range | undefined {
+  const others = events.filter((o, i) => i !== skip && o.kind === kind)
+  if (others.some((o) => o.startMs < around.endMs && o.endMs > around.startMs))
+    return undefined
+  return {
+    startMs: Math.max(
+      range.startMs,
+      ...others.filter((o) => o.endMs <= around.startMs).map((o) => o.endMs)
+    ),
+    endMs: Math.min(
+      range.endMs,
+      ...others.filter((o) => o.startMs >= around.endMs).map((o) => o.startMs)
+    ),
+  }
+}
+
 function moveWithin(
   events: readonly Effect[],
   index: number,
-  range: { startMs: number; endMs: number },
-  startMs: number,
-  endMs: number
+  range: Range,
+  next: Range,
+  moving: boolean
 ): Effect[] | undefined {
   const event = events[index]!
-  const others = events.filter((o, i) => i !== index && o.kind === event.kind)
-  const lo = Math.max(
-    range.startMs,
-    ...others.filter((o) => o.endMs <= event.startMs).map((o) => o.endMs)
-  )
-  const hi = Math.min(
-    range.endMs,
-    ...others.filter((o) => o.startMs >= event.endMs).map((o) => o.startMs)
-  )
-  const length = endMs - startMs
-  const moving = length === event.endMs - event.startMs
-  if (moving && hi - lo < length) return undefined
-  const nextStart = moving
-    ? clamp(startMs, lo, hi - length)
-    : Math.max(startMs, lo)
-  const nextEnd = moving ? nextStart + length : Math.min(endMs, hi)
-  if (nextEnd <= nextStart) return undefined
-  return events.map((o, i) =>
-    i === index ? { ...o, startMs: nextStart, endMs: nextEnd } : o
-  )
+  const gap = freeGap(events, event.kind, range, event, index)
+  if (!gap) return undefined
+  const length = next.endMs - next.startMs
+  if (moving && gap.endMs - gap.startMs < length) return undefined
+  const startMs = moving
+    ? clamp(next.startMs, gap.startMs, gap.endMs - length)
+    : Math.max(next.startMs, gap.startMs)
+  const endMs = moving ? startMs + length : Math.min(next.endMs, gap.endMs)
+  if (endMs - startMs < MIN_EFFECT_MS) return undefined
+  return events.map((o, i) => (i === index ? { ...o, startMs, endMs } : o))
+}
+
+function placeAt(
+  events: readonly Effect[],
+  kind: Effect["kind"],
+  range: Range,
+  atMs: number,
+  lengthMs: number
+): Range | undefined {
+  const at = clamp(Math.round(atMs), range.startMs, range.endMs)
+  const gap = freeGap(events, kind, range, { startMs: at, endMs: at })
+  if (!gap || gap.endMs - gap.startMs < MIN_EFFECT_MS) return undefined
+  const length = Math.min(lengthMs, gap.endMs - gap.startMs)
+  const startMs = clamp(at, gap.startMs, gap.endMs - length)
+  return { startMs, endMs: startMs + length }
 }
 
 export function EffectsLane({
@@ -146,19 +173,9 @@ export function EffectsLane({
     select(null)
     onChange(events.filter((_, i) => i !== index))
   }
-  const add = (kind: Effect["kind"], lengthMs: number) => {
-    const start = Math.round(
-      clamp(currentMs, startMs, Math.max(startMs, endMs - lengthMs))
-    )
-    const next = normalizeEffects(
-      [...events, createEffect(kind, start, start + lengthMs)],
-      range
-    )
-    const index = next.findIndex(
-      (event) => event.kind === kind && event.endMs === start + lengthMs
-    )
-    select(index === -1 ? null : index)
-    onChange(next)
+  const add = (kind: Effect["kind"], placed: Range) => {
+    select(events.length)
+    onChange([...events, createEffect(kind, placed.startMs, placed.endMs)])
   }
 
   return (
@@ -176,26 +193,38 @@ export function EffectsLane({
             {events.map((event, index) => {
               if (event.kind !== row.kind) return null
               if (event.endMs <= startMs || event.startMs >= endMs) return null
+              const shownStart = Math.max(event.startMs, startMs) - startMs
+              const shownEnd = Math.min(event.endMs, endMs) - startMs
               const disabled = event.kind === "focus" && !hasWebcam
               const block = (
                 <TimelineBlock
                   key={index}
                   ref={index === selectedIndex ? anchorRef : undefined}
                   aria-label={`${effectLabel(event)} at ${formatTimestamp(event.startMs - startMs)}`}
-                  startMs={event.startMs - startMs}
-                  endMs={event.endMs - startMs}
+                  startMs={shownStart}
+                  endMs={shownEnd}
                   variant={disabled ? "muted" : "default"}
                   className={disabled ? undefined : row.className}
                   selected={index === selectedIndex}
                   onSelect={() => select(index)}
                   onDelete={() => remove(index)}
                   onChange={(start, end) => {
+                    const moving = start - shownStart === end - shownEnd
                     const next = moveWithin(
                       events,
                       index,
                       range,
-                      start + startMs,
-                      end + startMs
+                      {
+                        startMs:
+                          start === shownStart
+                            ? event.startMs
+                            : event.startMs + start - shownStart,
+                        endMs:
+                          end === shownEnd
+                            ? event.endMs
+                            : event.endMs + end - shownEnd,
+                      },
+                      moving
                     )
                     if (next) onChange(next)
                   }}
@@ -225,20 +254,29 @@ export function EffectsLane({
       ))}
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs text-muted-foreground">Add at playhead</span>
-        {ROWS.map((row) => (
-          <Button
-            key={row.kind}
-            type="button"
-            size="sm"
-            variant="outline"
-            aria-label={`Add ${row.label.toLowerCase()}`}
-            disabled={row.kind === "focus" && !hasWebcam}
-            onClick={() => add(row.kind, row.lengthMs)}
-          >
-            <PlusIcon data-icon="inline-start" aria-hidden />
-            {row.label}
-          </Button>
-        ))}
+        {ROWS.map((row) => {
+          const placed = placeAt(
+            events,
+            row.kind,
+            range,
+            currentMs,
+            row.lengthMs
+          )
+          return (
+            <Button
+              key={row.kind}
+              type="button"
+              size="sm"
+              variant="outline"
+              aria-label={`Add ${row.label.toLowerCase()}`}
+              disabled={!placed || (row.kind === "focus" && !hasWebcam)}
+              onClick={() => placed && add(row.kind, placed)}
+            >
+              <PlusIcon data-icon="inline-start" aria-hidden />
+              {row.label}
+            </Button>
+          )
+        })}
       </div>
       <Popover
         open={selected !== undefined}
@@ -249,7 +287,7 @@ export function EffectsLane({
             details.reason === "outside-press" &&
             target instanceof Element &&
             (rootRef.current?.contains(target) ||
-              target.closest(`[${EFFECT_FOCUS_PICKER}]`))
+              target.closest("[data-effect-focus-picker]"))
           ) {
             return
           }

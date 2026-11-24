@@ -4,7 +4,6 @@ import {
   ArrowCounterClockwiseIcon,
   DownloadSimpleIcon,
   FilmSlateIcon,
-  MagicWandIcon,
 } from "@phosphor-icons/react"
 import { useRouter } from "next/navigation"
 import * as React from "react"
@@ -56,15 +55,8 @@ import {
   resolveCaptionStyle,
   type CaptionFontId,
 } from "@/features/captions/styles"
-import {
-  resetClipEffectsAction,
-  setClipStatusAction,
-  updateClipAction,
-} from "@/features/clips/actions"
+import { setClipStatusAction, updateClipAction } from "@/features/clips/actions"
 import type { Clip } from "@/features/clips/repository"
-import { zoomFocusAt } from "@/features/effects/frame"
-import type { Effect } from "@/features/effects/schema"
-import { OUTPUT_HEIGHT, OUTPUT_WIDTH } from "@/features/layout/geometry"
 import {
   layoutModeSchema,
   usesWebcam,
@@ -77,8 +69,7 @@ import type { Word } from "@/features/transcription/schema"
 import { formatTimestamp } from "@/lib/format"
 
 import { CaptionStyleFields } from "./caption-style-fields"
-import { ClipPreview } from "./clip-preview"
-import { EFFECT_FOCUS_PICKER, EffectsLane } from "./effects-lane"
+import { ClipEffectsCard, ClipEffectsPreview } from "./clip-effects"
 import { useProjectEvents } from "./use-project-events"
 import {
   CamPositionField,
@@ -88,7 +79,6 @@ import {
 } from "./layout-editor"
 
 const WINDOW_PADDING_MS = 10_000
-const NO_EFFECTS: Effect[] = []
 
 type ClipEditorProps = {
   projectId: string
@@ -144,13 +134,6 @@ function TrimTimeline({
       <TimelinePlayhead />
     </Timeline>
   )
-}
-
-function PlayheadEffectsLane(
-  props: Omit<React.ComponentProps<typeof EffectsLane>, "currentMs">
-) {
-  const { currentMs } = useVideoPlayer()
-  return <EffectsLane currentMs={currentMs} {...props} />
 }
 
 function PlayheadButtons({
@@ -215,8 +198,6 @@ export function ClipEditor({
   const [selectedEffect, setSelectedEffect] = React.useState<number | null>(
     null
   )
-  const selectedZoom = effects?.events[selectedEffect ?? -1]
-  const editEffects = (events: Effect[]) => setEffects({ events, edited: true })
   const editLayout = (patch: Partial<LayoutInput>) =>
     setLayoutOverride((current) => ({
       ...(current ?? projectLayout),
@@ -309,36 +290,6 @@ export function ClipEditor({
       else toast.success("Rendering started")
       router.refresh()
     })
-
-  const resetEffects = () =>
-    startTransition(async () => {
-      const reset = await resetClipEffectsAction(projectId, clip.id)
-      if (!reset.ok) {
-        toast.error(reset.error.message)
-        return
-      }
-      setSelectedEffect(null)
-      setEffects(reset.value)
-    })
-
-  const setZoomFocus = (event: React.MouseEvent<HTMLButtonElement>) => {
-    if (!effects || selectedZoom?.kind !== "zoom") return
-    const rect = event.currentTarget.getBoundingClientRect()
-    if (!rect.width || !rect.height) return
-    const focus = zoomFocusAt(
-      layout,
-      { width: sourceWidth, height: sourceHeight },
-      {
-        x: ((event.clientX - rect.left) / rect.width) * OUTPUT_WIDTH,
-        y: ((event.clientY - rect.top) / rect.height) * OUTPUT_HEIGHT,
-      }
-    )
-    editEffects(
-      effects.events.map((effect) =>
-        effect === selectedZoom ? { ...selectedZoom, focus } : effect
-      )
-    )
-  }
 
   return (
     <VideoPlayerProvider>
@@ -434,50 +385,19 @@ export function ClipEditor({
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Effects</CardTitle>
-                <CardDescription>
-                  {effects === null
-                    ? "No effects yet. Add them at the playhead or plan them from the audio."
-                    : effects.edited
-                      ? "Edited by hand. Trimming keeps your effects."
-                      : "Planned from the audio. Trimming plans them again."}
-                </CardDescription>
-                <CardAction>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={pending || rendering}
-                    onClick={resetEffects}
-                  >
-                    {effects === null ? (
-                      <MagicWandIcon data-icon="inline-start" aria-hidden />
-                    ) : (
-                      <ArrowCounterClockwiseIcon
-                        data-icon="inline-start"
-                        aria-hidden
-                      />
-                    )}
-                    {effects === null
-                      ? "Add effects automatically"
-                      : "Reset to auto"}
-                  </Button>
-                </CardAction>
-              </CardHeader>
-              <CardContent>
-                <PlayheadEffectsLane
-                  startMs={startMs}
-                  endMs={endMs}
-                  events={effects?.events ?? NO_EFFECTS}
-                  hasWebcam={hasWebcam && Boolean(layout.webcamRect)}
-                  onChange={editEffects}
-                  selected={selectedEffect}
-                  onSelectedChange={setSelectedEffect}
-                />
-              </CardContent>
-            </Card>
+            <ClipEffectsCard
+              projectId={projectId}
+              clipId={clip.id}
+              startMs={startMs}
+              endMs={endMs}
+              layoutOverride={layoutOverride}
+              hasWebcam={hasWebcam && Boolean(layout.webcamRect)}
+              effects={effects}
+              onEffectsChange={setEffects}
+              selected={selectedEffect}
+              onSelectedChange={setSelectedEffect}
+              disabled={pending || rendering}
+            />
 
             <Card>
               <CardHeader>
@@ -660,25 +580,17 @@ export function ClipEditor({
         </div>
 
         <div className="flex flex-col gap-4">
-          <div className="relative mx-auto w-full max-w-[260px]">
-            <ClipPreview
-              layout={layout}
-              effects={effects?.events}
-              pages={pages}
-              startMs={startMs}
-              captionStyle={style}
-              captionsEnabled={settings.captionsEnabled}
-            />
-            {selectedZoom?.kind === "zoom" && (
-              <button
-                type="button"
-                aria-label="Set zoom focus"
-                {...{ [EFFECT_FOCUS_PICKER]: true }}
-                className="absolute inset-0 cursor-crosshair rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-                onClick={setZoomFocus}
-              />
-            )}
-          </div>
+          <ClipEffectsPreview
+            layout={layout}
+            source={{ width: sourceWidth, height: sourceHeight }}
+            effects={effects}
+            selected={selectedEffect}
+            onEffectsChange={setEffects}
+            pages={pages}
+            startMs={startMs}
+            captionStyle={style}
+            captionsEnabled={settings.captionsEnabled}
+          />
           <Card size="sm">
             <CardHeader>
               <CardTitle className="flex items-center justify-between gap-2">

@@ -91,20 +91,6 @@ function baseRegions(
   ]
 }
 
-export function zoomFocusAt(
-  layout: LayoutInput,
-  source: { width: number; height: number },
-  point: { x: number; y: number }
-): { x: number; y: number } {
-  const dest =
-    baseRegions(layout, source).find((region) => region.zoomable)?.dest ??
-    FULL_OUTPUT
-  return {
-    x: clamp((point.x - dest.x) / dest.w, 0, 1),
-    y: clamp((point.y - dest.y) / dest.h, 0, 1),
-  }
-}
-
 function zoomScale(
   zoom: Extract<Effect, { kind: "zoom" }>,
   tMs: number
@@ -152,6 +138,16 @@ function shakeCrop(
   }
 }
 
+function fullCamRect(
+  layout: LayoutInput,
+  events: readonly Effect[],
+  tMs: number
+) {
+  return usesWebcam(layout.mode) && activeEffect(events, "focus", tMs)
+    ? (layout.webcamRect ?? undefined)
+    : undefined
+}
+
 export function frameAt(
   layout: LayoutInput,
   source: { width: number; height: number },
@@ -162,13 +158,10 @@ export function frameAt(
   const withShake = (region: FrameRegion): FrameRegion =>
     shake ? { ...region, crop: shakeCrop(region.crop, shake, tMs) } : region
 
-  if (
-    usesWebcam(layout.mode) &&
-    layout.webcamRect &&
-    activeEffect(events, "focus", tMs)
-  ) {
+  const webcam = fullCamRect(layout, events, tMs)
+  if (webcam) {
     const crop = coverCrop(
-      toPixels(layout.webcamRect, source.width, source.height),
+      toPixels(webcam, source.width, source.height),
       OUTPUT_WIDTH / OUTPUT_HEIGHT
     )
     return { regions: [withShake({ crop, dest: FULL_OUTPUT })] }
@@ -186,5 +179,27 @@ export function frameAt(
           : region
       )
     ),
+  }
+}
+
+export function zoomFocusAt(
+  layout: LayoutInput,
+  source: { width: number; height: number },
+  events: readonly Effect[],
+  tMs: number,
+  point: { x: number; y: number }
+): { x: number; y: number } {
+  const base = baseRegions(layout, source)
+  const index = base.findIndex((region) => region.zoomable)
+  const gameplay = base[index]
+  if (!gameplay) return { x: 0.5, y: 0.5 }
+  const { crop, dest } = fullCamRect(layout, events, tMs)
+    ? gameplay
+    : frameAt(layout, source, events, tMs).regions[index]!
+  const sourceX = crop.x + ((point.x - dest.x) / dest.w) * crop.w
+  const sourceY = crop.y + ((point.y - dest.y) / dest.h) * crop.h
+  return {
+    x: clamp((sourceX - gameplay.crop.x) / gameplay.crop.w, 0, 1),
+    y: clamp((sourceY - gameplay.crop.y) / gameplay.crop.h, 0, 1),
   }
 }
