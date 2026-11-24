@@ -268,6 +268,12 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 - [x] Review fixes: a mode switch leaves untouched layouts' crops alone; changing a clip's layout re-plans its auto effects; read-only crop regions are inert
 - [ ] Hand check the gameplay box by eye on a real stream
 
+### Phase 28: YouTube cookies from Dia (ADR-0056)
+
+- [x] `YTDLP_COOKIES_FROM_BROWSER=dia[:profile]`: Nimbus decrypts Dia's YouTube/Google cookies (Keychain key, Chromium v10 format) into a temporary cookies.txt for each yt-dlp call and deletes it afterwards; other browsers still go to yt-dlp; doctor checks the profile's cookie DB
+- [x] Unit tests: spec parsing, key derivation and decryption (schema 23 and 24), Chromium timestamps, Netscape output
+- [x] Verified by hand: a real YouTube import that had failed the bot check downloads with `dia`
+
 ### Not verified
 
 - MediaPipe face detection on a real face (fixtures have none; the code path is unit tested and the model loads in e2e).
