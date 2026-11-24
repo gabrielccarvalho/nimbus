@@ -12,10 +12,6 @@ import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
-  CaptionPreview,
-  CaptionPreviewText,
-} from "@/components/ui/caption-preview"
-import {
   Card,
   CardAction,
   CardContent,
@@ -54,11 +50,8 @@ import {
   applyPageOverrides,
   buildCaptionPages,
   wordsInRange,
-  type CaptionPage,
 } from "@/features/captions/pages"
 import {
-  captionBaseline,
-  cssCaptionStyle,
   resolveCaptionStyle,
   type CaptionFontId,
 } from "@/features/captions/styles"
@@ -76,6 +69,7 @@ import type { Word } from "@/features/transcription/schema"
 import { formatTimestamp } from "@/lib/format"
 
 import { CaptionStyleFields } from "./caption-style-fields"
+import { ClipPreview } from "./clip-preview"
 import { useProjectEvents } from "./use-project-events"
 import {
   CamPositionField,
@@ -83,7 +77,6 @@ import {
   GameplayWindow,
   LAYOUT_MODES,
 } from "./layout-editor"
-import { VerticalPreviewCanvas } from "./vertical-preview"
 
 const WINDOW_PADDING_MS = 10_000
 
@@ -140,43 +133,6 @@ function TrimTimeline({
       />
       <TimelinePlayhead />
     </Timeline>
-  )
-}
-
-function ClipPreview({
-  layout,
-  pages,
-  startMs,
-  captionStyle,
-  captionsEnabled,
-}: {
-  layout: LayoutInput
-  pages: CaptionPage[]
-  startMs: number
-  captionStyle: ReturnType<typeof resolveCaptionStyle>
-  captionsEnabled: boolean
-}) {
-  const { currentMs } = useVideoPlayer()
-  return (
-    <CaptionPreview
-      role="img"
-      aria-label="Vertical preview with captions"
-      className="mx-auto max-w-[260px]"
-    >
-      <VerticalPreviewCanvas
-        layout={layout}
-        aria-hidden
-        className="absolute inset-0 size-full"
-      />
-      {captionsEnabled && (
-        <CaptionPreviewText
-          pages={pages}
-          currentMs={currentMs - startMs}
-          captionStyle={cssCaptionStyle(captionStyle)}
-          baseline={captionBaseline(captionStyle, layout)}
-        />
-      )}
-    </CaptionPreview>
   )
 }
 
