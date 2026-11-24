@@ -45,12 +45,86 @@ function CaptionPreview({
   )
 }
 
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value))
+
+function useBaselineDrag({
+  baseline,
+  min,
+  max,
+  onBaselineChange,
+}: {
+  baseline: number
+  min: number
+  max: number
+  onBaselineChange?: (baseline: number) => void
+}) {
+  const grab = React.useRef<{ offset: number; height: number; top: number }>(
+    null
+  )
+  if (!onBaselineChange) return {}
+  const change = (next: number) => onBaselineChange(clamp(next, min, max))
+  const percent = Math.round(baseline * 100)
+
+  return {
+    role: "slider",
+    tabIndex: 0,
+    "aria-orientation": "vertical" as const,
+    "aria-valuemin": Math.round(min * 100),
+    "aria-valuemax": Math.round(max * 100),
+    "aria-valuenow": percent,
+    "aria-valuetext": `${percent}% from the top`,
+    onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => {
+      const frame = event.currentTarget.parentElement?.getBoundingClientRect()
+      if (!frame?.height || event.button !== 0) return
+      event.preventDefault()
+      event.currentTarget.focus()
+      event.currentTarget.setPointerCapture(event.pointerId)
+      grab.current = {
+        top: frame.top,
+        height: frame.height,
+        offset: baseline - (event.clientY - frame.top) / frame.height,
+      }
+    },
+    onPointerMove: (event: React.PointerEvent<HTMLDivElement>) => {
+      const g = grab.current
+      if (!g) return
+      change((event.clientY - g.top) / g.height + g.offset)
+    },
+    onPointerUp: () => {
+      grab.current = null
+    },
+    onPointerCancel: () => {
+      grab.current = null
+    },
+    onKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => {
+      const step = event.shiftKey ? 0.05 : 0.01
+      const next = {
+        ArrowUp: baseline - step,
+        ArrowRight: baseline - step,
+        ArrowDown: baseline + step,
+        ArrowLeft: baseline + step,
+        PageUp: baseline - 0.1,
+        PageDown: baseline + 0.1,
+        Home: min,
+        End: max,
+      }[event.key]
+      if (next === undefined) return
+      event.preventDefault()
+      change(next)
+    },
+  }
+}
+
 function CaptionPreviewText({
   className,
   pages,
   currentMs,
   captionStyle,
   baseline,
+  minBaseline = 0.1,
+  maxBaseline = 0.95,
+  onBaselineChange,
   style,
   ...props
 }: React.ComponentProps<"div"> & {
@@ -58,7 +132,16 @@ function CaptionPreviewText({
   currentMs: number
   captionStyle: CaptionPreviewStyle
   baseline: number
+  minBaseline?: number
+  maxBaseline?: number
+  onBaselineChange?: (baseline: number) => void
 }) {
+  const drag = useBaselineDrag({
+    baseline,
+    min: minBaseline,
+    max: maxBaseline,
+    onBaselineChange,
+  })
   const page = pages.find((p) => currentMs >= p.startMs && currentMs < p.endMs)
   let active = -1
   page?.words.forEach((word, i) => {
@@ -113,10 +196,14 @@ function CaptionPreviewText({
   return (
     <div
       data-slot="caption-preview-text"
+      data-draggable={onBaselineChange ? "" : undefined}
       className={cn(
         "absolute inset-x-[5.5%] -translate-y-full text-center leading-[1.15] font-extrabold",
+        onBaselineChange &&
+          "min-h-[1.15em] cursor-grab touch-none rounded-md outline-none select-none hover:inset-ring-1 hover:inset-ring-white/40 focus-visible:inset-ring-2 focus-visible:inset-ring-lav active:cursor-grabbing",
         className
       )}
+      {...drag}
       style={{
         top: `${baseline * 100}%`,
         fontFamily: captionStyle.fontFamily,

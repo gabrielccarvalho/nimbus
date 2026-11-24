@@ -162,7 +162,7 @@ A lane of draggable blocks positioned by milliseconds, for editing time ranges (
 
 A 9:16 frame that shows the caption page at a given time, styled like the burned-in ASS output.
 
-- Parts: `CaptionPreview` (frame; a size container, so text scales with its width; put a background image or canvas inside), `CaptionPreviewText` (`pages`, `currentMs`, `captionStyle`, `baseline` 0–1 of the height).
+- Parts: `CaptionPreview` (frame; a size container, so text scales with its width; put a background image or canvas inside), `CaptionPreviewText` (`pages`, `currentMs`, `captionStyle`, `baseline` 0–1 of the height). Pass `onBaselineChange` (and an `aria-label`) to make the caption a vertical slider: drag it, or use the arrow keys (Shift for 5%), Page Up/Down, Home/End. `minBaseline`/`maxBaseline` default to 0.1/0.95. A frame holding a movable caption should be `role="group"`, not `img`.
 - Sizes are in 1080-wide output pixels and converted with `cqw`, so a 220 px preview matches the 1080 px render. `cssCaptionStyle()` from `features/captions/styles.ts` turns a caption preset into `captionStyle`.
 - The highlight is a color change only (no motion). The text is real DOM text, so it's readable by screen readers.
 

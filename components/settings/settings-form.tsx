@@ -18,6 +18,7 @@ import type { AppSettings } from "@/features/settings/schema"
 import { CaptionStyleFields } from "@/components/projects/caption-style-fields"
 import { CaptionStylePreview } from "@/components/projects/caption-style-preview"
 import {
+  placeCaption,
   resolveCaptionStyle,
   type CaptionFontId,
 } from "@/features/captions/styles"
@@ -135,6 +136,15 @@ export function SettingsForm({
             </div>
             <CaptionStylePreview
               style={resolveCaptionStyle(settings.captionStyle)}
+              onBaselineChange={
+                settings.captionsEnabled
+                  ? (baseline) =>
+                      set(
+                        "captionStyle",
+                        placeCaption(settings.captionStyle, baseline)
+                      )
+                  : undefined
+              }
               className="max-w-[220px] flex-[1_1_180px] rounded-2xl md:sticky md:top-6"
             />
           </div>

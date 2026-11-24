@@ -63,7 +63,9 @@ test("workspace caption defaults: style, font and position", async ({
   page,
 }) => {
   await page.goto(CAPTIONS)
-  await expect(page.getByRole("img", { name: "Caption preview" })).toBeVisible()
+  await expect(
+    page.getByRole("group", { name: "Caption preview" })
+  ).toBeVisible()
   await expectNoSeriousA11yViolations(page)
   await page.getByRole("button", { name: "Clean" }).click()
   await page
@@ -122,4 +124,36 @@ test("each project keeps its own settings and offers to re-run", async ({
 
   await page.goto(DEFAULTS)
   await expect(page.getByLabel("Clips to find")).toHaveValue("12")
+})
+
+test("drags workspace captions to a custom height", async ({ page }) => {
+  await page.goto(CAPTIONS)
+  const caption = page.getByRole("slider", { name: "Caption position" })
+  const frame = (await page
+    .getByRole("group", { name: "Caption preview" })
+    .boundingBox())!
+  const box = (await caption.boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width / 2, frame.y + frame.height * 0.2, {
+    steps: 6,
+  })
+  await page.mouse.up()
+  const position = page.getByRole("group", { name: "Position", exact: true })
+  await expect(
+    position.getByRole("button", { name: "Custom" })
+  ).toHaveAttribute("aria-pressed", "true")
+  const dragged = Number(await caption.getAttribute("aria-valuenow"))
+  expect(dragged).toBeLessThan(50)
+  await caption.press("ArrowDown")
+  await expect(caption).toHaveAttribute("aria-valuenow", String(dragged + 1))
+  await expectNoSeriousA11yViolations(page)
+  await page.getByRole("button", { name: "Save captions" }).click()
+  await expect(page.getByText("Captions saved")).toBeVisible()
+
+  await page.reload()
+  await expect(caption).toHaveAttribute("aria-valuenow", String(dragged + 1))
+  await position.getByRole("button", { name: "Auto" }).click()
+  await page.getByRole("button", { name: "Save captions" }).click()
+  await expect(page.getByText("Captions saved")).toBeVisible()
 })

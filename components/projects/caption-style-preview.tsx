@@ -25,9 +25,11 @@ const sampleWords = SAMPLE.split(" ").map((text, i) => ({
 
 export function CaptionStylePreview({
   style,
+  onBaselineChange,
   className,
 }: {
   style: CaptionStyle
+  onBaselineChange?: (baseline: number) => void
   className?: string
 }) {
   const page = React.useMemo(
@@ -40,7 +42,7 @@ export function CaptionStylePreview({
   )
   return (
     <CaptionPreview
-      role="img"
+      role={onBaselineChange ? "group" : "img"}
       aria-label="Caption preview"
       className={className}
     >
@@ -59,6 +61,8 @@ export function CaptionStylePreview({
         currentMs={page.words[Math.min(1, page.words.length - 1)]!.startMs}
         captionStyle={cssCaptionStyle(style)}
         baseline={captionBaseline(style, { mode: "cam-top" })}
+        onBaselineChange={onBaselineChange}
+        aria-label={onBaselineChange ? "Caption position" : undefined}
       />
     </CaptionPreview>
   )

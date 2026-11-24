@@ -39,6 +39,7 @@ export function ClipPreview({
   startMs,
   captionStyle,
   captionsEnabled,
+  onBaselineChange,
   className,
 }: {
   layout: LayoutInput
@@ -47,12 +48,14 @@ export function ClipPreview({
   startMs: number
   captionStyle: CaptionStyle
   captionsEnabled: boolean
+  onBaselineChange?: (baseline: number) => void
   className?: string
 }) {
   const { currentMs } = useVideoPlayer()
+  const placeable = captionsEnabled && Boolean(onBaselineChange)
   return (
     <CaptionPreview
-      role="img"
+      role={placeable ? "group" : "img"}
       aria-label="Vertical preview with captions"
       className={className}
     >
@@ -68,6 +71,8 @@ export function ClipPreview({
           currentMs={currentMs - startMs}
           captionStyle={cssCaptionStyle(captionStyle)}
           baseline={captionBaseline(captionStyle, layout)}
+          onBaselineChange={onBaselineChange}
+          aria-label={onBaselineChange ? "Caption position" : undefined}
         />
       )}
     </CaptionPreview>

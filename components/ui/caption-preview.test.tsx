@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { fireEvent, render, screen } from "@testing-library/react"
+import { describe, expect, it, vi } from "vitest"
 
 import { CaptionPreview, CaptionPreviewText } from "./caption-preview"
 
@@ -75,5 +75,41 @@ describe("CaptionPreview", () => {
     )!
     expect(line.style.background).toBe("rgb(10, 10, 10)")
     expect(line).toHaveTextContent("wait what")
+  })
+})
+
+describe("CaptionPreviewText placement", () => {
+  it("is a vertical slider only when it can be moved", () => {
+    renderAt(0)
+    expect(screen.queryByRole("slider")).toBeNull()
+
+    const onBaselineChange = vi.fn()
+    render(
+      <CaptionPreview>
+        <CaptionPreviewText
+          aria-label="Caption position"
+          pages={pages}
+          currentMs={0}
+          captionStyle={captionStyle}
+          baseline={0.5}
+          onBaselineChange={onBaselineChange}
+        />
+      </CaptionPreview>
+    )
+    const slider = screen.getByRole("slider", { name: "Caption position" })
+    expect(slider).toHaveAttribute("aria-orientation", "vertical")
+    expect(slider).toHaveAttribute("aria-valuenow", "50")
+    expect(slider).toHaveAttribute("aria-valuetext", "50% from the top")
+
+    fireEvent.keyDown(slider, { key: "ArrowUp" })
+    expect(onBaselineChange).toHaveBeenLastCalledWith(0.49)
+    fireEvent.keyDown(slider, { key: "ArrowDown", shiftKey: true })
+    expect(onBaselineChange).toHaveBeenLastCalledWith(0.55)
+    fireEvent.keyDown(slider, { key: "Home" })
+    expect(onBaselineChange).toHaveBeenLastCalledWith(0.1)
+    fireEvent.keyDown(slider, { key: "End" })
+    expect(onBaselineChange).toHaveBeenLastCalledWith(0.95)
+    fireEvent.keyDown(slider, { key: "a" })
+    expect(onBaselineChange).toHaveBeenCalledTimes(4)
   })
 })

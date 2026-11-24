@@ -76,7 +76,8 @@ export const captionStyleOverridesSchema = z.object({
   uppercase: z.boolean(),
   maxWordsPerPage: z.number().int().min(1).max(8),
   maxCharsPerLine: z.number().int().min(8).max(40),
-  position: z.enum(["auto", "top", "middle", "bottom"]),
+  position: z.enum(["auto", "top", "middle", "bottom", "custom"]),
+  positionY: z.number().min(0.1).max(0.95),
   highlight: z.boolean(),
 })
 export type CaptionStyleOverrides = z.infer<typeof captionStyleOverridesSchema>
@@ -102,6 +103,7 @@ export const CAPTION_PRESETS: readonly CaptionStyle[] = [
     maxWordsPerPage: 3,
     maxCharsPerLine: 16,
     position: "auto",
+    positionY: 0.72,
     highlight: true,
     text: "background",
     highlightColor: "primary",
@@ -119,6 +121,7 @@ export const CAPTION_PRESETS: readonly CaptionStyle[] = [
     maxWordsPerPage: 4,
     maxCharsPerLine: 28,
     position: "auto",
+    positionY: 0.72,
     highlight: true,
     text: "background",
     highlightColor: "primary",
@@ -136,6 +139,7 @@ export const CAPTION_PRESETS: readonly CaptionStyle[] = [
     maxWordsPerPage: 4,
     maxCharsPerLine: 24,
     position: "auto",
+    positionY: 0.72,
     highlight: true,
     text: "background",
     highlightColor: "primary",
@@ -168,10 +172,27 @@ export const BASELINE = {
   "no-cam-fill": 0.72,
 } as const
 
+export const CAPTION_BASELINE_RANGE = { min: 0.1, max: 0.95 } as const
+
+export function placeCaption(
+  ref: { presetId: string; overrides?: Record<string, unknown> },
+  baseline: number
+) {
+  const { min, max } = CAPTION_BASELINE_RANGE
+  const positionY =
+    Math.round(Math.min(max, Math.max(min, baseline)) * 200) / 200
+  return {
+    ...ref,
+    overrides: { ...ref.overrides, position: "custom" as const, positionY },
+  }
+}
+
 export function captionBaseline(
-  style: Pick<CaptionStyle, "position">,
+  style: Pick<CaptionStyle, "position"> & { positionY?: number },
   layout: { mode: keyof typeof BASELINE; camPosition?: "top" | "bottom" }
 ) {
+  if (style.position === "custom" && style.positionY !== undefined)
+    return style.positionY
   if (style.position === "top") return 0.22
   if (style.position === "middle") return 0.55
   if (style.position === "bottom") return 0.86

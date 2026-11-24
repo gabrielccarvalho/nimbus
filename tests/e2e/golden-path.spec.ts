@@ -63,7 +63,7 @@ test("upload, confirm layout, render, download and edit a clip", async ({
   await expect(page.getByLabel("Title")).toBeVisible()
   await expect(page.getByTestId("clip-status")).toHaveText("Up to date")
   await expect(
-    page.getByRole("img", { name: "Vertical preview with captions" })
+    page.getByRole("group", { name: "Vertical preview with captions" })
   ).toBeVisible()
   const saveState = page.getByTestId("save-state")
   await page.getByLabel("Title").fill("My best moment")
