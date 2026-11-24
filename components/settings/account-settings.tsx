@@ -685,7 +685,7 @@ export function ChannelList({ channels }: { channels: ChannelRow[] }) {
               <StatusPill tone="neutral">
                 {channel.providerId ? "Not set up" : "Soon"}
               </StatusPill>
-            ) : channel.connectedAt ? (
+            ) : channel.connectedAt || channel.needsReconnect ? (
               <>
                 {channel.needsReconnect ? (
                   <>
@@ -702,15 +702,17 @@ export function ChannelList({ channels }: { channels: ChannelRow[] }) {
                 ) : (
                   <StatusPill tone="mint">Connected</StatusPill>
                 )}
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={pending}
-                  aria-label={`Disconnect ${channel.name}`}
-                  onClick={() => disconnect(channel)}
-                >
-                  Disconnect
-                </Button>
+                {channel.connectedAt && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={pending}
+                    aria-label={`Disconnect ${channel.name}`}
+                    onClick={() => disconnect(channel)}
+                  >
+                    Disconnect
+                  </Button>
+                )}
               </>
             ) : (
               <Button

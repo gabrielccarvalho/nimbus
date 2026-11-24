@@ -15,11 +15,14 @@ const FRESH_FOR_MS = 60_000
 export const RECONNECT_MESSAGE =
   "Reconnect YouTube in Settings › Connected channels"
 
-export function googleAccessToken(
+export async function googleAccessToken(
   db: Db,
   channel: YouTubeChannel,
   opts: { force?: boolean } = {}
 ): Promise<string> {
+  if (!channel.accountId) {
+    throw new AppError("UNAUTHORIZED", RECONNECT_MESSAGE)
+  }
   return accessTokenForAccount(db, channel.accountId, {
     force: opts.force,
     onRevoked: () =>

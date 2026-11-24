@@ -3,6 +3,7 @@ import "server-only"
 import { headers } from "next/headers"
 import { connection } from "next/server"
 
+import { publishingRepository } from "@/features/publishing/repository"
 import { syncYouTubeChannel } from "@/features/publishing/service"
 import { getDb } from "@/lib/db"
 
@@ -80,7 +81,10 @@ export async function getChannelSettings() {
   const { channel, error: channelError } =
     google && youtubeConnected
       ? await syncYouTubeChannel(getDb(), workspace.id, google)
-      : { channel: undefined, error: null }
+      : {
+          channel: await publishingRepository(getDb()).getChannel(workspace.id),
+          error: null,
+        }
   return [
     {
       id: "youtube" as const,

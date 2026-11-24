@@ -317,9 +317,9 @@ export const youtubeChannels = pgTable("youtube_channels", {
     .notNull()
     .unique()
     .references(() => workspaces.id, { onDelete: "cascade" }),
-  accountId: text("account_id")
-    .notNull()
-    .references(() => account.id, { onDelete: "cascade" }),
+  accountId: text("account_id").references(() => account.id, {
+    onDelete: "set null",
+  }),
   channelId: text("channel_id").notNull(),
   title: text("title").notNull(),
   thumbnailUrl: text("thumbnail_url"),
@@ -334,9 +334,9 @@ export const publications = pgTable(
     clipId: text("clip_id")
       .notNull()
       .references(() => clips.id, { onDelete: "cascade" }),
-    channelId: text("channel_id")
-      .notNull()
-      .references(() => youtubeChannels.id, { onDelete: "cascade" }),
+    channelId: text("channel_id").references(() => youtubeChannels.id, {
+      onDelete: "set null",
+    }),
     renderAssetId: text("render_asset_id").references(() => assets.id, {
       onDelete: "set null",
     }),

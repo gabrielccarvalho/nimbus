@@ -387,6 +387,20 @@ describe("publish_clip", () => {
     expect(after.error).toBeNull()
   })
 
+  it("fails with the reconnect message when Google was unlinked", async () => {
+    const { repo, channel, publication } = await seed()
+    await env.db.delete(account).where(eq(account.id, channel.accountId!))
+    const start = vi.spyOn(getYouTubeClient(), "startUpload")
+
+    await runPublish()
+
+    const saved = (await repo.getPublication(publication.id))!
+    expect(saved.status).toBe("failed")
+    expect(saved.error).toMatch(/^Reconnect YouTube/)
+    expect(saved.channelId).toBe(channel.id)
+    expect(start).not.toHaveBeenCalled()
+  })
+
   it("cancels the job when the clip is deleted", async () => {
     const { clip, job } = await seed()
     await env.db.delete(clips).where(eq(clips.id, clip.id))

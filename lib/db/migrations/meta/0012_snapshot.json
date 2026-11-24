@@ -1,5 +1,5 @@
 {
-  "id": "dd4d6bf1-3be3-45b9-a3c3-c77a9cfb4ef1",
+  "id": "7929734b-7732-4d09-bf93-45dc3f0c1ecb",
   "prevId": "ee90f51c-bf81-48bd-a67e-9ff771f1a58c",
   "version": "7",
   "dialect": "postgresql",
@@ -954,7 +954,7 @@
           "name": "channel_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "render_asset_id": {
           "name": "render_asset_id",
@@ -1058,7 +1058,7 @@
           "tableTo": "youtube_channels",
           "columnsFrom": ["channel_id"],
           "columnsTo": ["id"],
-          "onDelete": "cascade",
+          "onDelete": "set null",
           "onUpdate": "no action"
         },
         "publications_render_asset_id_assets_id_fk": {
@@ -1856,7 +1856,7 @@
           "name": "account_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "channel_id": {
           "name": "channel_id",
@@ -1915,7 +1915,7 @@
           "tableTo": "account",
           "columnsFrom": ["account_id"],
           "columnsTo": ["id"],
-          "onDelete": "cascade",
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },

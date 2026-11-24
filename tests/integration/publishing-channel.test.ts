@@ -1,6 +1,10 @@
+import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { YOUTUBE_SCOPES } from "@/features/accounts/schema"
+import { clipRepository } from "@/features/clips/repository"
+import { projectRepository } from "@/features/projects/repository"
+import { defaultProjectSettings } from "@/features/projects/schema"
 import { publishingRepository } from "@/features/publishing/repository"
 import {
   ensureYouTubeChannel,
@@ -163,5 +167,63 @@ describe("syncYouTubeChannel", () => {
     expect(result.error).toBeNull()
     expect(result.channel?.channelId).toBe("UC-fake")
     expect(myChannel).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe("unlinking Google", () => {
+  it("keeps the channel and its publications, and reconnecting re-attaches it", async () => {
+    const { workspaceId, google } = await seed(YOUTUBE_SCOPES)
+    const repo = publishingRepository(env.db)
+    const channel = (await ensureYouTubeChannel(env.db, workspaceId, google))!
+    const project = await projectRepository(env.db).create({
+      workspaceId,
+      name: "Stream",
+      settings: defaultProjectSettings,
+    })
+    const [clip] = await clipRepository(env.db).replaceCandidates(project.id, [
+      { startMs: 0, endMs: 20_000, title: "A", score: 0.5 },
+    ])
+    const publication = await repo.createPublication({
+      clipId: clip!.id,
+      channelId: channel.id,
+      metadata: {
+        title: "Clutch",
+        description: "",
+        tags: [],
+        privacy: "private",
+        publishAt: null,
+      },
+      status: "published",
+    })
+
+    await env.db.delete(account).where(eq(account.id, google.id))
+
+    const kept = await repo.getChannel(workspaceId)
+    expect(kept).toMatchObject({
+      id: channel.id,
+      accountId: null,
+      status: "needs_reconnect",
+    })
+    expect(await repo.getPublication(publication.id)).toMatchObject({
+      channelId: channel.id,
+      status: "published",
+    })
+    expect(await repo.countPublished(channel.id)).toBe(1)
+
+    const relinked = await seed(YOUTUBE_SCOPES)
+    const reattached = await ensureYouTubeChannel(
+      env.db,
+      workspaceId,
+      relinked.google
+    )
+    expect(reattached).toMatchObject({
+      id: channel.id,
+      accountId: relinked.google.id,
+      status: "ok",
+    })
+    expect(await repo.getChannel(workspaceId)).toMatchObject({
+      accountId: relinked.google.id,
+      status: "ok",
+    })
   })
 })

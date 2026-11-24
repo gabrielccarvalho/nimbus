@@ -38,6 +38,8 @@ export function publishingRepository(db: Db) {
         .select()
         .from(youtubeChannels)
         .where(eq(youtubeChannels.workspaceId, workspaceId))
+      // Unlinking Google nulls accountId; the channel stays until reconnected.
+      if (row && !row.accountId) return { ...row, status: "needs_reconnect" }
       return row
     },
 

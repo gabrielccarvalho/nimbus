@@ -35,7 +35,7 @@ export async function ensureYouTubeChannel(
 
   const repo = publishingRepository(db)
   const existing = await repo.getChannel(workspaceId)
-  if (existing) {
+  if (existing?.accountId) {
     if (
       existing.status === "needs_reconnect" &&
       googleAccount.updatedAt > existing.updatedAt
@@ -53,7 +53,7 @@ export async function ensureYouTubeChannel(
     units: LIST_UNITS,
     budget: getEnv().YOUTUBE_DAILY_QUOTA,
   })
-  if (!booked) return undefined
+  if (!booked) return existing
 
   const token = await accessTokenForAccount(db, googleAccount.id)
   const info = await getYouTubeClient().myChannel(token)

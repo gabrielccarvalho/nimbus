@@ -26,7 +26,10 @@ export async function getYouTubeChannelCard() {
   )
   const { channel, error } = google
     ? await syncYouTubeChannel(db, workspace.id, google)
-    : { channel: undefined, error: null }
+    : {
+        channel: await publishingRepository(db).getChannel(workspace.id),
+        error: null,
+      }
   if (!channel) return { channel: null, error }
   return {
     channel: {
