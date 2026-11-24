@@ -125,7 +125,7 @@ describe("effectsGraph", () => {
           focus: { x: 0.5, y: 0.5 },
         },
         { kind: "shake", startMs: 16_000, endMs: 16_600, intensity: "strong" },
-        { kind: "focus", startMs: 21_000, endMs: 24_500 },
+        { kind: "focus", startMs: 21_000, endMs: 24_500, target: "cam" },
       ],
       startMs: 12_000,
       endMs: 41_500,
@@ -134,6 +134,32 @@ describe("effectsGraph", () => {
       subtitles,
     })
     await expect(graph).toMatchFileSnapshot("./__golden__/effects-cam-top.txt")
+  })
+
+  it("builds full game with a zoom on cam-top", async () => {
+    const graph = effectsGraph({
+      layout: { ...camTop, gameplayFocusX: 0.3 },
+      source,
+      events: [
+        { kind: "focus", startMs: 13_000, endMs: 16_000, target: "game" },
+        {
+          kind: "zoom",
+          startMs: 14_000,
+          endMs: 15_000,
+          scale: 1.5,
+          focus: { x: 0.4, y: 0.5 },
+        },
+        { kind: "focus", startMs: 18_000, endMs: 19_000, target: "cam" },
+      ],
+      startMs: 12_000,
+      endMs: 20_000,
+      fps: 30,
+      commandsFile: "/data/work/c1.cmds.txt",
+      subtitles,
+    })
+    await expect(graph).toMatchFileSnapshot(
+      "./__golden__/effects-full-game.txt"
+    )
   })
 
   const zoomAndShake = [
@@ -191,7 +217,9 @@ describe("effectsGraph", () => {
     const graph = effectsGraph({
       layout: camTop,
       source,
-      events: [{ kind: "focus", startMs: 13_000, endMs: 15_000 }],
+      events: [
+        { kind: "focus", startMs: 13_000, endMs: 15_000, target: "cam" },
+      ],
       startMs: 12_000,
       endMs: 20_000,
       fps: 30,
@@ -238,7 +266,9 @@ describe("effectCommands", () => {
       effectCommands({
         ...base,
         layout: { ...layout, webcamRect: null, mode: "no-cam-blur-fill" },
-        events: [{ kind: "focus", startMs: 11_000, endMs: 12_000 }],
+        events: [
+          { kind: "focus", startMs: 11_000, endMs: 12_000, target: "cam" },
+        ],
       })
     ).toBe("")
   })
@@ -267,11 +297,29 @@ describe("effectCommands", () => {
     )
   })
 
+  it("drives the full game slot through a zoom", () => {
+    const commands = effectCommands({
+      ...base,
+      events: [
+        { kind: "focus", startMs: 10_500, endMs: 13_500, target: "game" },
+        {
+          kind: "zoom",
+          startMs: 11_000,
+          endMs: 13_000,
+          scale: 1.4,
+          focus: { x: 0.5, y: 0.5 },
+        },
+      ],
+    })
+    expect(commands).toContain("scale@e2 w")
+    expect(commands).not.toContain("@e3")
+  })
+
   it("moves every frame while shaking and drives the focus slot", () => {
     const commands = effectCommands({
       ...base,
       events: [
-        { kind: "focus", startMs: 11_000, endMs: 12_000 },
+        { kind: "focus", startMs: 11_000, endMs: 12_000, target: "cam" },
         { kind: "shake", startMs: 11_000, endMs: 11_500, intensity: "light" },
       ],
     })

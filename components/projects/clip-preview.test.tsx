@@ -21,7 +21,9 @@ const layout: LayoutInput = {
 
 const captionStyle = resolveCaptionStyle({ presetId: "" })
 
-const effects: Effect[] = [{ kind: "focus", startMs: 2000, endMs: 4000 }]
+const effects: Effect[] = [
+  { kind: "focus", startMs: 2000, endMs: 4000, target: "cam" },
+]
 
 let time = 0
 const drawImage = vi.fn()

@@ -46,6 +46,7 @@ function focusAround(ms: number): FocusEffect {
     kind: "focus",
     startMs: ms - PLANNER.focusLeadMs,
     endMs: ms + PLANNER.focusTailMs,
+    target: "cam",
   }
 }
 

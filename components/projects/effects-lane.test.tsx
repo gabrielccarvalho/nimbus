@@ -39,7 +39,7 @@ describe("EffectsLane", () => {
 
   it("deleting a block removes the event", async () => {
     const events: Effect[] = [
-      { kind: "focus", startMs: 12_000, endMs: 14_000 },
+      { kind: "focus", startMs: 12_000, endMs: 14_000, target: "cam" },
       { kind: "shake", startMs: 20_000, endMs: 20_500, intensity: "light" },
     ]
     const { onChange, user } = setup({ events })
@@ -90,7 +90,9 @@ describe("EffectsLane", () => {
   it("mutes full cam blocks without a webcam", () => {
     setup({
       hasWebcam: false,
-      events: [{ kind: "focus", startMs: 12_000, endMs: 14_000 }],
+      events: [
+        { kind: "focus", startMs: 12_000, endMs: 14_000, target: "cam" },
+      ],
     })
     expect(
       screen.getByRole("button", { name: "Full cam at 0:02.0" })
@@ -116,25 +118,31 @@ describe("EffectsLane", () => {
 
   it("adds into the free gap without touching neighbours", async () => {
     const events: Effect[] = [
-      { kind: "focus", startMs: 16_000, endMs: 17_000 },
-      { kind: "focus", startMs: 18_000, endMs: 22_000 },
+      { kind: "focus", startMs: 16_000, endMs: 17_000, target: "cam" },
+      { kind: "focus", startMs: 18_000, endMs: 22_000, target: "cam" },
     ]
     const { onChange, user } = setup({ events })
     await user.click(screen.getByRole("button", { name: "Add full cam" }))
     expect(onChange).toHaveBeenCalledWith([
       ...events,
-      { kind: "focus", startMs: 17_000, endMs: 18_000 },
+      { kind: "focus", startMs: 17_000, endMs: 18_000, target: "cam" },
     ])
   })
 
   it("can't add where the playhead is inside a block of that kind", () => {
-    setup({ events: [{ kind: "focus", startMs: 17_000, endMs: 18_000 }] })
+    setup({
+      events: [
+        { kind: "focus", startMs: 17_000, endMs: 18_000, target: "cam" },
+      ],
+    })
     expect(screen.getByRole("button", { name: "Add full cam" })).toBeDisabled()
     expect(screen.getByRole("button", { name: "Add zoom" })).toBeEnabled()
   })
 
   it("clamps blocks that run past the clip to the track", () => {
-    setup({ events: [{ kind: "focus", startMs: 8000, endMs: 12_000 }] })
+    setup({
+      events: [{ kind: "focus", startMs: 8000, endMs: 12_000, target: "cam" }],
+    })
     const block = screen.getByRole("button", { name: /^Full cam at/ })
     expect(block.style.left).toBe("0%")
     expect(block.style.width).toBe("10%")

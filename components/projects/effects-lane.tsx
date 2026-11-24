@@ -61,7 +61,7 @@ function createEffect(
     return { kind, startMs, endMs, scale: 1.4, focus: { x: 0.5, y: 0.5 } }
   }
   if (kind === "shake") return { kind, startMs, endMs, intensity: "light" }
-  return { kind, startMs, endMs }
+  return { kind, startMs, endMs, target: "cam" }
 }
 
 function effectLabel(effect: Effect) {

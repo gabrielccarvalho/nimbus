@@ -6,6 +6,7 @@ import { clipRepository } from "@/features/clips/repository"
 import { setClipReviewStatus } from "@/features/clips/service"
 import { frameAt, type FrameRegion } from "@/features/effects/frame"
 import type { Effect } from "@/features/effects/schema"
+import { coverCrop, toPixels } from "@/features/layout/geometry"
 import type { LayoutInput } from "@/features/layout/schema"
 import { confirmLayout } from "@/features/layout/service"
 import {
@@ -284,13 +285,16 @@ describe("render_clip with effects", () => {
   const focusFromS = 3
   const insideS = 4.5
 
-  const focusFrom = (startMs: number): Effect[] => [
-    {
-      kind: "focus",
-      startMs: startMs + focusFromS * 1000,
-      endMs: startMs + (focusFromS + 3) * 1000,
-    },
-  ]
+  const focusFrom =
+    (target: "cam" | "game" = "cam") =>
+    (startMs: number): Effect[] => [
+      {
+        kind: "focus",
+        startMs: startMs + focusFromS * 1000,
+        endMs: startMs + (focusFromS + 3) * 1000,
+        target,
+      },
+    ]
 
   async function renderWith(
     events: ((startMs: number) => Effect[]) | null,
@@ -314,12 +318,12 @@ describe("render_clip with effects", () => {
 
   it("renders a focus range as webcam content", async () => {
     const plain = await renderWith(null)
-    const focused = await renderWith(focusFrom)
+    const focused = await renderWith(focusFrom())
 
     const { crop } = frameAt(
       camTop,
       { width: 1920, height: 1080 },
-      [{ kind: "focus", startMs: 0, endMs: 1 }],
+      [{ kind: "focus", startMs: 0, endMs: 1, target: "cam" }],
       0
     ).regions[0]!
     const band = { x: 0, y: 800, w: 1080, h: 300 }
@@ -347,6 +351,35 @@ describe("render_clip with effects", () => {
     ).toBeGreaterThan(10)
     expect(
       bandDiff(grayFrame(plain.file, 1), grayFrame(focused.file, 1), 0, 1920)
+    ).toBeLessThan(1.5)
+  })
+
+  it("renders a full game range as gameplay only", async () => {
+    const plain = await renderWith(null)
+    const full = await renderWith(focusFrom("game"))
+
+    const crop = coverCrop(
+      toPixels(camTop.gameplayRect, 1920, 1080),
+      1080 / 1920,
+      camTop.gameplayFocusX
+    )
+    const band = { x: 0, y: 100, w: 1080, h: 400 }
+    const gameplay = columnColors(
+      rawFrame(fixtures.wide, full.clip.startMs / 1000 + insideS, "rgb24"),
+      1920,
+      {
+        x: Math.round(crop.x),
+        y: Math.round(crop.y + (crop.h * band.y) / 1920),
+        w: Math.round(crop.w),
+        h: Math.round((crop.h * band.h) / 1920),
+      }
+    )
+    const at = (file: string) =>
+      columnColors(rawFrame(file, insideS, "rgb24"), 1080, band)
+    expect(colorDistance(at(full.file), gameplay)).toBeLessThan(15)
+    expect(colorDistance(at(plain.file), gameplay)).toBeGreaterThan(40)
+    expect(
+      bandDiff(grayFrame(plain.file, 1), grayFrame(full.file, 1), 0, 1920)
     ).toBeLessThan(1.5)
   })
 
@@ -382,7 +415,7 @@ describe("render_clip with effects", () => {
 
   it("ignores focus when the clip's layout has no webcam", async () => {
     const plain = await renderWith(null, noCam)
-    const focused = await renderWith(focusFrom, noCam)
+    const focused = await renderWith(focusFrom(), noCam)
     expect(
       bandDiff(
         grayFrame(plain.file, insideS),

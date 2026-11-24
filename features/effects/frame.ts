@@ -154,14 +154,28 @@ function shakeCrop(
   }
 }
 
-function fullCamRect(
+function focusRegion(
   layout: LayoutInput,
+  source: { width: number; height: number },
   events: readonly Effect[],
   tMs: number
-) {
-  return usesWebcam(layout.mode) && activeEffect(events, "focus", tMs)
-    ? (layout.webcamRect ?? undefined)
-    : undefined
+): Planned | undefined {
+  const focus = activeEffect(events, "focus", tMs)
+  if (!focus || !usesWebcam(layout.mode) || !layout.webcamRect) return
+  const game = focus.target === "game"
+  return {
+    crop: coverCrop(
+      toPixels(
+        game ? layout.gameplayRect : layout.webcamRect,
+        source.width,
+        source.height
+      ),
+      OUTPUT_WIDTH / OUTPUT_HEIGHT,
+      game ? layout.gameplayFocusX : undefined
+    ),
+    dest: FULL_OUTPUT,
+    zoomable: game,
+  }
 }
 
 export function frameAt(
@@ -171,29 +185,20 @@ export function frameAt(
   tMs: number
 ): Frame {
   const shake = activeEffect(events, "shake", tMs)
-  const withShake = (region: FrameRegion): FrameRegion =>
-    shake ? { ...region, crop: shakeCrop(region.crop, shake, tMs) } : region
-
-  const webcam = fullCamRect(layout, events, tMs)
-  if (webcam) {
-    const crop = coverCrop(
-      toPixels(webcam, source.width, source.height),
-      OUTPUT_WIDTH / OUTPUT_HEIGHT
-    )
-    return { regions: [withShake({ crop, dest: FULL_OUTPUT })] }
-  }
-
   const zoom = activeEffect(events, "zoom", tMs)
+  const focus = focusRegion(layout, source, events, tMs)
   return {
-    regions: baseRegions(layout, source).map(({ zoomable, ...region }) =>
-      withShake(
-        zoom && zoomable
-          ? {
-              ...region,
-              crop: zoomCrop(region.crop, zoomScale(zoom, tMs), zoom.focus),
-            }
-          : region
-      )
+    regions: (focus ? [focus] : baseRegions(layout, source)).map(
+      ({ zoomable, ...region }) => {
+        const zoomed =
+          zoom && zoomable
+            ? zoomCrop(region.crop, zoomScale(zoom, tMs), zoom.focus)
+            : region.crop
+        return {
+          ...region,
+          crop: shake ? shakeCrop(zoomed, shake, tMs) : zoomed,
+        }
+      }
     ),
   }
 }
@@ -205,13 +210,15 @@ export function zoomFocusAt(
   tMs: number,
   point: { x: number; y: number }
 ): { x: number; y: number } {
-  const base = baseRegions(layout, source)
-  const index = base.findIndex((region) => region.zoomable)
-  const gameplay = base[index]
+  const focus = focusRegion(layout, source, events, tMs)
+  const planned = focus?.zoomable ? [focus] : baseRegions(layout, source)
+  const index = planned.findIndex((region) => region.zoomable)
+  const gameplay = planned[index]
   if (!gameplay) return { x: 0.5, y: 0.5 }
-  const { crop, dest } = fullCamRect(layout, events, tMs)
-    ? gameplay
-    : frameAt(layout, source, events, tMs).regions[index]!
+  const { crop, dest } =
+    focus && !focus.zoomable
+      ? gameplay
+      : frameAt(layout, source, events, tMs).regions[index]!
   const sourceX = crop.x + ((point.x - dest.x) / dest.w) * crop.w
   const sourceY = crop.y + ((point.y - dest.y) / dest.h) * crop.h
   return {

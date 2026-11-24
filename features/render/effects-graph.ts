@@ -32,11 +32,14 @@ const FIELDS = [
   ["crop", "y"],
 ] as const
 
-function hasFocusSlot({ layout, events }: EffectsInput) {
-  return (
-    usesWebcam(layout.mode) &&
-    !!layout.webcamRect &&
-    events.some((event) => event.kind === "focus")
+type FocusTarget = Extract<Effect, { kind: "focus" }>["target"]
+
+const FOCUS_TARGETS = ["cam", "game"] as const satisfies FocusTarget[]
+
+function focusTargets({ layout, events }: EffectsInput) {
+  if (!usesWebcam(layout.mode) || !layout.webcamRect) return []
+  return FOCUS_TARGETS.filter((target) =>
+    events.some((event) => event.kind === "focus" && event.target === target)
   )
 }
 
@@ -46,18 +49,18 @@ function slotsAt(
   events = input.events
 ): FrameRegion[] {
   const { layout, source } = input
-  const regions = frameAt(
-    layout,
-    source,
-    events.filter((event) => event.kind !== "focus"),
-    tMs
-  ).regions
-  if (!hasFocusSlot(input)) return regions
-  const focus: Effect = { kind: "focus", startMs: tMs, endMs: tMs + 1 }
-  const shakes = events.filter((event) => event.kind === "shake")
+  const unfocused = events.filter((event) => event.kind !== "focus")
   return [
-    ...regions,
-    ...frameAt(layout, source, [focus, ...shakes], tMs).regions,
+    ...frameAt(layout, source, unfocused, tMs).regions,
+    ...focusTargets(input).flatMap((target) => {
+      const focus: Effect = {
+        kind: "focus",
+        startMs: tMs,
+        endMs: tMs + 1,
+        target,
+      }
+      return frameAt(layout, source, [focus, ...unfocused], tMs).regions
+    }),
   ]
 }
 
@@ -105,11 +108,12 @@ export function effectCommands(input: EffectsInput): string {
   return entries.join("")
 }
 
-function focusEnable(input: EffectsInput) {
+function focusEnable(input: EffectsInput, target: FocusTarget) {
   const { events, startMs, fps } = input
   const edge = (k: number) => seconds(Math.max(0, ((k - 0.5) * 1000) / fps))
   const on = frameOffsets(input).map(
-    (offsetMs) => !!activeEffect(events, "focus", startMs + offsetMs)
+    (offsetMs) =>
+      activeEffect(events, "focus", startMs + offsetMs)?.target === target
   )
   const ranges: string[] = []
   let from = 0
@@ -148,8 +152,8 @@ export function effectsGraph({
   const from = seconds(offsetMs)
   const to = seconds(offsetMs + endMs - startMs)
   const slots = slotsAt(input, startMs, [])
-  const focus = hasFocusSlot(input)
-  const stacked = focus ? slots.slice(0, -1) : slots
+  const targets = focusTargets(input)
+  const stacked = slots.slice(0, slots.length - targets.length)
   const tail = `format=yuv420p${subtitleFilter(subtitles)}[v]`
   const splits = slots.map((_, i) => `[s${i}]`).join("")
   const sendcmd = commandsFile
@@ -159,10 +163,14 @@ export function effectsGraph({
   return [
     `[0:v]trim=start=${from}:end=${to},setpts=PTS-STARTPTS,fps=${fps},${sendcmd}split=${slots.length}${splits}`,
     ...slots.map(branch),
-    ...(focus
+    ...(targets.length > 0
       ? [
           `${composite(stacked)}[stack]`,
-          `[stack][r${stacked.length}]overlay=0:0:enable='${focusEnable(input)}',${tail}`,
+          ...targets.map((target, j) => {
+            const under = j === 0 ? "stack" : targets[j - 1]
+            const out = j === targets.length - 1 ? `,${tail}` : `[${target}]`
+            return `[${under}][r${stacked.length + j}]overlay=0:0:enable='${focusEnable(input, target)}'${out}`
+          }),
         ]
       : [`${composite(stacked)},${tail}`]),
     `[0:a]atrim=start=${from}:end=${to},asetpts=PTS-STARTPTS[a]`,
