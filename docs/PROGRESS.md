@@ -288,6 +288,7 @@ Spec: Claude Design handoff (`~/Downloads/nimbus-redesign-handoff/design/`). Aut
 - [x] 8. Settings: Project defaults (language and niche side by side, selector cards, lengths, catchphrases, auto effects) and Captions & rendering (captions, style, quality, hardware encoding) as two sections, with Captions & rendering in the sub-nav. Project settings stay in the ProjectHeader sheet (step 2). The Claude selector now points to the workspace key in Sign-in & security
 - [x] Sidebar: no New project button (N still opens the import card), the plan name in the usage card, Channels goes to a coming-soon page
 - [x] Profile photo and workspace logo (ADR-0062)
+- [x] Connected channels with their logos and no per-row blurb; sessions as a list with Sign out on each. Session tokens no longer reach the browser: sessions are revoked by id on the server
 - [x] Admin plan: accounts on `@nimbus.dev` get a workspace on the Admin plan with no limits (ADR-0061); migration 0010 moves existing ones over
 
 ### Not verified

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { decryptSecret, encryptSecret } from "@/features/accounts/crypto"
 import { accountRepository } from "@/features/accounts/repository"
 import {
+  describeDevice,
   initials,
   keyHint,
   planForEmail,
@@ -214,6 +215,32 @@ describe("admin plan", () => {
     )
     expect(plans[existing.id]).toBe("admin")
     expect(plans[other.id]).toBe("free")
+  })
+})
+
+describe("describeDevice", () => {
+  it("names the browser and system, phones first", () => {
+    expect(
+      describeDevice(
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36"
+      )
+    ).toEqual({ browser: "Chrome", os: "macOS", mobile: false })
+    expect(
+      describeDevice(
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/131.0 Mobile/15E148 Safari/604.1"
+      )
+    ).toEqual({ browser: "Chrome", os: "iOS", mobile: true })
+    expect(
+      describeDevice(
+        "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Mobile Safari/537.36"
+      )
+    ).toEqual({ browser: "Chrome", os: "Android", mobile: true })
+    expect(
+      describeDevice(
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0"
+      )
+    ).toEqual({ browser: "Firefox", os: "Windows", mobile: false })
+    expect(describeDevice(null)).toBeNull()
   })
 })
 

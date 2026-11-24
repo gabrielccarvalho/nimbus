@@ -90,3 +90,13 @@ test("unknown pages show a styled 404", async ({ page }) => {
   await expect(page.getByRole("link", { name: "All projects" })).toBeVisible()
   await expectNoSeriousA11yViolations(page)
 })
+
+test("connected channels show each network", async ({ page }) => {
+  await page.goto("/settings/channels")
+  const list = page.getByRole("list").filter({ hasText: "YouTube" })
+  for (const name of ["YouTube", "Twitch", "TikTok", "Instagram"]) {
+    await expect(list.getByText(name, { exact: true })).toBeVisible()
+  }
+  await expect(list.locator("[data-slot=channel-icon]")).toHaveCount(4)
+  await expectNoSeriousA11yViolations(page)
+})

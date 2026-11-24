@@ -7,7 +7,7 @@ import { getDb } from "@/lib/db"
 
 import { enabledSocialProviders, getAuth } from "./auth"
 import { accountRepository } from "./repository"
-import { YOUTUBE_SCOPES } from "./schema"
+import { describeDevice, YOUTUBE_SCOPES } from "./schema"
 import { requireViewer } from "./session"
 import { usageSummary } from "./usage"
 
@@ -54,13 +54,16 @@ export async function getSecuritySettings() {
     sessions: sessions
       .map((s) => ({
         id: s.id,
-        token: s.token,
-        userAgent: s.userAgent ?? null,
+        device: describeDevice(s.userAgent ?? null),
         ipAddress: s.ipAddress ?? null,
         updatedAt: s.updatedAt,
-        current: s.token === session.token,
+        current: s.id === session.id,
       }))
-      .sort((a, b) => Number(b.current) - Number(a.current)),
+      .sort(
+        (a, b) =>
+          Number(b.current) - Number(a.current) ||
+          b.updatedAt.getTime() - a.updatedAt.getTime()
+      ),
   }
 }
 
@@ -78,7 +81,6 @@ export async function getChannelSettings() {
     {
       id: "youtube" as const,
       name: "YouTube",
-      detail: "Import VODs, publish Shorts",
       configured: providers.google,
       connectedAt: youtubeConnected ? google!.updatedAt : null,
       providerId: "google" as const,
@@ -87,7 +89,6 @@ export async function getChannelSettings() {
     {
       id: "twitch" as const,
       name: "Twitch",
-      detail: "Import past broadcasts",
       configured: providers.twitch,
       connectedAt: twitch?.updatedAt ?? null,
       providerId: "twitch" as const,
@@ -96,7 +97,6 @@ export async function getChannelSettings() {
     {
       id: "tiktok" as const,
       name: "TikTok",
-      detail: "Publish approved clips as drafts",
       configured: false,
       connectedAt: null,
       providerId: null,
@@ -105,7 +105,6 @@ export async function getChannelSettings() {
     {
       id: "instagram" as const,
       name: "Instagram",
-      detail: "Publish approved clips as Reels",
       configured: false,
       connectedAt: null,
       providerId: null,

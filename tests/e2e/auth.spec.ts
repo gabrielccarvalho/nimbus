@@ -70,3 +70,36 @@ test("keeps the Claude key encrypted and shows only a hint", async ({
   await page.getByRole("button", { name: "Remove" }).click()
   await expect(page.getByRole("button", { name: "Add key" })).toBeVisible()
 })
+
+test("lists each session and signs one out", async ({ page, browser }) => {
+  const other = await browser.newContext({
+    storageState: { cookies: [], origins: [] },
+    userAgent:
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
+  })
+  const phone = await other.newPage()
+  await phone.goto("/login")
+  await phone.getByLabel("Email", { exact: true }).fill(E2E_USER.email)
+  await phone.getByLabel("Password", { exact: true }).fill(E2E_USER.password)
+  await phone.getByRole("button", { name: "Sign in" }).click()
+  await expect(phone).toHaveURL(/\/$/)
+
+  await page.goto("/settings/security")
+  const sessions = page.getByRole("region", { name: "Sessions" })
+  await expect(
+    sessions.getByRole("listitem").filter({ hasText: "This device" })
+  ).toHaveCount(1)
+  const iphone = sessions
+    .getByRole("listitem")
+    .filter({ hasText: "Safari on iOS" })
+    .first()
+  await expect(iphone).toBeVisible()
+  expect(await page.content()).not.toMatch(/"token"/)
+  await expectNoSeriousA11yViolations(page)
+
+  await iphone.getByRole("button", { name: "Sign out Safari on iOS" }).click()
+  await expect(page.getByText("Signed out Safari on iOS")).toBeVisible()
+  await phone.goto("/settings")
+  await expect(phone).toHaveURL(/\/login/)
+  await other.close()
+})

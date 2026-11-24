@@ -84,6 +84,37 @@ export function initials(name: string) {
   return letters.toUpperCase()
 }
 
+export type Device = {
+  browser: string
+  os: string
+  mobile: boolean
+}
+
+export function describeDevice(userAgent: string | null): Device | null {
+  if (!userAgent) return null
+  const browser = /Edg\//.test(userAgent)
+    ? "Edge"
+    : /Firefox\/|FxiOS\//.test(userAgent)
+      ? "Firefox"
+      : /Chrome\/|CriOS\//.test(userAgent)
+        ? "Chrome"
+        : /Safari\//.test(userAgent)
+          ? "Safari"
+          : "Browser"
+  const os = /iPhone|iPad/.test(userAgent)
+    ? "iOS"
+    : /Android/.test(userAgent)
+      ? "Android"
+      : /Mac OS X/.test(userAgent)
+        ? "macOS"
+        : /Windows/.test(userAgent)
+          ? "Windows"
+          : /Linux/.test(userAgent)
+            ? "Linux"
+            : "an unknown system"
+  return { browser, os, mobile: /Mobile|iPhone|Android/.test(userAgent) }
+}
+
 export const channelProviders = [
   "youtube",
   "twitch",
