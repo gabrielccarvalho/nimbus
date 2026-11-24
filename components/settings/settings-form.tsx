@@ -6,17 +6,9 @@ import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import {
   Field,
   FieldContent,
   FieldDescription,
-  FieldGroup,
   FieldLabel,
 } from "@/components/ui/field"
 import { Switch } from "@/components/ui/switch"
@@ -27,8 +19,10 @@ import {
   CaptionFields,
   HighlightFields,
   LanguageField,
+  NicheField,
   QualityField,
 } from "./settings-fields"
+import { SettingsSection, SettingsSectionHeader } from "./section"
 
 export function SettingsForm({
   initial,
@@ -64,89 +58,65 @@ export function SettingsForm({
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Transcription</CardTitle>
-          <CardDescription>
-            Default for new projects. Imports can override it.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+    <form onSubmit={submit} className="grid gap-[18px]">
+      <SettingsSection id="defaults" aria-labelledby="defaults-title">
+        <SettingsSectionHeader
+          id="defaults-title"
+          title="Project defaults"
+          description="Where every new import starts. Imports can override them, and each project keeps its own copy."
+        />
+        <div className="grid gap-4 sm:grid-cols-2">
           <LanguageField
             value={settings}
             set={set}
             englishOnlyModel={englishOnlyModel}
           />
-        </CardContent>
-      </Card>
+          <NicheField value={settings} set={set} />
+        </div>
+        <HighlightFields
+          value={settings}
+          set={set}
+          claudeAvailable={claudeAvailable}
+        />
+      </SettingsSection>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Highlights</CardTitle>
-          <CardDescription>Defaults for new projects.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <HighlightFields
-            value={settings}
-            set={set}
-            claudeAvailable={claudeAvailable}
+      <SettingsSection id="rendering" aria-labelledby="rendering-title">
+        <SettingsSectionHeader
+          id="rendering-title"
+          title="Captions & rendering"
+          description="Quality is the default for new projects. Hardware encoding applies to every render on this machine."
+        />
+        <CaptionFields value={settings} set={set} />
+        <QualityField value={settings} set={set} />
+        <Field orientation="horizontal" data-disabled={!hardwareEncoder}>
+          <FieldContent>
+            <FieldLabel htmlFor="hardware-encoding">
+              Hardware encoding
+            </FieldLabel>
+            <FieldDescription>
+              {hardwareEncoder
+                ? `Faster renders with ${hardwareEncoder}. Output can differ slightly between machines.`
+                : "No hardware encoder found in this ffmpeg."}
+            </FieldDescription>
+          </FieldContent>
+          <Switch
+            id="hardware-encoding"
+            checked={settings.hardwareEncoding && Boolean(hardwareEncoder)}
+            disabled={!hardwareEncoder}
+            onCheckedChange={(checked) => set("hardwareEncoding", checked)}
           />
-        </CardContent>
-      </Card>
+        </Field>
+      </SettingsSection>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Captions</CardTitle>
-          <CardDescription>Defaults for new projects.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <CaptionFields value={settings} set={set} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Rendering</CardTitle>
-          <CardDescription>
-            Quality is the default for new projects. Hardware encoding applies
-            to every render on this machine.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <FieldGroup>
-            <QualityField value={settings} set={set} />
-            <Field orientation="horizontal" data-disabled={!hardwareEncoder}>
-              <FieldContent>
-                <FieldLabel htmlFor="hardware-encoding">
-                  Hardware encoding
-                </FieldLabel>
-                <FieldDescription>
-                  {hardwareEncoder
-                    ? `Faster renders with ${hardwareEncoder}. Output can differ slightly between machines.`
-                    : "No hardware encoder found in this ffmpeg."}
-                </FieldDescription>
-              </FieldContent>
-              <Switch
-                id="hardware-encoding"
-                checked={settings.hardwareEncoding && Boolean(hardwareEncoder)}
-                disabled={!hardwareEncoder}
-                onCheckedChange={(checked) => set("hardwareEncoding", checked)}
-              />
-            </Field>
-          </FieldGroup>
-        </CardContent>
-      </Card>
-
-      {error && (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
-      )}
-      <div>
-        <Button type="submit" disabled={pending}>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="submit" variant="primary" disabled={pending}>
           Save defaults
         </Button>
+        {error && (
+          <p role="alert" className="text-sm text-pink">
+            {error}
+          </p>
+        )}
       </div>
     </form>
   )

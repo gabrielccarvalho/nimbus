@@ -19,6 +19,7 @@ const GROUPS = [
     items: [
       { href: "/settings/workspace", label: "Workspace" },
       { href: "/settings", label: "Project defaults" },
+      { href: "/settings#rendering", label: "Captions & rendering" },
     ],
   },
 ] as const

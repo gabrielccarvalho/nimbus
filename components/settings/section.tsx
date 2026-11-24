@@ -17,10 +17,12 @@ export function SettingsSection({
 }
 
 export function SettingsSectionHeader({
+  id,
   title,
   description,
   children,
 }: {
+  id?: string
   title: string
   description?: React.ReactNode
   children?: React.ReactNode
@@ -28,7 +30,10 @@ export function SettingsSectionHeader({
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="grid gap-1">
-        <h2 className="font-heading text-[19px] leading-tight tracking-[-0.025em]">
+        <h2
+          id={id}
+          className="font-heading text-[19px] leading-tight tracking-[-0.025em]"
+        >
           {title}
         </h2>
         {description && (

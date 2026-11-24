@@ -158,6 +158,7 @@ export function HighlightFields<T extends Shared>({
       <FieldSet>
         <FieldLegend variant="label">Selector</FieldLegend>
         <RadioGroup
+          className="sm:grid-cols-3"
           value={value.selectorMode}
           onValueChange={(next) =>
             set("selectorMode", next as T["selectorMode"])
@@ -175,7 +176,7 @@ export function HighlightFields<T extends Shared>({
                     <FieldTitle>{selector.label}</FieldTitle>
                     <FieldDescription>
                       {disabled
-                        ? "Set ANTHROPIC_API_KEY in .env.local to use Claude."
+                        ? "Add a Claude API key in Sign-in & security to use Claude."
                         : selector.description}
                     </FieldDescription>
                   </FieldContent>
@@ -190,23 +191,6 @@ export function HighlightFields<T extends Shared>({
           })}
         </RadioGroup>
       </FieldSet>
-      <NicheField value={value} set={set} />
-      <Field orientation="horizontal">
-        <FieldContent>
-          <FieldLabel htmlFor="auto-effects">Auto effects</FieldLabel>
-          <FieldDescription>
-            Add full-cam, zoom and shake effects to the moments that call for
-            them. You can edit them per clip.
-          </FieldDescription>
-        </FieldContent>
-        <Switch
-          id="auto-effects"
-          checked={value.autoEffects}
-          onCheckedChange={(checked) =>
-            set("autoEffects", checked as T["autoEffects"])
-          }
-        />
-      </Field>
       <div className="grid gap-4 sm:grid-cols-3">
         <Field>
           <FieldLabel htmlFor="clip-min">Shortest clip (s)</FieldLabel>
@@ -259,11 +243,27 @@ export function HighlightFields<T extends Shared>({
         </Field>
       </div>
       <CatchphrasesField value={value} set={set} />
+      <Field orientation="horizontal">
+        <FieldContent>
+          <FieldLabel htmlFor="auto-effects">Auto effects</FieldLabel>
+          <FieldDescription>
+            Add full-cam, zoom and shake effects to the moments that call for
+            them. You can edit them per clip.
+          </FieldDescription>
+        </FieldContent>
+        <Switch
+          id="auto-effects"
+          checked={value.autoEffects}
+          onCheckedChange={(checked) =>
+            set("autoEffects", checked as T["autoEffects"])
+          }
+        />
+      </Field>
     </FieldGroup>
   )
 }
 
-function NicheField<T extends Shared>({ value, set }: FieldsProps<T>) {
+export function NicheField<T extends Shared>({ value, set }: FieldsProps<T>) {
   return (
     <Field>
       <FieldLabel htmlFor="niche">Niche</FieldLabel>
@@ -272,7 +272,7 @@ function NicheField<T extends Shared>({ value, set }: FieldsProps<T>) {
         value={value.niche}
         onValueChange={(next) => next && set("niche", next as T["niche"])}
       >
-        <SelectTrigger id="niche" className="w-full sm:w-64">
+        <SelectTrigger id="niche" className="w-full">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

@@ -23,6 +23,8 @@ alert, alert-dialog, badge, breadcrumb, button, card, command, dialog, dropdown-
 
 \* custom, see below.
 
+`InputGroupInput` also clears the inset ring that the restyled `Input` draws, so the group's own ring is the only one.
+
 The registry's `empty` component covers the planned EmptyState, so there is no custom EmptyState.
 
 ## Custom components
