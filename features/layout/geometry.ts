@@ -178,3 +178,23 @@ export function fitRectToAspect(
     h,
   }
 }
+
+export function refitGameplay(
+  layout: LayoutInput,
+  mode: LayoutMode,
+  width: number,
+  height: number
+): Pick<LayoutInput, "gameplayRect" | "gameplayFocusX"> {
+  const box = gameplayBox(layout, width, height)
+  const aspect = gameplaySlotAspect(mode)
+  if (!box || !aspect) {
+    return {
+      gameplayRect: layout.gameplayRect,
+      gameplayFocusX: layout.gameplayFocusX,
+    }
+  }
+  return {
+    gameplayRect: fitRectToAspect(box, aspect, width, height),
+    gameplayFocusX: 0.5,
+  }
+}

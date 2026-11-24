@@ -22,7 +22,6 @@ import {
   CropRegionEditor,
 } from "@/components/ui/crop-region-editor"
 import { Label } from "@/components/ui/label"
-import { Slider } from "@/components/ui/slider"
 import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
@@ -46,7 +45,11 @@ import {
   detectWebcam,
   type WebcamDetection,
 } from "@/features/layout/detect-webcam"
-import { planLayout } from "@/features/layout/geometry"
+import {
+  gameplayBox,
+  gameplaySlotAspect,
+  refitGameplay,
+} from "@/features/layout/geometry"
 import {
   camPositionSchema,
   layoutModeSchema,
@@ -165,34 +168,46 @@ function LayoutPreview({
   )
 }
 
-export function GameplayWindow({
+export function GameplayRegion({
   layout,
   width,
   height,
+  onLayoutChange,
 }: {
   layout: LayoutInput
   width: number
   height: number
+  onLayoutChange: (patch: Partial<LayoutInput>) => void
 }) {
-  const plan = planLayout(layout, width, height)
-  if (plan.mode === "no-cam-blur-fill") return null
-  const crop =
-    plan.mode === "no-cam-fill"
-      ? plan.crop
-      : plan.regions.find((region) => region.content === "gameplay")!.crop
+  const box = gameplayBox(layout, width, height)
+  const aspect = gameplaySlotAspect(layout.mode)
+  if (!box || !aspect) return null
   return (
-    <div
-      aria-hidden
-      data-testid="gameplay-window"
-      className="pointer-events-none absolute border-2 border-dashed border-white/70"
-      style={{
-        left: `${(crop.x / width) * 100}%`,
-        top: `${(crop.y / height) * 100}%`,
-        width: `${(crop.w / width) * 100}%`,
-        height: `${(crop.h / height) * 100}%`,
-      }}
+    <CropRegion
+      aria-label="Gameplay region"
+      value={box}
+      aspectRatio={aspect}
+      onValueChange={(gameplayRect) =>
+        onLayoutChange({ gameplayRect, gameplayFocusX: 0.5 })
+      }
+      className="border-dashed border-white/70 shadow-none"
     />
   )
+}
+
+export function withLayoutMode(
+  layout: LayoutInput,
+  mode: LayoutMode,
+  width: number,
+  height: number
+): Partial<LayoutInput> {
+  return {
+    mode,
+    webcamRect: usesWebcam(mode)
+      ? (layout.webcamRect ?? DEFAULT_WEBCAM)
+      : layout.webcamRect,
+    ...refitGameplay(layout, mode, width, height),
+  }
 }
 
 export function LayoutEditor({
@@ -281,15 +296,16 @@ export function LayoutEditor({
             <CropRegionEditor
               value={layout.webcamRect ?? DEFAULT_WEBCAM}
               onValueChange={(webcamRect) => update({ webcamRect })}
-              disabled={!hasWebcam || detecting}
+              disabled={detecting}
               className="rounded-none"
               style={{ aspectRatio: `${sourceWidth} / ${sourceHeight}` }}
             >
               <VideoPlayerVideo src={src} className="size-full" />
-              <GameplayWindow
+              <GameplayRegion
                 layout={layout}
                 width={sourceWidth}
                 height={sourceHeight}
+                onLayoutChange={update}
               />
               {hasWebcam && <CropRegion aria-label="Webcam region" />}
             </CropRegionEditor>
@@ -307,9 +323,9 @@ export function LayoutEditor({
                 {detecting
                   ? "Looking for the webcam…"
                   : hasWebcam
-                    ? "Drag the box over the webcam, or focus it and use the arrow keys. The dashed box is the gameplay area that ends up below it."
+                    ? "Drag the solid box over the webcam and the dashed box over the gameplay, or focus one and use the arrow keys. Drag a corner to resize."
                     : layout.mode === "no-cam-fill"
-                      ? "The dashed box is the part of the frame that fills the short. Move it with Gameplay focus."
+                      ? "The dashed box is the part of the frame that fills the short. Drag it, or drag a corner to resize."
                       : "The whole frame is shown over a blurred copy of itself."}
               </CardDescription>
             </CardHeader>
@@ -324,12 +340,14 @@ export function LayoutEditor({
                   onValueChange={(value) => {
                     const mode = layoutModeSchema.safeParse(value[0])
                     if (!mode.success) return
-                    update({
-                      mode: mode.data,
-                      webcamRect: usesWebcam(mode.data)
-                        ? (layout.webcamRect ?? DEFAULT_WEBCAM)
-                        : layout.webcamRect,
-                    })
+                    update(
+                      withLayoutMode(
+                        layout,
+                        mode.data,
+                        sourceWidth,
+                        sourceHeight
+                      )
+                    )
                   }}
                   disabled={detecting}
                 >
@@ -347,26 +365,6 @@ export function LayoutEditor({
                   onValueChange={(camPosition) => update({ camPosition })}
                   disabled={detecting}
                 />
-              )}
-
-              {layout.mode !== "no-cam-blur-fill" && (
-                <div className="flex flex-col gap-2">
-                  <Label id="gameplay-focus-label">Gameplay focus</Label>
-                  <Slider
-                    aria-labelledby="gameplay-focus-label"
-                    min={0}
-                    max={100}
-                    step={1}
-                    value={[Math.round(layout.gameplayFocusX * 100)]}
-                    format={{ style: "unit", unit: "percent" }}
-                    onValueChange={(value) => {
-                      const focus = Array.isArray(value) ? value[0] : value
-                      if (focus !== undefined)
-                        update({ gameplayFocusX: focus / 100 })
-                    }}
-                    className="max-w-sm"
-                  />
-                </div>
               )}
 
               <div className="flex items-center gap-2">

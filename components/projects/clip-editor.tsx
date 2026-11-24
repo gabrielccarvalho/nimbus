@@ -75,8 +75,9 @@ import { useProjectEvents } from "./use-project-events"
 import {
   CamPositionField,
   DEFAULT_WEBCAM,
-  GameplayWindow,
+  GameplayRegion,
   LAYOUT_MODES,
+  withLayoutMode,
 } from "./layout-editor"
 
 const WINDOW_PADDING_MS = 10_000
@@ -293,7 +294,6 @@ export function ClipEditor({
             <CropRegionEditor
               value={layout.webcamRect ?? DEFAULT_WEBCAM}
               onValueChange={(webcamRect) => editLayout({ webcamRect })}
-              disabled={!hasWebcam}
               className="mx-auto w-full rounded-none"
               style={{
                 aspectRatio: `${sourceWidth} / ${sourceHeight}`,
@@ -305,10 +305,11 @@ export function ClipEditor({
                 aria-label="Source video"
                 className="size-full"
               />
-              <GameplayWindow
+              <GameplayRegion
                 layout={layout}
                 width={sourceWidth}
                 height={sourceHeight}
+                onLayoutChange={editLayout}
               />
               {hasWebcam && <CropRegion aria-label="Webcam region" />}
             </CropRegionEditor>
@@ -430,7 +431,10 @@ export function ClipEditor({
                   {layoutOverride
                     ? "This clip has its own layout."
                     : "Uses the project layout. Changes here apply to this clip only."}
-                  {hasWebcam && " Drag the box on the video over the webcam."}
+                  {hasWebcam
+                    ? " Drag the solid box on the video over the webcam and the dashed box over the gameplay."
+                    : layout.mode === "no-cam-fill" &&
+                      " Drag the dashed box on the video over the gameplay."}
                 </CardDescription>
                 {layoutOverride && (
                   <CardAction>
@@ -460,12 +464,14 @@ export function ClipEditor({
                     onValueChange={(value) => {
                       const mode = layoutModeSchema.safeParse(value[0])
                       if (!mode.success) return
-                      editLayout({
-                        mode: mode.data,
-                        webcamRect: usesWebcam(mode.data)
-                          ? (layout.webcamRect ?? DEFAULT_WEBCAM)
-                          : layout.webcamRect,
-                      })
+                      editLayout(
+                        withLayoutMode(
+                          layout,
+                          mode.data,
+                          sourceWidth,
+                          sourceHeight
+                        )
+                      )
                     }}
                   >
                     {LAYOUT_MODES.map((mode) => (

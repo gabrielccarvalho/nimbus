@@ -142,7 +142,8 @@ Transcripts over ~60k characters are split into parts with a minute of overlap, 
 - Every landscape source (`w ≥ 1.2 h`, whatever its class) goes through `awaiting_layout` with `cam-top` proposed. Square and portrait sources skip it with `no-cam-blur-fill`. A LayoutPreset for the exact source resolution also skips it (preset applied, `confirmedByUser = true`).
 - Detection proposes a rect plus confidence. Below 0.5 confidence or with no face, propose `no-cam-blur-fill`.
 - In webcam modes the webcam goes on top by default; `camPosition: "bottom"` swaps the two stacked regions, and "auto" captions move with the gameplay so they stay off the face.
-- A clip can override the project layout (mode, webcam box, webcam position) from its editor; renders use `clips.layout_override` when set. Caption position (auto, top, middle, bottom) is a per-clip caption style override.
+- A clip can override the project layout (mode, webcam box, gameplay box, webcam position) from its editor; renders use `clips.layout_override` when set. Caption position (auto, top, middle, bottom) is a per-clip caption style override.
+- Gameplay box: in every mode but `no-cam-blur-fill`, the gameplay crop is a dashed box on the source that can be dragged and resized like the webcam box. Its shape is locked to the slot it fills (1080×1248 in cam-top, 1080×960 in split-50, 1080×1920 in no-cam-fill). It starts at the current crop, `coverCrop(gameplayRect, slot, gameplayFocusX)`; an edit stores the box as `gameplayRect` and sets `gameplayFocusX` to 0.5, so the crop is the box itself. Switching mode refits the box to the new slot around its centre, with the same area where it fits, inside the frame.
 - Keyboard nudge: arrow = 0.5% of the frame, Shift+arrow = 5%.
 
 ### Rendering

@@ -18,10 +18,12 @@ test("turns a 4:3 recording into a full-screen short", async ({ page }) => {
     timeout: 30_000,
   })
   await page.getByRole("button", { name: "Fill, no webcam" }).click()
-  await expect(page.getByTestId("gameplay-window")).toBeVisible()
+  await expect(
+    page.getByRole("group", { name: "Gameplay region" })
+  ).toBeVisible()
   await expect(
     page.getByRole("slider", { name: "Gameplay focus" })
-  ).toBeVisible()
+  ).toHaveCount(0)
   await expect(page.getByRole("group", { name: "Webcam region" })).toHaveCount(
     0
   )

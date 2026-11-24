@@ -8,6 +8,7 @@ import {
   gameplayBox,
   gameplaySlotAspect,
   planLayout,
+  refitGameplay,
   toPixels,
 } from "./geometry"
 import { FULL_FRAME } from "./schema"
@@ -381,5 +382,38 @@ describe("gameplay box", () => {
     expect(wide.y + wide.h).toBeLessThanOrEqual(1 + 1e-9)
     const edge = fitRectToAspect({ x: 0.9, y: 0.4, w: 0.1, h: 0.2 }, 1, W, H)
     expect(edge.x + edge.w).toBeLessThanOrEqual(1 + 1e-9)
+  })
+
+  it("refits the box to the new mode's slot around its centre", () => {
+    const layout = {
+      ...base,
+      mode: "cam-top" as const,
+      webcamRect: cam,
+      gameplayRect,
+      gameplayFocusX: 0.2,
+    }
+    const box = gameplayBox(layout, W, H)!
+    const refit = refitGameplay(layout, "split-50", W, H)
+    expect(refit.gameplayFocusX).toBe(0.5)
+    const { gameplayRect: next } = refit
+    expect((next.w * W) / (next.h * H)).toBeCloseTo(1080 / 960)
+    expect(next.x + next.w / 2).toBeCloseTo(box.x + box.w / 2)
+    expect(next.y + next.h / 2).toBeCloseTo(box.y + box.h / 2)
+    expect(
+      gameplayBox({ ...layout, mode: "split-50", ...refit }, W, H)
+    ).toEqual(next)
+  })
+
+  it("leaves the rect alone without a box", () => {
+    const blur = { ...base, mode: "no-cam-blur-fill" as const, gameplayRect }
+    expect(refitGameplay(blur, "no-cam-fill", W, H)).toEqual({
+      gameplayRect,
+      gameplayFocusX: 0.5,
+    })
+    const fill = { ...base, mode: "no-cam-fill" as const, gameplayRect }
+    expect(refitGameplay(fill, "no-cam-blur-fill", W, H)).toEqual({
+      gameplayRect,
+      gameplayFocusX: 0.5,
+    })
   })
 })
