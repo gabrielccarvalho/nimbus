@@ -16,19 +16,17 @@ export async function getYouTubeChannelCard() {
   const google = (await accountRepository(db).linkedAccounts(user.id)).find(
     (a) => a.providerId === "google"
   )
-  const channel = google
+  const { channel, error } = google
     ? await syncYouTubeChannel(db, workspace.id, google)
-    : undefined
-  const repo = publishingRepository(db)
-  if (!channel) return null
+    : { channel: undefined, error: null }
+  if (!channel) return { channel: null, error }
   return {
-    title: channel.title,
-    thumbnailUrl: channel.thumbnailUrl,
-    needsReconnect: channel.status === "needs_reconnect",
-    publishedCount: await repo.countPublished(channel.id),
+    channel: {
+      title: channel.title,
+      thumbnailUrl: channel.thumbnailUrl,
+      needsReconnect: channel.status === "needs_reconnect",
+      publishedCount: await publishingRepository(db).countPublished(channel.id),
+    },
+    error,
   }
 }
-
-export type YouTubeChannelCard = NonNullable<
-  Awaited<ReturnType<typeof getYouTubeChannelCard>>
->

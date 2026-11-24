@@ -670,6 +670,11 @@ export function ChannelList({ channels }: { channels: ChannelRow[] }) {
             <ChannelIcon provider={channel.id} />
             <span className="grid min-w-0 flex-1">
               <span className="font-medium">{channel.name}</span>
+              {channel.channelError && (
+                <span role="alert" className="text-[13px] text-amber">
+                  {channel.channelError}
+                </span>
+              )}
               {channel.channelTitle && (
                 <span className="truncate text-[13px] text-muted-foreground">
                   {channel.channelTitle}

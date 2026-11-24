@@ -21,6 +21,7 @@ const youtube: ChannelRow = {
   accountId: "g-1",
   needsReconnect: false,
   channelTitle: "Mine",
+  channelError: null,
 }
 
 describe("ChannelList", () => {
@@ -37,5 +38,16 @@ describe("ChannelList", () => {
     expect(
       screen.getByRole("button", { name: "Disconnect YouTube" })
     ).toBeVisible()
+  })
+
+  it("shows why the YouTube channel could not be linked", () => {
+    render(
+      <ChannelList
+        channels={[
+          { ...youtube, channelTitle: null, channelError: "No channel found" },
+        ]}
+      />
+    )
+    expect(screen.getByRole("alert")).toHaveTextContent("No channel found")
   })
 })

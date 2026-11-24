@@ -24,7 +24,7 @@ const COMING_SOON = [
 ] as const
 
 async function YouTubeCard() {
-  const channel = await getYouTubeChannelCard()
+  const { channel, error } = await getYouTubeChannelCard()
 
   return (
     <section
@@ -50,6 +50,11 @@ async function YouTubeCard() {
             ? `${channel.publishedCount} ${channel.publishedCount === 1 ? "clip" : "clips"} published`
             : "Connect a channel to publish approved clips as Shorts."}
         </span>
+        {error && (
+          <span role="alert" className="text-[13px] text-amber">
+            {error}
+          </span>
+        )}
       </div>
       {channel ? (
         channel.needsReconnect ? (

@@ -2,9 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { YOUTUBE_SCOPES } from "@/features/accounts/schema"
 import { publishingRepository } from "@/features/publishing/repository"
-import { ensureYouTubeChannel } from "@/features/publishing/service"
+import {
+  ensureYouTubeChannel,
+  syncYouTubeChannel,
+} from "@/features/publishing/service"
 import { YouTubeFake } from "@/features/publishing/youtube-fake"
-import { account, user, workspaces } from "@/lib/db/schema"
+import { AppError } from "@/lib/errors"
+import { account, user, workspaces, youtubeQuotaUsage } from "@/lib/db/schema"
 
 import { createTestEnv, type TestEnv } from "../utils/test-env"
 
@@ -126,5 +130,38 @@ describe("ensureYouTubeChannel", () => {
     })
     const result = await ensureYouTubeChannel(env.db, workspaceId, google)
     expect(result?.status).toBe("needs_reconnect")
+  })
+})
+
+describe("syncYouTubeChannel", () => {
+  it("surfaces a missing channel and does not retry or book quota again", async () => {
+    const myChannel = vi
+      .spyOn(YouTubeFake.prototype, "myChannel")
+      .mockRejectedValue(new AppError("NOT_FOUND", "No YouTube channel"))
+    const { workspaceId, google } = await seed(YOUTUBE_SCOPES)
+
+    const first = await syncYouTubeChannel(env.db, workspaceId, google)
+    expect(first).toEqual({ channel: undefined, error: "No YouTube channel" })
+    const second = await syncYouTubeChannel(env.db, workspaceId, google)
+    expect(second.error).toBe("No YouTube channel")
+    expect(myChannel).toHaveBeenCalledOnce()
+    const usage = await env.db.select().from(youtubeQuotaUsage)
+    expect(usage).toHaveLength(1)
+  })
+
+  it("retries once the Google account was reauthorized", async () => {
+    const myChannel = vi
+      .spyOn(YouTubeFake.prototype, "myChannel")
+      .mockRejectedValueOnce(new AppError("NOT_FOUND", "No YouTube channel"))
+    const { workspaceId, google } = await seed(YOUTUBE_SCOPES)
+
+    await syncYouTubeChannel(env.db, workspaceId, google)
+    const result = await syncYouTubeChannel(env.db, workspaceId, {
+      ...google,
+      updatedAt: new Date(google.updatedAt.getTime() + 1000),
+    })
+    expect(result.error).toBeNull()
+    expect(result.channel?.channelId).toBe("UC-fake")
+    expect(myChannel).toHaveBeenCalledTimes(2)
   })
 })

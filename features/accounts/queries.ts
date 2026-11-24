@@ -77,10 +77,10 @@ export async function getChannelSettings() {
   const youtubeConnected = Boolean(
     google && YOUTUBE_SCOPES.every((scope) => google.scope?.includes(scope))
   )
-  const channel =
+  const { channel, error: channelError } =
     google && youtubeConnected
       ? await syncYouTubeChannel(getDb(), workspace.id, google)
-      : undefined
+      : { channel: undefined, error: null }
   return [
     {
       id: "youtube" as const,
@@ -91,6 +91,7 @@ export async function getChannelSettings() {
       accountId: google?.accountId ?? null,
       needsReconnect: channel?.status === "needs_reconnect",
       channelTitle: channel?.title ?? null,
+      channelError,
     },
     {
       id: "twitch" as const,
@@ -101,6 +102,7 @@ export async function getChannelSettings() {
       accountId: twitch?.accountId ?? null,
       needsReconnect: false,
       channelTitle: null,
+      channelError: null,
     },
     {
       id: "tiktok" as const,
@@ -111,6 +113,7 @@ export async function getChannelSettings() {
       accountId: null,
       needsReconnect: false,
       channelTitle: null,
+      channelError: null,
     },
     {
       id: "instagram" as const,
@@ -121,6 +124,7 @@ export async function getChannelSettings() {
       accountId: null,
       needsReconnect: false,
       channelTitle: null,
+      channelError: null,
     },
   ]
 }
