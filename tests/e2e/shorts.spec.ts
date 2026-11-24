@@ -17,7 +17,7 @@ test("turns a 4:3 recording into a full-screen short", async ({ page }) => {
   await expect(page.getByText("Looking for the webcam…")).toBeHidden({
     timeout: 30_000,
   })
-  await page.getByRole("button", { name: "Fill, no webcam" }).click()
+  await page.getByRole("button", { name: /^Fill, no webcam/ }).click()
   await expect(
     page.getByRole("group", { name: "Gameplay region" })
   ).toBeVisible()

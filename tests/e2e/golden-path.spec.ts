@@ -72,12 +72,12 @@ test("upload, confirm layout, render, download and edit a clip", async ({
     .first()
     .fill("Edited caption")
   const layoutMode = page.getByRole("group", { name: "Mode" })
-  await layoutMode.getByRole("button", { name: "Even split" }).click()
+  await layoutMode.getByRole("button", { name: /^Even split/ }).click()
   await expect(page.getByText("This clip has its own layout.")).toBeVisible()
   await expect(page.getByRole("group", { name: "Webcam region" })).toBeVisible()
   await page
-    .getByRole("group", { name: "Webcam position" })
-    .getByRole("button", { name: "Bottom" })
+    .getByRole("group", { name: "Webcam goes" })
+    .getByRole("button", { name: "At the bottom" })
     .click()
   await page
     .getByRole("group", { name: "Position", exact: true })
@@ -88,8 +88,8 @@ test("upload, confirm layout, render, download and edit a clip", async ({
   await page.reload()
   await expect(
     page
-      .getByRole("group", { name: "Webcam position" })
-      .getByRole("button", { name: "Bottom" })
+      .getByRole("group", { name: "Webcam goes" })
+      .getByRole("button", { name: "At the bottom" })
   ).toHaveAttribute("aria-pressed", "true")
   await expect(
     page

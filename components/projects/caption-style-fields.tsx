@@ -18,6 +18,7 @@ import {
   CAPTION_FONTS,
   CAPTION_PRESETS,
   captionStyleOverridesSchema,
+  cssCaptionStyle,
   resolveCaptionStyle,
   type CaptionFontId,
   type CaptionStyleOverrides,
@@ -40,6 +41,36 @@ const fontItems = CAPTION_FONT_IDS.map((font) => ({
 
 const sliderValue = (value: number | readonly number[]) =>
   Array.isArray(value) ? value[0] : (value as number)
+
+function PresetSample({ presetId }: { presetId: string }) {
+  const css = cssCaptionStyle(resolveCaptionStyle({ presetId, overrides: {} }))
+  const stroke = css.outline
+    ? `0 0 2px ${css.outlineColor}, 0 0 2px ${css.outlineColor}`
+    : undefined
+  return (
+    <span
+      aria-hidden
+      className="grid h-14 place-items-center rounded-[10px] bg-night"
+    >
+      <span
+        className="px-1.5 py-0.5 text-[17px] leading-none font-bold"
+        style={{
+          fontFamily: css.fontFamily,
+          color: css.color,
+          textTransform: css.uppercase ? "uppercase" : undefined,
+          textShadow: stroke,
+          background: css.box ? css.outlineColor : undefined,
+          borderRadius: css.box ? 4 : undefined,
+        }}
+      >
+        Clip{" "}
+        <span style={{ color: css.highlight ? css.highlightColor : undefined }}>
+          this
+        </span>
+      </span>
+    </span>
+  )
+}
 
 export function CaptionStyleFields({
   value,
@@ -69,8 +100,6 @@ export function CaptionStyleFields({
         <Label id={`${id}-style`}>Style</Label>
         <ToggleGroup
           aria-labelledby={`${id}-style`}
-          variant="outline"
-          size="sm"
           value={[style.id]}
           disabled={disabled}
           onValueChange={(next) => {
@@ -83,105 +112,113 @@ export function CaptionStyleFields({
                   : { position: value.overrides.position },
             })
           }}
+          className="grid w-full grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-2"
         >
           {CAPTION_PRESETS.map((preset) => (
-            <ToggleGroupItem key={preset.id} value={preset.id}>
-              {preset.label}
+            <ToggleGroupItem
+              key={preset.id}
+              value={preset.id}
+              className="grid h-auto justify-items-stretch gap-1.5 rounded-[14px] bg-graphite-2 p-2.5 text-start inset-ring-1 inset-ring-hair hover:bg-graphite-3 aria-pressed:bg-lav/10 aria-pressed:inset-ring-lav/60"
+            >
+              <PresetSample presetId={preset.id} />
+              <b className="px-1 text-sm font-semibold">{preset.label}</b>
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
       </div>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor={`${id}-font`}>Font</Label>
-        <Select
-          items={fontItems}
-          value={style.font}
-          disabled={disabled}
-          onValueChange={(next) => {
-            const font = shape.font.safeParse(next)
-            if (font.success) set("font", font.data)
-          }}
-        >
-          <SelectTrigger id={`${id}-font`} className="w-full max-w-sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {fontItems.map((font) => {
-              const installed = installedFonts.includes(font.value)
-              return (
-                <SelectItem
-                  key={font.value}
-                  value={font.value}
-                  disabled={!installed}
-                  style={{
-                    fontFamily: CAPTION_FONTS[font.value].cssFontFamily,
-                  }}
-                >
-                  {font.label}
-                  {!installed && (
-                    <span className="font-sans text-xs text-muted-foreground">
-                      Not installed
-                    </span>
-                  )}
-                </SelectItem>
-              )
-            })}
-          </SelectContent>
-        </Select>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-[18px]">
+        <div className="flex flex-col gap-2">
+          <Label htmlFor={`${id}-font`}>Font</Label>
+          <Select
+            items={fontItems}
+            value={style.font}
+            disabled={disabled}
+            onValueChange={(next) => {
+              const font = shape.font.safeParse(next)
+              if (font.success) set("font", font.data)
+            }}
+          >
+            <SelectTrigger id={`${id}-font`} className="w-full max-w-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {fontItems.map((font) => {
+                const installed = installedFonts.includes(font.value)
+                return (
+                  <SelectItem
+                    key={font.value}
+                    value={font.value}
+                    disabled={!installed}
+                    style={{
+                      fontFamily: CAPTION_FONTS[font.value].cssFontFamily,
+                    }}
+                  >
+                    {font.label}
+                    {!installed && (
+                      <span className="font-sans text-xs text-muted-foreground">
+                        Not installed
+                      </span>
+                    )}
+                  </SelectItem>
+                )
+              })}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label id={`${id}-position`}>Position</Label>
+          <ToggleGroup
+            aria-labelledby={`${id}-position`}
+            variant="outline"
+            size="sm"
+            value={[style.position]}
+            disabled={disabled}
+            onValueChange={(next) => {
+              const position = shape.position.safeParse(next[0])
+              if (position.success) set("position", position.data)
+            }}
+          >
+            {CAPTION_POSITIONS.map((position) => (
+              <ToggleGroupItem key={position.value} value={position.value}>
+                {position.label}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label id={`${id}-size`}>Size</Label>
+          <Slider
+            aria-labelledby={`${id}-size`}
+            min={shape.fontSize.minValue ?? 36}
+            max={shape.fontSize.maxValue ?? 160}
+            step={2}
+            value={[style.fontSize]}
+            disabled={disabled}
+            onValueChange={(next) => {
+              const size = sliderValue(next)
+              if (size !== undefined) set("fontSize", size)
+            }}
+            className="w-full"
+          />
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label id={`${id}-words`}>Words per caption</Label>
+          <Slider
+            aria-labelledby={`${id}-words`}
+            min={1}
+            max={shape.maxWordsPerPage.maxValue ?? 8}
+            step={1}
+            value={[style.maxWordsPerPage]}
+            disabled={disabled}
+            onValueChange={(next) => {
+              const words = sliderValue(next)
+              if (words !== undefined) set("maxWordsPerPage", words)
+            }}
+            className="w-full"
+          />
+        </div>
       </div>
-      <div className="flex flex-col gap-2">
-        <Label id={`${id}-position`}>Position</Label>
-        <ToggleGroup
-          aria-labelledby={`${id}-position`}
-          variant="outline"
-          size="sm"
-          value={[style.position]}
-          disabled={disabled}
-          onValueChange={(next) => {
-            const position = shape.position.safeParse(next[0])
-            if (position.success) set("position", position.data)
-          }}
-        >
-          {CAPTION_POSITIONS.map((position) => (
-            <ToggleGroupItem key={position.value} value={position.value}>
-              {position.label}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
-      </div>
-      <div className="flex flex-col gap-2">
-        <Label id={`${id}-size`}>Size</Label>
-        <Slider
-          aria-labelledby={`${id}-size`}
-          min={shape.fontSize.minValue ?? 36}
-          max={shape.fontSize.maxValue ?? 160}
-          step={2}
-          value={[style.fontSize]}
-          disabled={disabled}
-          onValueChange={(next) => {
-            const size = sliderValue(next)
-            if (size !== undefined) set("fontSize", size)
-          }}
-          className="max-w-sm"
-        />
-      </div>
-      <div className="flex flex-col gap-2">
-        <Label id={`${id}-words`}>Words per caption</Label>
-        <Slider
-          aria-labelledby={`${id}-words`}
-          min={1}
-          max={shape.maxWordsPerPage.maxValue ?? 8}
-          step={1}
-          value={[style.maxWordsPerPage]}
-          disabled={disabled}
-          onValueChange={(next) => {
-            const words = sliderValue(next)
-            if (words !== undefined) set("maxWordsPerPage", words)
-          }}
-          className="max-w-sm"
-        />
-      </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2.5 pt-4 shadow-[inset_0_1px_0_var(--hair)]">
         <Switch
           id={`${id}-uppercase`}
           checked={style.uppercase}
@@ -190,7 +227,7 @@ export function CaptionStyleFields({
         />
         <Label htmlFor={`${id}-uppercase`}>Uppercase</Label>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2.5">
         <Switch
           id={`${id}-highlight`}
           checked={style.highlight}

@@ -11,13 +11,6 @@ import {
   CaptionPreviewText,
 } from "@/components/ui/caption-preview"
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import {
   CropRegion,
   CropRegionEditor,
 } from "@/components/ui/crop-region-editor"
@@ -32,6 +25,7 @@ import {
   VideoPlayerSeekBar,
   VideoPlayerTime,
   VideoPlayerVideo,
+  useVideoPlayer,
 } from "@/components/ui/video-player"
 import { buildCaptionPages, type CaptionWord } from "@/features/captions/pages"
 import {
@@ -61,6 +55,7 @@ import {
 } from "@/features/layout/schema"
 import { updateProjectSettingsAction } from "@/features/projects/actions"
 import type { ProjectSettings } from "@/features/projects/schema"
+import { formatDuration } from "@/lib/format"
 
 import {
   CaptionStyleFields,
@@ -68,12 +63,102 @@ import {
 } from "./caption-style-fields"
 import { VerticalPreviewCanvas } from "./vertical-preview"
 
-export const LAYOUT_MODES: { value: LayoutMode; label: string }[] = [
-  { value: "cam-top", label: "Webcam on top" },
-  { value: "split-50", label: "Even split" },
-  { value: "no-cam-fill", label: "Fill, no webcam" },
-  { value: "no-cam-blur-fill", label: "Fit, no webcam" },
+export const LAYOUT_MODES: {
+  value: LayoutMode
+  label: string
+  description: string
+}[] = [
+  {
+    value: "cam-top",
+    label: "Webcam on top",
+    description: "A webcam strip, gameplay below",
+  },
+  {
+    value: "split-50",
+    label: "Even split",
+    description: "Webcam and gameplay, half each",
+  },
+  {
+    value: "no-cam-fill",
+    label: "Fill, no webcam",
+    description: "Gameplay cropped to fill the frame",
+  },
+  {
+    value: "no-cam-blur-fill",
+    label: "Fit, no webcam",
+    description: "The whole frame over a blurred copy",
+  },
 ]
+
+function ModeIcon({ mode }: { mode: LayoutMode }) {
+  const slots: Record<LayoutMode, [string, string] | [string]> = {
+    "cam-top": [
+      "inset-[0_0_64%_0] bg-amber/35",
+      "inset-[36%_0_0_0] bg-white/18",
+    ],
+    "split-50": [
+      "inset-[0_0_50%_0] bg-amber/35",
+      "inset-[50%_0_0_0] bg-white/18",
+    ],
+    "no-cam-fill": ["inset-0 bg-white/18"],
+    "no-cam-blur-fill": ["inset-x-0 top-[37%] h-[26%] bg-white/24"],
+  }
+  return (
+    <span
+      aria-hidden
+      className="relative mb-1.5 h-10 w-[23px] overflow-hidden rounded-[5px] bg-night inset-ring-1 inset-ring-white/14"
+    >
+      {slots[mode].map((slot) => (
+        <span key={slot} className={`absolute ${slot}`} />
+      ))}
+    </span>
+  )
+}
+
+export function LayoutModeOptions({
+  value,
+  onValueChange,
+  disabled,
+}: {
+  value: LayoutMode
+  onValueChange: (mode: LayoutMode) => void
+  disabled?: boolean
+}) {
+  return (
+    <div className="grid gap-2">
+      <span
+        id="layout-mode-label"
+        className="text-[13px] text-muted-foreground"
+      >
+        Mode
+      </span>
+      <ToggleGroup
+        aria-labelledby="layout-mode-label"
+        value={[value]}
+        onValueChange={(next) => {
+          const mode = layoutModeSchema.safeParse(next[0])
+          if (mode.success) onValueChange(mode.data)
+        }}
+        disabled={disabled}
+        className="grid w-full grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-2"
+      >
+        {LAYOUT_MODES.map((mode) => (
+          <ToggleGroupItem
+            key={mode.value}
+            value={mode.value}
+            className="grid h-auto justify-items-start gap-0.5 rounded-[14px] bg-graphite-2 p-3.5 text-start whitespace-normal inset-ring-1 inset-ring-hair hover:bg-graphite-3 aria-pressed:bg-lav/10 aria-pressed:inset-ring-lav/60"
+          >
+            <ModeIcon mode={mode.value} />
+            <b className="text-sm font-semibold">{mode.label}</b>
+            <span className="text-xs font-normal text-muted-foreground">
+              {mode.description}
+            </span>
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+    </div>
+  )
+}
 
 export const DEFAULT_WEBCAM: Rect = { x: 0.7, y: 0.7, w: 0.25, h: 0.25 }
 export function CamPositionField({
@@ -87,7 +172,7 @@ export function CamPositionField({
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <Label id="cam-position-label">Webcam position</Label>
+      <Label id="cam-position-label">Webcam goes</Label>
       <ToggleGroup
         aria-labelledby="cam-position-label"
         variant="outline"
@@ -99,8 +184,8 @@ export function CamPositionField({
         }}
         disabled={disabled}
       >
-        <ToggleGroupItem value="top">Top</ToggleGroupItem>
-        <ToggleGroupItem value="bottom">Bottom</ToggleGroupItem>
+        <ToggleGroupItem value="top">On top</ToggleGroupItem>
+        <ToggleGroupItem value="bottom">At the bottom</ToggleGroupItem>
       </ToggleGroup>
     </div>
   )
@@ -148,7 +233,7 @@ function LayoutPreview({
     <CaptionPreview
       role="img"
       aria-label="Vertical preview"
-      className="max-w-[220px]"
+      className="max-w-[300px] rounded-[26px] shadow-[inset_0_0_0_1px_rgb(255_255_255/0.1),0_40px_90px_-30px_rgb(0_0_0/0.9)]"
     >
       <VerticalPreviewCanvas
         layout={layout}
@@ -288,77 +373,110 @@ export function LayoutEditor({
   const update = (patch: Partial<LayoutInput>) =>
     setLayout((current) => ({ ...current, ...patch }))
 
+  const confirm = () =>
+    startTransition(async () => {
+      if (captionStyleChanged) {
+        const saved = await updateProjectSettingsAction(projectId, {
+          ...settings,
+          captionStyle,
+        })
+        if (!saved.ok) {
+          toast.error(saved.error.message)
+          return
+        }
+        if (saved.value.rerun === "render") {
+          toast.info("Render the clips again to use the new caption style")
+        }
+      }
+      const result = await confirmLayoutAction(projectId, {
+        layout: hasWebcam
+          ? { ...layout, webcamRect: layout.webcamRect ?? DEFAULT_WEBCAM }
+          : layout,
+        confidence,
+        savePreset,
+      })
+      if (!result.ok) {
+        toast.error(result.error.message)
+        return
+      }
+      toast.success(awaitingConfirmation ? "Layout confirmed" : "Layout saved")
+      router.refresh()
+    })
+
   return (
     <VideoPlayerProvider defaultMuted>
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_240px]">
-        <div className="flex flex-col gap-4">
-          <div className="overflow-hidden rounded-xl bg-black">
-            <CropRegionEditor
-              value={layout.webcamRect ?? DEFAULT_WEBCAM}
-              onValueChange={(webcamRect) => update({ webcamRect })}
-              disabled={detecting}
-              className="rounded-none"
-              style={{ aspectRatio: `${sourceWidth} / ${sourceHeight}` }}
-            >
-              <VideoPlayerVideo src={src} className="size-full" />
-              <GameplayRegion
-                layout={layout}
-                width={sourceWidth}
-                height={sourceHeight}
-                onLayoutChange={update}
-              />
-              {hasWebcam && <CropRegion aria-label="Webcam region" />}
-            </CropRegionEditor>
-            <VideoPlayerControls>
-              <VideoPlayerPlayButton />
-              <VideoPlayerSeekBar />
-              <VideoPlayerTime />
-            </VideoPlayerControls>
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Layout</CardTitle>
-              <CardDescription>
-                {detecting
-                  ? "Looking for the webcam…"
-                  : hasWebcam
-                    ? "Drag the solid box over the webcam and the dashed box over the gameplay, or focus one and use the arrow keys. Drag a corner to resize."
-                    : layout.mode === "no-cam-fill"
-                      ? "The dashed box is the part of the frame that fills the short. Drag it, or drag a corner to resize."
-                      : "The whole frame is shown over a blurred copy of itself."}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-5">
-              <div className="flex flex-col gap-2">
-                <Label id="layout-mode-label">Mode</Label>
-                <ToggleGroup
-                  aria-labelledby="layout-mode-label"
-                  variant="outline"
-                  size="sm"
-                  value={[layout.mode]}
-                  onValueChange={(value) => {
-                    const mode = layoutModeSchema.safeParse(value[0])
-                    if (!mode.success) return
-                    update(
-                      withLayoutMode(
-                        layout,
-                        mode.data,
-                        sourceWidth,
-                        sourceHeight
-                      )
-                    )
-                  }}
-                  disabled={detecting}
-                >
-                  {LAYOUT_MODES.map((mode) => (
-                    <ToggleGroupItem key={mode.value} value={mode.value}>
-                      {mode.label}
-                    </ToggleGroupItem>
-                  ))}
-                </ToggleGroup>
+      <div className="flex flex-wrap items-start gap-[22px]">
+        <div className="grid min-w-0 flex-[999_1_560px] gap-[18px]">
+          <section className="grid gap-3.5 rounded-[18px] bg-graphite p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="grid min-w-0 flex-1 gap-0.5">
+                <h2 className="text-[15px] font-semibold tracking-[-0.015em]">
+                  Source frame
+                </h2>
+                <p className="text-[13px] text-tertiary">
+                  {detecting
+                    ? "Looking for the webcam…"
+                    : hasWebcam
+                      ? "Drag the solid box over the webcam, the dashed one over the gameplay. Arrow keys nudge, corners resize."
+                      : layout.mode === "no-cam-fill"
+                        ? "The dashed box is the part of the frame that fills the short. Drag it, or drag a corner to resize."
+                        : "The whole frame is shown over a blurred copy of itself."}
+                </p>
               </div>
+              <Button
+                size="sm"
+                disabled={detecting || pending}
+                onClick={() => {
+                  setDetecting(true)
+                  detectWebcam(src).then(applyDetection, failDetection)
+                }}
+              >
+                {detecting ? (
+                  <Spinner data-icon="inline-start" />
+                ) : (
+                  <MagicWandIcon data-icon="inline-start" aria-hidden />
+                )}
+                Detect again
+              </Button>
+            </div>
+            <div className="overflow-hidden rounded-xl bg-black">
+              <CropRegionEditor
+                value={layout.webcamRect ?? DEFAULT_WEBCAM}
+                onValueChange={(webcamRect) => update({ webcamRect })}
+                disabled={detecting}
+                className="rounded-none"
+                style={{ aspectRatio: `${sourceWidth} / ${sourceHeight}` }}
+              >
+                <VideoPlayerVideo src={src} className="size-full" />
+                <GameplayRegion
+                  layout={layout}
+                  width={sourceWidth}
+                  height={sourceHeight}
+                  onLayoutChange={update}
+                />
+                {hasWebcam && <CropRegion aria-label="Webcam region" />}
+              </CropRegionEditor>
+              <VideoPlayerControls>
+                <VideoPlayerPlayButton />
+                <VideoPlayerSeekBar />
+                <VideoPlayerTime />
+              </VideoPlayerControls>
+            </div>
+            <FrameChecks />
+          </section>
 
+          <section className="grid gap-5 rounded-[18px] bg-graphite p-[22px]">
+            <h2 className="text-[19px] font-semibold tracking-[-0.025em]">
+              Layout
+            </h2>
+            <LayoutModeOptions
+              value={layout.mode}
+              onValueChange={(mode) =>
+                update(withLayoutMode(layout, mode, sourceWidth, sourceHeight))
+              }
+              disabled={detecting}
+            />
+            <div className="flex flex-wrap items-end gap-6">
               {hasWebcam && (
                 <CamPositionField
                   value={layout.camPosition ?? "top"}
@@ -366,8 +484,7 @@ export function LayoutEditor({
                   disabled={detecting}
                 />
               )}
-
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5 pb-1.5">
                 <Switch
                   id="save-preset"
                   checked={savePreset}
@@ -377,103 +494,100 @@ export function LayoutEditor({
                   Use for every {sourceWidth}×{sourceHeight} recording
                 </Label>
               </div>
+            </div>
+          </section>
 
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  disabled={pending || detecting}
-                  onClick={() =>
-                    startTransition(async () => {
-                      if (captionStyleChanged) {
-                        const saved = await updateProjectSettingsAction(
-                          projectId,
-                          { ...settings, captionStyle }
-                        )
-                        if (!saved.ok) {
-                          toast.error(saved.error.message)
-                          return
-                        }
-                        if (saved.value.rerun === "render") {
-                          toast.info(
-                            "Render the clips again to use the new caption style"
-                          )
-                        }
-                      }
-                      const result = await confirmLayoutAction(projectId, {
-                        layout: hasWebcam
-                          ? {
-                              ...layout,
-                              webcamRect: layout.webcamRect ?? DEFAULT_WEBCAM,
-                            }
-                          : layout,
-                        confidence,
-                        savePreset,
-                      })
-                      if (!result.ok) {
-                        toast.error(result.error.message)
-                        return
-                      }
-                      toast.success(
-                        awaitingConfirmation
-                          ? "Layout confirmed"
-                          : "Layout saved"
-                      )
-                      router.refresh()
-                    })
-                  }
-                >
-                  {pending && <Spinner data-icon="inline-start" />}
-                  {awaitingConfirmation ? "Confirm layout" : "Save layout"}
-                </Button>
-                <Button
-                  disabled={detecting || pending}
-                  onClick={() => {
-                    setDetecting(true)
-                    detectWebcam(src).then(applyDetection, failDetection)
-                  }}
-                >
-                  {detecting ? (
-                    <Spinner data-icon="inline-start" />
-                  ) : (
-                    <MagicWandIcon data-icon="inline-start" aria-hidden />
-                  )}
-                  Detect webcam
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Captions</CardTitle>
-              <CardDescription>
+          <section
+            id="captions"
+            className="grid gap-5 rounded-[18px] bg-graphite p-[22px]"
+          >
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="text-[19px] font-semibold tracking-[-0.025em]">
+                Captions
+              </h2>
+              <span className="text-[13px] text-tertiary">
                 {settings.captionsEnabled
-                  ? "Applies to every clip that doesn't have its own style. Saved with the layout."
-                  : "Captions are turned off for this project in Settings."}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <CaptionStyleFields
-                value={captionStyle}
-                onValueChange={setCaptionStyle}
-                installedFonts={installedFonts}
-                disabled={pending}
-              />
-            </CardContent>
-          </Card>
+                  ? "Applies to every clip without its own style"
+                  : "Captions are turned off for this project"}
+              </span>
+            </div>
+            <CaptionStyleFields
+              value={captionStyle}
+              onValueChange={setCaptionStyle}
+              installedFonts={installedFonts}
+              disabled={pending}
+            />
+          </section>
         </div>
 
-        <div className="flex flex-col items-center gap-2 lg:items-start">
-          <LayoutPreview
-            layout={layout}
-            captionStyle={captionStyle}
-            captionsEnabled={settings.captionsEnabled}
-            sample={captionSample}
-          />
-          <p className="text-xs text-muted-foreground">
-            1080×1920 preview at the current frame
+        <aside className="grid min-w-0 flex-[1_1_300px] justify-items-center gap-3.5 lg:sticky lg:top-6">
+          <div className="flex w-full max-w-[300px] items-baseline justify-between">
+            <span className="mono-label">Preview</span>
+            <span className="font-mono text-[11px] text-tertiary">
+              1080×1920
+            </span>
+          </div>
+          <div className="w-full max-w-[300px]">
+            <LayoutPreview
+              layout={layout}
+              captionStyle={captionStyle}
+              captionsEnabled={settings.captionsEnabled}
+              sample={captionSample}
+            />
+          </div>
+          <p className="max-w-[280px] text-center text-[13px] text-tertiary">
+            Scrub the source to check other moments. The preview follows.
           </p>
-        </div>
+          <div className="grid w-full max-w-[300px] justify-items-center gap-2">
+            <Button
+              variant="primary"
+              disabled={pending || detecting}
+              onClick={confirm}
+            >
+              {pending && <Spinner data-icon="inline-start" />}
+              {awaitingConfirmation ? "Confirm layout" : "Save layout"}
+            </Button>
+            <span className="text-center text-xs text-tertiary">
+              {awaitingConfirmation
+                ? "Then review the clips. Nothing renders until you approve them."
+                : "Rendered clips keep their layout until you render them again."}
+            </span>
+          </div>
+        </aside>
       </div>
     </VideoPlayerProvider>
+  )
+}
+
+function FrameChecks() {
+  const { durationMs, currentMs, seek } = useVideoPlayer()
+  if (!durationMs) return null
+  const marks = Array.from({ length: 6 }, (_, i) =>
+    Math.round((durationMs * (i + 0.5)) / 6)
+  )
+  return (
+    <div className="grid gap-2">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-[13px] text-muted-foreground">
+          Check it across the recording
+        </span>
+        <span className="font-mono text-[11px] text-tertiary tabular-nums">
+          {formatDuration(currentMs)} / {formatDuration(durationMs)}
+        </span>
+      </div>
+      <div className="grid grid-cols-6 gap-2">
+        {marks.map((ms) => (
+          <button
+            key={ms}
+            type="button"
+            onClick={() => seek(ms)}
+            aria-label={`Jump to ${formatDuration(ms)}`}
+            className="rounded-lg bg-graphite-2 py-2 font-mono text-[11px] text-muted-foreground tabular-nums transition-colors hover:bg-graphite-3 hover:text-foreground"
+          >
+            {formatDuration(ms)}
+          </button>
+        ))}
+      </div>
+    </div>
   )
 }
