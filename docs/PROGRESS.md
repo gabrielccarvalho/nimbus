@@ -281,7 +281,7 @@ Spec: Claude Design handoff (`~/Downloads/nimbus-redesign-handoff/design/`). Aut
 - [x] 1. Heycamps tokens, Geist, one dark theme; Button, Badge, Tabs, Input, Select, Switch, Dialog, Sheet, DropdownMenu, Popover, Tooltip, Kbd and Command restyled; StatusPill, SignalDot, DotMeter
 - [x] 2. App shell: Sidebar (nav, recent, collapse) and ProjectHeader (breadcrumb, ⌘K, tabs, project settings sheet); command palette (ADR-0058). Workspace switcher, usage card, account menu and Channels land with step 3
 - [x] 3. Better Auth (Google, Twitch, email/password, 2FA, sessions), `/login` and `/signup`, protected routes, user and workspace models, projects scoped to the workspace, Playwright login fixture (ADR-0059). Sidebar gets the workspace, render-minute meter and account menu; settings gain Profile, Plan & usage, Connected channels, Sign-in & security and Workspace pages
-- [ ] 4. Projects home (one import card with overrides, needs-you banner, filtered grid), then Overview (one-line meta, paused-pipeline action card, stepper)
+- [x] 4. Projects home (one import card with overrides, needs-you banner, filtered grid), then Overview (one-line meta, paused-pipeline action card, stepper). The proxy no longer sees uploads (it truncated bodies past 10 MB, ADR-0059)
 - [ ] 5. Layout & captions at `/projects/[id]/layout` with the live 9:16 preview
 - [ ] 6. Clips review (export bar, filters, keyboard), then the clip editor (autosave)
 - [ ] 7. Transcript (search, follow playback, grouped by clip, make a clip)

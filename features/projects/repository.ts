@@ -3,7 +3,7 @@ import "server-only"
 import { and, desc, eq, inArray, sql } from "drizzle-orm"
 
 import { newId, now, withTransaction, type Db } from "@/lib/db"
-import { assets, clips, projects } from "@/lib/db/schema"
+import { assets, clips, jobs, projects } from "@/lib/db/schema"
 import { AppError } from "@/lib/errors"
 
 import type { AudiencePoint } from "../analysis/schema"
@@ -19,7 +19,11 @@ export type ProjectListItem = Project & {
   reviewCount: number
   clipRanges: { startMs: number; endMs: number }[]
   durationMs: number | null
+  width: number | null
+  height: number | null
+  bytes: number | null
   thumbnailKey: string | null
+  progress: number | null
 }
 
 export function projectRepository(db: Db) {
@@ -91,6 +95,9 @@ export function projectRepository(db: Db) {
           kind: assets.kind,
           storageKey: assets.storageKey,
           durationMs: assets.durationMs,
+          width: assets.width,
+          height: assets.height,
+          bytes: assets.bytes,
         })
         .from(assets)
         .where(
@@ -99,8 +106,13 @@ export function projectRepository(db: Db) {
             inArray(assets.kind, ["source", "thumbnail"])
           )
         )
+      const running = await db
+        .select({ projectId: jobs.projectId, progress: jobs.progress })
+        .from(jobs)
+        .where(and(inArray(jobs.projectId, ids), eq(jobs.status, "running")))
       return rows.map((row) => {
         const own = media.filter((m) => m.projectId === row.id)
+        const source = own.find((m) => m.kind === "source")
         const ownClips = ranges.filter((r) => r.projectId === row.id)
         const clipRanges = ownClips.map(({ startMs, endMs }) => ({
           startMs,
@@ -111,9 +123,14 @@ export function projectRepository(db: Db) {
           clipCount: clipRanges.length,
           reviewCount: ownClips.filter((c) => c.status === "candidate").length,
           clipRanges,
-          durationMs: own.find((m) => m.kind === "source")?.durationMs ?? null,
+          durationMs: source?.durationMs ?? null,
+          width: source?.width ?? null,
+          height: source?.height ?? null,
+          bytes: source?.bytes ?? null,
           thumbnailKey:
             own.find((m) => m.kind === "thumbnail")?.storageKey ?? null,
+          progress:
+            running.find((j) => j.projectId === row.id)?.progress ?? null,
         }
       })
     },

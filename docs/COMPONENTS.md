@@ -76,7 +76,8 @@ Labeled metric tile, rendered as a `<dl>` group so label/value pairs are announc
 
 File drop target that also opens the native picker.
 
-- Parts: `Dropzone` (root, `role="button"`), `DropzoneIcon`, `DropzoneTitle`, `DropzoneDescription` (wired to `aria-describedby`). `useDropzone()` exposes `{ dragging, disabled, open }`.
+- Parts: `Dropzone` (root, `role="button"`), `DropzoneIcon`, `DropzoneTitle`, `DropzoneDescription` (wired to `aria-describedby`), `DropzoneTrigger` (a button that opens the picker). `useDropzone()` exposes `{ dragging, disabled, open }`.
+- `clickable={false}` keeps drag and drop but drops the button role and click-to-open, so the zone can hold other controls (a link form, a `DropzoneTrigger`).
 - Props: `accept` (mime, `type/*` or `.ext`), `maxSize`, `multiple`, `disabled`, `onFilesAccepted(files)`, `onFilesRejected([{ file, reason: "type" | "size" | "count" }])`, `inputProps`, `size` = `default` | `sm`.
 - State: `data-dragging` on the root for styling. It holds no value state, so there's no controlled/uncontrolled API; the caller owns what happens to accepted files.
 - A11y: focusable, Enter/Space open the picker, `aria-disabled` + `tabIndex=-1` when disabled, constraints read via the description.
@@ -201,6 +202,8 @@ App composites, not primitives; they read app data and routes.
 - `WorkspaceButton`, `UsageCard`, `AccountMenu`, `ShortcutsDialog` (`sidebar-account.tsx`): the sidebar's workspace menu, render-minute `DotMeter`, and account menu (Account, Plan & usage, Settings `,`, Keyboard shortcuts `?`, Sign out).
 
 `components/auth/` holds the sign-in screens: `AuthForm` (sign in and create account, social buttons only for configured providers), `AuthHeading` (the only gradient text), the two-step, forgot and reset forms, and the decorative `AuthGlimpse`. `components/settings/section.tsx` has `SettingsSection`, `SettingsSectionHeader` and `SettingRow`, the graphite cards and hairline rows the settings pages are built from; `SettingsNav` is the settings sub-nav.
+
+Projects home: `ImportCard` (a `clickable={false}` `Dropzone` holding the link form, Browse files and the per-import language and highlights overrides), `NeedsYouBanner` and `ProjectGrid` (filter pills from `projectFilter`, sort menu, 16:9 tiles, refreshes every 3 s while something is processing). Overview: `ProjectOverview` (the next-step card and the vertical `PipelineStepper` with per-step details and times from `stepDetails`/`stepTimes`), `SourcePreview`, and `AudioOverview` as "Where the clips are".
 
 `ProjectHeader` (`components/projects/`) is the project title, `StatusPill` from `projectSignal`, one-line meta, open source, the ⋯ menu (Project settings sheet, Delete) and the tabs: an amber dot on Layout while the layout waits, the clip count on Clips.
 

@@ -128,16 +128,25 @@ export async function getProjectOverview(id: string) {
   const db = getDb()
   const project = await visibleProject(db, id)
   if (!project) return undefined
-  const [assets, layout, audio, clips, jobs, snapshot] = await Promise.all([
-    assetRepository(db).listForProject(id),
-    layoutRepository(db).get(id),
-    audioSummary(db, project),
-    clipRepository(db).listForProject(id),
-    jobQueue(db).listForProject(id),
-    getProjectSnapshot(db, id),
-  ])
+  const [assets, layout, audio, clips, jobs, snapshot, transcript] =
+    await Promise.all([
+      assetRepository(db).listForProject(id),
+      layoutRepository(db).get(id),
+      audioSummary(db, project),
+      clipRepository(db).listForProject(id),
+      jobQueue(db).listForProject(id),
+      getProjectSnapshot(db, id),
+      transcriptRepository(db).get(id),
+    ])
   return {
     project,
+    transcript: transcript
+      ? {
+          words: transcript.words.length,
+          language: transcript.language,
+          languageSource: transcript.languageSource,
+        }
+      : null,
     source: assets.find((a) => a.kind === "source"),
     thumbnail: assets.find((a) => a.kind === "thumbnail"),
     proxy: assets.find((a) => a.kind === "proxy"),

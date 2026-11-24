@@ -114,12 +114,12 @@ export type PipelineStep = {
 
 export const PIPELINE_STEPS: readonly PipelineStep[] = [
   { id: "upload", label: "Upload", statuses: ["downloading", "uploaded"] },
-  { id: "probe", label: "Probe", statuses: ["probing"] },
+  { id: "probe", label: "Read the video", statuses: ["probing"] },
   { id: "transcribe", label: "Transcribe", statuses: ["transcribing"] },
-  { id: "analyze", label: "Analyze", statuses: ["analyzing"] },
+  { id: "analyze", label: "Analyze audio", statuses: ["analyzing"] },
   { id: "select", label: "Find highlights", statuses: ["selecting"] },
   { id: "layout", label: "Confirm layout", statuses: ["awaiting_layout"] },
-  { id: "review", label: "Review", statuses: ["ready_for_review"] },
+  { id: "review", label: "Review clips", statuses: ["ready_for_review"] },
   { id: "render", label: "Render", statuses: ["rendering", "done"] },
 ]
 

@@ -27,6 +27,7 @@ export type ProjectSnapshot = {
     error: string | null
     clipId: string | null
     startedAt: string | null
+    finishedAt: string | null
     detail: StepDetail | null
   }>
   clips: Array<{ id: string; status: ClipStatus }>
@@ -53,6 +54,7 @@ export async function getProjectSnapshot(
     error: job.error ? job.error.split("\n")[0]! : null,
     clipId: typeof job.payload.clipId === "string" ? job.payload.clipId : null,
     startedAt: job.startedAt?.toISOString() ?? null,
+    finishedAt: job.finishedAt?.toISOString() ?? null,
     detail:
       job.status === "running"
         ? (stepDetailSchema.safeParse(job.detail).data ?? null)

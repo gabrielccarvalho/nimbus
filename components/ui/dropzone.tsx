@@ -70,15 +70,22 @@ const dropzoneVariants = cva(
         default: "min-h-48 p-6",
         sm: "min-h-28 p-4",
       },
+      clickable: {
+        true: "",
+        false:
+          "cursor-auto border-transparent hover:bg-transparent data-[dragging=true]:bg-primary/5",
+      },
     },
     defaultVariants: {
       size: "default",
+      clickable: true,
     },
   }
 )
 
 type DropzoneProps = Omit<React.ComponentProps<"div">, "onDrop"> &
-  VariantProps<typeof dropzoneVariants> & {
+  Omit<VariantProps<typeof dropzoneVariants>, "clickable"> & {
+    clickable?: boolean
     accept?: string[]
     maxSize?: number
     multiple?: boolean
@@ -91,6 +98,7 @@ type DropzoneProps = Omit<React.ComponentProps<"div">, "onDrop"> &
 function Dropzone({
   className,
   size = "default",
+  clickable = true,
   accept = [],
   maxSize,
   multiple = false,
@@ -142,19 +150,23 @@ function Dropzone({
       <div
         data-slot="dropzone"
         data-dragging={dragging}
-        role="button"
-        tabIndex={disabled ? -1 : 0}
+        role={clickable ? "button" : undefined}
+        tabIndex={clickable ? (disabled ? -1 : 0) : undefined}
         aria-disabled={disabled || undefined}
-        aria-describedby={descriptionId}
-        className={cn(dropzoneVariants({ size, className }))}
+        aria-describedby={clickable ? descriptionId : undefined}
+        className={cn(dropzoneVariants({ size, clickable, className }))}
         onClick={(event) => {
           onClick?.(event)
-          if (!event.defaultPrevented && event.target !== inputRef.current)
+          if (
+            clickable &&
+            !event.defaultPrevented &&
+            event.target !== inputRef.current
+          )
             open()
         }}
         onKeyDown={(event) => {
           onKeyDown?.(event)
-          if (event.defaultPrevented) return
+          if (!clickable || event.defaultPrevented) return
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault()
             open()
@@ -219,6 +231,25 @@ function DropzoneIcon({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
+function DropzoneTrigger({
+  onClick,
+  ...props
+}: React.ComponentProps<"button">) {
+  const { open, disabled } = useDropzone()
+  return (
+    <button
+      data-slot="dropzone-trigger"
+      type="button"
+      disabled={disabled}
+      onClick={(event) => {
+        onClick?.(event)
+        if (!event.defaultPrevented) open()
+      }}
+      {...props}
+    />
+  )
+}
+
 function DropzoneTitle({ className, ...props }: React.ComponentProps<"p">) {
   return (
     <p
@@ -249,6 +280,7 @@ export {
   DropzoneDescription,
   DropzoneIcon,
   DropzoneTitle,
+  DropzoneTrigger,
   dropzoneVariants,
   partitionFiles,
   useDropzone,

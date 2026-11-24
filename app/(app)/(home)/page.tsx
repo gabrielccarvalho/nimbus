@@ -1,9 +1,15 @@
 import { FolderSimpleIcon } from "@phosphor-icons/react/ssr"
 import type { Metadata } from "next"
 
-import { Page } from "@/components/app-shell/page"
-import { ImportPanel } from "@/components/projects/import-panel"
-import { ProjectCard } from "@/components/projects/project-card"
+import {
+  Page,
+  PageHeader,
+  PageLede,
+  PageTitle,
+} from "@/components/app-shell/page"
+import { ImportCard } from "@/components/projects/import-card"
+import { NeedsYouBanner, ProjectGrid } from "@/components/projects/project-grid"
+import { projectSignal } from "@/components/projects/status-badge"
 import {
   Empty,
   EmptyDescription,
@@ -11,69 +17,83 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
+import { requireViewer } from "@/features/accounts/session"
 import { listProjects } from "@/features/projects/queries"
 import { getImportDefaults } from "@/features/settings/queries"
 import { getEnv } from "@/lib/env"
 
 export const metadata: Metadata = { title: "Projects" }
 
+function greeting(hour: number) {
+  if (hour < 5) return "Up late"
+  if (hour < 12) return "Good morning"
+  if (hour < 18) return "Good afternoon"
+  return "Good evening"
+}
+
 export default async function ProjectsPage() {
-  const [projects, defaults] = await Promise.all([
+  const [{ user }, projects, defaults] = await Promise.all([
+    requireViewer(),
     listProjects(),
     getImportDefaults(),
   ])
+  const items = projects.map((p) => ({
+    id: p.id,
+    name: p.name,
+    status: p.status,
+    failedStep: p.failedStep,
+    awaitingManualSelection: p.awaitingManualSelection,
+    reviewCount: p.reviewCount,
+    clipCount: p.clipCount,
+    createdAt: p.createdAt.toISOString(),
+    sourceUrl: p.sourceUrl,
+    durationMs: p.durationMs,
+    width: p.width,
+    height: p.height,
+    bytes: p.bytes,
+    thumbnailKey: p.thumbnailKey,
+    progress: p.progress,
+  }))
+  const waiting = items.find((p) => projectSignal(p).needsYou)
+  const firstName = user.name.trim().split(/\s+/)[0]
 
   return (
     <Page>
-      <div className="flex max-w-2xl flex-col gap-2">
-        <h1 className="font-heading text-[32px] leading-[1.1]">Projects</h1>
-        <p className="text-sm text-muted-foreground sm:text-base">
-          Drop in a long recording and Nimbus marks the moments worth a vertical
-          clip. Nothing leaves here until you approve it.
-        </p>
-      </div>
-      <ImportPanel
+      <PageHeader>
+        <PageTitle>
+          {greeting(new Date().getHours())}
+          {firstName ? `, ${firstName}` : ""}.
+        </PageTitle>
+        <PageLede>
+          Drop a long recording and nimbus marks the moments worth a vertical
+          clip.{" "}
+          <b className="font-medium text-foreground">
+            Nothing leaves here until you approve it.
+          </b>
+        </PageLede>
+      </PageHeader>
+      <ImportCard
         maxBytes={getEnv().MAX_UPLOAD_BYTES}
         defaults={defaults.defaults}
         claudeAvailable={defaults.claudeAvailable}
       />
-      <section
-        aria-labelledby="projects-heading"
-        className="flex flex-col gap-3"
-      >
-        <div className="flex items-baseline gap-3">
-          <h2 id="projects-heading" className="font-heading text-2xl font-bold">
-            Recordings
-          </h2>
-          {projects.length > 0 && (
-            <span className="text-sm text-muted-foreground tabular-nums">
-              {projects.length}
-            </span>
-          )}
-        </div>
-        {projects.length === 0 ? (
-          <Empty className="border">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <FolderSimpleIcon />
-              </EmptyMedia>
-              <EmptyTitle>No recordings yet</EmptyTitle>
-              <EmptyDescription>
-                Drop a recording or paste a link above. Each one shows up here
-                with its clips marked along the timeline.
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        ) : (
-          <ul className="grid grid-cols-1 gap-3 2xl:grid-cols-2">
-            {projects.map((project) => (
-              <li key={project.id}>
-                <ProjectCard project={project} />
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      {waiting && <NeedsYouBanner project={waiting} />}
+      {items.length === 0 ? (
+        <Empty className="rounded-[18px] bg-graphite">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <FolderSimpleIcon />
+            </EmptyMedia>
+            <EmptyTitle>No recordings yet</EmptyTitle>
+            <EmptyDescription>
+              Drop a recording or paste a link above. Each one shows up here
+              with its clips and where it is in the pipeline.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      ) : (
+        <ProjectGrid projects={items} />
+      )}
     </Page>
   )
 }

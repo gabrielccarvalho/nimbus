@@ -91,14 +91,24 @@ export function ProjectHeader({
               {formatRelativeDay(project.createdAt).toLowerCase()}
             </span>
             {source?.durationMs ? (
-              <span className="font-mono tabular-nums">
+              <span
+                className="font-mono tabular-nums"
+                data-testid="stat-duration"
+              >
                 {formatDuration(source.durationMs)}
               </span>
             ) : null}
             {source?.width && source.height ? (
               <span className="font-mono tabular-nums">
-                {source.width}×{source.height}
-                {aspect && aspect !== "other" ? ` · ${aspect}` : ""}
+                <span data-testid="stat-resolution">
+                  {source.width}×{source.height}
+                </span>
+                {aspect && aspect !== "other" && (
+                  <>
+                    {" · "}
+                    <span data-testid="stat-aspect">{aspect}</span>
+                  </>
+                )}
               </span>
             ) : null}
             {source?.bytes ? (
