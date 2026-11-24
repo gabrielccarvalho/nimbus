@@ -135,8 +135,8 @@ function placeAt(
   return { startMs, endMs: startMs + length }
 }
 
-// Base UI parks a portaled popup's tab stops at tabindex -1 (original in
-// data-tabindex) while focus is outside it.
+// Workaround: reads Base UI's internal data-tabindex, where it parks a portaled
+// popup's tab stops. Proper fix: make the selected block a real Popover trigger.
 function tabIndexOf(element: HTMLElement) {
   const original = element.getAttribute("data-tabindex")
   if (original === null) return element.tabIndex
