@@ -59,7 +59,7 @@ export function currentRender(
   return clip.status === "rendered" ? renders[clip.id] : undefined
 }
 
-function useClipStatus(projectId: string, clip: Clip) {
+export function useClipStatus(projectId: string, clip: Clip) {
   const router = useRouter()
   const [pending, startTransition] = React.useTransition()
 

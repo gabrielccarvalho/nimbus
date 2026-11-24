@@ -1,9 +1,9 @@
 "use client"
 
 import {
-  ChecksIcon,
+  CaretDownIcon,
+  DotsThreeIcon,
   DownloadSimpleIcon,
-  FilmSlateIcon,
   FileZipIcon,
   SparkleIcon,
   XIcon,
@@ -14,13 +14,14 @@ import { toast } from "sonner"
 
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Kbd } from "@/components/ui/kbd"
 import {
   Progress,
   ProgressLabel,
@@ -61,7 +62,24 @@ type ClipsReviewProps = {
   snapshot: ProjectSnapshot
 }
 
-function ExportPanel({
+const FILTERS = [
+  { id: "all", label: "All" },
+  { id: "todo", label: "To review" },
+  { id: "approved", label: "Approved" },
+  { id: "rejected", label: "Rejected" },
+] as const
+
+type Filter = (typeof FILTERS)[number]["id"]
+
+function clipFilter(clip: Clip): Exclude<Filter, "all"> {
+  if (clip.status === "candidate") return "todo"
+  if (clip.status === "rejected") return "rejected"
+  return "approved"
+}
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`
+
+function ExportBar({
   projectId,
   clips,
   renders,
@@ -89,6 +107,16 @@ function ExportPanel({
   )
   const renderedCount = Object.keys(renders).length
   const candidates = clips.filter((clip) => clip.status === "candidate").length
+  const renderMinutes = Math.ceil(
+    approved.reduce((sum, clip) => sum + clip.endMs - clip.startMs, 0) / 60_000
+  )
+  const summary = [
+    approved.length > 0 && `${approved.length} approved`,
+    renderedCount > 0 && `${renderedCount} rendered`,
+    candidates > 0 && `${candidates} to review`,
+  ]
+    .filter(Boolean)
+    .join(" · ")
 
   const run = (action: () => Promise<Result<unknown>>, message: string) =>
     startTransition(async () => {
@@ -99,138 +127,148 @@ function ExportPanel({
     })
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Export</CardTitle>
-        <CardDescription>
-          {layoutConfirmed
-            ? `${approved.length} approved to render · ${renderedCount} rendered`
-            : "Confirm the layout before rendering."}
-        </CardDescription>
-        {(renderedCount > 0 || edit) && (
-          <CardAction>
-            <a
-              href={`/api/projects/${projectId}/export`}
-              download
-              className={buttonVariants({ size: "sm" })}
-            >
-              <FileZipIcon data-icon="inline-start" aria-hidden />
-              Download all
-            </a>
-          </CardAction>
-        )}
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <div className="flex flex-wrap gap-2">
-          {candidates > 0 && (
-            <Button
-              disabled={pending}
-              onClick={() =>
-                run(
-                  () => approveAllCandidatesAction(projectId),
-                  `Approved ${candidates} ${candidates === 1 ? "clip" : "clips"}`
-                )
-              }
-            >
-              <ChecksIcon data-icon="inline-start" aria-hidden />
-              Approve all ({candidates})
-            </Button>
-          )}
+    <section className="grid gap-4 rounded-[18px] bg-graphite px-[18px] py-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="grid min-w-0 flex-[1_1_260px] gap-1">
+          <b className="text-[15px] font-semibold">
+            {summary || "No clips yet"}
+          </b>
+          <span className="text-[13px] text-tertiary">
+            {layoutConfirmed
+              ? approved.length > 0
+                ? `Only approved clips render. About ${plural(renderMinutes, "render minute")}.`
+                : "Only approved clips render."
+              : "Confirm the layout before rendering."}
+          </span>
+        </div>
+        {candidates > 0 && (
           <Button
-            disabled={pending || !layoutConfirmed || approved.length === 0}
+            size="sm"
+            disabled={pending}
             onClick={() =>
               run(
-                () =>
-                  renderClipsAction(
-                    projectId,
-                    approved.map((clip) => clip.id)
-                  ),
-                `Rendering ${approved.length} ${approved.length === 1 ? "clip" : "clips"}`
+                () => approveAllCandidatesAction(projectId),
+                `Approved ${plural(candidates, "clip")}`
               )
             }
           >
-            <FilmSlateIcon data-icon="inline-start" aria-hidden />
-            Render approved clips
+            Approve all {candidates}
           </Button>
-          <Button
-            disabled={pending || Boolean(editJob)}
-            onClick={() =>
-              run(() => renderEditAction(projectId), "Rendering the edit")
+        )}
+        {renderedCount > 0 && (
+          <a
+            href={`/api/projects/${projectId}/export`}
+            download
+            className={buttonVariants({ size: "sm" })}
+          >
+            <FileZipIcon data-icon="inline-start" aria-hidden />
+            Download all
+          </a>
+        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                size="icon-sm"
+                aria-label="More exports: horizontal edit"
+              />
             }
           >
-            Render horizontal edit
+            <DotsThreeIcon weight="bold" aria-hidden />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-60">
+            <DropdownMenuItem
+              disabled={pending || Boolean(editJob)}
+              onClick={() =>
+                run(() => renderEditAction(projectId), "Rendering the edit")
+              }
+            >
+              Render horizontal edit
+            </DropdownMenuItem>
+            {edit && !editJob && (
+              <DropdownMenuItem render={<a href={edit.downloadUrl} download />}>
+                <DownloadSimpleIcon aria-hidden />
+                Download edit ({formatDuration(edit.durationMs)})
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <Button
+          variant="primary"
+          size="sm"
+          disabled={pending || !layoutConfirmed || approved.length === 0}
+          onClick={() =>
+            run(
+              () =>
+                renderClipsAction(
+                  projectId,
+                  approved.map((clip) => clip.id)
+                ),
+              `Rendering ${plural(approved.length, "clip")}`
+            )
+          }
+        >
+          Render approved clips
+        </Button>
+      </div>
+      {renderJobs.length > 0 && (
+        <div className="flex items-end gap-3">
+          <Progress
+            className="flex-1"
+            value={
+              renderJobs.reduce((sum, job) => sum + job.progress, 0) /
+              renderJobs.length
+            }
+            aria-live="polite"
+          >
+            <ProgressLabel>
+              Rendering {plural(renderJobs.length, "clip")}
+            </ProgressLabel>
+            <ProgressValue />
+          </Progress>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={pending}
+            onClick={() =>
+              run(
+                () => cancelClipRendersAction(projectId),
+                "Cancelled clip renders"
+              )
+            }
+          >
+            <XIcon data-icon="inline-start" aria-hidden />
+            Cancel
           </Button>
-          {edit && !editJob && (
-            <a
-              href={edit.downloadUrl}
-              download
-              className={buttonVariants({ variant: "ghost" })}
-            >
-              <DownloadSimpleIcon data-icon="inline-start" aria-hidden />
-              Edit ({formatDuration(edit.durationMs)})
-            </a>
-          )}
         </div>
-        {renderJobs.length > 0 && (
-          <div className="flex items-end gap-3">
-            <Progress
-              className="flex-1"
-              value={
-                renderJobs.reduce((sum, job) => sum + job.progress, 0) /
-                renderJobs.length
-              }
-              aria-live="polite"
-            >
-              <ProgressLabel>
-                Rendering {renderJobs.length}{" "}
-                {renderJobs.length === 1 ? "clip" : "clips"}
-              </ProgressLabel>
-              <ProgressValue />
-            </Progress>
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={pending}
-              onClick={() =>
-                run(
-                  () => cancelClipRendersAction(projectId),
-                  "Cancelled clip renders"
-                )
-              }
-            >
-              <XIcon data-icon="inline-start" aria-hidden />
-              Cancel
-            </Button>
-          </div>
-        )}
-        {editJob && (
-          <div className="flex items-end gap-3">
-            <Progress
-              className="flex-1"
-              value={editJob.status === "running" ? editJob.progress : null}
-              aria-live="polite"
-            >
-              <ProgressLabel>Rendering the horizontal edit</ProgressLabel>
-              <ProgressValue />
-            </Progress>
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={pending}
-              onClick={() =>
-                run(
-                  () => cancelEditRenderAction(projectId),
-                  "Cancelled the edit render"
-                )
-              }
-            >
-              <XIcon data-icon="inline-start" aria-hidden />
-              Cancel
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      )}
+      {editJob && (
+        <div className="flex items-end gap-3">
+          <Progress
+            className="flex-1"
+            value={editJob.status === "running" ? editJob.progress : null}
+            aria-live="polite"
+          >
+            <ProgressLabel>Rendering the horizontal edit</ProgressLabel>
+            <ProgressValue />
+          </Progress>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={pending}
+            onClick={() =>
+              run(
+                () => cancelEditRenderAction(projectId),
+                "Cancelled the edit render"
+              )
+            }
+          >
+            <XIcon data-icon="inline-start" aria-hidden />
+            Cancel
+          </Button>
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -250,7 +288,8 @@ export function ClipsReview({
 }: ClipsReviewProps) {
   const snapshot = useProjectEvents(initialSnapshot)
   const [openId, setOpenId] = React.useState<string | null>(null)
-  const [showRejected, setShowRejected] = React.useState(false)
+  const [filter, setFilter] = React.useState<Filter>("all")
+  const [sort, setSort] = React.useState<"best" | "time">("best")
   const router = useRouter()
   const [finding, startFinding] = React.useTransition()
   const selecting = snapshot.status === "selecting"
@@ -261,13 +300,17 @@ export function ClipsReview({
       else toast.success("Looking for more highlights")
       router.refresh()
     })
-  const rejected = clips.filter((clip) => clip.status === "rejected").length
-  const visible = showRejected
-    ? clips
-    : clips.filter((clip) => clip.status !== "rejected" || clip.id === openId)
+  const byScore = clips.toSorted((a, b) => b.score - a.score)
+  const ranks = Object.fromEntries(byScore.map((clip, i) => [clip.id, i + 1]))
+  const counts = { all: clips.length, todo: 0, approved: 0, rejected: 0 }
+  for (const clip of clips) counts[clipFilter(clip)] += 1
+  const visible = (sort === "best" ? byScore : clips).filter(
+    (clip) =>
+      filter === "all" || clipFilter(clip) === filter || clip.id === openId
+  )
   return (
     <>
-      <ExportPanel
+      <ExportBar
         projectId={projectId}
         clips={clips}
         renders={renders}
@@ -275,44 +318,70 @@ export function ClipsReview({
         layoutConfirmed={layoutConfirmed}
         snapshot={snapshot}
       />
-      <div className="flex flex-col gap-3">
-        <ClipsTimeline
-          durationMs={durationMs}
-          clips={visible}
-          openId={openId}
-          audio={audio}
-          onOpen={setOpenId}
-        />
-        <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
-          <span>
-            {rejected > 0 &&
-              `${rejected} rejected ${rejected === 1 ? "clip" : "clips"} ${showRejected ? "shown" : "hidden"}`}
-          </span>
-          <div className="flex gap-1">
-            {rejected > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                aria-pressed={showRejected}
-                onClick={() => setShowRejected((value) => !value)}
-              >
-                {showRejected ? "Hide rejected" : "Show rejected"}
-              </Button>
-            )}
-            <Button
-              size="sm"
-              disabled={finding || selecting}
-              onClick={findMore}
+      <ClipsTimeline
+        durationMs={durationMs}
+        clips={clips.filter((clip) => clip.status !== "rejected")}
+        openId={openId}
+        audio={audio}
+        onOpen={setOpenId}
+      />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div
+          role="group"
+          aria-label="Filter clips"
+          className="flex flex-wrap gap-0.5"
+        >
+          {FILTERS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              aria-pressed={filter === item.id}
+              onClick={() => setFilter(item.id)}
+              className="inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-medium tracking-[-0.01em] whitespace-nowrap text-muted-foreground transition-colors hover:bg-glass hover:text-foreground aria-pressed:bg-glass-3 aria-pressed:text-foreground"
             >
-              <SparkleIcon data-icon="inline-start" aria-hidden />
-              {selecting ? "Finding highlights…" : "Find more highlights"}
-            </Button>
-          </div>
+              {item.label}{" "}
+              <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                {counts[item.id]}
+              </span>
+            </button>
+          ))}
         </div>
+        <div className="flex items-center gap-3">
+          <DropdownMenu>
+            <DropdownMenuTrigger className="inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-glass hover:text-foreground">
+              {sort === "best" ? "Best first" : "In order"}
+              <CaretDownIcon className="size-3.5" aria-hidden />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuRadioGroup
+                value={sort}
+                onValueChange={(value) => setSort(value as "best" | "time")}
+              >
+                <DropdownMenuRadioItem value="best">
+                  Best first
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="time">
+                  In order
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button size="sm" disabled={finding || selecting} onClick={findMore}>
+            <SparkleIcon data-icon="inline-start" aria-hidden />
+            {selecting ? "Finding highlights…" : "Find more highlights"}
+          </Button>
+        </div>
+      </div>
+      {visible.length === 0 ? (
+        <p className="py-10 text-center text-sm text-tertiary">
+          Nothing here right now.
+        </p>
+      ) : (
         <ClipsGrid
           projectId={projectId}
           src={src}
           clips={visible}
+          ranks={ranks}
           renders={renders}
           layout={layout}
           captions={captions}
@@ -320,7 +389,11 @@ export function ClipsReview({
           openClipId={openId}
           onOpenClipIdChange={setOpenId}
         />
-      </div>
+      )}
+      <p className="text-center text-[13px] text-tertiary">
+        Open a clip to review it full size. <Kbd>A</Kbd> approve · <Kbd>X</Kbd>{" "}
+        reject · <Kbd>←</Kbd> <Kbd>→</Kbd> next
+      </p>
     </>
   )
 }

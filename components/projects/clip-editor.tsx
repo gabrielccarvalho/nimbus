@@ -2,23 +2,20 @@
 
 import {
   ArrowCounterClockwiseIcon,
+  ArrowLeftIcon,
+  CaretLeftIcon,
+  CaretRightIcon,
+  CheckIcon,
   DownloadSimpleIcon,
   FilmSlateIcon,
+  XIcon,
 } from "@phosphor-icons/react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
 
-import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import {
   CropRegion,
   CropRegionEditor,
@@ -30,13 +27,14 @@ import {
   ProgressLabel,
   ProgressValue,
 } from "@/components/ui/progress"
+import { StatusPill } from "@/components/ui/status-pill"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Timeline,
   TimelinePlayhead,
   TimelineRange,
 } from "@/components/ui/timeline"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
   useVideoPlayer,
   VideoPlayerControls,
@@ -57,11 +55,7 @@ import {
 } from "@/features/captions/styles"
 import { setClipStatusAction, updateClipAction } from "@/features/clips/actions"
 import type { Clip } from "@/features/clips/repository"
-import {
-  layoutModeSchema,
-  usesWebcam,
-  type LayoutInput,
-} from "@/features/layout/schema"
+import { usesWebcam, type LayoutInput } from "@/features/layout/schema"
 import type { ProjectSnapshot } from "@/features/pipeline/snapshot"
 import type { ProjectSettings } from "@/features/projects/schema"
 import { renderClipsAction } from "@/features/render/actions"
@@ -70,17 +64,20 @@ import { formatTimestamp } from "@/lib/format"
 
 import { CaptionStyleFields } from "./caption-style-fields"
 import { ClipEffectsCard, ClipEffectsPreview } from "./clip-effects"
+import { useClipStatus } from "./clip-player-dialog"
 import { ClipLoop } from "./clip-preview"
 import { useProjectEvents } from "./use-project-events"
 import {
   CamPositionField,
   DEFAULT_WEBCAM,
   GameplayRegion,
-  LAYOUT_MODES,
+  LayoutModeOptions,
   withLayoutMode,
 } from "./layout-editor"
 
 const WINDOW_PADDING_MS = 10_000
+const AUTOSAVE_MS = 600
+const QUALITY_LABELS = { draft: "Draft", standard: "Standard", high: "High" }
 
 type ClipEditorProps = {
   projectId: string
@@ -95,6 +92,12 @@ type ClipEditorProps = {
   installedFonts: readonly CaptionFontId[]
   render?: { url: string; downloadUrl: string }
   snapshot: ProjectSnapshot
+  siblings: {
+    index: number
+    count: number
+    previousId: string | null
+    nextId: string | null
+  }
 }
 
 const seconds = (ms: number) => (ms / 1000).toFixed(1)
@@ -163,6 +166,7 @@ export function ClipEditor({
   installedFonts,
   render,
   snapshot: initialSnapshot,
+  siblings,
 }: ClipEditorProps) {
   const router = useRouter()
   const snapshot = useProjectEvents(initialSnapshot)
@@ -229,6 +233,10 @@ export function ClipEditor({
       (job.status === "running" || job.status === "queued")
   )
   const rendering = clipStatus === "rendering"
+  const status = useClipStatus(projectId, {
+    ...clip,
+    status: clipStatus,
+  })
 
   const trim = (nextStart: number, nextEnd: number) => {
     const start = Math.max(0, Math.min(Math.round(nextStart), sourceDurationMs))
@@ -238,26 +246,49 @@ export function ClipEditor({
     setPageTexts({})
   }
 
-  const save = (thenRender: boolean) =>
+  const payload = {
+    startMs,
+    endMs,
+    title,
+    hook,
+    captionOverrides: { pages: overrides, style: styleRef },
+    layoutOverride,
+    effects,
+  }
+  const serialized = JSON.stringify(payload)
+  const [saved, setSaved] = React.useState(serialized)
+  const [saving, setSaving] = React.useState(false)
+  const [saveError, setSaveError] = React.useState<string | null>(null)
+  const dirty = serialized !== saved
+  const latest = React.useRef(payload)
+  React.useEffect(() => {
+    latest.current = payload
+  })
+
+  const persist = React.useCallback(async () => {
+    const snapshot = latest.current
+    const text = JSON.stringify(snapshot)
+    setSaving(true)
+    const result = await updateClipAction(projectId, clip.id, snapshot)
+    setSaving(false)
+    if (!result.ok) {
+      setSaveError(result.error.message)
+      return false
+    }
+    setSaveError(null)
+    setSaved(text)
+    return true
+  }, [projectId, clip.id])
+
+  React.useEffect(() => {
+    if (!dirty || rendering) return
+    const timer = setTimeout(() => void persist(), AUTOSAVE_MS)
+    return () => clearTimeout(timer)
+  }, [serialized, dirty, rendering, persist])
+
+  const renderNow = () =>
     startTransition(async () => {
-      const saved = await updateClipAction(projectId, clip.id, {
-        startMs,
-        endMs,
-        title,
-        hook,
-        captionOverrides: { pages: overrides, style: styleRef },
-        layoutOverride,
-        effects,
-      })
-      if (!saved.ok) {
-        toast.error(saved.error.message)
-        return
-      }
-      if (!thenRender) {
-        toast.success("Clip saved")
-        router.refresh()
-        return
-      }
+      if (dirty && !(await persist())) return
       if (clipStatus === "candidate" || clipStatus === "rejected") {
         const approved = await setClipStatusAction(
           projectId,
@@ -275,99 +306,192 @@ export function ClipEditor({
       router.refresh()
     })
 
+  const saveState = saveError
+    ? `Not saved: ${saveError}`
+    : saving
+      ? "Saving…"
+      : dirty
+        ? "Unsaved changes"
+        : "Saved"
+
+  const approved = ["approved", "rendering", "rendered"].includes(clipStatus)
+  const statusLabel =
+    clipStatus === "rendered"
+      ? "Up to date"
+      : clipStatus === "rendering"
+        ? "Rendering"
+        : clipStatus === "failed"
+          ? "Failed"
+          : render
+            ? "Out of date"
+            : "Not rendered"
+  const clipsHref = `/projects/${projectId}/clips` as const
+
   return (
     <VideoPlayerProvider>
       <ClipLoop startMs={startMs} endMs={endMs} />
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
-        <div className="flex min-w-0 flex-col gap-4">
-          <div className="overflow-hidden rounded-xl bg-black">
-            <CropRegionEditor
-              value={layout.webcamRect ?? DEFAULT_WEBCAM}
-              onValueChange={(webcamRect) => editLayout({ webcamRect })}
-              className="mx-auto w-full rounded-none"
-              style={{
-                aspectRatio: `${sourceWidth} / ${sourceHeight}`,
-                maxWidth: `calc(40vh * ${sourceWidth / sourceHeight})`,
-              }}
-            >
-              <VideoPlayerVideo
-                src={src}
-                aria-label="Source video"
-                className="size-full"
-              />
-              <GameplayRegion
-                layout={layout}
-                width={sourceWidth}
-                height={sourceHeight}
-                onLayoutChange={editLayout}
-              />
-              {hasWebcam && <CropRegion aria-label="Webcam region" />}
-            </CropRegionEditor>
-            <VideoPlayerControls>
-              <VideoPlayerPlayButton />
-              <VideoPlayerTime />
-              <VideoPlayerMuteButton className="ms-auto" />
-            </VideoPlayerControls>
-          </div>
-          <TrimTimeline
-            windowStartMs={windowStartMs}
-            windowEndMs={windowEndMs}
-            startMs={startMs}
-            endMs={endMs}
-          />
-
-          <form
-            className="flex flex-col gap-6"
-            onSubmit={(event) => {
-              event.preventDefault()
-              save(false)
-            }}
+      <div className="grid gap-5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Link
+            href={clipsHref}
+            aria-label="Back to all clips"
+            className={buttonVariants({ size: "icon" })}
           >
-            <Card>
-              <CardHeader>
-                <CardTitle>Trim</CardTitle>
-                <CardDescription>
-                  {seconds(durationMs)} s long. Editing the trim resets caption
+            <ArrowLeftIcon aria-hidden />
+          </Link>
+          <div className="grid min-w-0 flex-[1_1_300px] gap-0.5">
+            <h2 className="truncate text-[21px] font-semibold tracking-[-0.03em]">
+              {title || clip.title}
+            </h2>
+            <span className="text-[13px] text-tertiary">
+              {siblings.index >= 0 &&
+                `Clip ${siblings.index + 1} of ${siblings.count} · `}
+              <span className="font-mono tabular-nums">
+                {formatTimestamp(startMs)} → {formatTimestamp(endMs)}
+              </span>{" "}
+              ·{" "}
+              <span
+                data-testid="save-state"
+                role="status"
+                className={saveError ? "text-pink" : undefined}
+              >
+                {saveState}
+              </span>
+            </span>
+          </div>
+          <div className="flex items-center gap-0.5">
+            <SiblingLink
+              projectId={projectId}
+              clipId={siblings.previousId}
+              label="Previous clip"
+            >
+              <CaretLeftIcon aria-hidden />
+            </SiblingLink>
+            {siblings.index >= 0 && (
+              <span className="px-1 font-mono text-[13px] text-muted-foreground tabular-nums">
+                {siblings.index + 1} / {siblings.count}
+              </span>
+            )}
+            <SiblingLink
+              projectId={projectId}
+              clipId={siblings.nextId}
+              label="Next clip"
+            >
+              <CaretRightIcon aria-hidden />
+            </SiblingLink>
+          </div>
+          <Button
+            size="sm"
+            aria-pressed={clipStatus === "rejected"}
+            disabled={status.pending || rendering || clipStatus === "rendered"}
+            onClick={() =>
+              status.setStatus(
+                clipStatus === "rejected" ? "candidate" : "rejected"
+              )
+            }
+          >
+            <XIcon data-icon="inline-start" aria-hidden />
+            {clipStatus === "rejected" ? "Rejected" : "Reject"}
+          </Button>
+          <Button
+            size="sm"
+            variant={approved ? "primary" : "default"}
+            aria-pressed={approved}
+            disabled={status.pending || rendering || clipStatus === "rendered"}
+            onClick={() =>
+              status.setStatus(approved ? "candidate" : "approved")
+            }
+          >
+            <CheckIcon data-icon="inline-start" aria-hidden />
+            {approved ? "Approved" : "Approve"}
+          </Button>
+        </div>
+
+        <div className="flex flex-wrap items-start gap-[22px]">
+          <div className="grid min-w-0 flex-[999_1_560px] gap-4">
+            <div className="overflow-hidden rounded-[18px] bg-black">
+              <CropRegionEditor
+                value={layout.webcamRect ?? DEFAULT_WEBCAM}
+                onValueChange={(webcamRect) => editLayout({ webcamRect })}
+                className="mx-auto w-full rounded-none"
+                style={{
+                  aspectRatio: `${sourceWidth} / ${sourceHeight}`,
+                  maxWidth: `calc(46vh * ${sourceWidth / sourceHeight})`,
+                }}
+              >
+                <VideoPlayerVideo
+                  src={src}
+                  aria-label="Source video"
+                  className="size-full"
+                />
+                <GameplayRegion
+                  layout={layout}
+                  width={sourceWidth}
+                  height={sourceHeight}
+                  onLayoutChange={editLayout}
+                />
+                {hasWebcam && <CropRegion aria-label="Webcam region" />}
+              </CropRegionEditor>
+              <VideoPlayerControls>
+                <VideoPlayerPlayButton />
+                <VideoPlayerTime />
+                <VideoPlayerMuteButton className="ms-auto" />
+              </VideoPlayerControls>
+            </div>
+
+            <section className="grid gap-3.5 rounded-[18px] bg-graphite px-[18px] py-4">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h3 className="text-[15px] font-semibold tracking-[-0.015em]">
+                  Trim
+                </h3>
+                <span className="text-[13px] text-tertiary">
+                  {seconds(durationMs)} s long. Changing the trim resets caption
                   text edits.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="clip-start">Start (seconds)</Label>
-                    <Input
-                      id="clip-start"
-                      type="number"
-                      inputMode="decimal"
-                      step={0.1}
-                      min={0}
-                      value={seconds(startMs)}
-                      onChange={(event) =>
-                        trim(Number(event.target.value) * 1000, endMs)
-                      }
-                    />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="clip-end">End (seconds)</Label>
-                    <Input
-                      id="clip-end"
-                      type="number"
-                      inputMode="decimal"
-                      step={0.1}
-                      min={0}
-                      value={seconds(endMs)}
-                      onChange={(event) =>
-                        trim(startMs, Number(event.target.value) * 1000)
-                      }
-                    />
-                  </div>
+                </span>
+              </div>
+              <TrimTimeline
+                windowStartMs={windowStartMs}
+                windowEndMs={windowEndMs}
+                startMs={startMs}
+                endMs={endMs}
+              />
+              <div className="flex flex-wrap items-end gap-3 pt-3.5 shadow-[inset_0_1px_0_var(--hair)]">
+                <div className="grid flex-[1_1_140px] gap-2">
+                  <Label htmlFor="clip-start">Start (seconds)</Label>
+                  <Input
+                    id="clip-start"
+                    type="number"
+                    inputMode="decimal"
+                    step={0.1}
+                    min={0}
+                    className="font-mono"
+                    value={seconds(startMs)}
+                    onChange={(event) =>
+                      trim(Number(event.target.value) * 1000, endMs)
+                    }
+                  />
+                </div>
+                <div className="grid flex-[1_1_140px] gap-2">
+                  <Label htmlFor="clip-end">End (seconds)</Label>
+                  <Input
+                    id="clip-end"
+                    type="number"
+                    inputMode="decimal"
+                    step={0.1}
+                    min={0}
+                    className="font-mono"
+                    value={seconds(endMs)}
+                    onChange={(event) =>
+                      trim(startMs, Number(event.target.value) * 1000)
+                    }
+                  />
                 </div>
                 <PlayheadButtons
                   onStart={(ms) => trim(ms, endMs)}
                   onEnd={(ms) => trim(startMs, ms)}
                 />
-              </CardContent>
-            </Card>
+              </div>
+            </section>
 
             <ClipEffectsCard
               projectId={projectId}
@@ -382,16 +506,107 @@ export function ClipEditor({
               onSelectedChange={setSelectedEffect}
               disabled={pending || rendering}
             />
+          </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Title and hook</CardTitle>
-                <CardDescription>
-                  Used for the file name and the export manifest.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-4">
-                <div className="flex flex-col gap-2">
+          <aside className="grid min-w-0 flex-[1_1_340px] gap-4">
+            <div className="grid grid-cols-[minmax(0,200px)_minmax(0,1fr)] items-start gap-3.5">
+              <ClipEffectsPreview
+                layout={layout}
+                source={{ width: sourceWidth, height: sourceHeight }}
+                effects={effects}
+                selected={selectedEffect}
+                onEffectsChange={setEffects}
+                pages={pages}
+                startMs={startMs}
+                captionStyle={style}
+                captionsEnabled={settings.captionsEnabled}
+              />
+              <div className="grid content-start justify-items-start gap-2.5">
+                <span className="mono-label">Output</span>
+                <span className="text-[13px] text-muted-foreground">
+                  1080×1920 · {seconds(durationMs)} s
+                  {settings.renderQuality &&
+                    ` · ${QUALITY_LABELS[settings.renderQuality]}`}
+                </span>
+                <StatusPill
+                  tone={
+                    clipStatus === "rendered"
+                      ? "mint"
+                      : clipStatus === "failed"
+                        ? "pink"
+                        : clipStatus === "rendering"
+                          ? "lav"
+                          : render
+                            ? "amber"
+                            : "neutral"
+                  }
+                  data-testid="clip-status"
+                >
+                  {statusLabel}
+                </StatusPill>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="mt-1.5"
+                  disabled={pending || rendering}
+                  onClick={renderNow}
+                >
+                  <FilmSlateIcon data-icon="inline-start" aria-hidden />
+                  Render this clip
+                </Button>
+                {rendering && (
+                  <Progress
+                    value={
+                      renderJob?.status === "running"
+                        ? renderJob.progress
+                        : null
+                    }
+                    aria-live="polite"
+                    className="w-full"
+                  >
+                    <ProgressLabel>
+                      {renderJob?.status === "running" ? "Rendering" : "Queued"}
+                    </ProgressLabel>
+                    <ProgressValue />
+                  </Progress>
+                )}
+                {clipStatus === "failed" && clip.error && (
+                  <p className="text-sm break-words text-pink">{clip.error}</p>
+                )}
+                {render && !rendering && (
+                  <a
+                    href={render.downloadUrl}
+                    download
+                    className={buttonVariants({ size: "sm" })}
+                  >
+                    <DownloadSimpleIcon data-icon="inline-start" aria-hidden />
+                    Download
+                  </a>
+                )}
+              </div>
+            </div>
+            {render && !rendering && (
+              <video
+                key={render.url}
+                src={render.url}
+                controls
+                preload="metadata"
+                aria-label="Rendered clip"
+                className="mx-auto aspect-[9/16] w-full max-w-[240px] rounded-2xl bg-black"
+              />
+            )}
+
+            <Tabs
+              defaultValue="details"
+              className="gap-4 rounded-[18px] bg-graphite px-[18px] py-4"
+            >
+              <TabsList aria-label="Clip inspector">
+                <TabsTrigger value="details">Details</TabsTrigger>
+                <TabsTrigger value="layout">Layout</TabsTrigger>
+                <TabsTrigger value="captions">Captions</TabsTrigger>
+              </TabsList>
+              <TabsContent value="details" className="grid gap-4">
+                <div className="grid gap-2">
                   <Label htmlFor="clip-title">Title</Label>
                   <Input
                     id="clip-title"
@@ -400,8 +615,11 @@ export function ClipEditor({
                     required
                     onChange={(event) => setTitle(event.target.value)}
                   />
+                  <p className="text-[13px] text-tertiary">
+                    Used for the file name and the export manifest.
+                  </p>
                 </div>
-                <div className="flex flex-col gap-2">
+                <div className="grid gap-2">
                   <Label htmlFor="clip-hook">Hook</Label>
                   <Textarea
                     id="clip-hook"
@@ -411,23 +629,15 @@ export function ClipEditor({
                     className="min-h-16"
                   />
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Layout</CardTitle>
-                <CardDescription>
-                  {layoutOverride
-                    ? "This clip has its own layout."
-                    : "Uses the project layout. Changes here apply to this clip only."}
-                  {hasWebcam
-                    ? " Drag the solid box on the video over the webcam and the dashed box over the gameplay."
-                    : layout.mode === "no-cam-fill" &&
-                      " Drag the dashed box on the video over the gameplay."}
-                </CardDescription>
-                {layoutOverride && (
-                  <CardAction>
+              </TabsContent>
+              <TabsContent value="layout" className="grid gap-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <p className="min-w-0 flex-1 text-[13px] text-tertiary">
+                    {layoutOverride
+                      ? "This clip has its own layout."
+                      : "Uses the project layout. Changes here apply to this clip only."}
+                  </p>
+                  {layoutOverride && (
                     <Button
                       type="button"
                       variant="ghost"
@@ -440,62 +650,35 @@ export function ClipEditor({
                       />
                       Use project layout
                     </Button>
-                  </CardAction>
-                )}
-              </CardHeader>
-              <CardContent className="flex flex-col gap-4">
-                <div className="flex flex-col gap-2">
-                  <Label id="clip-layout-mode-label">Mode</Label>
-                  <ToggleGroup
-                    aria-labelledby="clip-layout-mode-label"
-                    variant="outline"
-                    size="sm"
-                    value={[layout.mode]}
-                    onValueChange={(value) => {
-                      const mode = layoutModeSchema.safeParse(value[0])
-                      if (!mode.success) return
-                      editLayout(
-                        withLayoutMode(
-                          layout,
-                          mode.data,
-                          sourceWidth,
-                          sourceHeight
-                        )
-                      )
-                    }}
-                  >
-                    {LAYOUT_MODES.map((mode) => (
-                      <ToggleGroupItem key={mode.value} value={mode.value}>
-                        {mode.label}
-                      </ToggleGroupItem>
-                    ))}
-                  </ToggleGroup>
+                  )}
                 </div>
+                <LayoutModeOptions
+                  value={layout.mode}
+                  onValueChange={(mode) =>
+                    editLayout(
+                      withLayoutMode(layout, mode, sourceWidth, sourceHeight)
+                    )
+                  }
+                />
                 {hasWebcam && (
                   <CamPositionField
                     value={layout.camPosition ?? "top"}
                     onValueChange={(camPosition) => editLayout({ camPosition })}
                   />
                 )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Captions</CardTitle>
-                <CardDescription>
-                  {settings.captionsEnabled
-                    ? "Fix transcription mistakes per caption. Each caption keeps its timing."
-                    : "Captions are turned off for this project in Settings."}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-4">
+              </TabsContent>
+              <TabsContent value="captions" className="grid gap-4">
+                {!settings.captionsEnabled && (
+                  <p className="text-[13px] text-tertiary">
+                    Captions are turned off for this project in Settings.
+                  </p>
+                )}
                 <CaptionStyleFields
                   value={styleRef}
                   onValueChange={setStyleRef}
                   installedFonts={installedFonts}
                 />
-                <ol aria-label="Caption text" className="flex flex-col gap-2">
+                <ol aria-label="Caption text" className="grid gap-2">
                   {basePages.map((page) => {
                     const id = `caption-${page.index}`
                     const original = page.words.map((w) => w.text).join(" ")
@@ -548,97 +731,40 @@ export function ClipEditor({
                     </li>
                   )}
                 </ol>
-              </CardContent>
-            </Card>
-
-            <div className="flex flex-wrap gap-2">
-              <Button type="submit" disabled={pending || rendering}>
-                Save
-              </Button>
-              <Button
-                type="button"
-                disabled={pending || rendering}
-                onClick={() => save(true)}
-              >
-                <FilmSlateIcon data-icon="inline-start" aria-hidden />
-                Save and render
-              </Button>
-            </div>
-          </form>
-        </div>
-
-        <div className="flex flex-col gap-4">
-          <ClipEffectsPreview
-            layout={layout}
-            source={{ width: sourceWidth, height: sourceHeight }}
-            effects={effects}
-            selected={selectedEffect}
-            onEffectsChange={setEffects}
-            pages={pages}
-            startMs={startMs}
-            captionStyle={style}
-            captionsEnabled={settings.captionsEnabled}
-          />
-          <Card size="sm">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between gap-2">
-                Render
-                <Badge variant="secondary" data-testid="clip-status">
-                  {clipStatus === "rendered"
-                    ? "Up to date"
-                    : clipStatus === "rendering"
-                      ? "Rendering"
-                      : clipStatus === "failed"
-                        ? "Failed"
-                        : render
-                          ? "Out of date"
-                          : "Not rendered"}
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3">
-              {rendering && (
-                <Progress
-                  value={
-                    renderJob?.status === "running" ? renderJob.progress : null
-                  }
-                  aria-live="polite"
-                >
-                  <ProgressLabel>
-                    {renderJob?.status === "running" ? "Rendering" : "Queued"}
-                  </ProgressLabel>
-                  <ProgressValue />
-                </Progress>
-              )}
-              {clipStatus === "failed" && clip.error && (
-                <p className="text-sm break-words text-destructive">
-                  {clip.error}
-                </p>
-              )}
-              {render && !rendering && (
-                <>
-                  <video
-                    key={render.url}
-                    src={render.url}
-                    controls
-                    preload="metadata"
-                    aria-label="Rendered clip"
-                    className="aspect-[9/16] w-full rounded-lg bg-black"
-                  />
-                  <a
-                    href={render.downloadUrl}
-                    download
-                    className={buttonVariants()}
-                  >
-                    <DownloadSimpleIcon data-icon="inline-start" aria-hidden />
-                    Download
-                  </a>
-                </>
-              )}
-            </CardContent>
-          </Card>
+              </TabsContent>
+            </Tabs>
+          </aside>
         </div>
       </div>
     </VideoPlayerProvider>
+  )
+}
+
+function SiblingLink({
+  projectId,
+  clipId,
+  label,
+  children,
+}: {
+  projectId: string
+  clipId: string | null
+  label: string
+  children: React.ReactNode
+}) {
+  if (!clipId) {
+    return (
+      <Button size="icon-sm" variant="ghost" aria-label={label} disabled>
+        {children}
+      </Button>
+    )
+  }
+  return (
+    <Link
+      href={`/projects/${projectId}/clips/${clipId}`}
+      aria-label={label}
+      className={buttonVariants({ size: "icon-sm", variant: "ghost" })}
+    >
+      {children}
+    </Link>
   )
 }

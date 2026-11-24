@@ -39,7 +39,7 @@ export default async function ClipsPage({
   } = data
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-[22px]">
       {manualPrompt && (
         <ManualSelection projectId={project.id} prompt={manualPrompt} />
       )}
@@ -59,7 +59,7 @@ export default async function ClipsPage({
           snapshot={snapshot}
         />
       ) : manualPrompt ? null : (
-        <Empty className="border">
+        <Empty className="rounded-[18px] bg-graphite">
           <EmptyHeader>
             <EmptyMedia variant="icon">
               <FilmStripIcon />

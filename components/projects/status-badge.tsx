@@ -129,6 +129,10 @@ const CLIP_TONES: Record<ClipStatus, Tone> = {
   failed: "pink",
 }
 
+export function clipStatusLabel(status: ClipStatus) {
+  return CLIP_LABELS[status]
+}
+
 export function ClipStatusBadge({
   status,
   className,

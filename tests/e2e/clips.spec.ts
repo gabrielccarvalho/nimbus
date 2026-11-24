@@ -19,7 +19,7 @@ async function uploadAndOpenClips(page: Page, { confirmLayout = false } = {}) {
     await expect(page.getByText("Layout confirmed")).toBeVisible()
   }
   await page.getByRole("link", { name: "Clips" }).click()
-  return page.getByRole("list", { name: "Clips" }).getByRole("button")
+  return page.getByRole("list", { name: "Clips" }).locator("[data-clip-id]")
 }
 
 test("reviews highlight candidates", async ({ page }) => {
@@ -57,7 +57,9 @@ test("reviews highlight candidates", async ({ page }) => {
   await expect(page.getByRole("dialog", { name: title })).toBeVisible()
 })
 
-test("hides rejected clips and finds more highlights", async ({ page }) => {
+test("filters, rejects and approves from the keyboard, then finds more highlights", async ({
+  page,
+}) => {
   const tiles = await uploadAndOpenClips(page)
   await expect(tiles.first()).toBeVisible()
   const count = await tiles.count()
@@ -70,22 +72,41 @@ test("hides rejected clips and finds more highlights", async ({ page }) => {
   await expect(reject).toHaveAttribute("aria-pressed", "true")
   await page.keyboard.press("Escape")
   await expect(dialog).toBeHidden()
-  await expect(tiles).toHaveCount(count - 1)
-  await expect(page.getByText("1 rejected clip hidden")).toBeVisible()
-
-  await page.getByRole("button", { name: "Show rejected" }).click()
-  await expect(tiles).toHaveCount(count)
+  const filters = page.getByRole("group", { name: "Filter clips" })
+  await expect(
+    filters.getByRole("button", { name: "Rejected 1" })
+  ).toBeVisible()
   await expect(
     page.getByRole("button", { name: title, exact: true })
   ).toHaveAccessibleDescription(/Rejected/)
-  await page.getByRole("button", { name: "Hide rejected" }).click()
+  await filters.getByRole("button", { name: /^To review/ }).click()
+  await expect(tiles).toHaveCount(count - 1)
+  await filters.getByRole("button", { name: "Rejected 1" }).click()
+  await expect(tiles).toHaveCount(1)
+  await filters.getByRole("button", { name: /^All/ }).click()
+  await expect(tiles).toHaveCount(count)
+
+  const rejected = page.getByRole("button", { name: title, exact: true })
+  await rejected.focus()
+  await page.keyboard.press("x")
+  await expect(rejected).toHaveAccessibleDescription(/To review/)
+  await page.keyboard.press("a")
+  await expect(rejected).toHaveAccessibleDescription(/Approved/)
+  await page.keyboard.press("a")
+  await expect(rejected).toHaveAccessibleDescription(/To review/)
+  await page.keyboard.press("x")
+  await expect(rejected).toHaveAccessibleDescription(/Rejected/)
 
   await page.getByRole("button", { name: "Find more highlights" }).click()
   await expect(page.getByText("Looking for more highlights")).toBeVisible()
   await expect(
     page.getByRole("button", { name: "Find more highlights" })
   ).toBeEnabled({ timeout: 30_000 })
-  await expect(page.getByText("1 rejected clip hidden")).toBeVisible()
+  await expect(
+    page
+      .getByRole("group", { name: "Filter clips" })
+      .getByRole("button", { name: "Rejected 1" })
+  ).toBeVisible()
   await expectNoSeriousA11yViolations(page)
 })
 
@@ -136,8 +157,7 @@ test("adds a zoom effect in the clip editor", async ({ page }) => {
   await page.getByRole("button", { name: "Add full game" }).click()
   await expect(gameBlocks).toHaveCount(gamesBefore + 1)
 
-  await page.getByRole("button", { name: "Save", exact: true }).click()
-  await expect(page.getByText("Clip saved")).toBeVisible()
+  await expect(page.getByTestId("save-state")).toHaveText("Saved")
   await page.reload()
   await expect(zoomBlocks).toHaveCount(before + 1)
   await expect(gameBlocks).toHaveCount(gamesBefore + 1)
@@ -171,10 +191,10 @@ test("moves the gameplay box in the clip editor", async ({ page }) => {
   expect(after).not.toEqual(before)
   await expectNoSeriousA11yViolations(page)
 
-  await page.getByRole("button", { name: "Save", exact: true }).click()
-  await expect(page.getByText("Clip saved")).toBeVisible()
+  await expect(page.getByTestId("save-state")).toHaveText("Saved")
   await page.reload()
   await expect(region).toBeVisible()
   expect(await describe()).toEqual(after)
+  await page.getByRole("tab", { name: "Layout" }).click()
   await expect(page.getByText("This clip has its own layout.")).toBeVisible()
 })

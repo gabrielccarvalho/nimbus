@@ -27,7 +27,7 @@ export default async function LayoutPage({
 
   if (!layout || !video || !source?.width || !source.height) {
     return (
-      <Empty className="border">
+      <Empty className="rounded-[18px] bg-graphite">
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <FrameCornersIcon />

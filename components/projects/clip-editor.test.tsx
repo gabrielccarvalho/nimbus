@@ -103,6 +103,7 @@ function renderEditor() {
       settings={settings}
       installedFonts={[]}
       snapshot={snapshot}
+      siblings={{ index: 0, count: 2, previousId: null, nextId: "c2" }}
     />
   )
 }
@@ -110,6 +111,36 @@ function renderEditor() {
 beforeEach(() => {
   vi.mocked(updateClipAction).mockReset()
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null)
+})
+
+describe("ClipEditor", () => {
+  it("autosaves edits and reports failures", async () => {
+    vi.mocked(updateClipAction).mockResolvedValue({
+      ok: false,
+      error: { code: "VALIDATION", message: "Title is too long" },
+    } as never)
+    renderEditor()
+    expect(screen.getByTestId("save-state")).toHaveTextContent("Saved")
+    await userEvent.type(screen.getByLabelText("Title"), "!")
+    expect(screen.getByTestId("save-state")).toHaveTextContent(
+      "Unsaved changes"
+    )
+    await waitFor(() =>
+      expect(screen.getByTestId("save-state")).toHaveTextContent(
+        "Not saved: Title is too long"
+      )
+    )
+    expect(updateClipAction).toHaveBeenCalledTimes(1)
+  })
+
+  it("links to the neighbouring clips", () => {
+    renderEditor()
+    expect(screen.getByRole("button", { name: "Previous clip" })).toBeDisabled()
+    expect(screen.getByRole("link", { name: "Next clip" })).toHaveAttribute(
+      "href",
+      "/projects/p1/clips/c2"
+    )
+  })
 })
 
 describe("ClipEditor gameplay box", () => {
@@ -123,9 +154,11 @@ describe("ClipEditor gameplay box", () => {
     const region = screen.getByRole("group", { name: "Gameplay region" })
     region.focus()
     await userEvent.keyboard("{ArrowRight}")
-    await userEvent.click(screen.getByRole("button", { name: "Save" }))
 
     await waitFor(() => expect(updateClipAction).toHaveBeenCalled())
+    await waitFor(() =>
+      expect(screen.getByTestId("save-state")).toHaveTextContent("Saved")
+    )
     const [, , edit] = vi.mocked(updateClipAction).mock.calls[0]!
     const saved = (edit as { layoutOverride: LayoutInput }).layoutOverride
     expect(saved.gameplayFocusX).toBe(0.5)
@@ -147,7 +180,8 @@ describe("ClipEditor gameplay box", () => {
 
   it("refits the gameplay box when the mode changes", async () => {
     renderEditor()
-    await userEvent.click(screen.getByRole("button", { name: "Even split" }))
+    await userEvent.click(screen.getByRole("tab", { name: "Layout" }))
+    await userEvent.click(screen.getByRole("button", { name: /^Even split/ }))
     const region = screen.getByRole("group", { name: "Gameplay region" })
     const expected = gameplayBox(
       {
