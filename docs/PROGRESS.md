@@ -255,6 +255,7 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 - [x] e2e: grid → dialog → Approve, reject/show rejected, add a zoom in the editor and keep it after reload
 - [x] Final review fixes: confirming the layout re-plans un-edited tracks (selection only had the probe placeholder); weird-beat focus mapped through the zoomed gameplay crop; a trim re-plans with the layout being saved and never creates a track over null
 - [x] Hand check on the 16:9 e2e fixture, by a Playwright script rather than by eye in a browser: tiles render and a rendered tile plays on hover; the dialog plays the clip and its canvas is non-blank and changing (looping at the clip's end wasn't watched); a zoom added on the lane shows in the editor preview; the rendered MP4 (1080×1920, decodes cleanly) shows the same zoom framing as the preview at the same time
+- [x] Full game effect: `focus` has a `target` (cam or game); full game shows the gameplay cover-cropped over the whole frame in the preview and the render, with its own lane row; stored tracks without a target read as cam
 - [ ] Hand check by eye on a real project with `pnpm dev`
 - [ ] Check auto effects on a real GTA stream and tune `PLANNER` constants
 

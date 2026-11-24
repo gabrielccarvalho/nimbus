@@ -26,19 +26,35 @@ import { formatTimestamp } from "@/lib/format"
 const ROWS = [
   {
     kind: "focus",
+    target: "cam",
     label: "Full cam",
     lengthMs: 2000,
     className: "border-chart-4 bg-chart-4/30",
   },
-  { kind: "zoom", label: "Zoom", lengthMs: 1500, className: undefined },
+  {
+    kind: "focus",
+    target: "game",
+    label: "Full game",
+    lengthMs: 2000,
+    className: "border-ring bg-ring/30",
+  },
+  {
+    kind: "zoom",
+    target: undefined,
+    label: "Zoom",
+    lengthMs: 1500,
+    className: undefined,
+  },
   {
     kind: "shake",
+    target: undefined,
     label: "Shake",
     lengthMs: 500,
     className: "border-chart-5 bg-chart-5/30",
   },
 ] as const satisfies {
   kind: Effect["kind"]
+  target: "cam" | "game" | undefined
   label: string
   lengthMs: number
   className: string | undefined
@@ -53,27 +69,33 @@ const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value))
 
 function createEffect(
-  kind: Effect["kind"],
+  row: (typeof ROWS)[number],
   startMs: number,
   endMs: number
 ): Effect {
+  const { kind } = row
   if (kind === "zoom") {
     return { kind, startMs, endMs, scale: 1.4, focus: { x: 0.5, y: 0.5 } }
   }
   if (kind === "shake") return { kind, startMs, endMs, intensity: "light" }
-  return { kind, startMs, endMs, target: "cam" }
+  return { kind, startMs, endMs, target: row.target ?? "cam" }
 }
 
 function effectLabel(effect: Effect) {
   if (effect.kind === "zoom") return `Zoom ${effect.scale}×`
   if (effect.kind === "shake") return `Shake ${effect.intensity}`
-  return "Full cam"
+  return effect.target === "game" ? "Full game" : "Full cam"
 }
 
 function blockText(effect: Effect) {
   if (effect.kind === "zoom") return `${effect.scale}×`
-  if (effect.kind === "focus") return "Cam"
+  if (effect.kind === "focus") return effect.target === "game" ? "Game" : "Cam"
   return null
+}
+
+function isInRow(effect: Effect, row: (typeof ROWS)[number]) {
+  if (effect.kind !== row.kind) return false
+  return effect.kind !== "focus" || effect.target === row.target
 }
 
 type Range = { startMs: number; endMs: number }
@@ -190,15 +212,15 @@ export function EffectsLane({
     select(null)
     onChange(events.filter((_, i) => i !== index))
   }
-  const add = (kind: Effect["kind"], placed: Range) => {
+  const add = (row: (typeof ROWS)[number], placed: Range) => {
     select(events.length)
-    onChange([...events, createEffect(kind, placed.startMs, placed.endMs)])
+    onChange([...events, createEffect(row, placed.startMs, placed.endMs)])
   }
 
   return (
     <div ref={rootRef} data-slot="effects-lane" className="flex flex-col gap-2">
       {ROWS.map((row) => (
-        <div key={row.kind} className="flex items-center gap-2">
+        <div key={row.label} className="flex items-center gap-2">
           <span className="w-14 shrink-0 text-xs text-muted-foreground">
             {row.label}
           </span>
@@ -208,7 +230,7 @@ export function EffectsLane({
             className="h-7"
           >
             {events.map((event, index) => {
-              if (event.kind !== row.kind) return null
+              if (!isInRow(event, row)) return null
               if (event.endMs <= startMs || event.startMs >= endMs) return null
               const shownStart = Math.max(event.startMs, startMs) - startMs
               const shownEnd = Math.min(event.endMs, endMs) - startMs
@@ -289,13 +311,13 @@ export function EffectsLane({
           )
           return (
             <Button
-              key={row.kind}
+              key={row.label}
               type="button"
               size="sm"
               variant="outline"
               aria-label={`Add ${row.label.toLowerCase()}`}
               disabled={!placed || (row.kind === "focus" && !hasWebcam)}
-              onClick={() => placed && add(row.kind, placed)}
+              onClick={() => placed && add(row, placed)}
             >
               <PlusIcon data-icon="inline-start" aria-hidden />
               {row.label}
@@ -347,7 +369,7 @@ export function EffectsLane({
           >
             <PopoverHeader>
               <PopoverTitle>
-                {ROWS.find((row) => row.kind === selected.kind)?.label}
+                {ROWS.find((row) => isInRow(selected, row))?.label}
               </PopoverTitle>
               {selected.kind === "zoom" && (
                 <PopoverDescription>

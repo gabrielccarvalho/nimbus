@@ -73,6 +73,45 @@ describe("EffectsLane", () => {
     expect(screen.getByRole("button", { name: "Add zoom" })).toBeEnabled()
   })
 
+  it("adds a full game at the playhead", async () => {
+    const { onChange, user } = setup()
+    await user.click(screen.getByRole("button", { name: "Add full game" }))
+    expect(onChange).toHaveBeenCalledWith([
+      { kind: "focus", startMs: 17_200, endMs: 19_200, target: "game" },
+    ])
+  })
+
+  it("full game can't be dragged into a full cam", () => {
+    const events: Effect[] = [
+      { kind: "focus", startMs: 12_000, endMs: 14_000, target: "game" },
+      { kind: "focus", startMs: 16_000, endMs: 18_000, target: "cam" },
+    ]
+    const { onChange } = setup({ events })
+    screen.getByRole("group", { name: "Full game" }).getBoundingClientRect =
+      () => ({ left: 0, width: 1000 }) as DOMRect
+    const block = screen.getByRole("button", { name: "Full game at 0:02.0" })
+    fireEvent.pointerDown(block, { button: 0, clientX: 100 })
+    fireEvent.pointerMove(block, { clientX: 600 })
+    expect(onChange).toHaveBeenLastCalledWith([
+      { ...events[0], startMs: 14_000, endMs: 16_000 },
+      events[1],
+    ])
+  })
+
+  it("full game add is disabled without a webcam", () => {
+    setup({ hasWebcam: false })
+    expect(screen.getByRole("button", { name: "Add full game" })).toBeDisabled()
+  })
+
+  it("full game add is disabled when the playhead is inside a full cam", () => {
+    setup({
+      events: [
+        { kind: "focus", startMs: 17_000, endMs: 18_000, target: "cam" },
+      ],
+    })
+    expect(screen.getByRole("button", { name: "Add full game" })).toBeDisabled()
+  })
+
   it("changing shake intensity updates the event", async () => {
     const events: Effect[] = [
       { kind: "shake", startMs: 20_000, endMs: 20_500, intensity: "light" },

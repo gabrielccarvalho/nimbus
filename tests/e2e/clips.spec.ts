@@ -129,10 +129,18 @@ test("adds a zoom effect in the clip editor", async ({ page }) => {
   await expect(added).toBeFocused()
   await expect(scale).toBeHidden()
 
+  const gameBlocks = page
+    .getByRole("group", { name: "Full game", exact: true })
+    .getByRole("button", { name: /^Full game at / })
+  const gamesBefore = await gameBlocks.count()
+  await page.getByRole("button", { name: "Add full game" }).click()
+  await expect(gameBlocks).toHaveCount(gamesBefore + 1)
+
   await page.getByRole("button", { name: "Save", exact: true }).click()
   await expect(page.getByText("Clip saved")).toBeVisible()
   await page.reload()
   await expect(zoomBlocks).toHaveCount(before + 1)
+  await expect(gameBlocks).toHaveCount(gamesBefore + 1)
   await expect(
     page.getByRole("main").getByText(/^Edited by hand\./)
   ).toBeVisible()
