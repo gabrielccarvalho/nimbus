@@ -384,24 +384,71 @@ describe("gameplay box", () => {
     expect(edge.x + edge.w).toBeLessThanOrEqual(1 + 1e-9)
   })
 
-  it("refits the box to the new mode's slot around its centre", () => {
+  it("leaves an untouched layout's crop alone on a mode switch", () => {
+    const untouched = {
+      ...base,
+      mode: "cam-top" as const,
+      webcamRect: cam,
+    }
+    const split = {
+      ...untouched,
+      mode: "split-50" as const,
+      ...refitGameplay(untouched, "split-50", 1920, 1080),
+    }
+    expect(planCrop(split, 1920, 1080)).toEqual(
+      planCrop({ ...untouched, mode: "split-50" }, 1920, 1080)
+    )
+    const fill = {
+      ...untouched,
+      mode: "no-cam-fill" as const,
+      ...refitGameplay(untouched, "no-cam-fill", 1920, 1080),
+    }
+    const back = {
+      ...fill,
+      mode: "cam-top" as const,
+      ...refitGameplay(fill, "cam-top", 1920, 1080),
+    }
+    expect(planCrop(back, 1920, 1080)).toEqual(planCrop(untouched, 1920, 1080))
+  })
+
+  it("refits an edited box around its centre inside the frame", () => {
     const layout = {
       ...base,
       mode: "cam-top" as const,
       webcamRect: cam,
-      gameplayRect,
-      gameplayFocusX: 0.2,
+      gameplayRect: fitRectToAspect(
+        { x: 0.6, y: 0.4, w: 0.3, h: 0.5 },
+        1080 / 1248,
+        W,
+        H
+      ),
     }
     const box = gameplayBox(layout, W, H)!
     const refit = refitGameplay(layout, "split-50", W, H)
+    const next = refit.gameplayRect
     expect(refit.gameplayFocusX).toBe(0.5)
-    const { gameplayRect: next } = refit
     expect((next.w * W) / (next.h * H)).toBeCloseTo(1080 / 960)
+    expect(next.w * next.h).toBeCloseTo(box.w * box.h)
     expect(next.x + next.w / 2).toBeCloseTo(box.x + box.w / 2)
     expect(next.y + next.h / 2).toBeCloseTo(box.y + box.h / 2)
+    expect(next.x).toBeGreaterThanOrEqual(0)
+    expect(next.y).toBeGreaterThanOrEqual(0)
+    expect(next.x + next.w).toBeLessThanOrEqual(1 + 1e-9)
+    expect(next.y + next.h).toBeLessThanOrEqual(1 + 1e-9)
     expect(
       gameplayBox({ ...layout, mode: "split-50", ...refit }, W, H)
     ).toEqual(next)
+  })
+
+  it("keeps a full-height box full height", () => {
+    const untouched = { ...base, mode: "cam-top" as const, webcamRect: cam }
+    const layout = {
+      ...untouched,
+      gameplayRect: gameplayBox(untouched, W, H)!,
+    }
+    const { gameplayRect: next } = refitGameplay(layout, "split-50", W, H)
+    expect(next.h).toBeCloseTo(1)
+    expect((next.w * W) / (next.h * H)).toBeCloseTo(1080 / 960)
   })
 
   it("leaves the rect alone without a box", () => {

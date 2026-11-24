@@ -265,6 +265,8 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 - [x] Geometry: slot aspect per mode, the effective gameplay box, fitting a rect to an aspect, refitting on a mode switch
 - [x] Gameplay box draggable and resizable in the clip editor (clip layout override) and the layout step; "Gameplay focus" slider removed
 - [x] e2e: drag the gameplay box in the clip editor, save, and keep it after reload
+- [x] Review fixes: a mode switch leaves untouched layouts' crops alone; changing a clip's layout re-plans its auto effects; read-only crop regions are inert
+- [ ] Hand check the gameplay box by eye on a real stream
 
 ### Not verified
 

@@ -133,6 +133,10 @@ export function gameplaySlotAspect(mode: LayoutMode): number | null {
   return OUTPUT_WIDTH / SPLIT_HEIGHTS[mode][1]
 }
 
+function fitsAspect(rect: Rect, aspect: number, width: number, height: number) {
+  return Math.abs((rect.w * width) / (rect.h * height) / aspect - 1) <= 0.01
+}
+
 export function gameplayBox(
   layout: LayoutInput,
   width: number,
@@ -148,8 +152,7 @@ export function gameplayBox(
   if (!crop) return null
   const aspect = gameplaySlotAspect(layout.mode)!
   const stored = layout.gameplayRect
-  const storedAspect = (stored.w * width) / (stored.h * height)
-  if (Math.abs(storedAspect / aspect - 1) <= 0.01) return stored
+  if (fitsAspect(stored, aspect, width, height)) return stored
   return {
     x: crop.x / width,
     y: crop.y / height,
@@ -185,16 +188,32 @@ export function refitGameplay(
   width: number,
   height: number
 ): Pick<LayoutInput, "gameplayRect" | "gameplayFocusX"> {
-  const box = gameplayBox(layout, width, height)
-  const aspect = gameplaySlotAspect(mode)
-  if (!box || !aspect) {
-    return {
-      gameplayRect: layout.gameplayRect,
-      gameplayFocusX: layout.gameplayFocusX,
-    }
+  const unchanged = {
+    gameplayRect: layout.gameplayRect,
+    gameplayFocusX: layout.gameplayFocusX,
   }
+  const oldAspect = gameplaySlotAspect(layout.mode)
+  const aspect = gameplaySlotAspect(mode)
+  const box = gameplayBox(layout, width, height)
+  if (
+    !box ||
+    !oldAspect ||
+    !aspect ||
+    !fitsAspect(layout.gameplayRect, oldAspect, width, height)
+  ) {
+    return unchanged
+  }
+  const largest = Math.min(width, height * oldAspect)
+  const full = box.w * width >= largest * 0.99
   return {
-    gameplayRect: fitRectToAspect(box, aspect, width, height),
+    gameplayRect: fitRectToAspect(
+      full
+        ? { x: box.x + box.w / 2 - 0.5, y: box.y + box.h / 2 - 0.5, w: 1, h: 1 }
+        : box,
+      aspect,
+      width,
+      height
+    ),
     gameplayFocusX: 0.5,
   }
 }

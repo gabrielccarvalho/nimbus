@@ -189,12 +189,23 @@ describe("multi-region and aspect lock", () => {
   it("treats a controlled region without a handler as read-only", async () => {
     const user = userEvent.setup()
     const first = vi.fn()
-    render(
+    const { container } = render(
       <CropRegionEditor value={rect} onValueChange={first}>
         <CropRegion aria-label="Gameplay" value={start} />
       </CropRegionEditor>
     )
-    screen.getByRole("group", { name: "Gameplay" }).focus()
+    const region = screen.getByRole("group", { name: "Gameplay" })
+    expect(region).toHaveAttribute("tabindex", "-1")
+    expect(region).toHaveAttribute("data-disabled")
+    expect(container.querySelector("[data-slot=crop-region-handle]")).toBeNull()
+    const arrow = new KeyboardEvent("keydown", {
+      key: "ArrowRight",
+      bubbles: true,
+      cancelable: true,
+    })
+    region.dispatchEvent(arrow)
+    expect(arrow.defaultPrevented).toBe(false)
+    region.focus()
     await user.keyboard("{ArrowRight}")
     expect(first).not.toHaveBeenCalled()
   })

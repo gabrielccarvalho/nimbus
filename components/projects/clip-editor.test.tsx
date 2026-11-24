@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { updateClipAction } from "@/features/clips/actions"
 import type { Clip } from "@/features/clips/repository"
-import { gameplayBox } from "@/features/layout/geometry"
+import { gameplayBox, refitGameplay } from "@/features/layout/geometry"
 import type { LayoutInput } from "@/features/layout/schema"
 import type { ProjectSnapshot } from "@/features/pipeline/snapshot"
 import type { ProjectSettings } from "@/features/projects/schema"
@@ -149,9 +149,19 @@ describe("ClipEditor gameplay box", () => {
     renderEditor()
     await userEvent.click(screen.getByRole("button", { name: "Even split" }))
     const region = screen.getByRole("group", { name: "Gameplay region" })
-    const [, , w, h] = [...region.style.cssText.matchAll(/([\d.]+)%/g)].map(
-      (m) => Number(m[1])
-    )
-    expect(((w! / 100) * W) / ((h! / 100) * H)).toBeCloseTo(1080 / 960, 1)
+    const expected = gameplayBox(
+      {
+        ...layout,
+        mode: "split-50",
+        ...refitGameplay(layout, "split-50", W, H),
+      },
+      W,
+      H
+    )!
+    const { left, top, width, height } = region.style
+    expect(parseFloat(left)).toBeCloseTo(expected.x * 100)
+    expect(parseFloat(top)).toBeCloseTo(expected.y * 100)
+    expect(parseFloat(width)).toBeCloseTo(expected.w * 100)
+    expect(parseFloat(height)).toBeCloseTo(expected.h * 100)
   })
 })

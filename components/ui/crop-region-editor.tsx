@@ -167,9 +167,10 @@ function CropRegion({
   aspectRatio?: number
 }) {
   const editor = useCropRegionEditor()
-  const { frameRef, disabled } = editor
+  const { frameRef } = editor
   const value = valueProp ?? editor.value
   const commit = valueProp ? (onValueChange ?? noop) : editor.commit
+  const inert = editor.disabled || Boolean(valueProp && !onValueChange)
 
   const lockedRatio = () => {
     const frame = frameRef.current?.getBoundingClientRect()
@@ -200,7 +201,7 @@ function CropRegion({
     event: React.PointerEvent<HTMLElement>,
     mode: "move" | Corner
   ) => {
-    if (disabled || event.button !== 0) return
+    if (inert || event.button !== 0) return
     event.stopPropagation()
     event.currentTarget.setPointerCapture?.(event.pointerId)
     drag.current = {
@@ -235,13 +236,13 @@ function CropRegion({
       aria-roledescription="crop region"
       aria-label={ariaLabel}
       aria-describedby={descriptionId}
-      aria-disabled={disabled || undefined}
-      tabIndex={disabled ? -1 : 0}
+      aria-disabled={editor.disabled || undefined}
+      tabIndex={inert ? -1 : 0}
       className={cn(
         "absolute z-10 cursor-move border-2 border-primary shadow-[0_0_0_9999px_rgb(0_0_0/0.5)] outline-none focus-visible:ring-3 focus-visible:ring-ring/70 data-[disabled]:cursor-default",
         className
       )}
-      data-disabled={disabled || undefined}
+      data-disabled={inert || undefined}
       style={{
         left: `${value.x * 100}%`,
         top: `${value.y * 100}%`,
@@ -255,7 +256,7 @@ function CropRegion({
       onPointerCancel={endDrag}
       onKeyDown={(event) => {
         onKeyDown?.(event)
-        if (disabled || event.defaultPrevented) return
+        if (inert || event.defaultPrevented) return
         const step = event.shiftKey ? BIG_NUDGE : NUDGE
         const deltas: Record<string, [number, number]> = {
           ArrowLeft: [-step, 0],
@@ -277,7 +278,7 @@ function CropRegion({
       <span id={descriptionId} className="sr-only">
         {`Left ${percent(value.x)}, top ${percent(value.y)}, ${percent(value.w)} wide, ${percent(value.h)} tall. Arrow keys move, Alt+arrow keys resize, hold Shift for bigger steps.`}
       </span>
-      {!disabled &&
+      {!inert &&
         HANDLES.map(({ corner, className: handleClass }) => (
           <span
             key={corner}
