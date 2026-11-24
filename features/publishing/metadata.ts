@@ -1,9 +1,18 @@
+import type { AppSettings } from "../settings/schema"
 import type { PrivacyStatus, PublishInput } from "./schema"
 
 export type PublishingDefaults = {
   privacy: PrivacyStatus
   tags: string[]
   hashtags: string
+}
+
+export function publishingDefaults(settings: AppSettings): PublishingDefaults {
+  return {
+    privacy: settings.publishPrivacy,
+    tags: settings.publishTags,
+    hashtags: settings.publishHashtags,
+  }
 }
 
 const TITLE_MAX = 100

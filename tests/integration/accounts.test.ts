@@ -164,6 +164,7 @@ describe("usage", () => {
     expect(summary).toMatchObject({
       renderMinutes: 4,
       claudeRuns: 1,
+      publishesToday: 0,
       plan: { id: "free" },
     })
   })

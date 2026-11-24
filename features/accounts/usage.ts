@@ -5,6 +5,8 @@ import { getEnv } from "@/lib/env"
 import { logger } from "@/lib/logger"
 
 import { decryptSecret } from "./crypto"
+import { publishingRepository } from "../publishing/repository"
+import { pacificDay } from "../publishing/quota"
 import { accountRepository, type Workspace } from "./repository"
 import { PLANS, usagePeriod, type UsageKind } from "./schema"
 
@@ -55,9 +57,10 @@ export async function usageSummary(
   const plan = PLANS[workspace.plan] ?? PLANS.free
   const { start, end } = usagePeriod(now)
   const accounts = accountRepository(db)
-  const [totals, storageBytes] = await Promise.all([
+  const [totals, storageBytes, publishesToday] = await Promise.all([
     accounts.usageTotals(workspace.id, start, end),
     accounts.storageBytes(workspace.id),
+    publishingRepository(db).countCreatedOnDay(workspace.id, pacificDay(now)),
   ])
   return {
     plan,
@@ -65,6 +68,7 @@ export async function usageSummary(
     renderMinutes: Math.round(totals.renderSeconds / 60),
     claudeRuns: totals.claudeRuns,
     storageBytes,
+    publishesToday,
   }
 }
 

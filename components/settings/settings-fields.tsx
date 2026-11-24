@@ -30,6 +30,8 @@ import {
   niches,
   type Niche,
 } from "@/features/highlights/niches"
+import { privacyStatuses } from "@/features/publishing/schema"
+import type { AppSettings } from "@/features/settings/schema"
 import type {
   ProjectSettings,
   RenderQuality,
@@ -396,6 +398,85 @@ export function QualityField<T extends Shared>({ value, set }: FieldsProps<T>) {
           </FieldLabel>
         ))}
       </RadioGroup>
+    </FieldSet>
+  )
+}
+
+const PRIVACY_OPTIONS = privacyStatuses.map((value) => ({
+  value,
+  label: value.charAt(0).toUpperCase() + value.slice(1),
+}))
+
+export function PublishingFields({
+  value,
+  set,
+}: {
+  value: AppSettings
+  set: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void
+}) {
+  const [tags, setTags] = React.useState(value.publishTags.join(", "))
+  return (
+    <FieldSet>
+      <FieldLegend variant="label">Publishing</FieldLegend>
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="publish-privacy">Privacy</FieldLabel>
+          <Select
+            items={PRIVACY_OPTIONS}
+            value={value.publishPrivacy}
+            onValueChange={(next) =>
+              next &&
+              set("publishPrivacy", next as AppSettings["publishPrivacy"])
+            }
+          >
+            <SelectTrigger id="publish-privacy" className="w-full sm:w-64">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PRIVACY_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <FieldDescription>
+            Where new YouTube uploads start. You can change it before each
+            publish.
+          </FieldDescription>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="publish-tags">Tags</FieldLabel>
+          <Input
+            id="publish-tags"
+            value={tags}
+            placeholder="fps, clutch"
+            onChange={(event) => {
+              setTags(event.target.value)
+              set(
+                "publishTags",
+                event.target.value
+                  .split(",")
+                  .map((tag) => tag.trim())
+                  .filter(Boolean)
+              )
+            }}
+          />
+          <FieldDescription>Separated by commas.</FieldDescription>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="publish-hashtags">Hashtags</FieldLabel>
+          <Input
+            id="publish-hashtags"
+            value={value.publishHashtags}
+            maxLength={200}
+            onChange={(event) => set("publishHashtags", event.target.value)}
+          />
+          <FieldDescription>
+            Added to the end of every description. #Shorts is always included.
+          </FieldDescription>
+        </Field>
+      </FieldGroup>
     </FieldSet>
   )
 }
