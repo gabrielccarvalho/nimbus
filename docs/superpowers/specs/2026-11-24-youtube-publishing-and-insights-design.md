@@ -31,9 +31,9 @@ Clips currently leave Nimbus as downloaded MP4s that the user uploads by hand. T
 - **Hosted, multi-user.** Nimbus will run as a hosted service for other people, so one Google Cloud project serves every workspace. Quota and Google's approvals belong to that project, so every workspace shares them. Moving the rest of Nimbus (storage, worker) to hosting is a separate project. This feature only assumes the worker can read the render it uploads.
 - **Google approval is a launch prerequisite, not code.** Two separate reviews:
   - OAuth app verification for the sensitive `youtube.upload` and `yt-analytics.readonly` scopes. It needs a verified domain, a privacy policy, terms and a demo video.
-  - The YouTube API Services audit, which lifts the private-only lock and is where to ask for more quota.
+  - The YouTube API Services audit, which is where to ask for more quota.
 
-  Until both pass, the app runs in Google's "Testing" mode: at most 100 named test users, refresh tokens that last 7 days. Everything below has to behave correctly in that mode.
+  Until both pass, the app runs in Google's "Testing" mode: a capped list of named test users (100 by our reading, unverified), refresh tokens that last 7 days. Everything below has to behave correctly in that mode.
 
 - **Unaudited API projects no longer upload private only.** Google's docs say videos from unverified API projects aren't restricted to private viewing mode (the 2020 lock was lifted on 2026-11-02). Privacy still defaults to private in Nimbus, since nothing publishes without a deliberate choice. If an upload comes back private anyway, the UI says the user may need to change it in YouTube Studio.
 - **Testing-mode refresh tokens expire after 7 days.** A Google OAuth app in "Testing" status issues refresh tokens that expire after 7 days, and `youtube.upload` is a sensitive scope. So the channel can drop off every week until the app is verified. Nimbus has to detect `invalid_grant`, mark the channel as needing reconnection, and say so. Confirmed against Google's OAuth docs (see ADR-0065).
