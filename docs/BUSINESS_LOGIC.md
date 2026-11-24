@@ -142,7 +142,8 @@ Transcripts over ~60k characters are split into parts with a minute of overlap, 
 - Every landscape source (`w ≥ 1.2 h`, whatever its class) goes through `awaiting_layout` with `cam-top` proposed. Square and portrait sources skip it with `no-cam-blur-fill`. A LayoutPreset for the exact source resolution also skips it (preset applied, `confirmedByUser = true`).
 - Detection proposes a rect plus confidence. Below 0.5 confidence or with no face, propose `no-cam-blur-fill`.
 - In webcam modes the webcam goes on top by default; `camPosition: "bottom"` swaps the two stacked regions, and "auto" captions move with the gameplay so they stay off the face.
-- A clip can override the project layout (mode, webcam box, webcam position) from its editor; renders use `clips.layout_override` when set. Caption position (auto, top, middle, bottom) is a per-clip caption style override.
+- A clip can override the project layout (mode, webcam box, gameplay box, webcam position) from its editor; renders use `clips.layout_override` when set. Caption position (auto, top, middle, bottom) is a per-clip caption style override.
+- Gameplay box: in every mode but `no-cam-blur-fill`, the gameplay crop is a dashed box on the source that can be dragged and resized like the webcam box. Its shape is locked to the slot it fills (1080×1248 in cam-top, 1080×960 in split-50, 1080×1920 in no-cam-fill). It starts at the current crop, `coverCrop(gameplayRect, slot, gameplayFocusX)`; an edit stores the box as `gameplayRect` and sets `gameplayFocusX` to 0.5, so the crop is the box itself. Switching mode refits an edited box to the new slot around its centre, with the same area where it fits, inside the frame (a box at full size stays at full size); an untouched layout keeps its rect and focus, so its crop is the same as before.
 - Keyboard nudge: arrow = 0.5% of the frame, Shift+arrow = 5%.
 
 ### Rendering
@@ -181,7 +182,7 @@ When tracks change:
 - Selection plans a track for every new clip when the project's `autoEffects` is on (default), Claude, heuristic and pasted clips alike. Beats are stored on the clip so planning again never calls Claude.
 - Turning `autoEffects` on plans every track that isn't `edited`; turning it off sets them to null. Edited tracks are never touched. If clips are rendered, the settings form offers a render re-run.
 - Confirming or changing the project layout (with `autoEffects` on) re-plans every track that isn't `edited`, null ones included, on clips without a layout override, in the same transaction. Selection runs before webcam detection, so without a preset its tracks were planned against the probe's webcam-less placeholder.
-- Saving a trim re-plans an existing track that isn't `edited` over the new range, with the layout being saved. A null track stays null. Any change to the events sets `edited: true`; an edited track only has out-of-range events dropped on trim.
+- Saving a trim or a different clip layout re-plans an existing track that isn't `edited` over the clip's range, with the layout being saved. A null track stays null. Any change to the events sets `edited: true`; an edited track only has out-of-range events dropped on trim.
 - "Reset to auto" / "Add effects automatically" in the editor call `planClipEffectsAction`, which returns a fresh plan for the range and layout on screen without saving it. It's saved with the rest of the clip.
 
 ### Captions

@@ -177,6 +177,25 @@ function Section({
   )
 }
 
+function CropRegionExample() {
+  const [locked, setLocked] = React.useState({ x: 0.1, y: 0.1, w: 0.3, h: 0.4 })
+  return (
+    <CropRegionEditor
+      defaultValue={{ x: 0.7, y: 0.65, w: 0.25, h: 0.28 }}
+      className="aspect-video max-w-xl bg-[repeating-linear-gradient(45deg,var(--color-muted)_0_12px,var(--color-background)_12px_24px)]"
+    >
+      <CropRegion aria-label="Example region" />
+      <CropRegion
+        aria-label="Aspect-locked region"
+        value={locked}
+        onValueChange={setLocked}
+        aspectRatio={1080 / 960}
+        className="border-dashed shadow-none"
+      />
+    </CropRegionEditor>
+  )
+}
+
 export function ComponentGallery() {
   return (
     <main className="mx-auto flex max-w-4xl flex-col gap-10 p-6">
@@ -290,12 +309,7 @@ export function ComponentGallery() {
       </Section>
 
       <Section title="CropRegionEditor">
-        <CropRegionEditor
-          defaultValue={{ x: 0.7, y: 0.65, w: 0.25, h: 0.28 }}
-          className="aspect-video max-w-xl bg-[repeating-linear-gradient(45deg,var(--color-muted)_0_12px,var(--color-background)_12px_24px)]"
-        >
-          <CropRegion aria-label="Example region" />
-        </CropRegionEditor>
+        <CropRegionExample />
       </Section>
 
       <Section title="EmptyState (shadcn Empty)">

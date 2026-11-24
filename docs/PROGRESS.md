@@ -259,6 +259,15 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 - [ ] Hand check by eye on a real project with `pnpm dev`
 - [ ] Check auto effects on a real GTA stream and tune `PLANNER` constants
 
+### Phase 27: Editable gameplay box (ADR-0055)
+
+- [x] `CropRegion` supports several regions per editor, with its own controlled value and an aspect-locked resize
+- [x] Geometry: slot aspect per mode, the effective gameplay box, fitting a rect to an aspect, refitting on a mode switch
+- [x] Gameplay box draggable and resizable in the clip editor (clip layout override) and the layout step; "Gameplay focus" slider removed
+- [x] e2e: drag the gameplay box in the clip editor, save, and keep it after reload
+- [x] Review fixes: a mode switch leaves untouched layouts' crops alone; changing a clip's layout re-plans its auto effects; read-only crop regions are inert
+- [ ] Hand check the gameplay box by eye on a real stream
+
 ### Not verified
 
 - MediaPipe face detection on a real face (fixtures have none; the code path is unit tested and the model loads in e2e).

@@ -145,3 +145,36 @@ test("adds a zoom effect in the clip editor", async ({ page }) => {
     page.getByRole("main").getByText(/^Edited by hand\./)
   ).toBeVisible()
 })
+
+test("moves the gameplay box in the clip editor", async ({ page }) => {
+  const tiles = await uploadAndOpenClips(page, { confirmLayout: true })
+  await tiles.first().click()
+  await page.getByRole("dialog").getByRole("link", { name: /Edit/ }).click()
+  await expect(page.getByLabel("Title")).toBeVisible()
+
+  const region = page.getByRole("group", { name: "Gameplay region" })
+  const describe = () =>
+    region.evaluate(
+      (el) =>
+        document.getElementById(el.getAttribute("aria-describedby")!)!
+          .textContent
+    )
+  const before = await describe()
+  const box = (await region.boundingBox())!
+  const x = box.x + box.width * 0.25
+  const y = box.y + box.height / 2
+  await page.mouse.move(x, y)
+  await page.mouse.down()
+  await page.mouse.move(x - 40, y + 10, { steps: 5 })
+  await page.mouse.up()
+  const after = await describe()
+  expect(after).not.toEqual(before)
+  await expectNoSeriousA11yViolations(page)
+
+  await page.getByRole("button", { name: "Save", exact: true }).click()
+  await expect(page.getByText("Clip saved")).toBeVisible()
+  await page.reload()
+  await expect(region).toBeVisible()
+  expect(await describe()).toEqual(after)
+  await expect(page.getByText("This clip has its own layout.")).toBeVisible()
+})

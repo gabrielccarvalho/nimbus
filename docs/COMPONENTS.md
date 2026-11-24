@@ -150,10 +150,11 @@ A 9:16 frame that shows the caption page at a given time, styled like the burned
 
 ### CropRegionEditor (`components/ui/crop-region-editor.tsx`)
 
-A movable, resizable rectangle over an image or video, in normalized 0–1 frame coordinates. Used to mark the webcam.
+A movable, resizable rectangle over an image or video, in normalized 0–1 frame coordinates. Used to mark the webcam and the gameplay box.
 
-- Parts: `CropRegionEditor` (root/frame; put the media inside it), `CropRegion` (the rectangle with corner handles). `useCropRegionEditor()` exposes `{ value, commit, disabled }`. `moveRect`/`resizeRect` are the pure clamping helpers.
+- Parts: `CropRegionEditor` (root/frame; put the media inside it), `CropRegion` (the rectangle with corner handles). `useCropRegionEditor()` exposes `{ value, commit, disabled }`. `moveRect`/`resizeRect`/`resizeRectLocked` are the pure clamping helpers.
 - Props: `value` / `defaultValue` / `onValueChange` (`{ x, y, w, h }`, controlled or uncontrolled), `disabled`. Minimum size is 5% of the frame and the rect never leaves it.
+- Several `CropRegion`s can share one editor. A region given its own `value` + `onValueChange` is controlled independently of the editor's value; with a `value` and no `onValueChange` it is read-only (no handles, no focus stop, keys and drags ignored), like a disabled region. `aspectRatio` (pixel width / height) locks corner drags and Alt+arrow resizes to that ratio, converted with the frame's pixel size at interaction time. Style secondary regions with `className` (e.g. dashed border, no shadow).
 - A11y: the region is a focusable `role="group"` with `aria-roledescription="crop region"` and a description of its position ("Left 78%, top 77%, 20% wide, 20% tall"). Arrow keys move by 0.5% of the frame, Shift+arrow by 5%, Alt+arrow resizes from the bottom-right corner. Corner handles are pointer-only.
 
 ```tsx

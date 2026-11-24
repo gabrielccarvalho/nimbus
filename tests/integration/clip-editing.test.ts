@@ -202,6 +202,50 @@ describe("clip effects", () => {
     expect(saved.effects?.events.some((e) => e.kind === "focus")).toBe(true)
   })
 
+  it("replans an auto track when only the layout changes", async () => {
+    const { projectId, clip } = await reviewedProject()
+    const clips = clipRepository(env.db)
+    const noCam = {
+      webcamRect: null,
+      gameplayRect: { x: 0, y: 0, w: 1, h: 1 },
+      gameplayFocusX: 0.5,
+      mode: "no-cam-fill" as const,
+      camPosition: "top" as const,
+    }
+    await confirmLayout(env.db, projectId, noCam)
+    const same = { startMs: clip.startMs, endMs: clip.endMs }
+    await clips.update(clip.id, {
+      beats: [{ ms: clip.startMs + 3000, kind: "reaction" }],
+      effects: { edited: false, events: [] },
+      layoutOverride: noCam,
+    })
+    const relaidOut = {
+      ...noCam,
+      webcamRect: { x: 0.78, y: 0.77, w: 0.2, h: 0.2 },
+      mode: "cam-top" as const,
+    }
+    const saved = await updateClip(
+      env.db,
+      projectId,
+      clip.id,
+      edit({ ...same, layoutOverride: relaidOut })
+    )
+    expect(saved.effects?.events.some((e) => e.kind === "focus")).toBe(true)
+
+    const edited = {
+      edited: true,
+      events: [zoom(clip.startMs, clip.startMs + 2000)],
+    }
+    await clips.update(clip.id, { effects: edited })
+    const kept = await updateClip(
+      env.db,
+      projectId,
+      clip.id,
+      edit({ ...same, layoutOverride: noCam })
+    )
+    expect(kept.effects).toEqual(edited)
+  })
+
   it("keeps the stored track when an untrimmed save omits effects", async () => {
     const { projectId, clip } = await reviewedProject()
     const clips = clipRepository(env.db)

@@ -2,7 +2,15 @@ import { describe, expect, it } from "vitest"
 
 import { detectOverlayRect, type GrayFrame } from "./border-heuristic"
 import { combineDetection, webcamFromFace } from "./detection"
-import { coverCrop, planLayout, toPixels } from "./geometry"
+import {
+  coverCrop,
+  fitRectToAspect,
+  gameplayBox,
+  gameplaySlotAspect,
+  planLayout,
+  refitGameplay,
+  toPixels,
+} from "./geometry"
 import { FULL_FRAME } from "./schema"
 
 function frame(
@@ -274,5 +282,185 @@ describe("layout geometry", () => {
     expect(
       planLayout({ ...fill, gameplayFocusX: 1 }, 1440, 1080)
     ).toMatchObject({ crop: { x: 834 } })
+  })
+})
+
+describe("gameplay box", () => {
+  const cam = { x: 0.7, y: 0.7, w: 0.25, h: 0.25 }
+  const gameplayRect = { x: 0.05, y: 0.1, w: 0.8, h: 0.7 }
+  const W = 2560
+  const H = 1080
+
+  it("has a slot aspect per mode", () => {
+    expect(gameplaySlotAspect("cam-top")).toBeCloseTo(1080 / 1248)
+    expect(gameplaySlotAspect("split-50")).toBeCloseTo(1080 / 960)
+    expect(gameplaySlotAspect("no-cam-fill")).toBeCloseTo(1080 / 1920)
+    expect(gameplaySlotAspect("no-cam-blur-fill")).toBeNull()
+  })
+
+  const planCrop = (
+    layout: Parameters<typeof planLayout>[0],
+    w: number,
+    h: number
+  ) => {
+    const plan = planLayout(layout, w, h)
+    return plan.mode === "no-cam-fill"
+      ? plan.crop
+      : "regions" in plan
+        ? plan.regions.find((r) => r.content === "gameplay")!.crop
+        : null
+  }
+
+  it("derives the planned gameplay crop for an unfitted rect", () => {
+    for (const mode of ["cam-top", "split-50", "no-cam-fill"] as const) {
+      const layout = {
+        ...base,
+        mode,
+        webcamRect: cam,
+        gameplayRect,
+        gameplayFocusX: 0.2,
+      }
+      const box = gameplayBox(layout, W, H)!
+      expect(toPixels(box, W, H)).toEqual(planCrop(layout, W, H))
+    }
+  })
+
+  it("is a fixed point once the box is committed", () => {
+    for (const [w, h] of [
+      [1920, 1080],
+      [2560, 1080],
+      [1280, 720],
+      [3840, 1600],
+    ] as const) {
+      for (const mode of ["cam-top", "split-50", "no-cam-fill"] as const) {
+        const layout = {
+          ...base,
+          mode,
+          webcamRect: cam,
+          gameplayRect,
+          gameplayFocusX: 0.2,
+        }
+        const first = gameplayBox(layout, w, h)!
+        let box = first
+        for (let i = 0; i < 40; i++) {
+          box = gameplayBox(
+            { ...layout, gameplayRect: box, gameplayFocusX: 0.5 },
+            w,
+            h
+          )!
+        }
+        expect(box).toEqual(first)
+      }
+    }
+  })
+
+  it("is null for blur-fill and for webcam modes without a webcam", () => {
+    expect(gameplayBox({ ...base, mode: "no-cam-blur-fill" }, W, H)).toBeNull()
+    expect(gameplayBox({ ...base, mode: "cam-top" }, W, H)).toBeNull()
+  })
+
+  it("fits a rect to a pixel aspect inside the frame", () => {
+    const aspect = 1080 / 1248
+    const fitted = fitRectToAspect(
+      { x: 0.3, y: 0.2, w: 0.3, h: 0.5 },
+      aspect,
+      W,
+      H
+    )
+    expect((fitted.w * W) / (fitted.h * H)).toBeCloseTo(aspect)
+    expect(fitted.x).toBeGreaterThanOrEqual(0)
+    expect(fitted.y).toBeGreaterThanOrEqual(0)
+    expect(fitted.x + fitted.w).toBeLessThanOrEqual(1 + 1e-9)
+    expect(fitted.y + fitted.h).toBeLessThanOrEqual(1 + 1e-9)
+    expect(fitted.w * W * fitted.h * H).toBeCloseTo(0.3 * W * 0.5 * H)
+  })
+
+  it("shrinks to fit and clamps against the edges", () => {
+    const wide = fitRectToAspect({ x: 0, y: 0, w: 1, h: 1 }, 4, W, H)
+    expect((wide.w * W) / (wide.h * H)).toBeCloseTo(4)
+    expect(wide.x + wide.w).toBeLessThanOrEqual(1 + 1e-9)
+    expect(wide.y + wide.h).toBeLessThanOrEqual(1 + 1e-9)
+    const edge = fitRectToAspect({ x: 0.9, y: 0.4, w: 0.1, h: 0.2 }, 1, W, H)
+    expect(edge.x + edge.w).toBeLessThanOrEqual(1 + 1e-9)
+  })
+
+  it("leaves an untouched layout's crop alone on a mode switch", () => {
+    const untouched = {
+      ...base,
+      mode: "cam-top" as const,
+      webcamRect: cam,
+    }
+    const split = {
+      ...untouched,
+      mode: "split-50" as const,
+      ...refitGameplay(untouched, "split-50", 1920, 1080),
+    }
+    expect(planCrop(split, 1920, 1080)).toEqual(
+      planCrop({ ...untouched, mode: "split-50" }, 1920, 1080)
+    )
+    const fill = {
+      ...untouched,
+      mode: "no-cam-fill" as const,
+      ...refitGameplay(untouched, "no-cam-fill", 1920, 1080),
+    }
+    const back = {
+      ...fill,
+      mode: "cam-top" as const,
+      ...refitGameplay(fill, "cam-top", 1920, 1080),
+    }
+    expect(planCrop(back, 1920, 1080)).toEqual(planCrop(untouched, 1920, 1080))
+  })
+
+  it("refits an edited box around its centre inside the frame", () => {
+    const layout = {
+      ...base,
+      mode: "cam-top" as const,
+      webcamRect: cam,
+      gameplayRect: fitRectToAspect(
+        { x: 0.6, y: 0.4, w: 0.3, h: 0.5 },
+        1080 / 1248,
+        W,
+        H
+      ),
+    }
+    const box = gameplayBox(layout, W, H)!
+    const refit = refitGameplay(layout, "split-50", W, H)
+    const next = refit.gameplayRect
+    expect(refit.gameplayFocusX).toBe(0.5)
+    expect((next.w * W) / (next.h * H)).toBeCloseTo(1080 / 960)
+    expect(next.w * next.h).toBeCloseTo(box.w * box.h)
+    expect(next.x + next.w / 2).toBeCloseTo(box.x + box.w / 2)
+    expect(next.y + next.h / 2).toBeCloseTo(box.y + box.h / 2)
+    expect(next.x).toBeGreaterThanOrEqual(0)
+    expect(next.y).toBeGreaterThanOrEqual(0)
+    expect(next.x + next.w).toBeLessThanOrEqual(1 + 1e-9)
+    expect(next.y + next.h).toBeLessThanOrEqual(1 + 1e-9)
+    expect(
+      gameplayBox({ ...layout, mode: "split-50", ...refit }, W, H)
+    ).toEqual(next)
+  })
+
+  it("keeps a full-height box full height", () => {
+    const untouched = { ...base, mode: "cam-top" as const, webcamRect: cam }
+    const layout = {
+      ...untouched,
+      gameplayRect: gameplayBox(untouched, W, H)!,
+    }
+    const { gameplayRect: next } = refitGameplay(layout, "split-50", W, H)
+    expect(next.h).toBeCloseTo(1)
+    expect((next.w * W) / (next.h * H)).toBeCloseTo(1080 / 960)
+  })
+
+  it("leaves the rect alone without a box", () => {
+    const blur = { ...base, mode: "no-cam-blur-fill" as const, gameplayRect }
+    expect(refitGameplay(blur, "no-cam-fill", W, H)).toEqual({
+      gameplayRect,
+      gameplayFocusX: 0.5,
+    })
+    const fill = { ...base, mode: "no-cam-fill" as const, gameplayRect }
+    expect(refitGameplay(fill, "no-cam-blur-fill", W, H)).toEqual({
+      gameplayRect,
+      gameplayFocusX: 0.5,
+    })
   })
 })

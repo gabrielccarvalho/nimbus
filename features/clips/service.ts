@@ -1,5 +1,7 @@
 import "server-only"
 
+import { isDeepStrictEqual } from "node:util"
+
 import type { Db } from "@/lib/db"
 import { AppError } from "@/lib/errors"
 
@@ -111,6 +113,10 @@ export async function updateClip(
     )
   }
   const trimmed = edit.startMs !== clip.startMs || edit.endMs !== clip.endMs
+  const relaidOut = !isDeepStrictEqual(
+    edit.layoutOverride ?? null,
+    clip.layoutOverride ?? null
+  )
   const range = { startMs: edit.startMs, endMs: edit.endMs }
   const stored = edit.effects ?? clip.effects
   let effects: ClipEffects | null | undefined
@@ -119,7 +125,7 @@ export async function updateClip(
       edited: true,
       events: normalizeEffects(stored.events, range),
     }
-  } else if (trimmed && stored) {
+  } else if ((trimmed || relaidOut) && stored) {
     effects =
       (
         await autoEffectsFor(db, projectId, [

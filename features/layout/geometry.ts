@@ -1,6 +1,7 @@
 import {
   usesWebcam,
   type LayoutInput,
+  type LayoutMode,
   type Rect,
   type WebcamLayoutMode,
 } from "./schema"
@@ -123,5 +124,96 @@ export function planLayout(
             { name: "top", ...cam },
             { name: "bottom", ...gameplay },
           ],
+  }
+}
+
+export function gameplaySlotAspect(mode: LayoutMode): number | null {
+  if (mode === "no-cam-blur-fill") return null
+  if (mode === "no-cam-fill") return OUTPUT_WIDTH / OUTPUT_HEIGHT
+  return OUTPUT_WIDTH / SPLIT_HEIGHTS[mode][1]
+}
+
+function fitsAspect(rect: Rect, aspect: number, width: number, height: number) {
+  return Math.abs((rect.w * width) / (rect.h * height) / aspect - 1) <= 0.01
+}
+
+export function gameplayBox(
+  layout: LayoutInput,
+  width: number,
+  height: number
+): Rect | null {
+  const plan = planLayout(layout, width, height)
+  const crop =
+    plan.mode === "no-cam-fill"
+      ? plan.crop
+      : "regions" in plan
+        ? plan.regions.find((r) => r.content === "gameplay")?.crop
+        : undefined
+  if (!crop) return null
+  const aspect = gameplaySlotAspect(layout.mode)!
+  const stored = layout.gameplayRect
+  if (fitsAspect(stored, aspect, width, height)) return stored
+  return {
+    x: crop.x / width,
+    y: crop.y / height,
+    w: crop.w / width,
+    h: crop.h / height,
+  }
+}
+
+export function fitRectToAspect(
+  rect: Rect,
+  aspect: number,
+  width: number,
+  height: number
+): Rect {
+  const area = rect.w * width * rect.h * height
+  const pixelW = Math.sqrt(area * aspect)
+  const pixelH = pixelW / aspect
+  const scale = Math.min(1, width / pixelW, height / pixelH)
+  const w = (pixelW * scale) / width
+  const h = (pixelH * scale) / height
+  const clamp = (v: number, max: number) => Math.min(max, Math.max(0, v))
+  return {
+    x: clamp(rect.x + rect.w / 2 - w / 2, 1 - w),
+    y: clamp(rect.y + rect.h / 2 - h / 2, 1 - h),
+    w,
+    h,
+  }
+}
+
+export function refitGameplay(
+  layout: LayoutInput,
+  mode: LayoutMode,
+  width: number,
+  height: number
+): Pick<LayoutInput, "gameplayRect" | "gameplayFocusX"> {
+  const unchanged = {
+    gameplayRect: layout.gameplayRect,
+    gameplayFocusX: layout.gameplayFocusX,
+  }
+  const oldAspect = gameplaySlotAspect(layout.mode)
+  const aspect = gameplaySlotAspect(mode)
+  const box = gameplayBox(layout, width, height)
+  if (
+    !box ||
+    !oldAspect ||
+    !aspect ||
+    !fitsAspect(layout.gameplayRect, oldAspect, width, height)
+  ) {
+    return unchanged
+  }
+  const largest = Math.min(width, height * oldAspect)
+  const full = box.w * width >= largest * 0.99
+  return {
+    gameplayRect: fitRectToAspect(
+      full
+        ? { x: box.x + box.w / 2 - 0.5, y: box.y + box.h / 2 - 0.5, w: 1, h: 1 }
+        : box,
+      aspect,
+      width,
+      height
+    ),
+    gameplayFocusX: 0.5,
   }
 }
