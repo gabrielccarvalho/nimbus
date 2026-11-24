@@ -19,7 +19,7 @@ Before building any UI element:
 
 Installed with `pnpm exec shadcn add` (style `base-nova`, Base UI). Generated files import `cn` from the `cn` package; custom primitives in `components/ui/` do the same so they read identically.
 
-alert, alert-dialog, badge, breadcrumb, button, card, dialog, dropdown-menu, empty, field, input, input-group, item, kbd, label, progress, radio-group, scroll-area, select, separator, sheet, sidebar (+ `hooks/use-mobile.ts`), skeleton, slider, sonner, spinner, stat-card*, switch, table, tabs, textarea, toggle, toggle-group, tooltip.
+alert, alert-dialog, badge, breadcrumb, button, card, dialog, dropdown-menu, empty, field, input, input-group, item, kbd, label, popover, progress, radio-group, scroll-area, select, separator, sheet, sidebar (+ `hooks/use-mobile.ts`), skeleton, slider, sonner, spinner, stat-card*, switch, table, tabs, textarea, toggle, toggle-group, tooltip.
 
 \* custom, see below.
 
@@ -167,3 +167,4 @@ A movable, resizable rectangle over an image or video, in normalized 0–1 frame
 
 - `hooks/use-mobile.ts`: rewritten with `useSyncExternalStore`. The generated version set state inside an effect, which fails the React Compiler lint rule `react-hooks/set-state-in-effect`. Same API (`useIsMobile(): boolean`).
 - `components/ui/sidebar.tsx`: `SidebarInset` renders a `div` instead of `main`. The app shell puts the header and its own `<main id="main">` (the skip-link target) inside the inset, and a `main` inset made two nested main landmarks.
+- `components/ui/popover.tsx`: `PopoverContent` forwards `anchor` to the positioner, so a controlled popover can open next to an element that isn't its trigger (the clip editor's effects lane anchors it to the selected block).

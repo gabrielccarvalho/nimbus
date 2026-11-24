@@ -91,6 +91,20 @@ function baseRegions(
   ]
 }
 
+export function zoomFocusAt(
+  layout: LayoutInput,
+  source: { width: number; height: number },
+  point: { x: number; y: number }
+): { x: number; y: number } {
+  const dest =
+    baseRegions(layout, source).find((region) => region.zoomable)?.dest ??
+    FULL_OUTPUT
+  return {
+    x: clamp((point.x - dest.x) / dest.w, 0, 1),
+    y: clamp((point.y - dest.y) / dest.h, 0, 1),
+  }
+}
+
 function zoomScale(
   zoom: Extract<Effect, { kind: "zoom" }>,
   tMs: number

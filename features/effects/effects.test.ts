@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { coverCrop, planLayout, toPixels } from "../layout/geometry"
 import { FULL_FRAME, type LayoutInput } from "../layout/schema"
-import { frameAt, SHAKE_SCALE, type FloatRect } from "./frame"
+import { frameAt, SHAKE_SCALE, zoomFocusAt, type FloatRect } from "./frame"
 import type { SignalsData } from "../analysis/schema"
 import { planEffects, PLANNER, type PlanInput } from "./planner"
 import { effectSchema, normalizeEffects, type Effect } from "./schema"
@@ -280,6 +280,31 @@ describe("frameAt", () => {
     expect(crop.y).toBeGreaterThan(base.y)
     expect(crop.x + crop.w).toBeLessThan(base.x + base.w)
     expect(crop.y + crop.h).toBeLessThan(base.y + base.h)
+  })
+
+  it("zoomFocusAt maps an output point into the gameplay region", () => {
+    const gameplay = frameAt(camTop, source, [], 0).regions[1]!.dest
+    expect(
+      zoomFocusAt(camTop, source, {
+        x: gameplay.x + gameplay.w * 0.25,
+        y: gameplay.y + gameplay.h * 0.75,
+      })
+    ).toEqual({ x: 0.25, y: 0.75 })
+    expect(zoomFocusAt(camTop, source, { x: -50, y: 0 })).toEqual({
+      x: 0,
+      y: 0,
+    })
+    expect(zoomFocusAt(fill, source, { x: 540, y: 1920 })).toEqual({
+      x: 0.5,
+      y: 1,
+    })
+    const foreground = frameAt(blur, source, [], 0).regions[1]!.dest
+    expect(
+      zoomFocusAt(blur, source, {
+        x: foreground.x + foreground.w / 2,
+        y: foreground.y,
+      })
+    ).toEqual({ x: 0.5, y: 0 })
   })
 })
 
