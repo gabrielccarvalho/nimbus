@@ -79,10 +79,10 @@
   - `activeForClip(clipId): Promise<Publication | undefined>`
   - `assetInActiveUse(assetId): Promise<boolean>`
   - `countCreatedOnDay(workspaceId, day: string): Promise<number>`, which counts publications whose `createdAt` falls on that Pacific day.
-  - `spendQuota({ day, workspaceId, kind, units, budget, reserve }): Promise<boolean>`. It runs in a transaction. Uploads may only spend up to `budget - reserve`, and `stats`/`list` up to `budget`. It returns false without inserting when the spend would cross that limit.
+  - `spendQuota({ day, workspaceId, kind, units, budget }): Promise<boolean>`. It runs in a transaction. `upload` spends are summed only against other `upload` rows for that day (their own bucket). `list` and `stats` spends are summed together (the shared bucket). The caller passes the bucket's `budget`. It returns false without inserting when the spend would go over.
 
 - [ ] **Step 1: Write failing tests** in `tests/integration/publishing-repository.test.ts` (PGlite, same setup as `repositories.test.ts`):
-  - `spendQuota` returns true until uploads total `budget - reserve`, then false. A `stats` spend still succeeds after that.
+  - With `budget: 3`, three `upload` spends of 1 return true and the fourth returns false. A `stats` spend with `budget: 10000` still succeeds after that, and `list` + `stats` rows count toward the same total.
   - `activeForClip` ignores `published`/`failed` and returns a `waiting_quota` row.
   - `assetInActiveUse` is true for a queued publication's asset and false once it's published.
   - `latestForClips` returns the newest row per clip.
@@ -257,7 +257,7 @@ export function getYouTubeClient(): YouTubeClient
 **Behaviour, in order:**
 
 1. Load the publication, clip, project and channel. If any is missing, throw `CANCELLED`. If the channel is `needs_reconnect`, throw `UNAUTHORIZED` with the reconnect message.
-2. If there's no `uploadUri`, try `spendQuota(upload)`. If that's refused, set `waiting_quota`, enqueue a new `publish_clip` with `runAfter: nextQuotaReset(now)` and return.
+2. If there's no `uploadUri`, try `spendQuota(upload)`. Use `budget: YOUTUBE_DAILY_UPLOADS`. `myChannel` and other reads spend `list` against `YOUTUBE_DAILY_QUOTA`. If the upload spend is refused, set `waiting_quota`, enqueue a new `publish_clip` with `runAfter: nextQuotaReset(now)` and return.
 3. Set `uploading`. Get a token. If there's no `uploadUri`, call `startUpload` and save the URI. Otherwise call `uploadedBytes` to find the offset.
 4. Call `uploadFrom`, reporting progress as a fraction. On `UNAUTHORIZED` with `cause: "token"`, get a token with `force: true`, re-read the offset and continue, once only. On `cause: "quota"`, behave as in step 2, keeping the saved `uploadUri`.
 5. On success, set `published` with `videoId`, `url = https://youtube.com/shorts/{videoId}` and `publishedAt`. If the clip no longer points at this asset and `assetInActiveUse` is false, delete the asset.
@@ -329,7 +329,6 @@ export function getYouTubeClient(): YouTubeClient
 
 - Produces: `<PublishDialog clip={{ id, title, description }} publishing={...from getPublishing} />`. It's built from the existing Dialog, Input, Textarea, Select and Switch, with a datetime input for the schedule. The fields are prefilled with `defaultPublishInput`.
 - Copy (exact):
-  - Under privacy: "Until Nimbus passes Google's review, YouTube keeps API uploads private. You can make it public in YouTube Studio."
   - Disabled reasons: "Render the latest edit first", "Connect YouTube in Settings › Connected channels", and the plan-limit message.
 - [ ] **Step 1: Write failing RTL tests:**
   - The dialog prefills the title and description, and the description ends with the hashtags line.

@@ -83,7 +83,7 @@ For how approved suggestions are stored and used:
 
 - **Ledger.** A `youtube_quota_usage` ledger stores the units spent per Pacific-time day, per workspace and per call kind. Every YouTube call goes through one adapter that books its cost before making the call. Quota resets at midnight Pacific.
 - **Plan limit.** Each plan gets a daily publish limit, recorded as a usage event like render minutes and shown in Plan & usage. The Admin plan has no limit. The numbers are set once the real quota is known.
-- **Reserve for stats.** Part of the daily budget is held back for `sync_stats`, so uploads can't starve stats syncing.
+- **Two buckets.** Uploads are counted against their own daily bucket (`YOUTUBE_DAILY_UPLOADS`), and reads against the shared one (`YOUTUBE_DAILY_QUOTA`), the same way Google splits them. Uploads can't starve stats syncing.
 - **When quota runs out.** If the project-wide budget is spent, or YouTube returns `quotaExceeded`, a publish moves to `waiting_quota` and is picked up again after the reset. The UI says "Queued, YouTube's daily limit is reached, it'll go out after midnight Pacific". It's never shown as a failure.
 - **Fair order.** Waiting publishes go out oldest first, at most N per workspace each day, so one workspace can't use up the morning's budget. _(Design call. N comes from the plan.)_
 
