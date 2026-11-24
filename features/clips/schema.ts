@@ -54,3 +54,11 @@ export const clipPlanSchema = clipEditSchema
     path: ["endMs"],
   })
 export type ClipPlan = z.infer<typeof clipPlanSchema>
+
+export const clipRangeSchema = clipEditSchema
+  .pick({ startMs: true, endMs: true })
+  .refine((range) => range.endMs > range.startMs, {
+    message: "The clip must end after it starts",
+    path: ["endMs"],
+  })
+export type ClipRange = z.infer<typeof clipRangeSchema>

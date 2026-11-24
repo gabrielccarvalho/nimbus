@@ -7,10 +7,16 @@ import { getDb } from "@/lib/db"
 import { AppError } from "@/lib/errors"
 import { parseId, runAction } from "@/lib/server-action"
 
-import { clipEditSchema, clipPlanSchema, clipStatusSchema } from "./schema"
+import {
+  clipEditSchema,
+  clipPlanSchema,
+  clipRangeSchema,
+  clipStatusSchema,
+} from "./schema"
 import {
   applyManualSelection,
   approveAllCandidates,
+  createClipFromRange,
   planClipEffects,
   setClipReviewStatus,
   updateClip,
@@ -103,6 +109,21 @@ export async function approveAllCandidatesAction(projectId: unknown) {
   return runAction(
     "approveAllCandidates",
     forProject(id, () => approveAllCandidates(getDb(), id)),
+    [`/projects/${id}`]
+  )
+}
+
+export async function createClipAction(projectId: unknown, range: unknown) {
+  const id = parseId(projectId, "project id")
+  return runAction(
+    "createClip",
+    forProject(id, async () => {
+      const parsed = clipRangeSchema.safeParse(range)
+      if (!parsed.success)
+        throw new AppError("VALIDATION", "Pick where the clip starts and ends")
+      const clip = await createClipFromRange(getDb(), id, parsed.data)
+      return { clipId: clip.id }
+    }),
     [`/projects/${id}`]
   )
 }

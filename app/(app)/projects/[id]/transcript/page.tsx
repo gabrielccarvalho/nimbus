@@ -22,7 +22,7 @@ export default async function TranscriptPage({
   const { id } = await params
   const data = await getProjectTranscript(id)
   if (!data) notFound()
-  const { project, proxy, source, transcript, audio } = data
+  const { project, proxy, source, transcript, audio, clips } = data
   const video = proxy ?? source
 
   if (!transcript || !video) {
@@ -45,6 +45,9 @@ export default async function TranscriptPage({
 
   return (
     <TranscriptView
+      projectId={project.id}
+      clips={clips}
+      language={transcript.language}
       src={mediaUrl(video.storageKey)}
       durationMs={source?.durationMs ?? video.durationMs ?? 0}
       audio={audio}

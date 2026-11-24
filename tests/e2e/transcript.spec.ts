@@ -46,6 +46,27 @@ test("shows a synced, searchable transcript", async ({ page }) => {
   await expectNoSeriousA11yViolations(page)
 })
 
+test("makes a clip from selected lines", async ({ page }) => {
+  await page.goto("/")
+  await page.locator("input[type=file]").setInputFiles(fixtures.wide)
+  await expect(page).toHaveURL(/\/projects\/[\w-]+$/, { timeout: 30_000 })
+  await expect(
+    page.getByRole("listitem").filter({ hasText: "Find highlights, completed" })
+  ).toBeVisible({ timeout: 30_000 })
+  await page.getByRole("link", { name: "Transcript" }).click()
+
+  const lines = page.locator("[data-segment] button")
+  const make = page.getByRole("button", { name: "Make a clip" })
+  await expect(make).toBeDisabled()
+  await lines.nth(1).click()
+  await lines.nth(3).click({ modifiers: ["Shift"] })
+  await expect(page.getByText(/^3 lines · /)).toBeVisible()
+  await expect(lines.nth(2)).toHaveAttribute("aria-pressed", "true")
+  await make.click()
+  await expect(page).toHaveURL(/\/clips\/[\w-]+$/)
+  await expect(page.getByLabel("Title")).not.toHaveValue("")
+})
+
 test("explains when the transcript isn't ready", async ({ page }) => {
   await page.goto("/")
   await page.locator("input[type=file]").setInputFiles(fixtures.noAudio)

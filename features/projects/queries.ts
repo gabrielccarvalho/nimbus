@@ -167,13 +167,17 @@ export async function getProjectTranscript(id: string) {
   const db = getDb()
   const project = await visibleProject(db, id)
   if (!project) return undefined
-  const [assets, transcript, audio] = await Promise.all([
+  const [assets, transcript, audio, clips] = await Promise.all([
     assetRepository(db).listForProject(id),
     transcriptRepository(db).get(id),
     audioSummary(db, project),
+    clipRepository(db).listForProject(id),
   ])
   return {
     project,
+    clips: clips
+      .filter((clip) => clip.status !== "rejected")
+      .map(({ id, title, startMs, endMs }) => ({ id, title, startMs, endMs })),
     proxy: assets.find((a) => a.kind === "proxy"),
     source: assets.find((a) => a.kind === "source"),
     transcript,
