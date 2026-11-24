@@ -136,7 +136,58 @@ describe("effectsGraph", () => {
     await expect(graph).toMatchFileSnapshot("./__golden__/effects-cam-top.txt")
   })
 
-  it("skips sendcmd when no crop ever moves", () => {
+  const zoomAndShake = [
+    {
+      kind: "zoom",
+      startMs: 33_000,
+      endMs: 37_000,
+      scale: 1.6,
+      focus: { x: 0.3, y: 0.6 },
+    },
+    { kind: "shake", startMs: 36_000, endMs: 36_700, intensity: "light" },
+  ] as const
+
+  it("builds zoom+shake on no-cam-blur-fill", async () => {
+    const graph = effectsGraph({
+      layout: {
+        webcamRect: null,
+        gameplayRect: FULL_FRAME,
+        gameplayFocusX: 0.5,
+        mode: "no-cam-blur-fill",
+      },
+      source,
+      events: zoomAndShake,
+      startMs: 30_000,
+      endMs: 45_000,
+      fps: 29.97,
+      commandsFile: "/data/work/c1.cmds.txt",
+      subtitles,
+    })
+    await expect(graph).toMatchFileSnapshot(
+      "./__golden__/effects-blur-fill.txt"
+    )
+  })
+
+  it("builds zoom+shake on no-cam-fill from a 4:3 source", async () => {
+    const graph = effectsGraph({
+      layout: {
+        webcamRect: null,
+        gameplayRect: FULL_FRAME,
+        gameplayFocusX: 0.3,
+        mode: "no-cam-fill",
+      },
+      source: { width: 1440, height: 1080 },
+      events: zoomAndShake,
+      startMs: 30_000,
+      endMs: 45_000,
+      fps: 30,
+      commandsFile: "/data/work/c1.cmds.txt",
+      subtitles,
+    })
+    await expect(graph).toMatchFileSnapshot("./__golden__/effects-fill.txt")
+  })
+
+  it("leaves sendcmd out without a commands file", () => {
     const graph = effectsGraph({
       layout: camTop,
       source,
@@ -144,7 +195,6 @@ describe("effectsGraph", () => {
       startMs: 12_000,
       endMs: 20_000,
       fps: 30,
-      commandsFile: "/data/work/c1.cmds.txt",
     })
     expect(graph).not.toContain("sendcmd")
     expect(graph).toContain("enable='between(t,0.983,2.983)'")

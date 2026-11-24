@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { clipRepository } from "@/features/clips/repository"
 import { setClipReviewStatus } from "@/features/clips/service"
-import { frameAt } from "@/features/effects/frame"
+import { frameAt, type FrameRegion } from "@/features/effects/frame"
+import type { Effect } from "@/features/effects/schema"
 import type { LayoutInput } from "@/features/layout/schema"
 import { confirmLayout } from "@/features/layout/service"
 import {
@@ -74,6 +75,51 @@ function rawFrame(file: string, atS: number, pixFmt: "gray" | "rgb24") {
 }
 
 const grayFrame = (file: string, atS: number) => rawFrame(file, atS, "gray")
+
+function nthFrame(file: string, n: number) {
+  return execFileSync(
+    getEnv().FFMPEG_PATH,
+    [
+      "-v",
+      "error",
+      "-i",
+      file,
+      "-vf",
+      `select=eq(n\\,${n})`,
+      "-frames:v",
+      "1",
+      "-f",
+      "rawvideo",
+      "-pix_fmt",
+      "gray",
+      "-",
+    ],
+    { maxBuffer: 16 * 1024 ** 2 }
+  )
+}
+
+function regionDiff(rendered: Buffer, source: Buffer, region: FrameRegion) {
+  const { crop, dest } = region
+  const at = (x: number, y: number) => source[y * 1920 + x]!
+  let sum = 0
+  let count = 0
+  for (let v = 8; v < dest.h - 8; v += 4) {
+    for (let u = 8; u < dest.w - 8; u += 4) {
+      const sx = Math.min(1918, crop.x + ((u + 0.5) * crop.w) / dest.w - 0.5)
+      const sy = Math.min(1078, crop.y + ((v + 0.5) * crop.h) / dest.h - 0.5)
+      const x = Math.floor(sx)
+      const y = Math.floor(sy)
+      const fx = sx - x
+      const fy = sy - y
+      const expected =
+        (at(x, y) * (1 - fx) + at(x + 1, y) * fx) * (1 - fy) +
+        (at(x, y + 1) * (1 - fx) + at(x + 1, y + 1) * fx) * fy
+      sum += Math.abs(expected - rendered[(dest.y + v) * 1080 + dest.x + u]!)
+      count++
+    }
+  }
+  return sum / count
+}
 
 function columnColors(
   frame: Buffer,
@@ -238,8 +284,16 @@ describe("render_clip with effects", () => {
   const focusFromS = 3
   const insideS = 4.5
 
-  async function renderWithFocus(
-    focus: boolean,
+  const focusFrom = (startMs: number): Effect[] => [
+    {
+      kind: "focus",
+      startMs: startMs + focusFromS * 1000,
+      endMs: startMs + (focusFromS + 3) * 1000,
+    },
+  ]
+
+  async function renderWith(
+    events: ((startMs: number) => Effect[]) | null,
     layoutOverride: LayoutInput | null = null
   ) {
     const { projectId, clipId } = await readyProject(false)
@@ -248,18 +302,7 @@ describe("render_clip with effects", () => {
     expect(endMs - startMs).toBeGreaterThan(7000)
     await clips.update(clipId, {
       layoutOverride,
-      effects: focus
-        ? {
-            events: [
-              {
-                kind: "focus",
-                startMs: startMs + focusFromS * 1000,
-                endMs: startMs + (focusFromS + 3) * 1000,
-              },
-            ],
-            edited: true,
-          }
-        : null,
+      effects: events ? { events: events(startMs), edited: true } : null,
     })
     await startClipRenders(env.db, projectId, [clipId])
     await runJobs(env.db, ["render_clip"])
@@ -270,8 +313,8 @@ describe("render_clip with effects", () => {
   }
 
   it("renders a focus range as webcam content", async () => {
-    const plain = await renderWithFocus(false)
-    const focused = await renderWithFocus(true)
+    const plain = await renderWith(null)
+    const focused = await renderWith(focusFrom)
 
     const { crop } = frameAt(
       camTop,
@@ -307,9 +350,39 @@ describe("render_clip with effects", () => {
     ).toBeLessThan(1.5)
   })
 
+  it("puts zoom and shake crops on the frames frameAt gives them", async () => {
+    const { clip, file } = await renderWith((startMs) => [
+      {
+        kind: "zoom",
+        startMs: startMs + 2000,
+        endMs: startMs + 5000,
+        scale: 1.6,
+        focus: { x: 0.3, y: 0.4 },
+      },
+      {
+        kind: "shake",
+        startMs: startMs + 3000,
+        endMs: startMs + 3600,
+        intensity: "strong",
+      },
+    ])
+    const n = 100
+    const tMs = (frame: number) => clip.startMs + (frame * 1000) / 30
+    const gameplayAt = (frame: number, events = clip.effects!.events) =>
+      frameAt(camTop, { width: 1920, height: 1080 }, events, tMs(frame))
+        .regions[1]!
+    const rendered = nthFrame(file, n)
+    const source = grayFrame(fixtures.wide, tMs(n) / 1000)
+    const diff = (region: FrameRegion) => regionDiff(rendered, source, region)
+    expect(diff(gameplayAt(n))).toBeLessThan(2)
+    expect(diff(gameplayAt(n - 1))).toBeGreaterThan(4)
+    expect(diff(gameplayAt(n + 1))).toBeGreaterThan(4)
+    expect(diff(gameplayAt(n, []))).toBeGreaterThan(20)
+  })
+
   it("ignores focus when the clip's layout has no webcam", async () => {
-    const plain = await renderWithFocus(false, noCam)
-    const focused = await renderWithFocus(true, noCam)
+    const plain = await renderWith(null, noCam)
+    const focused = await renderWith(focusFrom, noCam)
     expect(
       bandDiff(
         grayFrame(plain.file, insideS),

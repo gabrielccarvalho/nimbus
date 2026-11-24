@@ -36,7 +36,7 @@ const FULL_OUTPUT = { x: 0, y: 0, w: OUTPUT_WIDTH, h: OUTPUT_HEIGHT }
 const clamp = (n: number, min: number, max: number) =>
   Math.min(Math.max(n, min), max)
 
-function active<K extends Effect["kind"]>(
+export function activeEffect<K extends Effect["kind"]>(
   events: readonly Effect[],
   kind: K,
   tMs: number
@@ -144,14 +144,14 @@ export function frameAt(
   events: readonly Effect[],
   tMs: number
 ): Frame {
-  const shake = active(events, "shake", tMs)
+  const shake = activeEffect(events, "shake", tMs)
   const withShake = (region: FrameRegion): FrameRegion =>
     shake ? { ...region, crop: shakeCrop(region.crop, shake, tMs) } : region
 
   if (
     usesWebcam(layout.mode) &&
     layout.webcamRect &&
-    active(events, "focus", tMs)
+    activeEffect(events, "focus", tMs)
   ) {
     const crop = coverCrop(
       toPixels(layout.webcamRect, source.width, source.height),
@@ -160,7 +160,7 @@ export function frameAt(
     return { regions: [withShake({ crop, dest: FULL_OUTPUT })] }
   }
 
-  const zoom = active(events, "zoom", tMs)
+  const zoom = activeEffect(events, "zoom", tMs)
   return {
     regions: baseRegions(layout, source).map(({ zoomable, ...region }) =>
       withShake(

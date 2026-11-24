@@ -110,6 +110,7 @@ export const renderClipStep: JobHandler = async ({
   const events = clip.effects?.events ?? []
   const range = { startMs: clip.startMs, endMs: clip.endMs, fps }
   let graph: string
+  let commands = ""
   if (events.length > 0) {
     const effects = {
       layout,
@@ -117,10 +118,12 @@ export const renderClipStep: JobHandler = async ({
       events,
       ...range,
     }
-    await storage.writeBuffer(workKey("cmds.txt"), effectCommands(effects))
+    commands = effectCommands(effects)
+    // sendcmd refuses an empty file.
+    if (commands) await storage.writeBuffer(workKey("cmds.txt"), commands)
     graph = effectsGraph({
       ...effects,
-      commandsFile: storage.resolve(workKey("cmds.txt")),
+      commandsFile: commands ? storage.resolve(workKey("cmds.txt")) : undefined,
       subtitles,
     })
   } else {
@@ -162,7 +165,7 @@ export const renderClipStep: JobHandler = async ({
     throw error
   } finally {
     await storage.remove(workKey("graph.txt"))
-    if (events.length > 0) await storage.remove(workKey("cmds.txt"))
+    if (commands) await storage.remove(workKey("cmds.txt"))
     if (subtitles) await storage.remove(workKey("ass"))
   }
 

@@ -1,4 +1,9 @@
-import { frameAt, type FloatRect, type FrameRegion } from "../effects/frame"
+import {
+  activeEffect,
+  frameAt,
+  type FloatRect,
+  type FrameRegion,
+} from "../effects/frame"
 import type { Effect } from "../effects/schema"
 import { usesWebcam, type LayoutInput } from "../layout/schema"
 import {
@@ -103,13 +108,8 @@ export function effectCommands(input: EffectsInput): string {
 function focusEnable(input: EffectsInput) {
   const { events, startMs, fps } = input
   const edge = (k: number) => seconds(Math.max(0, ((k - 0.5) * 1000) / fps))
-  const on = frameOffsets(input).map((offsetMs) =>
-    events.some(
-      (event) =>
-        event.kind === "focus" &&
-        event.startMs <= startMs + offsetMs &&
-        startMs + offsetMs < event.endMs
-    )
+  const on = frameOffsets(input).map(
+    (offsetMs) => !!activeEffect(events, "focus", startMs + offsetMs)
   )
   const ranges: string[] = []
   let from = 0
@@ -142,7 +142,7 @@ export function effectsGraph({
   commandsFile,
   subtitles,
   ...input
-}: EffectsInput & { commandsFile: string; subtitles?: Subtitles }) {
+}: EffectsInput & { commandsFile?: string; subtitles?: Subtitles }) {
   const { startMs, endMs, fps } = input
   const { offsetMs } = seekFor(startMs)
   const from = seconds(offsetMs)
@@ -152,8 +152,7 @@ export function effectsGraph({
   const stacked = focus ? slots.slice(0, -1) : slots
   const tail = `format=yuv420p${subtitleFilter(subtitles)}[v]`
   const splits = slots.map((_, i) => `[s${i}]`).join("")
-  // sendcmd refuses an empty file.
-  const sendcmd = effectCommands(input)
+  const sendcmd = commandsFile
     ? `sendcmd=f=${escapeFilterPath(commandsFile)},`
     : ""
 
