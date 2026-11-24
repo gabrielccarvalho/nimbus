@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, within } from "@testing-library/react"
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { toast } from "sonner"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -181,17 +187,55 @@ describe("ClipsGrid", () => {
     expect(setClipStatusAction).toHaveBeenLastCalledWith("p1", "a", "candidate")
   })
 
-  it("hover plays a rendered tile's MP4 and leaves unrendered tiles alone", () => {
-    render(<ClipsGrid clips={clips} {...data} />)
+  it("hover plays one rendered tile at a time and resets it on leave", () => {
+    const withD = [...clips, clip("d", "Clip D", { status: "rendered" })]
+    const d = { url: "/media/d.mp4", downloadUrl: "/media/d.mp4?download" }
+    render(<ClipsGrid clips={withD} {...data} renders={{ ...renders, d }} />)
     const play = vi.mocked(HTMLMediaElement.prototype.play)
+    const pause = vi.mocked(HTMLMediaElement.prototype.pause)
     fireEvent.pointerEnter(screen.getByRole("button", { name: "Clip A" }), {
       pointerType: "mouse",
     })
     expect(play).not.toHaveBeenCalled()
+    const b = screen.getByRole("button", { name: "Clip B" })
+    const bVideo = b.querySelector("video")!
+    expect(bVideo).toHaveAttribute("src", "/media/b.mp4")
+    fireEvent.pointerEnter(b, { pointerType: "mouse" })
+    expect(play.mock.contexts).toEqual([bVideo])
+    bVideo.currentTime = 3
+    pause.mockClear()
+    fireEvent.pointerEnter(screen.getByRole("button", { name: "Clip D" }), {
+      pointerType: "mouse",
+    })
+    expect(pause.mock.contexts).toContain(bVideo)
+    expect(play.mock.contexts.at(-1)).toBe(
+      screen.getByRole("button", { name: "Clip D" }).querySelector("video")
+    )
+    expect(bVideo.currentTime).toBe(0)
+  })
+
+  it("arrow keys move clips from the initial focus of a rendered clip", async () => {
+    render(<ClipsGrid clips={clips} {...data} />)
+    await userEvent.click(screen.getByRole("button", { name: "Clip B" }))
+    const dialog = await screen.findByRole("dialog", { name: "Clip B" })
+    await waitFor(() => expect(dialog).toHaveFocus())
+    await userEvent.keyboard("{ArrowRight}")
+    expect(
+      await screen.findByRole("dialog", { name: "Clip C" })
+    ).toBeInTheDocument()
+  })
+
+  it("closing pauses the player and returns focus to the clip's tile", async () => {
+    render(<ClipsGrid clips={clips} {...data} />)
     const tile = screen.getByRole("button", { name: "Clip B" })
-    fireEvent.pointerEnter(tile, { pointerType: "mouse" })
-    expect(play).toHaveBeenCalledTimes(1)
-    expect(tile.querySelector("video")).toHaveAttribute("src", "/media/b.mp4")
+    await userEvent.click(tile)
+    const dialog = await screen.findByRole("dialog", { name: "Clip B" })
+    const video = dialog.querySelector("video")!
+    const pause = vi.mocked(HTMLMediaElement.prototype.pause)
+    pause.mockClear()
+    await userEvent.click(within(dialog).getByRole("button", { name: "Close" }))
+    expect(pause.mock.contexts).toContain(video)
+    await waitFor(() => expect(tile).toHaveFocus())
   })
 })
 

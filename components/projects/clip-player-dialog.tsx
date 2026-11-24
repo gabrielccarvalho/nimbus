@@ -121,10 +121,14 @@ function ClipPlayer({
   return (
     <VideoPlayerProvider>
       <ClipLoop startMs={clip.startMs} endMs={clip.endMs} />
-      <div className="overflow-hidden rounded-lg bg-black">
+      <div className="relative overflow-hidden rounded-lg bg-black">
         {layout && caption ? (
           <>
-            <VideoPlayerVideo src={src} autoPlay className="hidden" />
+            <VideoPlayerVideo
+              src={src}
+              autoPlay
+              className="pointer-events-none absolute size-px opacity-0"
+            />
             <ClipPreview
               layout={layout}
               effects={clip.effects?.events}
@@ -159,6 +163,7 @@ export function ClipPlayerDialog({
   clips,
   index,
   onIndexChange,
+  finalFocus,
   ...data
 }: ClipPlayerData & {
   open: boolean
@@ -166,16 +171,31 @@ export function ClipPlayerDialog({
   clips: Clip[]
   index: number
   onIndexChange(index: number): void
+  finalFocus?: React.ComponentProps<typeof DialogContent>["finalFocus"]
 }) {
   const clip = clips[index]
+  const popupRef = React.useRef<HTMLDivElement>(null)
   const move = (step: number) => {
     const next = index + step
     if (next >= 0 && next < clips.length) onIndexChange(next)
   }
 
   return (
-    <Dialog open={open && Boolean(clip)} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open && Boolean(clip)}
+      onOpenChange={(next) => {
+        if (!next) {
+          popupRef.current
+            ?.querySelectorAll("video")
+            .forEach((video) => video.pause())
+        }
+        onOpenChange(next)
+      }}
+    >
       <DialogContent
+        ref={popupRef}
+        initialFocus={popupRef}
+        finalFocus={finalFocus}
         className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-3xl"
         onKeyDown={(event) => {
           if (event.defaultPrevented) return

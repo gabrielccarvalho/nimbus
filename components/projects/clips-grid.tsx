@@ -40,6 +40,7 @@ function ClipTile({
       video.play().catch(() => {})
     } else {
       video.pause()
+      video.currentTime = 0
     }
   }, [playing, render])
 
@@ -47,6 +48,7 @@ function ClipTile({
     <li className="min-w-0">
       <button
         type="button"
+        data-clip-id={clip.id}
         data-status={clip.status}
         aria-labelledby={`${id}-title`}
         aria-describedby={`${id}-status ${id}-meta`}
@@ -103,6 +105,7 @@ export function ClipsGrid({
   const openId = openClipId === undefined ? openState : openClipId
   const [shownId, setShownId] = React.useState(openId)
   const [hoveredId, setHoveredId] = React.useState<string | null>(null)
+  const listRef = React.useRef<HTMLOListElement>(null)
 
   if (openId && openId !== shownId) setShownId(openId)
 
@@ -116,9 +119,11 @@ export function ClipsGrid({
   return (
     <>
       <ol
+        ref={listRef}
         aria-label="Clips"
+        tabIndex={-1}
         className={cn(
-          "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5",
+          "grid grid-cols-2 gap-3 outline-none sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5",
           className
         )}
       >
@@ -146,6 +151,11 @@ export function ClipsGrid({
         clips={clips}
         index={Math.max(0, index)}
         onIndexChange={(next) => setOpenId(clips[next]?.id ?? null)}
+        finalFocus={() =>
+          listRef.current?.querySelector<HTMLElement>(
+            `[data-clip-id="${shownId}"]`
+          ) ?? listRef.current
+        }
         {...data}
       />
     </>
