@@ -7,6 +7,7 @@ import {
   projectRepository,
 } from "@/features/projects/repository"
 import { defaultProjectSettings } from "@/features/projects/schema"
+import { pacificDay } from "@/features/publishing/quota"
 import {
   publishingRepository,
   type NewPublication,
@@ -129,6 +130,14 @@ describe("publishingRepository", () => {
     await publish({ createdAt: new Date("2026-11-24T08:30:00Z") })
     expect(await repo.countCreatedOnDay(workspaceId, "2026-11-23")).toBe(1)
     expect(await repo.countCreatedOnDay(workspaceId, "2026-11-24")).toBe(1)
+  })
+
+  it("leaves failed publications out of the daily count", async () => {
+    const { repo, workspaceId, publish } = await seed()
+    const day = pacificDay(new Date())
+    await publish({ status: "failed" })
+    await publish({ status: "published" })
+    expect(await repo.countCreatedOnDay(workspaceId, day)).toBe(1)
   })
 
   it("deletes publications with their clip", async () => {

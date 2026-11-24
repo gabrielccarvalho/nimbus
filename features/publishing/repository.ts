@@ -1,6 +1,6 @@
 import "server-only"
 
-import { and, desc, eq, inArray, sql } from "drizzle-orm"
+import { and, desc, eq, inArray, ne, sql } from "drizzle-orm"
 
 import { newId, now, withTransaction, type Db } from "@/lib/db"
 import {
@@ -164,6 +164,7 @@ export function publishingRepository(db: Db) {
         .where(
           and(
             eq(youtubeChannels.workspaceId, workspaceId),
+            ne(publications.status, "failed"),
             sql`(${publications.createdAt} at time zone 'America/Los_Angeles')::date = ${day}::date`
           )
         )
