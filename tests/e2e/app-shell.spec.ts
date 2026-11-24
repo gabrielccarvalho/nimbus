@@ -30,13 +30,9 @@ test("sidebar collapse state persists across reloads", async ({ page }) => {
   await expect(sidebar).toHaveAttribute("data-state", "expanded")
 })
 
-test("theme toggle and keyboard navigation work", async ({ page }) => {
+test("is always dark and keyboard navigation works", async ({ page }) => {
   await page.goto("/")
-  const html = page.locator("html")
-  const before = (await html.getAttribute("class")) ?? ""
-  await page.getByRole("button", { name: "Toggle dark mode" }).click()
-  await expect(html).not.toHaveClass(before)
-  await page.reload()
+  await expect(page.locator("html")).toHaveClass(/\bdark\b/)
   await page.keyboard.press("Tab")
   const skip = page.getByRole("link", { name: "Skip to content" })
   await expect(skip).toBeFocused()

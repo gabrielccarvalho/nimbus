@@ -425,7 +425,6 @@ export function LayoutEditor({
                   {awaitingConfirmation ? "Confirm layout" : "Save layout"}
                 </Button>
                 <Button
-                  variant="outline"
                   disabled={detecting || pending}
                   onClick={() => {
                     setDetecting(true)

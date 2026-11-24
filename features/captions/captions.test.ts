@@ -1,6 +1,3 @@
-import { readFileSync } from "node:fs"
-import path from "node:path"
-
 import { describe, expect, it } from "vitest"
 
 import { defaultProjectSettings } from "../projects/schema"
@@ -20,7 +17,6 @@ import {
 } from "./pages"
 import {
   assColor,
-  CAPTION_TOKENS,
   captionBaseline,
   oklchToRgb,
   resolveCaptionStyle,
@@ -218,17 +214,6 @@ describe("wordsInRange and lookup", () => {
 })
 
 describe("styles", () => {
-  it("matches the design tokens in globals.css", () => {
-    const css = readFileSync(path.resolve("app/globals.css"), "utf8")
-    const root = css.slice(
-      css.indexOf(":root"),
-      css.indexOf("}", css.indexOf(":root"))
-    )
-    for (const [token, value] of Object.entries(CAPTION_TOKENS)) {
-      expect(root).toContain(`--${token}: ${value};`)
-    }
-  })
-
   it("converts OKLCH to sRGB and ASS colors", () => {
     expect(oklchToRgb("oklch(1 0 0)")).toEqual([255, 255, 255])
     expect(oklchToRgb("oklch(0 0 0)")).toEqual([0, 0, 0])

@@ -262,7 +262,7 @@ function ClipDetails({
       <div className="flex flex-wrap gap-2">
         <Button
           size="sm"
-          variant={clip.status === "approved" ? "default" : "outline"}
+          variant={clip.status === "approved" ? "primary" : "default"}
           aria-pressed={clip.status === "approved"}
           disabled={pending || clip.status === "rendering"}
           onClick={() =>
@@ -305,12 +305,7 @@ function ClipDetails({
         )}
       </div>
       <div className="mt-auto flex items-center justify-between gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={position <= 1}
-          onClick={() => onMove(-1)}
-        >
+        <Button size="sm" disabled={position <= 1} onClick={() => onMove(-1)}>
           <CaretLeftIcon data-icon="inline-start" aria-hidden />
           Previous
         </Button>
@@ -319,7 +314,6 @@ function ClipDetails({
         </span>
         <Button
           size="sm"
-          variant="outline"
           disabled={position >= total}
           onClick={() => onMove(1)}
         >

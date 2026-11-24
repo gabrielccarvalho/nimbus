@@ -1,15 +1,7 @@
-import {
-  CheckCircleIcon,
-  CircleNotchIcon,
-  HandPointingIcon,
-  ProhibitIcon,
-  WarningCircleIcon,
-} from "@phosphor-icons/react/ssr"
-
-import { Badge } from "@/components/ui/badge"
+import { StatusPill } from "@/components/ui/status-pill"
+import type { Tone } from "@/components/ui/tone"
 import type { ClipStatus } from "@/features/clips/schema"
 import type { ProjectStatus } from "@/features/projects/schema"
-import { cn } from "@/lib/utils"
 
 const LABELS: Record<ProjectStatus, string> = {
   downloading: "Downloading",
@@ -26,69 +18,49 @@ const LABELS: Record<ProjectStatus, string> = {
   cancelled: "Cancelled",
 }
 
+const PROJECT_TONES: Record<ProjectStatus, Tone> = {
+  downloading: "lav",
+  uploaded: "lav",
+  probing: "lav",
+  transcribing: "lav",
+  analyzing: "lav",
+  selecting: "lav",
+  awaiting_layout: "amber",
+  ready_for_review: "amber",
+  rendering: "lav",
+  done: "mint",
+  failed: "pink",
+  cancelled: "neutral",
+}
+
 export function projectStatusLabel(status: ProjectStatus) {
   return LABELS[status]
 }
 
+export function projectStatusTone(status: ProjectStatus) {
+  return PROJECT_TONES[status]
+}
+
 export function ProjectStatusBadge({ status }: { status: ProjectStatus }) {
-  switch (status) {
-    case "downloading":
-    case "probing":
-    case "transcribing":
-    case "analyzing":
-    case "selecting":
-    case "rendering":
-      return (
-        <Badge variant="secondary">
-          <CircleNotchIcon
-            data-icon="inline-start"
-            className="motion-safe:animate-spin"
-            aria-hidden
-          />
-          {LABELS[status]}
-        </Badge>
-      )
-    case "awaiting_layout":
-    case "ready_for_review":
-      return (
-        <Badge variant="secondary">
-          <HandPointingIcon data-icon="inline-start" aria-hidden />
-          {LABELS[status]}
-        </Badge>
-      )
-    case "done":
-      return (
-        <Badge>
-          <CheckCircleIcon data-icon="inline-start" aria-hidden />
-          {LABELS[status]}
-        </Badge>
-      )
-    case "failed":
-      return (
-        <Badge variant="destructive">
-          <WarningCircleIcon data-icon="inline-start" aria-hidden />
-          {LABELS[status]}
-        </Badge>
-      )
-    case "cancelled":
-      return (
-        <Badge variant="outline" className="text-muted-foreground">
-          <ProhibitIcon data-icon="inline-start" aria-hidden />
-          {LABELS[status]}
-        </Badge>
-      )
-    case "uploaded":
-      return <Badge variant="outline">{LABELS[status]}</Badge>
-  }
+  return <StatusPill tone={PROJECT_TONES[status]}>{LABELS[status]}</StatusPill>
 }
 
 const CLIP_LABELS: Record<ClipStatus, string> = {
-  candidate: "Candidate",
+  candidate: "To review",
   approved: "Approved",
   rejected: "Rejected",
   rendering: "Rendering",
   rendered: "Rendered",
   failed: "Render failed",
+}
+
+const CLIP_TONES: Record<ClipStatus, Tone> = {
+  candidate: "amber",
+  approved: "mint",
+  rejected: "neutral",
+  rendering: "lav",
+  rendered: "mint",
+  failed: "pink",
 }
 
 export function ClipStatusBadge({
@@ -98,42 +70,9 @@ export function ClipStatusBadge({
   status: ClipStatus
   className?: string
 }) {
-  switch (status) {
-    case "rendering":
-      return (
-        <Badge variant="secondary" className={className}>
-          <CircleNotchIcon
-            data-icon="inline-start"
-            className="motion-safe:animate-spin"
-            aria-hidden
-          />
-          {CLIP_LABELS[status]}
-        </Badge>
-      )
-    case "approved":
-    case "rendered":
-      return <Badge className={className}>{CLIP_LABELS[status]}</Badge>
-    case "failed":
-      return (
-        <Badge variant="destructive" className={className}>
-          <WarningCircleIcon data-icon="inline-start" aria-hidden />
-          {CLIP_LABELS[status]}
-        </Badge>
-      )
-    case "rejected":
-      return (
-        <Badge
-          variant="outline"
-          className={cn("text-muted-foreground", className)}
-        >
-          {CLIP_LABELS[status]}
-        </Badge>
-      )
-    case "candidate":
-      return (
-        <Badge variant="outline" className={className}>
-          {CLIP_LABELS[status]}
-        </Badge>
-      )
-  }
+  return (
+    <StatusPill tone={CLIP_TONES[status]} className={className}>
+      {CLIP_LABELS[status]}
+    </StatusPill>
+  )
 }

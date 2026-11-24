@@ -44,6 +44,8 @@ export default defineConfig({
     baseURL: `http://127.0.0.1:${PORT}`,
     trace: "on-first-retry",
     video: "retain-on-failure",
+    // Settled colours for axe: transitions collapse under reduced motion.
+    reducedMotion: "reduce",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: [

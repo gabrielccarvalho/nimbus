@@ -15,8 +15,8 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 | Component primitives | `@base-ui/react` 1.9 (Base UI, not Radix)                                                                                                   |
 | Icons                | `@phosphor-icons/react`                                                                                                                     |
 | `cn`                 | from the `cn` package, re-exported by `lib/utils.ts`                                                                                        |
-| Fonts                | Archivo (`--font-sans`, condensed for `--font-heading`), Geist Mono (`--font-mono`)                                                         |
-| Theming              | `next-themes`, class strategy, `d` hotkey toggles dark mode                                                                                 |
+| Fonts                | Geist and Geist Mono from the `geist` package (since Phase 29; was Archivo)                                                                 |
+| Theming              | One dark heycamps theme, `dark` always on `<html>` (since Phase 29; was `next-themes`)                                                      |
 | ESLint               | 9 flat config, `eslint-config-next` 16.4.6                                                                                                  |
 | Prettier             | 3 + `prettier-plugin-tailwindcss`, no semicolons                                                                                            |
 | ffmpeg / ffprobe     | 9.0.1 (Homebrew). libx264 ✅, videotoolbox ✅, `silencedetect` ✅, `ebur128` ✅, **libass ❌ (no `ass`/`subtitles` filter), no `drawtext`** |
@@ -273,6 +273,19 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 - [x] `YTDLP_COOKIES_FROM_BROWSER=dia[:profile]`: Nimbus decrypts Dia's YouTube/Google cookies (Keychain key, Chromium v10 format) into a temporary cookies.txt for each yt-dlp call and deletes it afterwards; other browsers still go to yt-dlp; doctor checks the profile's cookie DB
 - [x] Unit tests: spec parsing, key derivation and decryption (schema 23 and 24), Chromium timestamps, Netscape output
 - [x] Verified by hand: a real YouTube import that had failed the bot check downloads with `dia`
+
+### Phase 29: Redesign and accounts (ADR-0057)
+
+Spec: Claude Design handoff (`~/Downloads/nimbus-redesign-handoff/design/`). Auth: Better Auth. Sidebar links without a designed screen (Clip library, Exports, Caption styles) are left out; Channels goes to `/settings/channels`.
+
+- [x] 1. Heycamps tokens, Geist, one dark theme; Button, Badge, Tabs, Input, Select, Switch, Dialog, Sheet, DropdownMenu, Popover, Tooltip, Kbd and Command restyled; StatusPill, SignalDot, DotMeter
+- [ ] 2. App shell: Sidebar (workspace, nav, recent, usage, account menu) and ProjectHeader (breadcrumb, ⌘K, tabs); command palette
+- [ ] 3. Better Auth (Google, Twitch, email/password, 2FA, sessions), `/login` and `/signup`, protected routes, user and workspace models, projects scoped to the workspace, Playwright login fixture
+- [ ] 4. Projects home (one import card with overrides, needs-you banner, filtered grid), then Overview (one-line meta, paused-pipeline action card, stepper)
+- [ ] 5. Layout & captions at `/projects/[id]/layout` with the live 9:16 preview
+- [ ] 6. Clips review (export bar, filters, keyboard), then the clip editor (autosave)
+- [ ] 7. Transcript (search, follow playback, grouped by clip, make a clip)
+- [ ] 8. Settings (profile, plan and usage, channels, security, defaults, rendering); project settings move to a sheet in ProjectHeader's menu
 
 ### Not verified
 

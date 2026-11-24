@@ -112,7 +112,7 @@ function ExportPanel({
             <a
               href={`/api/projects/${projectId}/export`}
               download
-              className={buttonVariants({ variant: "outline", size: "sm" })}
+              className={buttonVariants({ size: "sm" })}
             >
               <FileZipIcon data-icon="inline-start" aria-hidden />
               Download all
@@ -124,7 +124,6 @@ function ExportPanel({
         <div className="flex flex-wrap gap-2">
           {candidates > 0 && (
             <Button
-              variant="outline"
               disabled={pending}
               onClick={() =>
                 run(
@@ -154,7 +153,6 @@ function ExportPanel({
             Render approved clips
           </Button>
           <Button
-            variant="outline"
             disabled={pending || Boolean(editJob)}
             onClick={() =>
               run(() => renderEditAction(projectId), "Rendering the edit")
@@ -302,7 +300,6 @@ export function ClipsReview({
               </Button>
             )}
             <Button
-              variant="outline"
               size="sm"
               disabled={finding || selecting}
               onClick={findMore}

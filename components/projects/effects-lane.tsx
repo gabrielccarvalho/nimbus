@@ -314,7 +314,6 @@ export function EffectsLane({
               key={row.label}
               type="button"
               size="sm"
-              variant="outline"
               aria-label={`Add ${row.label.toLowerCase()}`}
               disabled={!placed || (row.kind === "focus" && !hasWebcam)}
               onClick={() => placed && add(row, placed)}
