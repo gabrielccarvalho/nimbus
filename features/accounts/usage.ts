@@ -8,7 +8,7 @@ import { decryptSecret } from "./crypto"
 import { publishingRepository } from "../publishing/repository"
 import { pacificDay } from "../publishing/quota"
 import { accountRepository, type Workspace } from "./repository"
-import { PLANS, usagePeriod, type UsageKind } from "./schema"
+import { planFor, usagePeriod, type UsageKind } from "./schema"
 
 export async function recordUsage(
   db: Db,
@@ -54,7 +54,7 @@ export async function usageSummary(
   workspace: Workspace,
   now = new Date()
 ) {
-  const plan = PLANS[workspace.plan] ?? PLANS.free
+  const plan = planFor(workspace.plan)
   const { start, end } = usagePeriod(now)
   const accounts = accountRepository(db)
   const [totals, storageBytes, publishesToday] = await Promise.all([
