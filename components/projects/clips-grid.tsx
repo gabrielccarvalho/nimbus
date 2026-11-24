@@ -45,14 +45,16 @@ function ClipTile({
   }, [playing, render])
 
   return (
-    <li className="min-w-0">
+    <li
+      data-status={clip.status}
+      className="relative min-w-0 data-[status=rejected]:opacity-60"
+    >
       <button
         type="button"
         data-clip-id={clip.id}
-        data-status={clip.status}
         aria-labelledby={`${id}-title`}
         aria-describedby={`${id}-status ${id}-meta`}
-        className="relative flex aspect-[9/16] w-full flex-col justify-end overflow-hidden rounded-xl bg-muted text-start outline-none focus-visible:ring-3 focus-visible:ring-ring/50 data-[status=rejected]:opacity-60"
+        className="relative block aspect-[9/16] w-full overflow-hidden rounded-xl bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         onClick={onOpen}
         onPointerEnter={(event) => {
           if (event.pointerType === "mouse") onHoverChange(true)
@@ -69,22 +71,25 @@ function ClipTile({
           src={render?.url ?? `${src}#t=${(clip.startMs / 1000).toFixed(1)}`}
           className="absolute inset-0 size-full object-cover"
         />
-        <span className="relative flex flex-col items-start gap-1 bg-linear-to-t from-black/80 to-transparent p-2 pt-10 text-white">
-          <span id={`${id}-status`}>
-            <ClipStatusBadge status={clip.status} />
-          </span>
-          <span id={`${id}-title`} className="line-clamp-2 text-sm font-medium">
-            {clip.title}
-          </span>
-          <span
-            id={`${id}-meta`}
-            className="font-mono text-xs text-white/70 tabular-nums"
-          >
-            {formatDuration(clip.endMs - clip.startMs)} · score{" "}
-            {clip.score.toFixed(2)}
-          </span>
-        </span>
       </button>
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-start gap-1 rounded-b-xl bg-linear-to-t from-black/80 to-transparent p-2 pt-10 text-white"
+      >
+        <span id={`${id}-status`}>
+          <ClipStatusBadge status={clip.status} />
+        </span>
+        <span id={`${id}-title`} className="line-clamp-2 text-sm font-medium">
+          {clip.title}
+        </span>
+        <span
+          id={`${id}-meta`}
+          className="font-mono text-xs text-white/70 tabular-nums"
+        >
+          {formatDuration(clip.endMs - clip.startMs)} · score{" "}
+          {clip.score.toFixed(2)}
+        </span>
+      </span>
     </li>
   )
 }
