@@ -38,6 +38,39 @@ function resizeRect(
   return { x: left, y: top, w: right - left, h: bottom - top }
 }
 
+function resizeRectLocked(
+  rect: CropRect,
+  corner: Corner,
+  dx: number,
+  dy: number,
+  ratio: number
+): CropRect {
+  const west = corner.includes("w")
+  const north = corner.includes("n")
+  const anchorX = west ? rect.x + rect.w : rect.x
+  const anchorY = north ? rect.y + rect.h : rect.y
+  const fromX = rect.w + (west ? -dx : dx)
+  const fromY = (rect.h + (north ? -dy : dy)) * ratio
+  const wanted =
+    Math.abs(fromX - rect.w) >= Math.abs(fromY - rect.w) ? fromX : fromY
+  const maxW = Math.min(
+    west ? anchorX : 1 - anchorX,
+    (north ? anchorY : 1 - anchorY) * ratio
+  )
+  const w = clamp(
+    wanted,
+    Math.min(maxW, Math.max(MIN_SIZE, MIN_SIZE * ratio)),
+    maxW
+  )
+  const h = w / ratio
+  return {
+    x: west ? anchorX - w : anchorX,
+    y: north ? anchorY - h : anchorY,
+    w,
+    h,
+  }
+}
+
 const percent = (value: number) => `${Math.round(value * 1000) / 10}%`
 
 type CropRegionEditorContextValue = {
@@ -121,10 +154,38 @@ function CropRegion({
   style,
   children,
   onKeyDown,
+  value: valueProp,
+  onValueChange,
+  aspectRatio,
   "aria-label": ariaLabel = "Crop region",
   ...props
-}: React.ComponentProps<"div">) {
-  const { value, commit, frameRef, disabled } = useCropRegionEditor()
+}: Omit<React.ComponentProps<"div">, "defaultValue"> & {
+  value?: CropRect
+  onValueChange?: (rect: CropRect) => void
+  aspectRatio?: number
+}) {
+  const editor = useCropRegionEditor()
+  const { frameRef, disabled } = editor
+  const value = valueProp ?? editor.value
+  const commit = valueProp ? (onValueChange ?? editor.commit) : editor.commit
+
+  const lockedRatio = () => {
+    const frame = frameRef.current?.getBoundingClientRect()
+    if (!aspectRatio || !frame || frame.width === 0 || frame.height === 0)
+      return null
+    return (aspectRatio * frame.height) / frame.width
+  }
+  const resize = (
+    rect: CropRect,
+    corner: Corner,
+    dx: number,
+    dy: number
+  ): CropRect => {
+    const ratio = lockedRatio()
+    return ratio
+      ? resizeRectLocked(rect, corner, dx, dy, ratio)
+      : resizeRect(rect, corner, dx, dy)
+  }
   const descriptionId = React.useId()
   const drag = React.useRef<{
     mode: "move" | Corner
@@ -157,7 +218,7 @@ function CropRegion({
     commit(
       state.mode === "move"
         ? moveRect(state.rect, dx, dy)
-        : resizeRect(state.rect, state.mode, dx, dy)
+        : resize(state.rect, state.mode, dx, dy)
     )
   }
 
@@ -205,7 +266,7 @@ function CropRegion({
         event.preventDefault()
         commit(
           event.altKey
-            ? resizeRect(value, "se", delta[0], delta[1])
+            ? resize(value, "se", delta[0], delta[1])
             : moveRect(value, delta[0], delta[1])
         )
       }}
@@ -241,6 +302,7 @@ export {
   CropRegionEditor,
   moveRect,
   resizeRect,
+  resizeRectLocked,
   useCropRegionEditor,
   type CropRect,
 }

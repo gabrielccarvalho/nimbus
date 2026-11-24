@@ -7,6 +7,7 @@ import {
   CropRegionEditor,
   moveRect,
   resizeRect,
+  resizeRectLocked,
 } from "./crop-region-editor"
 
 const rect = { x: 0.5, y: 0.5, w: 0.2, h: 0.2 }
@@ -97,6 +98,105 @@ describe("CropRegionEditor", () => {
     await user.keyboard("{ArrowRight}")
     expect(onValueChange).not.toHaveBeenCalled()
     expect(container.querySelector("[data-slot=crop-region-handle]")).toBeNull()
+  })
+})
+
+function setup(frameW: number, frameH: number, ui: React.ReactElement) {
+  const view = render(ui)
+  view.container.querySelector<HTMLElement>(
+    "[data-slot=crop-region-editor]"
+  )!.getBoundingClientRect = () =>
+    ({ left: 0, top: 0, width: frameW, height: frameH }) as DOMRect
+  return view
+}
+
+describe("multi-region and aspect lock", () => {
+  const start = { x: 0.3, y: 0.3, w: 0.2, h: 0.4 }
+  const aspect = 1
+  const pixelAspect = (r: { w: number; h: number }) => (r.w * 200) / (r.h * 100)
+
+  it.each([
+    ["nw", 100, 50, -20, -10],
+    ["ne", 100, 50, 20, -10],
+    ["sw", 100, 50, -20, 10],
+    ["se", 100, 50, 20, 10],
+  ])("keeps the ratio when resizing the %s corner", (corner, x, y, dx, dy) => {
+    const onValueChange = vi.fn()
+    const { container } = setup(
+      200,
+      100,
+      <CropRegionEditor defaultValue={start}>
+        <CropRegion
+          value={start}
+          onValueChange={onValueChange}
+          aspectRatio={aspect}
+        />
+      </CropRegionEditor>
+    )
+    const handle = container.querySelector<HTMLElement>(
+      `[data-corner=${corner}]`
+    )!
+    fireEvent.pointerDown(handle, { button: 0, clientX: x, clientY: y })
+    fireEvent.pointerMove(handle, { clientX: x + dx, clientY: y + dy })
+    const next = onValueChange.mock.calls.at(-1)![0]
+    expect(pixelAspect(next)).toBeCloseTo(aspect)
+    expect(next.w).not.toBeCloseTo(start.w)
+  })
+
+  it("keeps the ratio on Alt+arrow", async () => {
+    const user = userEvent.setup()
+    const onValueChange = vi.fn()
+    setup(
+      200,
+      100,
+      <CropRegionEditor defaultValue={start}>
+        <CropRegion
+          value={{ x: 0.3, y: 0.3, w: 0.2, h: 0.4 }}
+          onValueChange={onValueChange}
+          aspectRatio={aspect}
+        />
+      </CropRegionEditor>
+    )
+    screen.getByRole("group").focus()
+    await user.keyboard("{Alt>}{ArrowRight}{/Alt}")
+    expect(pixelAspect(onValueChange.mock.calls.at(-1)![0])).toBeCloseTo(aspect)
+    await user.keyboard("{Alt>}{ArrowDown}{/Alt}")
+    expect(pixelAspect(onValueChange.mock.calls.at(-1)![0])).toBeCloseTo(aspect)
+  })
+
+  it("moves a second controlled region independently", async () => {
+    const user = userEvent.setup()
+    const first = vi.fn()
+    const second = vi.fn()
+    const other = { x: 0.5, y: 0.1, w: 0.2, h: 0.2 }
+    render(
+      <CropRegionEditor value={rect} onValueChange={first}>
+        <CropRegion aria-label="Webcam" />
+        <CropRegion
+          aria-label="Gameplay"
+          value={other}
+          onValueChange={second}
+        />
+      </CropRegionEditor>
+    )
+    screen.getByRole("group", { name: "Gameplay" }).focus()
+    await user.keyboard("{ArrowRight}")
+    expect(second.mock.calls[0]![0].x).toBeCloseTo(0.505)
+    expect(first).not.toHaveBeenCalled()
+    expect(screen.getByRole("group", { name: "Webcam" }).style.left).toBe("50%")
+  })
+
+  it("clamps locked resizes to the frame", () => {
+    const next = resizeRectLocked(
+      { x: 0.6, y: 0.6, w: 0.2, h: 0.2 },
+      "se",
+      0.9,
+      0.9,
+      1
+    )
+    expect(next.x + next.w).toBeLessThanOrEqual(1 + 1e-9)
+    expect(next.y + next.h).toBeLessThanOrEqual(1 + 1e-9)
+    expect(next.w / next.h).toBeCloseTo(1)
   })
 })
 

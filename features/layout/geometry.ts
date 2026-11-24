@@ -1,6 +1,7 @@
 import {
   usesWebcam,
   type LayoutInput,
+  type LayoutMode,
   type Rect,
   type WebcamLayoutMode,
 } from "./schema"
@@ -18,14 +19,17 @@ export type PixelRect = { x: number; y: number; w: number; h: number }
 const even = (n: number) => Math.max(2, Math.floor(n / 2) * 2)
 const evenFloor = (n: number) => Math.max(0, Math.floor(n / 2) * 2)
 
+const scaled = (value: number, size: number) =>
+  Math.round(value * size * 1e6) / 1e6
+
 export function toPixels(rect: Rect, width: number, height: number): PixelRect {
-  const x = evenFloor(rect.x * width)
-  const y = evenFloor(rect.y * height)
+  const x = evenFloor(scaled(rect.x, width))
+  const y = evenFloor(scaled(rect.y, height))
   return {
     x,
     y,
-    w: Math.min(even(rect.w * width), evenFloor(width - x)),
-    h: Math.min(even(rect.h * height), evenFloor(height - y)),
+    w: Math.min(even(scaled(rect.w, width)), evenFloor(width - x)),
+    h: Math.min(even(scaled(rect.h, height)), evenFloor(height - y)),
   }
 }
 
@@ -123,5 +127,53 @@ export function planLayout(
             { name: "top", ...cam },
             { name: "bottom", ...gameplay },
           ],
+  }
+}
+
+export function gameplaySlotAspect(mode: LayoutMode): number | null {
+  if (mode === "no-cam-blur-fill") return null
+  if (mode === "no-cam-fill") return OUTPUT_WIDTH / OUTPUT_HEIGHT
+  return OUTPUT_WIDTH / SPLIT_HEIGHTS[mode][1]
+}
+
+export function gameplayBox(
+  layout: LayoutInput,
+  width: number,
+  height: number
+): Rect | null {
+  const plan = planLayout(layout, width, height)
+  const crop =
+    plan.mode === "no-cam-fill"
+      ? plan.crop
+      : "regions" in plan
+        ? plan.regions.find((r) => r.content === "gameplay")?.crop
+        : undefined
+  if (!crop) return null
+  return {
+    x: crop.x / width,
+    y: crop.y / height,
+    w: crop.w / width,
+    h: crop.h / height,
+  }
+}
+
+export function fitRectToAspect(
+  rect: Rect,
+  aspect: number,
+  width: number,
+  height: number
+): Rect {
+  const area = rect.w * width * rect.h * height
+  const pixelW = Math.sqrt(area * aspect)
+  const pixelH = pixelW / aspect
+  const scale = Math.min(1, width / pixelW, height / pixelH)
+  const w = (pixelW * scale) / width
+  const h = (pixelH * scale) / height
+  const clamp = (v: number, max: number) => Math.min(max, Math.max(0, v))
+  return {
+    x: clamp(rect.x + rect.w / 2 - w / 2, 1 - w),
+    y: clamp(rect.y + rect.h / 2 - h / 2, 1 - h),
+    w,
+    h,
   }
 }
