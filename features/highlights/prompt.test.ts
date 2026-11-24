@@ -145,6 +145,7 @@ describe("manual prompt", () => {
         { startMs: 12_000, endMs: 18_000, value: 0.4 },
       ],
     })
+    expect(prompt).toContain('"description"')
     expect(prompt).toContain("Most rewatched on YouTube")
     expect(prompt).toContain("6.0–12.0s (1.00)")
     expect(prompt).toContain("Reply with only JSON in this shape")
@@ -162,5 +163,15 @@ describe("parseCandidatesJson", () => {
     ],
   ])("explains %s", (_, text, message) => {
     expect(() => parseCandidatesJson(text)).toThrow(message)
+  })
+})
+
+describe("parseCandidatesJson description", () => {
+  it("keeps a pasted description and leaves it unset when absent", () => {
+    const [a, b] = parseCandidatesJson(
+      '{"clips":[{"startMs":0,"endMs":1,"description":"He wins."},{"startMs":2,"endMs":3}]}'
+    )
+    expect(a!.description).toBe("He wins.")
+    expect(b!.description).toBeUndefined()
   })
 })

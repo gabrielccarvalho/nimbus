@@ -273,6 +273,7 @@ export function scoreWindows(
       endMs: window.endMs,
       title: shorten(window.segments[0]?.text ?? "Highlight", 60),
       hook: shorten(hookSegment?.text ?? "", 120),
+      description: shorten(hookSegment?.text ?? "", 120),
       reason: reasons.length
         ? `Heuristic: ${reasons.join(", ")}`
         : "Heuristic: steady activity",

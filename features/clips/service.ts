@@ -54,7 +54,10 @@ export async function applyManualSelection(
     )
   }
   const repository = clipRepository(db)
-  const clips = await repository.replaceCandidates(projectId, candidates)
+  const clips = await repository.replaceCandidates(
+    projectId,
+    candidates.map((c) => ({ ...c, description: c.description ?? c.hook }))
+  )
   if (project.settings.autoEffects) {
     const tracks = await autoEffectsFor(db, projectId, clips)
     for (const [id, effects] of tracks) await repository.update(id, { effects })

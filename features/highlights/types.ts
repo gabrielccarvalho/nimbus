@@ -10,6 +10,7 @@ export const rawCandidateSchema = z.object({
   endMs: z.number(),
   title: z.string(),
   hook: z.string(),
+  description: z.string().optional(),
   reason: z.string(),
   score: z.number(),
   beats: z.array(beatSchema).optional(),

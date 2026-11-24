@@ -178,6 +178,9 @@ export function applyReviews(
       endMs,
       title: review.title.trim() || candidate.title,
       hook: review.hook.trim() || candidate.hook,
+      ...(candidate.description === undefined
+        ? {}
+        : { description: candidate.description }),
       reason: review.reason.trim() || candidate.reason,
       score: review.score,
       ...(review.beats

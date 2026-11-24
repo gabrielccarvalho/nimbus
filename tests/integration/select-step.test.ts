@@ -72,6 +72,7 @@ describe("select step", () => {
       expect(clip.endMs - clip.startMs).toBeGreaterThanOrEqual(15_000)
       expect(clip.endMs).toBeLessThanOrEqual(20_100)
       expect(clip.reason).toMatch(/^Heuristic/)
+      expect(clip.description).toBe(clip.hook)
     }
   })
 
@@ -119,6 +120,9 @@ describe("select step", () => {
       'Sure! {"clips":[{"startMs":6000,"endMs":19500,"title":"The boss","hook":"Wait…","reason":"Reaction","score":0.9}]}'
     )
     expect(added).toBe(1)
+    expect(
+      (await clipRepository(env.db).listForProject(projectId))[0]!.description
+    ).toBe("Wait…")
     expect(
       (await projectRepository(env.db).getOrThrow(projectId))
         .awaitingManualSelection

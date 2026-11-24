@@ -119,6 +119,9 @@ export function postprocessCandidates(
       endMs,
       title: candidate.title.trim().slice(0, 100) || "Untitled clip",
       hook: candidate.hook.trim().slice(0, 200),
+      ...(candidate.description === undefined
+        ? {}
+        : { description: candidate.description.trim().slice(0, 1000) }),
       reason: candidate.reason.trim().slice(0, 500),
       score: score * (1 - penalty),
     })

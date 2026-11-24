@@ -32,7 +32,7 @@ Don't pick:
 
 Viewers swipe away in the first two seconds, so a clip starts at most a second or two before the payoff, never with a slow build-up, and ends right after the reaction lands. It has to make sense without the rest of the video. When the stream runs out of action, fill the list with the strongest reactions left and score them honestly, but never with anything from the "don't pick" list.
 
-Write titles and hooks in the streamer's language. Titles are under 60 characters and say what happens. Hooks are the on-screen text for the first seconds, under 90 characters. The reason is one sentence an editor can check against the transcript: what happens in the game and how the streamer reacts. Score each clip from 0 to 1 by how likely it is to hold a viewer: above 0.8 only for real action with a loud reaction, under 0.3 for anything from the "don't pick" list.`
+Write titles and hooks in the streamer's language. Titles are under 60 characters and say what happens. Hooks are the on-screen text for the first seconds, under 90 characters. Each clip also gets a description for the video page: one or two sentences in the same language that say what happens, with no hashtags. The reason is one sentence an editor can check against the transcript: what happens in the game and how the streamer reacts. Score each clip from 0 to 1 by how likely it is to hold a viewer: above 0.8 only for real action with a loud reaction, under 0.3 for anything from the "don't pick" list.`
 
 const UNCLEAR_CONFIDENCE = 0.5
 
@@ -183,7 +183,7 @@ export function buildManualPrompt(input: PromptInput) {
 ${buildSelectionPrompt(input)}
 
 Reply with only JSON in this shape, no prose:
-{"clips":[{"startMs":12000,"endMs":41000,"title":"…","hook":"…","reason":"…","score":0.8}]}`
+{"clips":[{"startMs":12000,"endMs":41000,"title":"…","hook":"…","description":"…","reason":"…","score":0.8}]}`
 }
 
 export function parseCandidatesJson(text: string): RawCandidate[] {
@@ -209,6 +209,7 @@ export function parseCandidatesJson(text: string): RawCandidate[] {
           endMs: z.coerce.number(),
           title: z.string().default(""),
           hook: z.string().default(""),
+          description: z.string().optional(),
           reason: z.string().default(""),
           score: z.coerce.number().default(0.5),
         })
