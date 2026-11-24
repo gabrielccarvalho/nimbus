@@ -24,7 +24,7 @@ async function uploadAndOpenClips(page: Page, { confirmLayout = false } = {}) {
 
 test("reviews highlight candidates", async ({ page }) => {
   const tiles = await uploadAndOpenClips(page)
-  await expect(tiles.first()).toHaveAccessibleDescription(/Candidate/)
+  await expect(tiles.first()).toHaveAccessibleDescription(/To review/)
   const first = (await tiles.nth(0).getAttribute("data-clip-id"))!
   await expectNoSeriousA11yViolations(page)
 

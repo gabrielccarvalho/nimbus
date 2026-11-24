@@ -123,6 +123,18 @@ function Dropzone({
     if (!disabled) inputRef.current?.click()
   }
 
+  // React doesn't replay a change that happened before hydration.
+  const takeEarlySelection = React.useEffectEvent(() => {
+    const input = inputRef.current
+    if (!input?.files?.length) return
+    handleFiles(input.files)
+    input.value = ""
+  })
+
+  React.useEffect(() => {
+    takeEarlySelection()
+  }, [])
+
   return (
     <DropzoneContext.Provider
       value={{ dragging, disabled, open, descriptionId }}

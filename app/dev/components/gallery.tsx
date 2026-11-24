@@ -10,6 +10,9 @@ import * as React from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { DotMeter } from "@/components/ui/dot-meter"
+import { SignalDot } from "@/components/ui/signal-dot"
+import { StatusPill } from "@/components/ui/status-pill"
 import {
   CaptionPreview,
   CaptionPreviewText,
@@ -200,6 +203,41 @@ export function ComponentGallery() {
   return (
     <main className="mx-auto flex max-w-4xl flex-col gap-10 p-6">
       <h1 className="font-heading text-2xl font-semibold">Component gallery</h1>
+
+      <Section title="Buttons">
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="primary">Render 4 clips</Button>
+          <Button>Approve all</Button>
+          <Button variant="ghost">Cancel</Button>
+          <Button variant="destructive">Delete</Button>
+          <Button variant="primary" size="lg">
+            Confirm and review clips
+          </Button>
+          <Button size="sm">Small</Button>
+        </div>
+      </Section>
+
+      <Section title="StatusPill, SignalDot, DotMeter">
+        <div className="flex flex-wrap items-center gap-3">
+          <StatusPill tone="amber">Needs you</StatusPill>
+          <StatusPill tone="lav">Transcribing</StatusPill>
+          <StatusPill tone="mint">Ready</StatusPill>
+          <StatusPill tone="sky">Exported</StatusPill>
+          <StatusPill tone="pink">Failed</StatusPill>
+          <StatusPill tone="neutral">Cancelled</StatusPill>
+        </div>
+        <div className="flex items-center gap-3">
+          <SignalDot tone="amber" lit label="Needs you" />
+          <SignalDot tone="lav" />
+          <SignalDot tone="mint" />
+          <SignalDot tone="sky" size="sm" />
+        </div>
+        <div className="flex items-center gap-4">
+          <DotMeter value={142} max={300} aria-label="Render minutes" />
+          <DotMeter value={4} tone="lav" aria-label="Storage" />
+          <DotMeter value={9} tone="amber" aria-label="Claude runs" />
+        </div>
+      </Section>
 
       <Section title="Dropzone">
         <Dropzone

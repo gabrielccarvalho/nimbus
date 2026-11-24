@@ -1,5 +1,7 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { act, fireEvent, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { hydrateRoot } from "react-dom/client"
+import { renderToString } from "react-dom/server"
 import { describe, expect, it, vi } from "vitest"
 
 import {
@@ -80,6 +82,28 @@ describe("Dropzone", () => {
     fireEvent.drop(zone, { dataTransfer: { files: [video()] } })
     expect(input).toBeDisabled()
     expect(onFilesAccepted).not.toHaveBeenCalled()
+  })
+
+  it("takes a file picked before hydration", async () => {
+    const onFilesAccepted = vi.fn()
+    const element = (
+      <Dropzone accept={["video/*"]} onFilesAccepted={onFilesAccepted}>
+        <DropzoneTitle>Drop a video</DropzoneTitle>
+      </Dropzone>
+    )
+    const container = document.createElement("div")
+    container.innerHTML = renderToString(element)
+    document.body.append(container)
+    const input = container.querySelector("input")!
+    const file = video()
+    Object.defineProperty(input, "files", {
+      value: Object.assign([file], { item: () => file }),
+    })
+
+    const root = await act(async () => hydrateRoot(container, element))
+    expect(onFilesAccepted).toHaveBeenCalledWith([file])
+    act(() => root.unmount())
+    container.remove()
   })
 })
 

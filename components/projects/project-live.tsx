@@ -93,7 +93,6 @@ export function ProjectLive({
         </CardTitle>
         {running && (
           <Button
-            variant="outline"
             size="sm"
             disabled={pending}
             onClick={() => act(cancelProjectAction, "Cancelled")}
@@ -158,7 +157,6 @@ export function ProjectLive({
             <AlertAction>
               <Button
                 size="sm"
-                variant="outline"
                 disabled={pending}
                 onClick={() => act(retryProjectAction, "Retrying")}
               >

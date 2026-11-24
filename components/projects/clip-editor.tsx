@@ -140,20 +140,10 @@ function PlayheadButtons({
   const { currentMs } = useVideoPlayer()
   return (
     <div className="flex flex-wrap gap-2">
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        onClick={() => onStart(currentMs)}
-      >
+      <Button type="button" size="sm" onClick={() => onStart(currentMs)}>
         Start at playhead
       </Button>
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        onClick={() => onEnd(currentMs)}
-      >
+      <Button type="button" size="sm" onClick={() => onEnd(currentMs)}>
         End at playhead
       </Button>
     </div>
@@ -567,7 +557,6 @@ export function ClipEditor({
               </Button>
               <Button
                 type="button"
-                variant="outline"
                 disabled={pending || rendering}
                 onClick={() => save(true)}
               >
@@ -639,7 +628,7 @@ export function ClipEditor({
                   <a
                     href={render.downloadUrl}
                     download
-                    className={buttonVariants({ variant: "outline" })}
+                    className={buttonVariants()}
                   >
                     <DownloadSimpleIcon data-icon="inline-start" aria-hidden />
                     Download

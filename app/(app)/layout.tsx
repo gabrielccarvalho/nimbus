@@ -5,7 +5,6 @@ import {
   AppBreadcrumbs,
   BreadcrumbLabelsProvider,
 } from "@/components/app-shell/breadcrumbs"
-import { ThemeToggle } from "@/components/app-shell/theme-toggle"
 import { Separator } from "@/components/ui/separator"
 import {
   SidebarInset,
@@ -43,7 +42,6 @@ export default async function AppLayout({
             <div className="min-w-0 flex-1">
               <AppBreadcrumbs />
             </div>
-            <ThemeToggle />
           </header>
           <main
             id="main"

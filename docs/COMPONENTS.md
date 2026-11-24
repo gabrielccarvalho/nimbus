@@ -19,13 +19,37 @@ Before building any UI element:
 
 Installed with `pnpm exec shadcn add` (style `base-nova`, Base UI). Generated files import `cn` from the `cn` package; custom primitives in `components/ui/` do the same so they read identically.
 
-alert, alert-dialog, badge, breadcrumb, button, card, dialog, dropdown-menu, empty, field, input, input-group, item, kbd, label, popover, progress, radio-group, scroll-area, select, separator, sheet, sidebar (+ `hooks/use-mobile.ts`), skeleton, slider, sonner, spinner, stat-card*, switch, table, tabs, textarea, toggle, toggle-group, tooltip.
+alert, alert-dialog, badge, breadcrumb, button, card, command, dialog, dropdown-menu, empty, field, input, input-group, item, kbd, label, popover, progress, radio-group, scroll-area, select, separator, sheet, sidebar (+ `hooks/use-mobile.ts`), skeleton, slider, sonner, spinner, stat-card*, switch, table, tabs, textarea, toggle, toggle-group, tooltip.
 
 \* custom, see below.
 
 The registry's `empty` component covers the planned EmptyState, so there is no custom EmptyState.
 
 ## Custom components
+
+### Tone (`components/ui/tone.ts`)
+
+`toneVariants({ tone })` sets `--tone` to a crew colour as an rgb triple, so a component can use it at any alpha (`bg-[rgb(var(--tone))]`, `shadow-[0_0_10px_rgb(var(--tone)/0.7)]`). Tones mark status only: `amber` needs you, `lav` processing/selection/focus, `mint` ready/approved/on, `sky` exported, `pink` failed/destructive, `neutral` inactive.
+
+### StatusPill (`components/ui/status-pill.tsx`)
+
+Glass pill with a round tone dot and a short label (heycamps `ScorePill`). Polymorphic through `render`; `data-tone` reflects the tone. `ProjectStatusBadge` and `ClipStatusBadge` in `components/projects/status-badge.tsx` map statuses to tones.
+
+```tsx
+<StatusPill tone="amber">Needs you</StatusPill>
+```
+
+### SignalDot (`components/ui/signal-dot.tsx`)
+
+Square 8px status dot (`size="sm"` is 6px). `lit` adds the glow and is reserved for the one thing that needs attention on a screen. Decorative (`aria-hidden`) unless `label` is set, which makes it `role="img"`.
+
+### DotMeter (`components/ui/dot-meter.tsx`)
+
+Ten round dots lit in proportion to `value / max` (`max` defaults to 10), clamped. Renders `role="meter"` with `aria-valuenow`/`aria-valuemax`; pass an `aria-label`.
+
+```tsx
+<DotMeter value={142} max={300} aria-label="Render minutes" />
+```
 
 ### StatCard (`components/ui/stat-card.tsx`)
 
@@ -165,6 +189,8 @@ A movable, resizable rectangle over an image or video, in normalized 0–1 frame
 ```
 
 ## Modified generated files
+
+- Heycamps restyle (ADR-0057): `button`, `badge`, `tabs`, `input`, `select`, `switch`, `dialog`, `alert-dialog`, `sheet`, `dropdown-menu`, `popover`, `tooltip`, `kbd` and `command` keep their structure and API but swap classes for the heycamps tokens (inset-ring hairlines instead of borders, `surface-menu` for floating surfaces, `focus-ring`). `Button`'s `default` variant is glass and the white pill is `variant="primary"`; `outline` and `secondary` are gone. `Select`'s `size="sm"` is the small glass pill used for inline overrides. `command` was added with `cmdk`; its install did not overwrite `dialog`.
 
 - `hooks/use-mobile.ts`: rewritten with `useSyncExternalStore`. The generated version set state inside an effect, which fails the React Compiler lint rule `react-hooks/set-state-in-effect`. Same API (`useIsMobile(): boolean`).
 - `components/ui/sidebar.tsx`: `SidebarInset` renders a `div` instead of `main`. The app shell puts the header and its own `<main id="main">` (the skip-link target) inside the inset, and a `main` inset made two nested main landmarks.

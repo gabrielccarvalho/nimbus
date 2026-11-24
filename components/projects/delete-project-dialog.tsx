@@ -52,7 +52,7 @@ export function DeleteProjectDialog({
       <AlertDialogTrigger
         render={
           trigger ?? (
-            <Button variant="outline">
+            <Button>
               <TrashIcon data-icon="inline-start" aria-hidden />
               Delete project
             </Button>
