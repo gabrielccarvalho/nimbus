@@ -344,6 +344,30 @@ describe("publish_clip", () => {
     expect(saved.error).toBe("YouTube rejected the access token")
   })
 
+  it("fails once without spending again when the channel hit YouTube's upload limit", async () => {
+    env.cleanup()
+    env = await createTestEnv({ YOUTUBE_CLIENT: "http" })
+    server.use(
+      http.post("https://www.googleapis.com/upload/youtube/v3/videos", () =>
+        HttpResponse.json(
+          { error: { errors: [{ reason: "uploadLimitExceeded" }] } },
+          { status: 403 }
+        )
+      )
+    )
+    const { repo, publication, job } = await seed()
+
+    await runPublish()
+
+    const failed = (await jobQueue(env.db).get(job.id))!
+    expect(failed.status).toBe("failed")
+    expect(failed.attempts).toBe(1)
+    expect((await repo.getPublication(publication.id))!.error).toBe(
+      "This channel hit YouTube's own upload limit for today"
+    )
+    expect(await env.db.select().from(youtubeQuotaUsage)).toHaveLength(1)
+  })
+
   it("waits for the reset when YouTube reports its quota exceeded mid-upload", async () => {
     const { repo, publication, job } = await seed()
     const youtube = getYouTubeClient()

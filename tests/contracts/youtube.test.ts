@@ -17,6 +17,7 @@ import {
 import type { YouTubeClient } from "@/features/publishing/youtube"
 import { YouTubeFake } from "@/features/publishing/youtube-fake"
 import { YouTubeHttp } from "@/features/publishing/youtube-http"
+import { isRetryable, type AppError } from "@/lib/errors"
 
 import { server } from "../utils/msw"
 
@@ -305,16 +306,19 @@ describe("http YouTube client", () => {
     })
   })
 
-  it("maps uploadLimitExceeded to a conflict", async () => {
+  it("maps uploadLimitExceeded to an error that is not retried", async () => {
     server.use(
       http.post(`${API}/upload/youtube/v3/videos`, () =>
         googleError(403, "uploadLimitExceeded")
       )
     )
-    await expect(client().startUpload("tok", {}, 1)).rejects.toMatchObject({
-      code: "CONFLICT",
+    const error = await client()
+      .startUpload("tok", {}, 1)
+      .catch((e: unknown) => e)
+    expect(error).toMatchObject({
       message: "This channel hit YouTube's own upload limit for today",
     })
+    expect(isRetryable(error as AppError)).toBe(false)
   })
 
   it("maps other 4xx to a validation error with YouTube's message", async () => {

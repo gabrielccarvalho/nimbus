@@ -29,7 +29,7 @@ async function failure(response: Response): Promise<AppError> {
   }
   if (response.status === 403 && reason === "uploadLimitExceeded") {
     return new AppError(
-      "CONFLICT",
+      "VALIDATION",
       "This channel hit YouTube's own upload limit for today"
     )
   }
