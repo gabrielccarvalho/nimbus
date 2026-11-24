@@ -27,6 +27,7 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 - ~~B1, libass missing from ffmpeg~~ Resolved 2026-11-22: `ffmpeg-full` 9.0.2 installed (keg-only) and set via `FFMPEG_PATH`/`FFPROBE_PATH` in `.env.local` (ADR-0028).
 - ~~B2, whisper.cpp missing~~ Resolved 2026-11-22: `whisper-cpp` 1.9.5 and `models/ggml-base.en.bin` installed; the heavy test passes.
 - ~~B3, no Anthropic credentials~~ Resolved 2026-11-22: `ANTHROPIC_API_KEY` set in `.env.local`.
+- B4, Google OAuth verification and YouTube API audit not started (needed before public launch).
 
 ## Phases
 
@@ -295,6 +296,23 @@ Spec: Claude Design handoff (`~/Downloads/nimbus-redesign-handoff/design/`). Aut
 - [x] Clip editor kept edits made while a save was in flight: the page keyed the editor by `updatedAt`, so each refresh after an autosave remounted it from the server copy. Keyed by clip id now; the save returns the stored effects and the editor adopts them (trims re-plan auto effects)
 - [x] Caption Position sits on its own row so its five options never run under the Size slider
 - [x] Admin plan: accounts on `@nimbus.dev` get a workspace on the Admin plan with no limits (ADR-0061); migration 0010 moves existing ones over
+
+### Phase 30: YouTube publishing (ADR-0065)
+
+Spec: `docs/superpowers/specs/2026-11-24-youtube-publishing-and-insights-design.md`. Plan: `docs/superpowers/plans/2026-11-24-youtube-publishing.md`.
+
+- [x] 1. Google's rules checked, ADR-0065 and docs
+- [ ] 2. Schema, migration and repository
+- [ ] 3. Pure metadata and quota-day logic
+- [ ] 4. Google access tokens
+- [ ] 5. YouTube client adapter
+- [ ] 6. Channel connection and the Channels pages
+- [ ] 7. Description drafted at selection
+- [ ] 8. The `publish_clip` job
+- [ ] 9. Server actions and queries
+- [ ] 10. Publishing defaults and plan usage
+- [ ] 11. Publish dialog and status on clips
+- [ ] 12. End to end and phase close
 
 ### Not verified
 

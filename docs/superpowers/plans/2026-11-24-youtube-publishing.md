@@ -19,7 +19,7 @@
 - `publishAt` is only sent with `privacyStatus: "private"`.
 - Scopes: `YOUTUBE_SCOPES` = `youtube.readonly`, `youtube.upload`, `https://www.googleapis.com/auth/yt-analytics.readonly`.
 - Quota day = the calendar date in `America/Los_Angeles`, resetting at midnight Pacific.
-- Quota constants (Task 1 checks the values): `YOUTUBE_DAILY_QUOTA` env, default `10000`. `UPLOAD_UNITS = 1600`, `LIST_UNITS = 1`, `STATS_RESERVE_UNITS = 1000`.
+- Quota constants (checked against Google's docs in Task 1; uploads have their own bucket since 2026-06-01): `YOUTUBE_DAILY_QUOTA` env, default `10000`, covers every endpoint except `videos.insert`. `YOUTUBE_DAILY_UPLOADS` env, default `100`, with `UPLOAD_UNITS = 1` counted against it only. `LIST_UNITS = 1`. `STATS_RESERVE_UNITS` is gone: uploads no longer compete with stats reads.
 - Plan daily publish limits: free `2`, creator `5`, studio `15`, admin `null`.
 - Long work only in the worker. Files touching DB, network secrets or the filesystem start with `import "server-only"`. `features/*` never imports `app/` or `components/`.
 - Comments only where code can't speak. Conventional Commits, no AI trailers. Never commit `.env*` or `data/`.
@@ -146,7 +146,7 @@
 **Files:**
 
 - Create: `features/publishing/youtube.ts` (interface + `getYouTubeClient()`), `features/publishing/youtube-http.ts`, `features/publishing/youtube-fake.ts`
-- Modify: `lib/env.ts` (`YOUTUBE_CLIENT: z.enum(["http","fake"]).default("http")`, `YOUTUBE_DAILY_QUOTA` int default 10000)
+- Modify: `lib/env.ts` (`YOUTUBE_CLIENT: z.enum(["http","fake"]).default("http")`, `YOUTUBE_DAILY_QUOTA` int default 10000, `YOUTUBE_DAILY_UPLOADS` int default 100)
 - Modify: `.env.example`
 - Test: `tests/contracts/youtube.test.ts` (MSW against the http client; the fake must pass the same contract cases where they apply)
 
@@ -251,7 +251,7 @@ export function getYouTubeClient(): YouTubeClient
 
 **Interfaces:**
 
-- Consumes: `publishingRepository`, `googleAccessToken`, `getYouTubeClient`, `videoResource`, `pacificDay`, `nextQuotaReset`, `UPLOAD_UNITS`, `STATS_RESERVE_UNITS`, `getEnv().YOUTUBE_DAILY_QUOTA`.
+- Consumes: `publishingRepository`, `googleAccessToken`, `getYouTubeClient`, `videoResource`, `pacificDay`, `nextQuotaReset`, `UPLOAD_UNITS`, `getEnv().YOUTUBE_DAILY_UPLOADS`, `getEnv().YOUTUBE_DAILY_QUOTA`.
 - Produces: `publishClipStep: JobHandler`.
 
 **Behaviour, in order:**
