@@ -13,6 +13,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import { getProjectClips } from "@/features/projects/queries"
+import { getPublishing } from "@/features/publishing/queries"
 import { mediaUrl } from "@/lib/format"
 
 export const metadata: Metadata = { title: "Clips" }
@@ -21,7 +22,10 @@ export default async function ClipsPage({
   params,
 }: PageProps<"/projects/[id]/clips">) {
   const { id } = await params
-  const data = await getProjectClips(id)
+  const [data, publishing] = await Promise.all([
+    getProjectClips(id),
+    getPublishing(id),
+  ])
   if (!data) notFound()
   const {
     project,
@@ -57,6 +61,7 @@ export default async function ClipsPage({
           captionsEnabled={project.settings.captionsEnabled}
           layoutConfirmed={layoutConfirmed}
           snapshot={snapshot}
+          publishing={publishing}
         />
       ) : manualPrompt ? null : (
         <Empty className="rounded-[18px] bg-graphite">

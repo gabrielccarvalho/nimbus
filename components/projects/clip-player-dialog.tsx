@@ -39,6 +39,7 @@ import type { LayoutInput } from "@/features/layout/schema"
 import { formatDuration } from "@/lib/format"
 
 import { ClipLoop, ClipPreview } from "./clip-preview"
+import { PublishControl, type PublishingState } from "./publish-dialog"
 import { ClipStatusBadge } from "./status-badge"
 
 export type RenderLinks = { url: string; downloadUrl: string }
@@ -50,6 +51,7 @@ export type ClipPlayerData = {
   layout: LayoutInput | null
   captions: Record<string, { pages: CaptionPage[]; style: CaptionStyle }>
   captionsEnabled: boolean
+  publishing: PublishingState
 }
 
 export function currentRender(
@@ -95,7 +97,7 @@ function ClipPlayer({
   layout: projectLayout,
   captions,
   captionsEnabled,
-}: Omit<ClipPlayerData, "projectId"> & { clip: Clip }) {
+}: Omit<ClipPlayerData, "projectId" | "publishing"> & { clip: Clip }) {
   const render = currentRender(clip, renders)
   const layout = clip.layoutOverride ?? projectLayout
   const caption = captions[clip.id]
@@ -214,6 +216,7 @@ export function ClipPlayerDialog({
               projectId={data.projectId}
               clip={clip}
               render={currentRender(clip, data.renders)}
+              publishing={data.publishing}
               position={index + 1}
               total={clips.length}
               onMove={move}
@@ -229,6 +232,7 @@ function ClipDetails({
   projectId,
   clip,
   render,
+  publishing,
   position,
   total,
   onMove,
@@ -236,6 +240,7 @@ function ClipDetails({
   projectId: string
   clip: Clip
   render?: RenderLinks
+  publishing: PublishingState
   position: number
   total: number
   onMove: (step: number) => void
@@ -303,6 +308,7 @@ function ClipDetails({
             <span className="sr-only"> {clip.title}</span>
           </a>
         )}
+        {render && <PublishControl clip={clip} publishing={publishing} />}
       </div>
       <div className="mt-auto flex items-center justify-between gap-2">
         <Button size="sm" disabled={position <= 1} onClick={() => onMove(-1)}>

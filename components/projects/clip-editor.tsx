@@ -67,6 +67,7 @@ import { CaptionStyleFields } from "./caption-style-fields"
 import { ClipEffectsCard, ClipEffectsPreview } from "./clip-effects"
 import { useClipStatus } from "./clip-player-dialog"
 import { ClipLoop } from "./clip-preview"
+import { PublishControl, type PublishingState } from "./publish-dialog"
 import { useProjectEvents } from "./use-project-events"
 import {
   CamPositionField,
@@ -93,6 +94,7 @@ type ClipEditorProps = {
   installedFonts: readonly CaptionFontId[]
   render?: { url: string; downloadUrl: string }
   snapshot: ProjectSnapshot
+  publishing: PublishingState
   siblings: {
     index: number
     count: number
@@ -167,6 +169,7 @@ export function ClipEditor({
   installedFonts,
   render,
   snapshot: initialSnapshot,
+  publishing,
   siblings,
 }: ClipEditorProps) {
   const router = useRouter()
@@ -230,6 +233,7 @@ export function ClipEditor({
     snapshot.clips.find((c) => c.id === clip.id)?.status ?? clip.status
   const renderJob = snapshot.jobs.find(
     (job) =>
+      job.type === "render_clip" &&
       job.clipId === clip.id &&
       (job.status === "running" || job.status === "queued")
   )
@@ -598,6 +602,12 @@ export function ClipEditor({
                     <DownloadSimpleIcon data-icon="inline-start" aria-hidden />
                     Download
                   </a>
+                )}
+                {render && !rendering && (
+                  <PublishControl
+                    clip={{ ...clip, status: clipStatus }}
+                    publishing={publishing}
+                  />
                 )}
               </div>
             </div>

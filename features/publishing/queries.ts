@@ -67,6 +67,7 @@ export async function getPublishing(projectId: string) {
   const publications: Record<
     string,
     {
+      id: string
       status: PublicationStatus
       url: string | null
       error: string | null
@@ -76,6 +77,7 @@ export async function getPublishing(projectId: string) {
   for (const [clipId, p] of latest) {
     const progress = progressById.get(p.id)
     publications[clipId] = {
+      id: p.id,
       status: p.status,
       url: p.url,
       error: p.error,

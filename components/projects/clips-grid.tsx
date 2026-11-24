@@ -16,6 +16,7 @@ import {
   type ClipPlayerData,
   type RenderLinks,
 } from "./clip-player-dialog"
+import { PublicationStatusView, type PublicationState } from "./publish-dialog"
 import { clipStatusLabel } from "./status-badge"
 
 function ClipTile({
@@ -24,6 +25,7 @@ function ClipTile({
   rank,
   src,
   render,
+  publication,
   caption,
   playing,
   onHoverChange,
@@ -34,6 +36,7 @@ function ClipTile({
   rank: number
   src: string
   render?: RenderLinks
+  publication?: PublicationState
   caption: string
   playing: boolean
   onHoverChange: (hovered: boolean) => void
@@ -155,6 +158,9 @@ function ClipTile({
             {formatDuration(clip.startMs)}
           </span>
         </span>
+        {publication && publication.status !== "removed" && (
+          <PublicationStatusView publication={publication} />
+        )}
         <div className="mt-0.5 flex gap-1.5">
           <Button
             size="sm"
@@ -252,6 +258,7 @@ export function ClipsGrid({
             rank={ranks?.[clip.id] ?? i + 1}
             src={data.src}
             render={currentRender(clip, data.renders)}
+            publication={data.publishing.publications[clip.id]}
             caption={
               data.captionsEnabled
                 ? (data.captions[clip.id]?.pages[0]?.words
