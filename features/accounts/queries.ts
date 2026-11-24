@@ -1,0 +1,113 @@
+import "server-only"
+
+import { headers } from "next/headers"
+import { connection } from "next/server"
+
+import { getDb } from "@/lib/db"
+
+import { enabledSocialProviders, getAuth } from "./auth"
+import { accountRepository } from "./repository"
+import { YOUTUBE_SCOPES } from "./schema"
+import { requireViewer } from "./session"
+import { usageSummary } from "./usage"
+
+export async function getProfileSettings() {
+  await connection()
+  const { user } = await requireViewer()
+  return {
+    name: user.name,
+    email: user.email,
+    memberSince: user.createdAt,
+  }
+}
+
+export async function getPlanSettings() {
+  await connection()
+  const { workspace } = await requireViewer()
+  return usageSummary(getDb(), workspace)
+}
+
+export async function getWorkspaceSettings() {
+  await connection()
+  const { workspace } = await requireViewer()
+  return { name: workspace.name, keyHint: workspace.anthropicKeyHint }
+}
+
+export async function getSecuritySettings() {
+  await connection()
+  const { user, session, workspace } = await requireViewer()
+  const [linked, sessions] = await Promise.all([
+    accountRepository(getDb()).linkedAccounts(user.id),
+    getAuth().api.listSessions({ headers: await headers() }),
+  ])
+  const credential = linked.find((a) => a.providerId === "credential")
+  return {
+    hasPassword: Boolean(credential),
+    passwordChangedAt: credential?.updatedAt ?? null,
+    twoFactorEnabled: Boolean(user.twoFactorEnabled),
+    keyHint: workspace.anthropicKeyHint,
+    sessions: sessions
+      .map((s) => ({
+        id: s.id,
+        token: s.token,
+        userAgent: s.userAgent ?? null,
+        ipAddress: s.ipAddress ?? null,
+        updatedAt: s.updatedAt,
+        current: s.token === session.token,
+      }))
+      .sort((a, b) => Number(b.current) - Number(a.current)),
+  }
+}
+
+export async function getChannelSettings() {
+  await connection()
+  const { user } = await requireViewer()
+  const linked = await accountRepository(getDb()).linkedAccounts(user.id)
+  const providers = enabledSocialProviders()
+  const google = linked.find((a) => a.providerId === "google")
+  const twitch = linked.find((a) => a.providerId === "twitch")
+  const youtubeConnected = Boolean(
+    google && YOUTUBE_SCOPES.every((scope) => google.scope?.includes(scope))
+  )
+  return [
+    {
+      id: "youtube" as const,
+      name: "YouTube",
+      detail: "Import VODs, publish Shorts",
+      configured: providers.google,
+      connectedAt: youtubeConnected ? google!.updatedAt : null,
+      providerId: "google" as const,
+      accountId: google?.accountId ?? null,
+    },
+    {
+      id: "twitch" as const,
+      name: "Twitch",
+      detail: "Import past broadcasts",
+      configured: providers.twitch,
+      connectedAt: twitch?.updatedAt ?? null,
+      providerId: "twitch" as const,
+      accountId: twitch?.accountId ?? null,
+    },
+    {
+      id: "tiktok" as const,
+      name: "TikTok",
+      detail: "Publish approved clips as drafts",
+      configured: false,
+      connectedAt: null,
+      providerId: null,
+      accountId: null,
+    },
+    {
+      id: "instagram" as const,
+      name: "Instagram",
+      detail: "Publish approved clips as Reels",
+      configured: false,
+      connectedAt: null,
+      providerId: null,
+      accountId: null,
+    },
+  ]
+}
+
+export type ChannelRow = Awaited<ReturnType<typeof getChannelSettings>>[number]
+export type SecuritySettings = Awaited<ReturnType<typeof getSecuritySettings>>

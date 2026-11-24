@@ -10,6 +10,7 @@ import { mimeForKey, parseRange } from "./range"
 
 const STATUS_BY_CODE: Partial<Record<AppErrorCode, number>> = {
   VALIDATION: 400,
+  UNAUTHORIZED: 401,
   NOT_FOUND: 404,
   CONFLICT: 409,
   INVALID_TRANSITION: 409,

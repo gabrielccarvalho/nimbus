@@ -40,6 +40,7 @@ export function projectRepository(db: Db) {
 
     async create(input: {
       id?: string
+      workspaceId?: string | null
       name: string
       settings: ProjectSettings
       sourceUrl?: string
@@ -48,6 +49,7 @@ export function projectRepository(db: Db) {
         .insert(projects)
         .values({
           id: input.id ?? newId(),
+          workspaceId: input.workspaceId ?? null,
           name: input.name,
           status: input.sourceUrl ? "downloading" : "uploaded",
           sourceUrl: input.sourceUrl ?? null,
@@ -57,12 +59,16 @@ export function projectRepository(db: Db) {
       return row!
     },
 
-    async list({ limit = 100 }: { limit?: number } = {}): Promise<
+    async list({
+      limit = 100,
+      workspaceId,
+    }: { limit?: number; workspaceId?: string } = {}): Promise<
       ProjectListItem[]
     > {
       const rows = await db
         .select()
         .from(projects)
+        .where(workspaceId ? eq(projects.workspaceId, workspaceId) : undefined)
         .orderBy(desc(projects.createdAt))
         .limit(limit)
       if (rows.length === 0) return []
@@ -112,14 +118,15 @@ export function projectRepository(db: Db) {
       })
     },
 
-    async count() {
+    async count(workspaceId: string) {
       const [row] = await db
         .select({ count: sql<number>`count(*)::int` })
         .from(projects)
+        .where(eq(projects.workspaceId, workspaceId))
       return row?.count ?? 0
     },
 
-    async searchIndex({ limit = 500 }: { limit?: number } = {}) {
+    async searchIndex(workspaceId: string, { limit = 500 } = {}) {
       const [projectRows, clipRows] = await Promise.all([
         db
           .select({
@@ -130,6 +137,7 @@ export function projectRepository(db: Db) {
             awaitingManualSelection: projects.awaitingManualSelection,
           })
           .from(projects)
+          .where(eq(projects.workspaceId, workspaceId))
           .orderBy(desc(projects.createdAt))
           .limit(limit),
         db
@@ -143,7 +151,12 @@ export function projectRepository(db: Db) {
           })
           .from(clips)
           .innerJoin(projects, eq(projects.id, clips.projectId))
-          .where(sql`${clips.status} != 'rejected'`)
+          .where(
+            and(
+              eq(projects.workspaceId, workspaceId),
+              sql`${clips.status} != 'rejected'`
+            )
+          )
           .orderBy(desc(clips.score))
           .limit(limit),
       ])

@@ -10,18 +10,24 @@ import {
   SearchTrigger,
 } from "@/components/app-shell/command-palette"
 import { SIDEBAR_COOKIE } from "@/components/app-shell/sidebar-cookie"
+import { initials } from "@/features/accounts/schema"
+import { requireViewer } from "@/features/accounts/session"
+import { usageSummary } from "@/features/accounts/usage"
 import { countProjects, listRecentProjects } from "@/features/projects/queries"
+import { getDb } from "@/lib/db"
 
 export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const { user, workspace } = await requireViewer()
   const cookieStore = await cookies()
   const collapsed = cookieStore.get(SIDEBAR_COOKIE)?.value === "false"
-  const [recent, projectCount] = await Promise.all([
+  const [recent, projectCount, usage] = await Promise.all([
     listRecentProjects(3),
     countProjects(),
+    usageSummary(getDb(), workspace),
   ])
 
   return (
@@ -37,6 +43,21 @@ export default async function AppLayout({
           recent={recent}
           projectCount={projectCount}
           defaultCollapsed={collapsed}
+          account={{
+            name: user.name,
+            email: user.email,
+            initials: initials(user.name),
+          }}
+          workspace={{
+            name: workspace.name,
+            initials: initials(workspace.name),
+            planName: usage.plan.name,
+          }}
+          usage={{
+            renderMinutes: usage.renderMinutes,
+            renderMinutesLimit: usage.plan.renderMinutes,
+            resetsAt: usage.resetsAt.toISOString(),
+          }}
         />
         <div className="flex min-w-0 flex-1 flex-col">
           <BreadcrumbLabelsProvider>

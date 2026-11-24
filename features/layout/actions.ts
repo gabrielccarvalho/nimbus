@@ -2,6 +2,7 @@
 
 import { z } from "zod"
 
+import { forProject } from "../accounts/session"
 import { getDb } from "@/lib/db"
 import { AppError } from "@/lib/errors"
 import { parseId, runAction } from "@/lib/server-action"
@@ -19,12 +20,12 @@ export async function confirmLayoutAction(projectId: unknown, input: unknown) {
   const id = parseId(projectId, "project id")
   return runAction(
     "confirmLayout",
-    async () => {
+    forProject(id, async () => {
       const parsed = confirmSchema.safeParse(input)
       if (!parsed.success) throw new AppError("VALIDATION", "Invalid layout")
       const { layout, ...options } = parsed.data
       await confirmLayout(getDb(), id, layout, options)
-    },
+    }),
     [`/projects/${id}`]
   )
 }

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { GET as exportZip } from "@/app/api/projects/[id]/export/route"
 import { clipRepository } from "@/features/clips/repository"
@@ -17,6 +17,11 @@ import { layouts } from "@/lib/db/schema"
 import { fixtures } from "../../scripts/make-fixtures"
 import { runJobs, uploadFixture } from "../utils/pipeline"
 import { createTestEnv, type TestEnv } from "../utils/test-env"
+
+vi.mock(
+  "@/features/accounts/session",
+  async () => (await import("../utils/viewer")).sessionMock
+)
 
 let env: TestEnv
 

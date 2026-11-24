@@ -198,6 +198,9 @@ App composites, not primitives; they read app data and routes.
 - `AppBreadcrumbs` / `BreadcrumbLabel`: crumbs from the path; project tabs are not crumbs, a clip is. Pages register dynamic labels with `BreadcrumbLabel`.
 - `Page`, `PageHeader`, `PageTitle`, `PageLede`: the 1240 px page column and its heading.
 - `useHotkey(key, handler, { meta })`: single-key shortcuts that ignore fields and open dialogs; `meta` for ⌘/Ctrl chords.
+- `WorkspaceButton`, `UsageCard`, `AccountMenu`, `ShortcutsDialog` (`sidebar-account.tsx`): the sidebar's workspace menu, render-minute `DotMeter`, and account menu (Account, Plan & usage, Settings `,`, Keyboard shortcuts `?`, Sign out).
+
+`components/auth/` holds the sign-in screens: `AuthForm` (sign in and create account, social buttons only for configured providers), `AuthHeading` (the only gradient text), the two-step, forgot and reset forms, and the decorative `AuthGlimpse`. `components/settings/section.tsx` has `SettingsSection`, `SettingsSectionHeader` and `SettingRow`, the graphite cards and hairline rows the settings pages are built from; `SettingsNav` is the settings sub-nav.
 
 `ProjectHeader` (`components/projects/`) is the project title, `StatusPill` from `projectSignal`, one-line meta, open source, the ⋯ menu (Project settings sheet, Delete) and the tabs: an amber dot on Layout while the layout waits, the clip count on Clips.
 

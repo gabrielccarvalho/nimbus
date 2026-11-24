@@ -7,7 +7,7 @@ test("navigates between projects and settings", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "Projects", exact: true })
   ).toBeVisible()
-  await page.getByRole("link", { name: "Settings" }).click()
+  await page.keyboard.press(",")
   await expect(page).toHaveURL(/\/settings$/)
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible()
   await expect(

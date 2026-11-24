@@ -94,9 +94,10 @@ function magicByteCheck(mime: AcceptedVideoMime) {
 }
 
 export async function projectSettingsFromApp(
-  options: ImportOptions = {}
+  options: ImportOptions = {},
+  workspaceId: string | null = null
 ): Promise<ProjectSettings> {
-  const app = await getAppSettings(getDb())
+  const app = await getAppSettings(getDb(), workspaceId)
   return {
     selectorMode: options.selectorMode ?? app.selectorMode,
     clipMinMs: app.clipMinMs,
@@ -114,7 +115,8 @@ export async function projectSettingsFromApp(
 }
 
 export async function handleUpload(
-  request: Request
+  request: Request,
+  workspaceId: string | null = null
 ): Promise<{ projectId: string }> {
   const env = getEnv()
   const rawName = request.headers.get(UPLOAD_FILENAME_HEADER)
@@ -163,10 +165,11 @@ export async function handleUpload(
   await storage.move(tempKey, sourceKey)
   const db = getDb()
   try {
-    const settings = await projectSettingsFromApp(options)
+    const settings = await projectSettingsFromApp(options, workspaceId)
     await withTransaction(db, async (tx) => {
       await projectRepository(tx).create({
         id: projectId,
+        workspaceId,
         name: projectNameFromFile(fileName),
         settings,
       })

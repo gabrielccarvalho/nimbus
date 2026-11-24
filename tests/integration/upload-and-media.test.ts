@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises"
 
 import { NextRequest } from "next/server"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { GET as mediaGET } from "@/app/api/media/[...path]/route"
 import { POST as uploadPOST } from "@/app/api/uploads/route"
@@ -10,10 +10,17 @@ import {
   assetRepository,
   projectRepository,
 } from "@/features/projects/repository"
+import { defaultProjectSettings } from "@/features/projects/schema"
 import { getStorage } from "@/lib/storage"
 
 import { fixtures } from "../../scripts/make-fixtures"
 import { createTestEnv, type TestEnv } from "../utils/test-env"
+import { testViewer } from "../utils/viewer"
+
+vi.mock(
+  "@/features/accounts/session",
+  async () => (await import("../utils/viewer")).sessionMock
+)
 
 let env: TestEnv
 
@@ -123,7 +130,25 @@ describe("GET /api/media/[...path]", () => {
   const ctx = (path: string[]) => ({ params: Promise.resolve({ path }) })
 
   beforeEach(async () => {
+    await projectRepository(env.db).create({
+      id: "p1",
+      name: "p1",
+      settings: defaultProjectSettings,
+    })
     await getStorage().writeBuffer("projects/p1/file.mp4", "0123456789")
+  })
+
+  afterEach(() => {
+    testViewer.workspaceId = null
+  })
+
+  it("hides files from other workspaces", async () => {
+    testViewer.workspaceId = "someone-else"
+    const response = await mediaGET(
+      new NextRequest("http://localhost/api/media/projects/p1/file.mp4"),
+      ctx(["projects", "p1", "file.mp4"])
+    )
+    expect(response.status).toBe(404)
   })
 
   it("serves full files with range support advertised", async () => {

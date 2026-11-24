@@ -2,6 +2,7 @@
 
 import { z } from "zod"
 
+import { forProject } from "../accounts/session"
 import { getDb } from "@/lib/db"
 import { AppError } from "@/lib/errors"
 import { parseId, runAction } from "@/lib/server-action"
@@ -22,12 +23,12 @@ export async function submitManualSelectionAction(
   const id = parseId(projectId, "project id")
   return runAction(
     "submitManualSelection",
-    () => {
+    forProject(id, () => {
       const text = z.string().max(500_000).safeParse(json)
       if (!text.success)
         throw new AppError("VALIDATION", "Paste the JSON reply")
       return applyManualSelection(getDb(), id, text.data)
-    },
+    }),
     [`/projects/${id}`]
   )
 }
@@ -41,12 +42,12 @@ export async function setClipStatusAction(
   const clip = parseId(clipId, "clip id")
   return runAction(
     "setClipStatus",
-    async () => {
+    forProject(project, async () => {
       const parsed = clipStatusSchema.safeParse(status)
       if (!parsed.success)
         throw new AppError("VALIDATION", "Invalid clip status")
       await setClipReviewStatus(getDb(), project, clip, parsed.data)
-    },
+    }),
     [`/projects/${project}`]
   )
 }
@@ -60,7 +61,7 @@ export async function updateClipAction(
   const clip = parseId(clipId, "clip id")
   return runAction(
     "updateClip",
-    async () => {
+    forProject(project, async () => {
       const parsed = clipEditSchema.safeParse(edit)
       if (!parsed.success) {
         throw new AppError(
@@ -69,7 +70,7 @@ export async function updateClipAction(
         )
       }
       await updateClip(getDb(), project, clip, parsed.data)
-    },
+    }),
     [`/projects/${project}`]
   )
 }
@@ -83,7 +84,7 @@ export async function planClipEffectsAction(
   const clip = parseId(clipId, "clip id")
   return runAction(
     "planClipEffects",
-    () => {
+    forProject(project, () => {
       const parsed = clipPlanSchema.safeParse(plan)
       if (!parsed.success) {
         throw new AppError(
@@ -92,7 +93,7 @@ export async function planClipEffectsAction(
         )
       }
       return planClipEffects(getDb(), project, clip, parsed.data)
-    },
+    }),
     []
   )
 }
@@ -101,7 +102,7 @@ export async function approveAllCandidatesAction(projectId: unknown) {
   const id = parseId(projectId, "project id")
   return runAction(
     "approveAllCandidates",
-    () => approveAllCandidates(getDb(), id),
+    forProject(id, () => approveAllCandidates(getDb(), id)),
     [`/projects/${id}`]
   )
 }

@@ -1,6 +1,8 @@
 "use server"
 
 import { getDb } from "@/lib/db"
+
+import { workspaceId } from "../accounts/session"
 import { AppError } from "@/lib/errors"
 import { runAction } from "@/lib/server-action"
 
@@ -10,7 +12,7 @@ import { saveAppSettings } from "./service"
 export async function saveSettingsAction(input: unknown) {
   return runAction(
     "saveSettings",
-    () => {
+    async () => {
       const parsed = appSettingsSchema.safeParse(input)
       if (!parsed.success) {
         throw new AppError(
@@ -18,7 +20,7 @@ export async function saveSettingsAction(input: unknown) {
           parsed.error.issues[0]?.message ?? "Invalid settings"
         )
       }
-      return saveAppSettings(getDb(), parsed.data)
+      return saveAppSettings(getDb(), parsed.data, await workspaceId())
     },
     ["/settings"]
   )

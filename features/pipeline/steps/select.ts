@@ -2,6 +2,7 @@ import "server-only"
 
 import { getStorage } from "@/lib/storage"
 
+import { recordUsage, resolveAnthropicKey } from "../../accounts/usage"
 import { signalsRepository } from "../../analysis/repository"
 import { clipRepository } from "../../clips/repository"
 import { loadAudienceHeatmap } from "../../downloads/service"
@@ -95,6 +96,7 @@ export const selectStep: JobHandler = async ({
       exclude: existing,
       niche: NICHE_PROFILES[niche],
       frames,
+      apiKey: await resolveAnthropicKey(db, project.workspaceId),
       onPart: (candidates, parts) => {
         found.push(...candidates)
         reportProgress(10 + (firstPassShare * parts.done) / parts.total)
@@ -118,6 +120,9 @@ export const selectStep: JobHandler = async ({
   )
   throwIfAborted(signal)
   showCandidates(candidates, null)
+  if (settings.selectorMode === "anthropic" && !fallbackReason) {
+    await recordUsage(db, project, "claude_run", 1)
+  }
 
   const clips = clipRepository(db)
   const inserted = await (more ? clips.addCandidates : clips.replaceCandidates)(

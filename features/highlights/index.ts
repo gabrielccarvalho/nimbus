@@ -4,7 +4,7 @@ import type { Logger } from "pino"
 
 import { toAppError } from "@/lib/errors"
 
-import { AnthropicReviewer, AnthropicSelector } from "./anthropic"
+import { AnthropicReviewer, AnthropicSelector, createClient } from "./anthropic"
 import { HeuristicSelector } from "./heuristic"
 import { postprocessCandidates } from "./postprocess"
 import { reviewPoolSize } from "./review"
@@ -16,8 +16,12 @@ export async function selectHighlights(
   logger: Logger,
   createSelector: (mode: "anthropic" | "heuristic") => HighlightSelector = (
     m
-  ) => (m === "anthropic" ? new AnthropicSelector() : new HeuristicSelector()),
-  createReviewer: () => ClipReviewer = () => new AnthropicReviewer()
+  ) =>
+    m === "anthropic"
+      ? new AnthropicSelector(createClient(input.apiKey))
+      : new HeuristicSelector(),
+  createReviewer: () => ClipReviewer = () =>
+    new AnthropicReviewer(createClient(input.apiKey))
 ) {
   const reviewing = mode === "anthropic" && Boolean(input.frames)
   const pool = reviewing

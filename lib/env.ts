@@ -54,11 +54,31 @@ const envSchema = z.object({
     .enum(["trace", "debug", "info", "warn", "error", "fatal", "silent"])
     .optional(),
   E2E: booleanish,
+  BETTER_AUTH_SECRET: z.string().min(32).optional(),
+  BETTER_AUTH_URL: z.url().default("http://localhost:3000"),
+  NIMBUS_SECRET_KEY: z.string().min(32).optional(),
+  GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+  GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
+  TWITCH_CLIENT_ID: z.string().min(1).optional(),
+  TWITCH_CLIENT_SECRET: z.string().min(1).optional(),
 })
 
 type RawEnv = z.infer<typeof envSchema>
 
-export type Env = RawEnv
+export type Env = Omit<RawEnv, "BETTER_AUTH_SECRET" | "NIMBUS_SECRET_KEY"> & {
+  BETTER_AUTH_SECRET: string
+  NIMBUS_SECRET_KEY: string
+}
+
+const DEV_SECRET = "nimbus-development-secret-do-not-use-in-production"
+
+function secret(name: string, value: string | undefined, nodeEnv: string) {
+  if (value) return value
+  if (nodeEnv === "production") {
+    throw new Error(`${name} is required in production (32+ characters)`)
+  }
+  return `${DEV_SECRET}:${name}`
+}
 
 let cached: Env | undefined
 
@@ -70,6 +90,16 @@ export function parseEnv(source: Record<string, string | undefined>): Env {
   return {
     ...raw,
     DATA_DIR: path.resolve(/* turbopackIgnore: true */ raw.DATA_DIR),
+    BETTER_AUTH_SECRET: secret(
+      "BETTER_AUTH_SECRET",
+      raw.BETTER_AUTH_SECRET,
+      raw.NODE_ENV
+    ),
+    NIMBUS_SECRET_KEY: secret(
+      "NIMBUS_SECRET_KEY",
+      raw.NIMBUS_SECRET_KEY,
+      raw.NODE_ENV
+    ),
   }
 }
 

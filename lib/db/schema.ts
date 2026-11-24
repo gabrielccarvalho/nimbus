@@ -25,6 +25,7 @@ import type {
   LayoutMode,
   Rect,
 } from "@/features/layout/schema"
+import type { PlanId, UsageKind } from "@/features/accounts/schema"
 import type {
   AssetKind,
   AudioTrack,
@@ -46,10 +47,133 @@ const timestamps = {
   updatedAt: timestamptz("updated_at").notNull().defaultNow(),
 }
 
+export const user = pgTable("user", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  emailVerified: boolean("email_verified").notNull().default(false),
+  image: text("image"),
+  twoFactorEnabled: boolean("two_factor_enabled").default(false),
+  ...timestamps,
+})
+
+export const session = pgTable(
+  "session",
+  {
+    id: text("id").primaryKey(),
+    expiresAt: timestamptz("expires_at").notNull(),
+    token: text("token").notNull().unique(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    ...timestamps,
+  },
+  (t) => [index("session_user_idx").on(t.userId)]
+)
+
+export const account = pgTable(
+  "account",
+  {
+    id: text("id").primaryKey(),
+    accountId: text("account_id").notNull(),
+    providerId: text("provider_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    idToken: text("id_token"),
+    accessTokenExpiresAt: timestamptz("access_token_expires_at"),
+    refreshTokenExpiresAt: timestamptz("refresh_token_expires_at"),
+    scope: text("scope"),
+    password: text("password"),
+    ...timestamps,
+  },
+  (t) => [index("account_user_idx").on(t.userId)]
+)
+
+export const verification = pgTable(
+  "verification",
+  {
+    id: text("id").primaryKey(),
+    identifier: text("identifier").notNull(),
+    value: text("value").notNull(),
+    expiresAt: timestamptz("expires_at").notNull(),
+    ...timestamps,
+  },
+  (t) => [index("verification_identifier_idx").on(t.identifier)]
+)
+
+export const twoFactor = pgTable(
+  "two_factor",
+  {
+    id: text("id").primaryKey(),
+    secret: text("secret").notNull(),
+    backupCodes: text("backup_codes").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    verified: boolean("verified").default(true),
+    failedVerificationCount: integer("failed_verification_count").default(0),
+    lockedUntil: timestamptz("locked_until"),
+  },
+  (t) => [
+    index("two_factor_secret_idx").on(t.secret),
+    index("two_factor_user_idx").on(t.userId),
+  ]
+)
+
+export const workspaces = pgTable("workspaces", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  plan: text("plan").$type<PlanId>().notNull().default("free"),
+  anthropicKey: text("anthropic_key"),
+  anthropicKeyHint: text("anthropic_key_hint"),
+  ...timestamps,
+})
+
+export const workspaceMembers = pgTable(
+  "workspace_members",
+  {
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    role: text("role").$type<"owner" | "member">().notNull().default("owner"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("workspace_members_pk").on(t.workspaceId, t.userId),
+    index("workspace_members_user_idx").on(t.userId),
+  ]
+)
+
+export const usageEvents = pgTable(
+  "usage_events",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    projectId: text("project_id"),
+    kind: text("kind").$type<UsageKind>().notNull(),
+    amount: doublePrecision("amount").notNull(),
+    createdAt: timestamptz("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("usage_events_workspace_idx").on(t.workspaceId, t.createdAt)]
+)
+
 export const projects = pgTable(
   "projects",
   {
     id: text("id").primaryKey(),
+    workspaceId: text("workspace_id").references(() => workspaces.id, {
+      onDelete: "cascade",
+    }),
     name: text("name").notNull(),
     status: text("status").$type<ProjectStatus>().notNull(),
     failedStep: text("failed_step").$type<ProjectStatus>(),
@@ -64,7 +188,10 @@ export const projects = pgTable(
       .default(false),
     ...timestamps,
   },
-  (t) => [index("projects_created_idx").on(t.createdAt)]
+  (t) => [
+    index("projects_created_idx").on(t.createdAt),
+    index("projects_workspace_idx").on(t.workspaceId, t.createdAt),
+  ]
 )
 
 export const assets = pgTable(

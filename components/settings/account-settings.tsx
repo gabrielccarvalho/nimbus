@@ -1,0 +1,676 @@
+"use client"
+
+import { useRouter } from "next/navigation"
+import * as React from "react"
+import { toast } from "sonner"
+import { renderSVG } from "uqr"
+
+import { authClient } from "@/components/auth/auth-client"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
+import { StatusPill } from "@/components/ui/status-pill"
+import { Switch } from "@/components/ui/switch"
+import {
+  removeAnthropicKeyAction,
+  renameWorkspaceAction,
+  saveAnthropicKeyAction,
+} from "@/features/accounts/actions"
+import type { ChannelRow, SecuritySettings } from "@/features/accounts/queries"
+import { YOUTUBE_SCOPES } from "@/features/accounts/schema"
+import { formatRelativeDay } from "@/lib/format"
+
+import { SettingRow, SettingsSection, SettingsSectionHeader } from "./section"
+
+type Outcome =
+  | { error?: { message?: string } | null }
+  | { ok: boolean; error?: { message: string } }
+
+function failed(result: Outcome) {
+  if ("ok" in result)
+    return result.ok ? null : (result.error?.message ?? "That didn't work")
+  return result.error ? (result.error.message ?? "That didn't work") : null
+}
+
+function useAction() {
+  const router = useRouter()
+  const [pending, startTransition] = React.useTransition()
+  const [error, setError] = React.useState<string | null>(null)
+  const run = (
+    action: () => Promise<Outcome>,
+    success?: string,
+    after?: () => void
+  ) =>
+    startTransition(async () => {
+      const message = failed(await action())
+      setError(message)
+      if (message) return
+      if (success) toast.success(success)
+      after?.()
+      router.refresh()
+    })
+  return { pending, error, setError, run }
+}
+
+export function NameForm({
+  label,
+  initial,
+  save,
+  success,
+}: {
+  label: string
+  initial: string
+  save: (name: string) => Promise<Outcome>
+  success: string
+}) {
+  const id = React.useId()
+  const [name, setName] = React.useState(initial)
+  const { pending, error, run } = useAction()
+  return (
+    <form
+      className="flex flex-wrap items-end gap-3"
+      onSubmit={(event) => {
+        event.preventDefault()
+        run(() => save(name), success)
+      }}
+    >
+      <Field
+        className="min-w-0 flex-[1_1_240px]"
+        data-invalid={error ? true : undefined}
+      >
+        <FieldLabel htmlFor={id}>{label}</FieldLabel>
+        <Input
+          id={id}
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          maxLength={80}
+          required
+        />
+        {error && <FieldError>{error}</FieldError>}
+      </Field>
+      <Button type="submit" disabled={pending || name.trim() === initial}>
+        Save
+      </Button>
+    </form>
+  )
+}
+
+export function ProfileName({ name }: { name: string }) {
+  return (
+    <NameForm
+      label="Name"
+      initial={name}
+      success="Name saved"
+      save={(value) => authClient.updateUser({ name: value })}
+    />
+  )
+}
+
+export function WorkspaceName({ name }: { name: string }) {
+  return (
+    <NameForm
+      label="Workspace name"
+      initial={name}
+      success="Workspace renamed"
+      save={(value) => renameWorkspaceAction(value)}
+    />
+  )
+}
+
+function PasswordDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const { pending, error, run } = useAction()
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <form
+          className="grid gap-5"
+          onSubmit={(event) => {
+            event.preventDefault()
+            const data = new FormData(event.currentTarget)
+            run(
+              () =>
+                authClient.changePassword({
+                  currentPassword: String(data.get("current")),
+                  newPassword: String(data.get("next")),
+                  revokeOtherSessions: true,
+                }),
+              "Password changed. Other sessions were signed out.",
+              () => onOpenChange(false)
+            )
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>Change password</DialogTitle>
+            <DialogDescription>
+              Other sessions are signed out.
+            </DialogDescription>
+          </DialogHeader>
+          <FieldGroup className="gap-4">
+            <Field>
+              <FieldLabel htmlFor="current-password">
+                Current password
+              </FieldLabel>
+              <Input
+                id="current-password"
+                name="current"
+                type="password"
+                autoComplete="current-password"
+                required
+              />
+            </Field>
+            <Field data-invalid={error ? true : undefined}>
+              <FieldLabel htmlFor="new-password">New password</FieldLabel>
+              <Input
+                id="new-password"
+                name="next"
+                type="password"
+                autoComplete="new-password"
+                minLength={10}
+                required
+              />
+              <FieldDescription>At least 10 characters.</FieldDescription>
+              {error && <FieldError>{error}</FieldError>}
+            </Field>
+          </FieldGroup>
+          <DialogFooter>
+            <Button type="submit" variant="primary" disabled={pending}>
+              Change password
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function TwoFactorDialog({
+  enabled,
+  open,
+  onOpenChange,
+}: {
+  enabled: boolean
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const { pending, error, setError, run } = useAction()
+  const [setup, setSetup] = React.useState<{
+    uri: string
+    backupCodes: string[]
+  } | null>(null)
+
+  const close = (next: boolean) => {
+    if (!next) {
+      setSetup(null)
+      setError(null)
+    }
+    onOpenChange(next)
+  }
+
+  const secret = setup ? new URL(setup.uri).searchParams.get("secret") : null
+
+  return (
+    <Dialog open={open} onOpenChange={close}>
+      <DialogContent>
+        {setup ? (
+          <form
+            className="grid gap-5"
+            onSubmit={(event) => {
+              event.preventDefault()
+              const code = String(
+                new FormData(event.currentTarget).get("code")
+              ).replace(/\s/g, "")
+              run(
+                () => authClient.twoFactor.verifyTotp({ code }),
+                "Two-step verification is on",
+                () => close(false)
+              )
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>Scan with your authenticator</DialogTitle>
+              <DialogDescription>
+                Then enter the 6-digit code it shows. Keep the backup codes
+                somewhere safe; each works once.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-wrap items-start gap-5">
+              <div
+                role="img"
+                aria-label="QR code for your authenticator app"
+                className="size-40 shrink-0 rounded-xl bg-white p-2 [&_svg]:size-full"
+                dangerouslySetInnerHTML={{ __html: renderSVG(setup.uri) }}
+              />
+              <div className="grid min-w-0 flex-1 gap-2 text-[13px] text-tertiary">
+                <span>Or enter this key</span>
+                <code className="font-mono text-xs break-all text-foreground">
+                  {secret}
+                </code>
+                <span className="pt-2">Backup codes</span>
+                <ul className="grid grid-cols-2 gap-x-3 font-mono text-xs text-foreground">
+                  {setup.backupCodes.map((code) => (
+                    <li key={code}>{code}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+            <Field data-invalid={error ? true : undefined}>
+              <FieldLabel htmlFor="totp">Code</FieldLabel>
+              <Input
+                id="totp"
+                name="code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                required
+                className="font-mono tracking-[0.2em]"
+              />
+              {error && <FieldError>{error}</FieldError>}
+            </Field>
+            <DialogFooter>
+              <Button type="submit" variant="primary" disabled={pending}>
+                Turn on
+              </Button>
+            </DialogFooter>
+          </form>
+        ) : (
+          <form
+            className="grid gap-5"
+            onSubmit={(event) => {
+              event.preventDefault()
+              const password = String(
+                new FormData(event.currentTarget).get("password")
+              )
+              if (enabled) {
+                run(
+                  () => authClient.twoFactor.disable({ password }),
+                  "Two-step verification is off",
+                  () => close(false)
+                )
+                return
+              }
+              run(async () => {
+                const result = await authClient.twoFactor.enable({ password })
+                if (result.data?.method === "totp") {
+                  setSetup({
+                    uri: result.data.totpURI,
+                    backupCodes: result.data.backupCodes,
+                  })
+                }
+                return result
+              })
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>
+                {enabled
+                  ? "Turn off two-step verification?"
+                  : "Turn on two-step verification"}
+              </DialogTitle>
+              <DialogDescription>Confirm with your password.</DialogDescription>
+            </DialogHeader>
+            <Field data-invalid={error ? true : undefined}>
+              <FieldLabel htmlFor="tfa-password">Password</FieldLabel>
+              <Input
+                id="tfa-password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+              />
+              {error && <FieldError>{error}</FieldError>}
+            </Field>
+            <DialogFooter>
+              <Button
+                type="submit"
+                variant={enabled ? "destructive" : "primary"}
+                disabled={pending}
+              >
+                {enabled ? "Turn off" : "Continue"}
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function ApiKeyDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const { pending, error, run } = useAction()
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <form
+          className="grid gap-5"
+          onSubmit={(event) => {
+            event.preventDefault()
+            const key = String(new FormData(event.currentTarget).get("key"))
+            run(
+              () => saveAnthropicKeyAction(key),
+              "Claude API key saved",
+              () => onOpenChange(false)
+            )
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>Claude API key</DialogTitle>
+            <DialogDescription>
+              Stored encrypted. Only the last four characters are shown again.
+            </DialogDescription>
+          </DialogHeader>
+          <Field data-invalid={error ? true : undefined}>
+            <FieldLabel htmlFor="anthropic-key">Key</FieldLabel>
+            <Input
+              id="anthropic-key"
+              name="key"
+              type="password"
+              autoComplete="off"
+              placeholder="sk-ant-…"
+              required
+              className="font-mono"
+            />
+            {error && <FieldError>{error}</FieldError>}
+          </Field>
+          <DialogFooter>
+            <Button type="submit" variant="primary" disabled={pending}>
+              Save key
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function deviceName(userAgent: string | null) {
+  if (!userAgent) return "Unknown device"
+  const browser = /Edg\//.test(userAgent)
+    ? "Edge"
+    : /Chrome\//.test(userAgent)
+      ? "Chrome"
+      : /Firefox\//.test(userAgent)
+        ? "Firefox"
+        : /Safari\//.test(userAgent)
+          ? "Safari"
+          : "Browser"
+  const os = /Mac OS X/.test(userAgent)
+    ? "Mac"
+    : /Windows/.test(userAgent)
+      ? "Windows"
+      : /Android/.test(userAgent)
+        ? "Android"
+        : /iPhone|iPad/.test(userAgent)
+          ? "iOS"
+          : /Linux/.test(userAgent)
+            ? "Linux"
+            : "device"
+  return `${browser} on ${os}`
+}
+
+export function SecuritySettingsView({ data }: { data: SecuritySettings }) {
+  const [dialog, setDialog] = React.useState<"password" | "2fa" | "key" | null>(
+    null
+  )
+  const { pending, run } = useAction()
+  const others = data.sessions.filter((s) => !s.current)
+
+  return (
+    <SettingsSection className="gap-1">
+      <SettingsSectionHeader title="Sign-in & security" />
+      {data.hasPassword && (
+        <SettingRow
+          title="Password"
+          description={
+            data.passwordChangedAt
+              ? `Last changed ${formatRelativeDay(data.passwordChangedAt).toLowerCase()}`
+              : undefined
+          }
+        >
+          <Button size="sm" onClick={() => setDialog("password")}>
+            Change
+          </Button>
+        </SettingRow>
+      )}
+      {data.hasPassword && (
+        <SettingRow
+          title="Two-step verification"
+          description="A code from your authenticator app at sign-in"
+        >
+          <Switch
+            aria-label="Two-step verification"
+            checked={data.twoFactorEnabled}
+            onCheckedChange={() => setDialog("2fa")}
+          />
+        </SettingRow>
+      )}
+      <SettingRow
+        title="Claude API key"
+        description="Used by the Claude highlight selector. Stored encrypted."
+      >
+        {data.keyHint && (
+          <span className="font-mono text-[13px] text-muted-foreground">
+            {data.keyHint}
+          </span>
+        )}
+        <Button size="sm" onClick={() => setDialog("key")}>
+          {data.keyHint ? "Replace" : "Add key"}
+        </Button>
+        {data.keyHint && (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={pending}
+            onClick={() =>
+              run(() => removeAnthropicKeyAction(), "Claude API key removed")
+            }
+          >
+            Remove
+          </Button>
+        )}
+      </SettingRow>
+      <SettingRow
+        title="Sessions"
+        description={
+          <span className="grid gap-0.5">
+            {data.sessions.map((s) => (
+              <span key={s.id}>
+                {deviceName(s.userAgent)}
+                {s.current
+                  ? " · this session"
+                  : ` · ${formatRelativeDay(s.updatedAt).toLowerCase()}`}
+              </span>
+            ))}
+          </span>
+        }
+      >
+        {others.length > 0 && (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={pending}
+            onClick={() =>
+              run(
+                () => authClient.revokeOtherSessions(),
+                "Signed out everywhere else"
+              )
+            }
+          >
+            Sign out everywhere else
+          </Button>
+        )}
+      </SettingRow>
+      <PasswordDialog
+        open={dialog === "password"}
+        onOpenChange={(o) => setDialog(o ? "password" : null)}
+      />
+      <TwoFactorDialog
+        enabled={data.twoFactorEnabled}
+        open={dialog === "2fa"}
+        onOpenChange={(o) => setDialog(o ? "2fa" : null)}
+      />
+      <ApiKeyDialog
+        open={dialog === "key"}
+        onOpenChange={(o) => setDialog(o ? "key" : null)}
+      />
+    </SettingsSection>
+  )
+}
+
+export function DeleteAccount({ hasPassword }: { hasPassword: boolean }) {
+  const router = useRouter()
+  const [open, setOpen] = React.useState(false)
+  const { pending, error, run } = useAction()
+  return (
+    <SettingsSection className="flex flex-wrap items-center gap-4">
+      <div className="grid min-w-0 flex-1 gap-0.5">
+        <b className="font-semibold">Delete account</b>
+        <span className="text-[13px] text-tertiary">
+          Removes every project, clip and export. This can&apos;t be undone.
+        </span>
+      </div>
+      <Button size="sm" variant="destructive" onClick={() => setOpen(true)}>
+        Delete account…
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <form
+            className="grid gap-5"
+            onSubmit={(event) => {
+              event.preventDefault()
+              const password = String(
+                new FormData(event.currentTarget).get("password") ?? ""
+              )
+              run(
+                () => authClient.deleteUser(hasPassword ? { password } : {}),
+                undefined,
+                () => router.replace("/signup")
+              )
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>Delete your account?</DialogTitle>
+              <DialogDescription>
+                Every project, clip and render in your workspace is removed from
+                disk.
+              </DialogDescription>
+            </DialogHeader>
+            {hasPassword && (
+              <Field data-invalid={error ? true : undefined}>
+                <FieldLabel htmlFor="delete-password">Password</FieldLabel>
+                <Input
+                  id="delete-password"
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                />
+                {error && <FieldError>{error}</FieldError>}
+              </Field>
+            )}
+            {!hasPassword && error && <FieldError>{error}</FieldError>}
+            <DialogFooter>
+              <Button type="submit" variant="destructive" disabled={pending}>
+                Delete everything
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </SettingsSection>
+  )
+}
+
+export function ChannelList({ channels }: { channels: ChannelRow[] }) {
+  const { pending, run } = useAction()
+  const connect = (channel: ChannelRow) =>
+    run(() =>
+      authClient.linkSocial({
+        provider: channel.providerId!,
+        callbackURL: "/settings/channels",
+        scopes: channel.id === "youtube" ? YOUTUBE_SCOPES : undefined,
+      })
+    )
+  const disconnect = (channel: ChannelRow) =>
+    run(
+      () => authClient.unlinkAccount({ accountId: channel.accountId! }),
+      `${channel.name} disconnected`
+    )
+
+  return (
+    <SettingsSection className="gap-1">
+      <SettingsSectionHeader
+        title="Connected channels"
+        description="Import VODs without pasting links, and publish approved clips to your channels. Tokens stay on this server."
+      />
+      <div className="pt-2">
+        {channels.map((channel) => (
+          <SettingRow
+            key={channel.id}
+            title={
+              <span className="flex items-center gap-3">
+                <span className="grid size-9 place-items-center rounded-[10px] bg-graphite-2 text-sm font-semibold inset-ring-1 inset-ring-hair">
+                  {channel.name[0]}
+                </span>
+                {channel.name}
+              </span>
+            }
+            description={
+              channel.connectedAt
+                ? `${channel.detail} · connected ${formatRelativeDay(channel.connectedAt).toLowerCase()}`
+                : channel.detail
+            }
+          >
+            {!channel.configured ? (
+              <StatusPill tone="neutral">Not configured</StatusPill>
+            ) : channel.connectedAt ? (
+              <>
+                <StatusPill tone="mint">Connected</StatusPill>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={pending}
+                  onClick={() => disconnect(channel)}
+                >
+                  Disconnect
+                </Button>
+              </>
+            ) : (
+              <Button
+                size="sm"
+                disabled={pending}
+                onClick={() => connect(channel)}
+              >
+                Connect
+              </Button>
+            )}
+          </SettingRow>
+        ))}
+      </div>
+    </SettingsSection>
+  )
+}

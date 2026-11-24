@@ -1,8 +1,8 @@
 "use client"
 
 import {
+  BroadcastIcon,
   FolderSimpleIcon,
-  GearSixIcon,
   PlusIcon,
   SidebarSimpleIcon,
 } from "@phosphor-icons/react"
@@ -25,13 +25,21 @@ import {
 import { cn } from "@/lib/utils"
 
 import { Logo, LogoMark } from "./logo"
+import {
+  AccountMenu,
+  UsageCard,
+  WorkspaceButton,
+  type SidebarAccount,
+  type SidebarUsage,
+  type SidebarWorkspace,
+} from "./sidebar-account"
 import { SIDEBAR_COOKIE } from "./sidebar-cookie"
 import { useHotkey } from "./use-hotkey"
 
 export type RecentProject = ProjectSignalInput & { id: string; name: string }
 
 type NavItem = {
-  href: "/" | "/settings"
+  href: "/" | "/settings/channels"
   label: string
   icon: React.ElementType
   count?: number
@@ -85,10 +93,16 @@ function SidebarLink({
 export function AppSidebar({
   recent,
   projectCount,
+  account,
+  workspace,
+  usage,
   defaultCollapsed = false,
 }: {
   recent: RecentProject[]
   projectCount: number
+  account: SidebarAccount
+  workspace: SidebarWorkspace
+  usage: SidebarUsage
   defaultCollapsed?: boolean
 }) {
   const pathname = usePathname()
@@ -122,13 +136,13 @@ export function AppSidebar({
       count: projectCount,
       active: pathname === "/",
     },
+    {
+      href: "/settings/channels",
+      label: "Channels",
+      icon: BroadcastIcon,
+      active: pathname.startsWith("/settings/channels"),
+    },
   ]
-  const settings: NavItem = {
-    href: "/settings",
-    label: "Settings",
-    icon: GearSixIcon,
-    active: pathname === "/settings",
-  }
 
   return (
     <aside
@@ -183,6 +197,7 @@ export function AppSidebar({
           "flex flex-1 flex-col gap-1 max-md:hidden max-md:group-data-[mobile-open=true]/sidebar:flex"
         )}
       >
+        <WorkspaceButton workspace={workspace} collapsed={collapsed} />
         <Link
           href="/#import"
           aria-keyshortcuts="n"
@@ -237,7 +252,8 @@ export function AppSidebar({
         )}
 
         <div className="min-h-6 flex-1" />
-        <SidebarLink item={settings} collapsed={collapsed} />
+        {!collapsed && <UsageCard usage={usage} />}
+        <AccountMenu account={account} collapsed={collapsed} />
       </div>
     </aside>
   )
