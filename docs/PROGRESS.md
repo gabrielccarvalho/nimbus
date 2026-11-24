@@ -27,6 +27,7 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 - ~~B1, libass missing from ffmpeg~~ Resolved 2026-11-22: `ffmpeg-full` 9.0.2 installed (keg-only) and set via `FFMPEG_PATH`/`FFPROBE_PATH` in `.env.local` (ADR-0028).
 - ~~B2, whisper.cpp missing~~ Resolved 2026-11-22: `whisper-cpp` 1.9.5 and `models/ggml-base.en.bin` installed; the heavy test passes.
 - ~~B3, no Anthropic credentials~~ Resolved 2026-11-22: `ANTHROPIC_API_KEY` set in `.env.local`.
+- B4, Google OAuth verification and YouTube API audit not started (needed before public launch).
 
 ## Phases
 
@@ -296,9 +297,27 @@ Spec: Claude Design handoff (`~/Downloads/nimbus-redesign-handoff/design/`). Aut
 - [x] Caption Position sits on its own row so its five options never run under the Size slider
 - [x] Admin plan: accounts on `@nimbus.dev` get a workspace on the Admin plan with no limits (ADR-0061); migration 0010 moves existing ones over
 
+### Phase 30: YouTube publishing (ADR-0065)
+
+Spec: `docs/superpowers/specs/2026-11-24-youtube-publishing-and-insights-design.md`. Plan: `docs/superpowers/plans/2026-11-24-youtube-publishing.md`.
+
+- [x] 1. Google's rules checked, ADR-0065 and docs
+- [x] 2. Schema, migration and repository
+- [x] 3. Pure metadata and quota-day logic
+- [x] 4. Google access tokens
+- [x] 5. YouTube client adapter
+- [x] 6. Channel connection and the Channels pages
+- [x] 7. Description drafted at selection
+- [x] 8. The `publish_clip` job
+- [x] 9. Server actions and queries
+- [x] 10. Publishing defaults and plan usage
+- [x] 11. Publish dialog and status on clips
+- [x] 12. End to end and phase close
+
 ### Not verified
 
 - MediaPipe face detection on a real face (fixtures have none; the code path is unit tested and the model loads in e2e).
 - Real multi-hour recordings end to end (a 3 h stream was transcribed and scored; rendering from it wasn't). Claude's chunking of long transcripts is tested against a mocked API only.
 - Hardware encoders other than VideoToolbox.
 - Linux and Windows.
+- A real upload to YouTube (needs a Google project with the YouTube Data API enabled).

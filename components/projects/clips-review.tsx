@@ -45,6 +45,7 @@ import { formatDuration } from "@/lib/format"
 import { AudioTimelineLayers } from "./audio-timeline"
 import type { ClipPlayerData, RenderLinks } from "./clip-player-dialog"
 import { ClipsGrid } from "./clips-grid"
+import type { PublishingState } from "./publish-dialog"
 import { useProjectEvents } from "./use-project-events"
 
 type ClipsReviewProps = {
@@ -60,6 +61,7 @@ type ClipsReviewProps = {
   captionsEnabled: boolean
   layoutConfirmed: boolean
   snapshot: ProjectSnapshot
+  publishing: PublishingState
 }
 
 const FILTERS = [
@@ -285,6 +287,7 @@ export function ClipsReview({
   captionsEnabled,
   layoutConfirmed,
   snapshot: initialSnapshot,
+  publishing,
 }: ClipsReviewProps) {
   const snapshot = useProjectEvents(initialSnapshot)
   const [openId, setOpenId] = React.useState<string | null>(null)
@@ -386,6 +389,7 @@ export function ClipsReview({
           layout={layout}
           captions={captions}
           captionsEnabled={captionsEnabled}
+          publishing={publishing}
           openClipId={openId}
           onOpenClipIdChange={setOpenId}
         />

@@ -27,6 +27,7 @@ import {
   HighlightFields,
   LanguageField,
   NicheField,
+  PublishingFields,
   QualityField,
 } from "./settings-fields"
 import { SettingsSection, SettingsSectionHeader } from "./section"
@@ -105,6 +106,7 @@ export function SettingsForm({
               set={set}
               claudeAvailable={claudeAvailable}
             />
+            <PublishingFields value={settings} set={set} />
           </>
         )}
         {section === "captions" && (

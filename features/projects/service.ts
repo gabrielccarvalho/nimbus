@@ -7,6 +7,7 @@ import { storageKeys, type StorageAdapter } from "@/lib/storage"
 
 import { clipRepository } from "../clips/repository"
 import { jobQueue } from "../jobs/queue"
+import { jobTypes } from "../jobs/schema"
 import {
   isRunning,
   jobTypeForStep,
@@ -56,7 +57,10 @@ export async function cancelProject(db: Db, projectId: string) {
     throw new AppError("CONFLICT", "Nothing is running for this project")
   }
   await withTransaction(db, async (tx) => {
-    await jobQueue(tx).cancelForProject(projectId)
+    await jobQueue(tx).cancelForProject(
+      projectId,
+      jobTypes.filter((type) => type !== "publish_clip")
+    )
     const clips = clipRepository(tx)
     const rendering = (await clips.listByStatus(projectId, ["rendering"])).map(
       (clip) => clip.id

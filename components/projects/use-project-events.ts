@@ -14,6 +14,10 @@ function fingerprint(snapshot: ProjectSnapshot) {
     snapshot.awaitingManualSelection,
     snapshot.revision,
     snapshot.clips.map((c) => c.status).join(","),
+    snapshot.jobs
+      .filter((job) => job.type === "publish_clip")
+      .map((job) => `${job.id}:${job.status}:${job.progress}`)
+      .join(","),
   ].join("|")
 }
 

@@ -272,8 +272,11 @@ export function ProjectOverview({
   const snapshot = useProjectEvents(initial)
   const [pending, startTransition] = React.useTransition()
   const states = stepStates(snapshot.status, snapshot.failedStep)
-  const activeJob = snapshot.jobs.find((job) => job.status === "running")
-  const queued = snapshot.jobs.some((job) => job.status === "queued")
+  const pipelineJobs = snapshot.jobs.filter(
+    (job) => job.type !== "publish_clip"
+  )
+  const activeJob = pipelineJobs.find((job) => job.status === "running")
+  const queued = pipelineJobs.some((job) => job.status === "queued")
   const running = isRunning(snapshot.status)
   const now = useNow(running)
   const elapsedMs = activeJob?.startedAt

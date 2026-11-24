@@ -84,6 +84,16 @@ export default async function PlanPage() {
           display={String(usage.claudeRuns)}
           limit={String(usage.plan.claudeRuns)}
         />
+        <div className="grid gap-2.5 rounded-[14px] bg-graphite-2 p-4">
+          <span className="text-[13px] text-muted-foreground">
+            Publishes today
+          </span>
+          <span className="font-mono text-2xl font-semibold tracking-[-0.03em] tabular-nums">
+            {usage.plan.publishesPerDay === null
+              ? "No limit"
+              : `${usage.publishesToday} of ${usage.plan.publishesPerDay}`}
+          </span>
+        </div>
       </div>
     </SettingsSection>
   )

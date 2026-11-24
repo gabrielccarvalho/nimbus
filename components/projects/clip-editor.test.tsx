@@ -103,6 +103,12 @@ function renderEditor() {
       settings={settings}
       installedFonts={[]}
       snapshot={snapshot}
+      publishing={{
+        channel: null,
+        defaults: { privacy: "public", tags: [], hashtags: "" },
+        publications: {},
+        publishesLeftToday: null,
+      }}
       siblings={{ index: 0, count: 2, previousId: null, nextId: "c2" }}
     />
   )

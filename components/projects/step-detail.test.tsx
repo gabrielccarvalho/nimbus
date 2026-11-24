@@ -142,6 +142,30 @@ describe("StepDetailView", () => {
     expect(grid).not.toHaveTextContent("Not rendering")
   })
 
+  it("ignores a running publish when picking the step to show", () => {
+    render(
+      <StepDetailView
+        snapshot={snapshot([
+          job({ id: "publish", type: "publish_clip" }),
+          job({
+            detail: {
+              kind: "transcribe",
+              phase: "transcribing",
+              language: "pt",
+              languageSource: "detected",
+              text: "corre",
+              words: 1,
+              audioMs: 1_000,
+            },
+          }),
+        ])}
+        clips={[]}
+        videoSrc={null}
+      />
+    )
+    expect(screen.getByRole("log")).toHaveTextContent("corre")
+  })
+
   it("shows nothing without details", () => {
     const { container } = render(
       <StepDetailView

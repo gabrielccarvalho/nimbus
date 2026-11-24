@@ -150,6 +150,18 @@ describe("postprocessCandidates", () => {
   })
 })
 
+describe("description", () => {
+  it("is trimmed and carried through, and stays unset when absent", () => {
+    const [withText] = postprocessCandidates(
+      [{ ...raw(10_000, 30_000), description: "  What happens.  " }],
+      context
+    )
+    expect(withText!.description).toBe("What happens.")
+    const [without] = postprocessCandidates([raw(10_000, 30_000)], context)
+    expect(without).not.toHaveProperty("description")
+  })
+})
+
 describe("beats", () => {
   it("survive postprocessing and are dropped when the range no longer contains them", () => {
     const beats = [

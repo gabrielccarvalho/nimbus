@@ -87,6 +87,7 @@ const statusForJob: Record<JobType, RunningStatus | null> = {
   render_clip: "rendering",
   render_edit: "rendering",
   sweep: null,
+  publish_clip: null,
 }
 
 export function statusForJobType(type: JobType): RunningStatus | null {

@@ -27,6 +27,12 @@ import type {
 } from "@/features/layout/schema"
 import type { PlanId, UsageKind } from "@/features/accounts/schema"
 import type {
+  ChannelStatus,
+  PublicationStatus,
+  PublishInput,
+  QuotaKind,
+} from "@/features/publishing/schema"
+import type {
   AssetKind,
   AudioTrack,
   ProjectSettings,
@@ -288,6 +294,7 @@ export const clips = pgTable(
     endMs: integer("end_ms").notNull(),
     title: text("title").notNull(),
     hook: text("hook").notNull().default(""),
+    description: text("description").notNull().default(""),
     reason: text("reason").notNull().default(""),
     score: doublePrecision("score").notNull().default(0),
     status: text("status").$type<ClipStatus>().notNull().default("candidate"),
@@ -302,6 +309,60 @@ export const clips = pgTable(
     ...timestamps,
   },
   (t) => [index("clips_project_idx").on(t.projectId, t.score)]
+)
+
+export const youtubeChannels = pgTable("youtube_channels", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .unique()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  accountId: text("account_id").references(() => account.id, {
+    onDelete: "set null",
+  }),
+  channelId: text("channel_id").notNull(),
+  title: text("title").notNull(),
+  thumbnailUrl: text("thumbnail_url"),
+  status: text("status").$type<ChannelStatus>().notNull().default("ok"),
+  ...timestamps,
+})
+
+export const publications = pgTable(
+  "publications",
+  {
+    id: text("id").primaryKey(),
+    clipId: text("clip_id")
+      .notNull()
+      .references(() => clips.id, { onDelete: "cascade" }),
+    channelId: text("channel_id").references(() => youtubeChannels.id, {
+      onDelete: "set null",
+    }),
+    renderAssetId: text("render_asset_id").references(() => assets.id, {
+      onDelete: "set null",
+    }),
+    metadata: jsonb("metadata").$type<PublishInput>().notNull(),
+    status: text("status").$type<PublicationStatus>().notNull(),
+    uploadUri: text("upload_uri"),
+    videoId: text("video_id"),
+    url: text("url"),
+    error: text("error"),
+    publishedAt: timestamptz("published_at"),
+    ...timestamps,
+  },
+  (t) => [index("publications_clip_idx").on(t.clipId, t.createdAt)]
+)
+
+export const youtubeQuotaUsage = pgTable(
+  "youtube_quota_usage",
+  {
+    id: text("id").primaryKey(),
+    day: text("day").notNull(),
+    workspaceId: text("workspace_id"),
+    kind: text("kind").$type<QuotaKind>().notNull(),
+    units: integer("units").notNull(),
+    createdAt: timestamptz("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("youtube_quota_usage_day_idx").on(t.day)]
 )
 
 export const jobs = pgTable(

@@ -15,6 +15,8 @@ import type { Clip } from "@/features/clips/repository"
 import type { LayoutInput } from "@/features/layout/schema"
 import type { ProjectSnapshot } from "@/features/pipeline/snapshot"
 
+import type { PublishingState } from "./publish-dialog"
+
 import { ClipsGrid } from "./clips-grid"
 import { ClipsReview } from "./clips-review"
 
@@ -31,6 +33,11 @@ vi.mock("sonner", () => ({
 vi.mock("@/features/clips/actions", () => ({
   setClipStatusAction: vi.fn(),
   approveAllCandidatesAction: vi.fn(),
+}))
+
+vi.mock("@/features/publishing/actions", () => ({
+  publishClipAction: vi.fn(),
+  retryPublicationAction: vi.fn(),
 }))
 
 vi.mock("@/features/projects/actions", () => ({
@@ -89,8 +96,23 @@ const renders = {
   c: { url: "/media/c-old.mp4", downloadUrl: "/media/c-old.mp4?download" },
 }
 
+const publishing: PublishingState = {
+  channel: { title: "My channel", status: "ok" },
+  defaults: { privacy: "public", tags: [], hashtags: "" },
+  publications: {},
+  publishesLeftToday: null,
+}
+
+const meta = {
+  title: "t",
+  description: "",
+  tags: [],
+  privacy: "public" as const,
+}
+
 const data = {
   projectId: "p1",
+  publishing,
   src: "/media/proxy.mp4",
   renders,
   layout,
@@ -123,6 +145,74 @@ describe("ClipsGrid", () => {
     expect(
       within(dialog).getByRole("link", { name: /Download/ })
     ).toHaveAttribute("href", renders.b.downloadUrl)
+  })
+
+  it("shows a published clip as a link to the video", () => {
+    render(
+      <ClipsGrid
+        clips={clips}
+        {...data}
+        publishing={{
+          ...publishing,
+          publications: {
+            b: {
+              id: "pub1",
+              renderAssetId: null,
+              metadata: meta,
+              status: "published",
+              url: "https://youtu.be/abc",
+              error: null,
+            },
+          },
+        }}
+      />
+    )
+    const link = screen.getByRole("link", { name: /Published/ })
+    expect(link).toHaveAttribute("href", "https://youtu.be/abc")
+    expect(link).toHaveAttribute("target", "_blank")
+    expect(link).toHaveAttribute("rel", "noreferrer")
+  })
+
+  it("shows publishing progress and a quota wait on tiles", () => {
+    render(
+      <ClipsGrid
+        clips={clips}
+        {...data}
+        publishing={{
+          ...publishing,
+          publications: {
+            b: {
+              id: "pub1",
+              renderAssetId: null,
+              metadata: meta,
+              status: "uploading",
+              url: null,
+              error: null,
+              progress: 30,
+            },
+            c: {
+              id: "pub2",
+              renderAssetId: null,
+              metadata: meta,
+              status: "waiting_quota",
+              url: null,
+              error: null,
+            },
+          },
+        }}
+      />
+    )
+    expect(screen.getByText("Publishing… 30%")).toBeVisible()
+    expect(screen.getByText("Waiting for YouTube's daily limit")).toBeVisible()
+  })
+
+  it("offers Publish next to Download in the player for a rendered clip", async () => {
+    render(<ClipsGrid clips={clips} {...data} />)
+    await userEvent.click(screen.getByRole("button", { name: "Clip B" }))
+    const dialog = await screen.findByRole("dialog", { name: "Clip B" })
+    expect(
+      within(dialog).getByRole("button", { name: "Publish" })
+    ).toBeEnabled()
   })
 
   it("arrow keys move to the next clip", async () => {

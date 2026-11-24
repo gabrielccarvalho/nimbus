@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import { nicheSchema } from "../highlights/niches"
 
+import { privacyStatuses } from "../publishing/schema"
 import {
   captionStyleRefSchema,
   defaultProjectSettings,
@@ -28,6 +29,11 @@ export const appSettingsSchema = z
     niche: nicheSchema,
     autoEffects: z.boolean(),
     hardwareEncoding: z.boolean(),
+    publishPrivacy: z.enum(privacyStatuses),
+    publishTags: z
+      .array(z.string().trim().min(1).max(30))
+      .refine((tags) => tags.join(",").length <= 500, "Tags are too long"),
+    publishHashtags: z.string().trim().max(200),
   })
   .refine((s) => s.clipMinMs < s.clipMaxMs, {
     message: "Minimum clip length must be shorter than the maximum",
@@ -48,6 +54,9 @@ export const defaultAppSettings: AppSettings = {
   niche: defaultProjectSettings.niche,
   autoEffects: defaultProjectSettings.autoEffects,
   hardwareEncoding: false,
+  publishPrivacy: "private",
+  publishTags: [],
+  publishHashtags: "#Shorts #gaming",
 }
 
 export const renderQualityCrf: Record<RenderQuality, number> = {

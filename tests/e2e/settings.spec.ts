@@ -157,3 +157,20 @@ test("drags workspace captions to a custom height", async ({ page }) => {
   await page.getByRole("button", { name: "Save captions" }).click()
   await expect(page.getByText("Captions saved")).toBeVisible()
 })
+
+test("publishing defaults persist", async ({ page }) => {
+  await page.goto(DEFAULTS)
+  await page.getByLabel("Tags", { exact: true }).fill("fps, clutch")
+  await page.getByRole("button", { name: "Save project defaults" }).click()
+  await expect(page.getByText("Project defaults saved")).toBeVisible()
+  await page.reload()
+  await expect(page.getByLabel("Tags", { exact: true })).toHaveValue(
+    "fps, clutch"
+  )
+  await expect(page.getByLabel("Hashtags", { exact: true })).toHaveValue(
+    "#Shorts #gaming"
+  )
+  await page.getByLabel("Tags", { exact: true }).fill("")
+  await page.getByRole("button", { name: "Save project defaults" }).click()
+  await expect(page.getByText("Project defaults saved")).toBeVisible()
+})

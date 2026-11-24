@@ -132,6 +132,7 @@ export const selectStep: JobHandler = async ({
       endMs: c.endMs,
       title: c.title,
       hook: c.hook,
+      description: c.description ?? c.hook,
       reason: fallbackReason
         ? `Claude unavailable (${fallbackReason}). ${c.reason}`
         : reviewFailure

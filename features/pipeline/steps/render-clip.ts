@@ -14,6 +14,7 @@ import type { JobHandler } from "../../jobs/worker-loop"
 import { OUTPUT_HEIGHT, OUTPUT_WIDTH, planLayout } from "../../layout/geometry"
 import { layoutRepository } from "../../layout/repository"
 import { assetRepository, projectRepository } from "../../projects/repository"
+import { publishingRepository } from "../../publishing/repository"
 import { estimateRenderBytes } from "../../render/disk"
 import { effectCommands, effectsGraph } from "../../render/effects-graph"
 import { runFfmpeg } from "../../render/ffmpeg-runner"
@@ -179,7 +180,10 @@ export const renderClipStep: JobHandler = async ({
     renderAssetId: asset.id,
     error: null,
   })
-  if (previous) {
+  if (
+    previous &&
+    !(await publishingRepository(db).assetInActiveUse(previous.id))
+  ) {
     await assets.delete(previous.id)
     await storage.remove(previous.storageKey)
   }

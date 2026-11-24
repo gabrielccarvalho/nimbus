@@ -13,7 +13,10 @@ import { fixtures } from "../../scripts/make-fixtures"
 import { runJobs, uploadFixture } from "../utils/pipeline"
 import { createTestEnv, type TestEnv } from "../utils/test-env"
 
-const review = vi.hoisted(() => ({ on: false }))
+const review = vi.hoisted(() => ({
+  on: false,
+  description: undefined as string | undefined,
+}))
 
 vi.mock("@/features/highlights", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/features/highlights")>()
@@ -33,6 +36,9 @@ vi.mock("@/features/highlights", async (importOriginal) => {
           review: async (candidates) =>
             candidates.map((c) => ({
               ...c,
+              ...(review.description
+                ? { description: review.description }
+                : {}),
               beats: [
                 { ms: c.startMs + 5000, kind: "reaction" as const },
                 { ms: c.endMs + 60_000, kind: "reaction" as const },
@@ -48,6 +54,7 @@ let env: TestEnv
 
 beforeEach(async () => {
   review.on = false
+  review.description = undefined
   env = await createTestEnv()
 })
 afterEach(() => env.cleanup())
@@ -72,6 +79,7 @@ describe("select step", () => {
       expect(clip.endMs - clip.startMs).toBeGreaterThanOrEqual(15_000)
       expect(clip.endMs).toBeLessThanOrEqual(20_100)
       expect(clip.reason).toMatch(/^Heuristic/)
+      expect(clip.description).toBe(clip.hook)
     }
   })
 
@@ -119,6 +127,9 @@ describe("select step", () => {
       'Sure! {"clips":[{"startMs":6000,"endMs":19500,"title":"The boss","hook":"Wait…","reason":"Reaction","score":0.9}]}'
     )
     expect(added).toBe(1)
+    expect(
+      (await clipRepository(env.db).listForProject(projectId))[0]!.description
+    ).toBe("Wait…")
     expect(
       (await projectRepository(env.db).getOrThrow(projectId))
         .awaitingManualSelection
@@ -168,6 +179,17 @@ describe("auto effects at selection", () => {
         expect(event.startMs).toBeGreaterThanOrEqual(clip.startMs)
         expect(event.endMs).toBeLessThanOrEqual(clip.endMs)
       }
+    }
+  })
+
+  it("stores a description from the selector instead of the hook", async () => {
+    review.description = "He lands the jump and the whole lobby loses it."
+    const projectId = await withReview(false)
+    const clips = await clipRepository(env.db).listForProject(projectId)
+    expect(clips.length).toBeGreaterThan(0)
+    for (const clip of clips) {
+      expect(clip.description).toBe(review.description)
+      expect(clip.description).not.toBe(clip.hook)
     }
   })
 

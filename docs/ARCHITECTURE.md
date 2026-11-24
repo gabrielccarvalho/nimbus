@@ -1,6 +1,6 @@
 # Architecture
 
-Nimbus is one Next.js app plus one long-running Node worker process. They share a Postgres database (Docker for local development) and a data directory on local disk. Nothing leaves the machine except optional calls to the Anthropic API.
+Nimbus is one Next.js app plus one long-running Node worker process. They share a Postgres database (Docker for local development) and a data directory on local disk. Nothing leaves the machine except optional calls to the Anthropic API and the Google (YouTube) APIs used for publishing and insights.
 
 ## System diagram
 

@@ -124,6 +124,28 @@ describe("visual review", () => {
     expect(unreviewed!.score).toBeCloseTo(0.6 * UNREVIEWED_PENALTY)
   })
 
+  it("keeps the first pass's description through the review", () => {
+    const [reviewed, unreviewed] = applyReviews(
+      [
+        { ...candidate(20_000, 40_000), description: "Claude wrote this." },
+        { ...candidate(60_000, 80_000), description: "And this." },
+      ],
+      [
+        {
+          id: 0,
+          startMs: 20_000,
+          endMs: 40_000,
+          title: "T",
+          hook: "H",
+          reason: "R",
+          score: 0.8,
+        },
+      ]
+    )
+    expect(reviewed!.description).toBe("Claude wrote this.")
+    expect(unreviewed!.description).toBe("And this.")
+  })
+
   it("leaves out the niche and names no language when it's auto", () => {
     const [intro] = buildReviewContent([], 0, {
       words: [],
