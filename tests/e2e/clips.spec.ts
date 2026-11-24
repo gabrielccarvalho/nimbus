@@ -53,7 +53,11 @@ test("reviews highlight candidates", async ({ page }) => {
   await page.reload()
   await expect(tiles.first()).toHaveAccessibleDescription(/Approved/)
 
-  await page.getByTitle(title).click()
+  // A hidden copy streamed in after the reload can briefly share the title.
+  await page
+    .getByRole("img", { name: "Clips in the recording" })
+    .getByTitle(title)
+    .click()
   await expect(page.getByRole("dialog", { name: title })).toBeVisible()
 })
 
