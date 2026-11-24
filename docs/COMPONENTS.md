@@ -205,6 +205,8 @@ App composites, not primitives; they read app data and routes.
 
 Projects home: `ImportCard` (a `clickable={false}` `Dropzone` holding the link form, Browse files and the per-import language and highlights overrides), `NeedsYouBanner` and `ProjectGrid` (filter pills from `projectFilter`, sort menu, 16:9 tiles, refreshes every 3 s while something is processing). Overview: `ProjectOverview` (the next-step card and the vertical `PipelineStepper` with per-step details and times from `stepDetails`/`stepTimes`), `SourcePreview`, and `AudioOverview` as "Where the clips are".
 
+Layout & captions: `LayoutModeOptions` (mode cards with a slot diagram; shared with the clip editor later), `CamPositionField` ("Webcam goes": On top / At the bottom), and `CaptionStyleFields` with preset cards that draw a sample in the preset's font and colours.
+
 `ProjectHeader` (`components/projects/`) is the project title, `StatusPill` from `projectSignal`, one-line meta, open source, the ⋯ menu (Project settings sheet, Delete) and the tabs: an amber dot on Layout while the layout waits, the clip count on Clips.
 
 ## Modified generated files
