@@ -59,6 +59,9 @@ const envSchema = z.object({
   NIMBUS_SECRET_KEY: z.string().min(32).optional(),
   GOOGLE_CLIENT_ID: z.string().min(1).optional(),
   GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
+  YOUTUBE_CLIENT: z.enum(["http", "fake"]).default("http"),
+  YOUTUBE_DAILY_QUOTA: z.coerce.number().int().positive().default(10_000),
+  YOUTUBE_DAILY_UPLOADS: z.coerce.number().int().positive().default(100),
   TWITCH_CLIENT_ID: z.string().min(1).optional(),
   TWITCH_CLIENT_SECRET: z.string().min(1).optional(),
 })
