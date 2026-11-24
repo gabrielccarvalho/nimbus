@@ -209,3 +209,28 @@ export function sampleCaptionWords(
   }
   return []
 }
+
+export function clipCaptionPages(
+  words: readonly Word[],
+  clip: {
+    startMs: number
+    endMs: number
+    captionOverrides?: {
+      pages?: readonly { index: number; text: string }[]
+    } | null
+  },
+  style: Pick<PagingOptions, "maxWordsPerPage" | "maxCharsPerLine">
+): CaptionPage[] {
+  return applyPageOverrides(
+    buildCaptionPages(
+      wordsInRange(words, clip.startMs, clip.endMs),
+      clip.endMs - clip.startMs,
+      {
+        maxWordsPerPage: style.maxWordsPerPage,
+        maxCharsPerLine: style.maxCharsPerLine,
+      }
+    ),
+    clip.captionOverrides?.pages ?? [],
+    { maxCharsPerLine: style.maxCharsPerLine, maxLines: 2 }
+  )
+}

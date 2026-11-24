@@ -1,5 +1,7 @@
 "use client"
 
+import * as React from "react"
+
 import {
   CaptionPreview,
   CaptionPreviewText,
@@ -16,6 +18,20 @@ import type { LayoutInput } from "@/features/layout/schema"
 
 import { VerticalPreviewCanvas } from "./vertical-preview"
 
+export function ClipLoop({
+  startMs,
+  endMs,
+}: {
+  startMs: number
+  endMs: number
+}) {
+  const { currentMs, paused, seek } = useVideoPlayer()
+  React.useEffect(() => {
+    if (currentMs < startMs - 250 || currentMs >= endMs) seek(startMs)
+  }, [currentMs, paused, startMs, endMs, seek])
+  return null
+}
+
 export function ClipPreview({
   layout,
   effects,
@@ -23,6 +39,7 @@ export function ClipPreview({
   startMs,
   captionStyle,
   captionsEnabled,
+  className,
 }: {
   layout: LayoutInput
   effects?: readonly Effect[]
@@ -30,10 +47,15 @@ export function ClipPreview({
   startMs: number
   captionStyle: CaptionStyle
   captionsEnabled: boolean
+  className?: string
 }) {
   const { currentMs } = useVideoPlayer()
   return (
-    <CaptionPreview role="img" aria-label="Vertical preview with captions">
+    <CaptionPreview
+      role="img"
+      aria-label="Vertical preview with captions"
+      className={className}
+    >
       <VerticalPreviewCanvas
         layout={layout}
         effects={effects}

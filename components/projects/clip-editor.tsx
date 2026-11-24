@@ -70,6 +70,7 @@ import { formatTimestamp } from "@/lib/format"
 
 import { CaptionStyleFields } from "./caption-style-fields"
 import { ClipEffectsCard, ClipEffectsPreview } from "./clip-effects"
+import { ClipLoop } from "./clip-preview"
 import { useProjectEvents } from "./use-project-events"
 import {
   CamPositionField,
@@ -96,14 +97,6 @@ type ClipEditorProps = {
 }
 
 const seconds = (ms: number) => (ms / 1000).toFixed(1)
-
-function ClipLoop({ startMs, endMs }: { startMs: number; endMs: number }) {
-  const { currentMs, paused, seek } = useVideoPlayer()
-  React.useEffect(() => {
-    if (currentMs < startMs - 250 || currentMs >= endMs) seek(startMs)
-  }, [currentMs, paused, startMs, endMs, seek])
-  return null
-}
 
 function TrimTimeline({
   windowStartMs,

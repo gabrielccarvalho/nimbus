@@ -8,8 +8,9 @@ import { mediaUrl, slugify } from "@/lib/format"
 
 import { normalizeLoudness } from "../analysis/loudness"
 import { signalsRepository } from "../analysis/repository"
-import { sampleCaptionWords } from "../captions/pages"
+import { clipCaptionPages, sampleCaptionWords } from "../captions/pages"
 import { speakerTranscriptWords } from "../captions/speaker"
+import { resolveCaptionStyle } from "../captions/styles"
 import { clipRepository } from "../clips/repository"
 import { NICHE_PROFILES, resolveNiche } from "../highlights/niches"
 import { buildManualPrompt } from "../highlights/prompt"
@@ -106,18 +107,19 @@ export async function getProjectClips(id: string) {
   const db = getDb()
   const project = await projectRepository(db).get(id)
   if (!project) return undefined
-  const [assets, clips, audio, layout, snapshot] = await Promise.all([
-    assetRepository(db).listForProject(id),
-    clipRepository(db).listForProject(id),
-    audioSummary(db, project),
-    layoutRepository(db).get(id),
-    getProjectSnapshot(db, id),
-  ])
+  const [assets, clips, audio, layout, transcript, snapshot] =
+    await Promise.all([
+      assetRepository(db).listForProject(id),
+      clipRepository(db).listForProject(id),
+      audioSummary(db, project),
+      layoutRepository(db).get(id),
+      transcriptRepository(db).get(id),
+      getProjectSnapshot(db, id),
+    ])
   const source = assets.find((a) => a.kind === "source")
   const durationMs = source?.durationMs ?? 0
   let manualPrompt: string | undefined
   if (project.awaitingManualSelection) {
-    const transcript = await transcriptRepository(db).get(id)
     const signals = await signalsRepository(db).get(id)
     manualPrompt = buildManualPrompt({
       durationMs,
@@ -159,10 +161,20 @@ export async function getProjectClips(id: string) {
         : []
     })
   )
+  const words = speakerTranscriptWords(transcript)
+  const captions = Object.fromEntries(
+    clips.map((clip) => {
+      const style = resolveCaptionStyle(
+        clip.captionOverrides?.style ?? project.settings.captionStyle
+      )
+      return [clip.id, { pages: clipCaptionPages(words, clip, style), style }]
+    })
+  )
   const edit = assets.find((a) => a.kind === "edit")
   return {
     project,
     clips,
+    captions,
     durationMs,
     video: assets.find((a) => a.kind === "proxy") ?? source,
     audio,
@@ -177,6 +189,15 @@ export async function getProjectClips(id: string) {
           durationMs: edit.durationMs ?? 0,
         }
       : undefined,
+    layout: layout
+      ? {
+          webcamRect: layout.webcamRect,
+          gameplayRect: layout.gameplayRect,
+          gameplayFocusX: layout.gameplayFocusX,
+          mode: layout.mode,
+          camPosition: layout.camPosition,
+        }
+      : null,
     layoutConfirmed: Boolean(layout?.confirmedByUser),
     snapshot: snapshot!,
   }

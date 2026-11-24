@@ -7,11 +7,7 @@ import { getStorage, storageKeys } from "@/lib/storage"
 import { assertDiskSpace } from "@/lib/storage/disk"
 
 import { buildAss } from "../../captions/ass"
-import {
-  applyPageOverrides,
-  buildCaptionPages,
-  wordsInRange,
-} from "../../captions/pages"
+import { clipCaptionPages } from "../../captions/pages"
 import { captionBaseline, resolveCaptionStyle } from "../../captions/styles"
 import { clipRepository } from "../../clips/repository"
 import type { JobHandler } from "../../jobs/worker-loop"
@@ -83,18 +79,10 @@ export const renderClipStep: JobHandler = async ({
     const style = resolveCaptionStyle(
       clip.captionOverrides?.style ?? project.settings.captionStyle
     )
-    const words = wordsInRange(
+    const pages = clipCaptionPages(
       speakerTranscriptWords(await transcriptRepository(db).get(project.id)),
-      clip.startMs,
-      clip.endMs
-    )
-    const pages = applyPageOverrides(
-      buildCaptionPages(words, durationMs, {
-        maxWordsPerPage: style.maxWordsPerPage,
-        maxCharsPerLine: style.maxCharsPerLine,
-      }),
-      clip.captionOverrides?.pages ?? [],
-      { maxCharsPerLine: style.maxCharsPerLine, maxLines: 2 }
+      clip,
+      style
     )
     await storage.writeBuffer(
       workKey("ass"),
