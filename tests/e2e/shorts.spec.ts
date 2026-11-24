@@ -32,13 +32,17 @@ test("turns a 4:3 recording into a full-screen short", async ({ page }) => {
   await page.getByRole("link", { name: "Clips" }).click()
   await page.getByRole("button", { name: /Approve all/ }).click()
   const first = page
-    .getByRole("list", { name: "Clip candidates" })
-    .getByRole("listitem")
+    .getByRole("list", { name: "Clips" })
+    .getByRole("button")
     .first()
-  await expect(first).toContainText("Approved")
+  await expect(first).toHaveAccessibleDescription(/Approved/)
   await page.getByRole("button", { name: "Render approved clips" }).click()
-  await expect(first).toContainText("Rendered", { timeout: 120_000 })
-  const href = await first
+  await expect(first).toHaveAccessibleDescription(/Rendered/, {
+    timeout: 120_000,
+  })
+  await first.click()
+  const href = await page
+    .getByRole("dialog")
     .getByRole("link", { name: /Download/ })
     .getAttribute("href")
   const clip = await page.request.get(href!)
