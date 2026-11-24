@@ -50,6 +50,7 @@ import {
   wordsInRange,
 } from "@/features/captions/pages"
 import {
+  placeCaption,
   resolveCaptionStyle,
   type CaptionFontId,
 } from "@/features/captions/styles"
@@ -520,6 +521,9 @@ export function ClipEditor({
                 startMs={startMs}
                 captionStyle={style}
                 captionsEnabled={settings.captionsEnabled}
+                onBaselineChange={(baseline) =>
+                  setStyleRef((current) => placeCaption(current, baseline))
+                }
               />
               <div className="grid content-start justify-items-start gap-2.5">
                 <span className="mono-label">Output</span>

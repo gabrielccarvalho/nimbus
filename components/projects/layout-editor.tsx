@@ -30,6 +30,7 @@ import {
 import { buildCaptionPages, type CaptionWord } from "@/features/captions/pages"
 import {
   captionBaseline,
+  placeCaption,
   cssCaptionStyle,
   resolveCaptionStyle,
   type CaptionFontId,
@@ -215,11 +216,13 @@ function LayoutPreview({
   captionStyle,
   captionsEnabled,
   sample,
+  onCaptionStyleChange,
 }: {
   layout: LayoutInput
   captionStyle: CaptionStyleRef
   captionsEnabled: boolean
   sample: CaptionWord[]
+  onCaptionStyleChange: (captionStyle: CaptionStyleRef) => void
 }) {
   const style = resolveCaptionStyle(captionStyle)
   const words = sample.length > 0 ? sample : FALLBACK_SAMPLE
@@ -231,7 +234,7 @@ function LayoutPreview({
   const currentMs = useLoopMs(durationMs)
   return (
     <CaptionPreview
-      role="img"
+      role={captionsEnabled ? "group" : "img"}
       aria-label="Vertical preview"
       className="max-w-[300px] rounded-[26px] shadow-[inset_0_0_0_1px_rgb(255_255_255/0.1),0_40px_90px_-30px_rgb(0_0_0/0.9)]"
     >
@@ -247,6 +250,10 @@ function LayoutPreview({
           currentMs={currentMs}
           captionStyle={cssCaptionStyle(style)}
           baseline={captionBaseline(style, layout)}
+          onBaselineChange={(baseline) =>
+            onCaptionStyleChange(placeCaption(captionStyle, baseline))
+          }
+          aria-label="Caption position"
         />
       )}
     </CaptionPreview>
@@ -533,6 +540,7 @@ export function LayoutEditor({
               captionStyle={captionStyle}
               captionsEnabled={settings.captionsEnabled}
               sample={captionSample}
+              onCaptionStyleChange={setCaptionStyle}
             />
           </div>
           <p className="max-w-[280px] text-center text-[13px] text-tertiary">

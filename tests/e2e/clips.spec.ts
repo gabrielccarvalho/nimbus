@@ -198,3 +198,25 @@ test("moves the gameplay box in the clip editor", async ({ page }) => {
   await page.getByRole("tab", { name: "Layout" }).click()
   await expect(page.getByText("This clip has its own layout.")).toBeVisible()
 })
+
+test("places this clip's captions by hand", async ({ page }) => {
+  const tiles = await uploadAndOpenClips(page, { confirmLayout: true })
+  await tiles.first().click()
+  await page.getByRole("dialog").getByRole("link", { name: /Edit/ }).click()
+  await expect(page.getByLabel("Title")).toBeVisible()
+
+  const caption = page.getByRole("slider", { name: "Caption position" })
+  await caption.focus()
+  const before = Number(await caption.getAttribute("aria-valuenow"))
+  await page.keyboard.press("Shift+ArrowUp")
+  await expect(caption).toHaveAttribute("aria-valuenow", String(before - 5))
+  await expect(page.getByTestId("save-state")).toHaveText("Saved")
+  await page.reload()
+  await expect(caption).toHaveAttribute("aria-valuenow", String(before - 5))
+  await page.getByRole("tab", { name: "Captions" }).click()
+  await expect(
+    page
+      .getByRole("group", { name: "Position", exact: true })
+      .getByRole("button", { name: "Custom" })
+  ).toHaveAttribute("aria-pressed", "true")
+})

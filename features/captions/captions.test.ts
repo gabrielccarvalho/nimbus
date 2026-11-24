@@ -18,6 +18,7 @@ import {
 import {
   assColor,
   captionBaseline,
+  placeCaption,
   oklchToRgb,
   resolveCaptionStyle,
 } from "./styles"
@@ -248,6 +249,29 @@ describe("styles", () => {
     expect(
       resolveCaptionStyle(defaultProjectSettings.captionStyle)
     ).toMatchObject({ id: "clean", position: "middle", maxWordsPerPage: 3 })
+  })
+
+  it("places captions at a dragged height, clamped and rounded", () => {
+    const ref = { presetId: "punch", overrides: { font: "nunito" } }
+    const placed = placeCaption(ref, 0.4321)
+    expect(placed.overrides).toEqual({
+      font: "nunito",
+      position: "custom",
+      positionY: 0.43,
+    })
+    const style = resolveCaptionStyle(placed)
+    expect(captionBaseline(style, { mode: "cam-top" })).toBe(0.43)
+    expect(
+      captionBaseline(style, { mode: "cam-top", camPosition: "bottom" })
+    ).toBe(0.43)
+    expect(placeCaption(ref, -1).overrides.positionY).toBe(0.1)
+    expect(placeCaption(ref, 2).overrides.positionY).toBe(0.95)
+    expect(
+      resolveCaptionStyle({
+        presetId: "punch",
+        overrides: { position: "custom", positionY: 3 },
+      }).positionY
+    ).toBe(0.72)
   })
 
   it("keeps auto captions on the gameplay when the camera is at the bottom", () => {

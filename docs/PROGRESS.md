@@ -290,6 +290,7 @@ Spec: Claude Design handoff (`~/Downloads/nimbus-redesign-handoff/design/`). Aut
 - [x] Profile photo and workspace logo (ADR-0062)
 - [x] Connected channels with their logos and no per-row blurb; sessions as a list with Sign out on each. Session tokens no longer reach the browser: sessions are revoked by id on the server
 - [x] Settings under the workspace: General (name, logo, Claude key), Plan & usage, Project defaults, Captions (font, position, preview), Rendering (ADR-0063)
+- [x] Drag captions to a custom height in every preview, keyboard accessible (ADR-0064)
 - [x] Admin plan: accounts on `@nimbus.dev` get a workspace on the Admin plan with no limits (ADR-0061); migration 0010 moves existing ones over
 
 ### Not verified

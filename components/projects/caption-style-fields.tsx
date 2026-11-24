@@ -32,7 +32,10 @@ const CAPTION_POSITIONS = [
   { value: "top", label: "Top" },
   { value: "middle", label: "Middle" },
   { value: "bottom", label: "Bottom" },
+  { value: "custom", label: "Custom" },
 ] as const
+
+const PLACEMENT_KEYS = new Set(["position", "positionY"])
 
 const fontItems = CAPTION_FONT_IDS.map((font) => ({
   value: font,
@@ -106,10 +109,11 @@ export function CaptionStyleFields({
             if (!next[0]) return
             onValueChange({
               presetId: next[0],
-              overrides:
-                value.overrides?.position === undefined
-                  ? {}
-                  : { position: value.overrides.position },
+              overrides: Object.fromEntries(
+                Object.entries(value.overrides ?? {}).filter(([key]) =>
+                  PLACEMENT_KEYS.has(key)
+                )
+              ),
             })
           }}
           className="grid w-full grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-2"
@@ -179,11 +183,18 @@ export function CaptionStyleFields({
             }}
           >
             {CAPTION_POSITIONS.map((position) => (
-              <ToggleGroupItem key={position.value} value={position.value}>
+              <ToggleGroupItem
+                key={position.value}
+                value={position.value}
+                className="aria-pressed:bg-lav/15 aria-pressed:text-lav aria-pressed:inset-ring-1 aria-pressed:inset-ring-lav/50"
+              >
                 {position.label}
               </ToggleGroupItem>
             ))}
           </ToggleGroup>
+          <p className="text-[13px] text-tertiary">
+            Or drag the caption in the preview.
+          </p>
         </div>
         <div className="flex flex-col gap-2">
           <Label id={`${id}-size`}>Size</Label>
