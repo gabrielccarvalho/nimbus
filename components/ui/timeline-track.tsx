@@ -80,6 +80,8 @@ function TimelineBlock({
   children,
   onPointerDown,
   onPointerMove,
+  onPointerUp,
+  onPointerCancel,
   onKeyDown,
   ...props
 }: Omit<React.ComponentProps<"div">, "onChange" | "onSelect"> &
@@ -167,10 +169,12 @@ function TimelineBlock({
           resizeEnd(current.startMs, current.endMs + delta)
         }
       }}
-      onPointerUp={() => {
+      onPointerUp={(event) => {
+        onPointerUp?.(event)
         drag.current = null
       }}
-      onPointerCancel={() => {
+      onPointerCancel={(event) => {
+        onPointerCancel?.(event)
         drag.current = null
       }}
       onKeyDown={(event) => {

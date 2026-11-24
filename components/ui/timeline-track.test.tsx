@@ -86,6 +86,21 @@ describe("TimelineTrack", () => {
     expect(onDelete).toHaveBeenCalledTimes(2)
   })
 
+  it("ignores Delete without onDelete and does not prevent default", () => {
+    const { block } = setup({ onDelete: undefined })
+    expect(fireEvent.keyDown(block, { key: "Delete" })).toBe(true)
+  })
+
+  it("pointercancel ends a drag", () => {
+    const onPointerCancel = vi.fn()
+    const { block, onChange } = setup({ onPointerCancel })
+    fireEvent.pointerDown(block, { button: 0, clientX: 300 })
+    fireEvent.pointerCancel(block)
+    fireEvent.pointerMove(block, { clientX: 400 })
+    expect(onChange).not.toHaveBeenCalled()
+    expect(onPointerCancel).toHaveBeenCalled()
+  })
+
   it("exposes selection and selects on pointer down", () => {
     const onSelect = vi.fn()
     const { block } = setup({ selected: true, onSelect })
