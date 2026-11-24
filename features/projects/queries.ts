@@ -290,12 +290,18 @@ export async function getClipEditor(projectId: string, clipId: string) {
     clipRepository(db).get(clipId),
   ])
   if (!project || !clip || clip.projectId !== project.id) return undefined
-  const [assets, layout, transcript, snapshot] = await Promise.all([
+  const [assets, layout, transcript, snapshot, clips] = await Promise.all([
     assetRepository(db).listForProject(projectId),
     layoutRepository(db).get(projectId),
     transcriptRepository(db).get(projectId),
     getProjectSnapshot(db, projectId),
+    clipRepository(db).listForProject(projectId),
   ])
+  const order = clips
+    .filter((c) => c.status !== "rejected" || c.id === clip.id)
+    .toSorted((a, b) => b.score - a.score)
+    .map((c) => c.id)
+  const position = order.indexOf(clip.id)
   const source = assets.find((a) => a.kind === "source")
   const video = assets.find((a) => a.kind === "proxy") ?? source
   const render = clip.renderAssetId
@@ -308,6 +314,12 @@ export async function getClipEditor(projectId: string, clipId: string) {
     video,
     layout,
     words: speakerTranscriptWords(transcript),
+    siblings: {
+      index: position,
+      count: order.length,
+      previousId: order[position - 1] ?? null,
+      nextId: order[position + 1] ?? null,
+    },
     render: render
       ? {
           url: mediaUrl(render.storageKey),

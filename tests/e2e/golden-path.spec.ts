@@ -65,12 +65,9 @@ test("upload, confirm layout, render, download and edit a clip", async ({
   await expect(
     page.getByRole("img", { name: "Vertical preview with captions" })
   ).toBeVisible()
-  await expect(page.getByRole("list", { name: "Caption text" })).toBeVisible()
+  const saveState = page.getByTestId("save-state")
   await page.getByLabel("Title").fill("My best moment")
-  await page
-    .getByLabel("Caption 1", { exact: false })
-    .first()
-    .fill("Edited caption")
+  await page.getByRole("tab", { name: "Layout" }).click()
   const layoutMode = page.getByRole("group", { name: "Mode" })
   await layoutMode.getByRole("button", { name: /^Even split/ }).click()
   await expect(page.getByText("This clip has its own layout.")).toBeVisible()
@@ -79,22 +76,29 @@ test("upload, confirm layout, render, download and edit a clip", async ({
     .getByRole("group", { name: "Webcam goes" })
     .getByRole("button", { name: "At the bottom" })
     .click()
+  await page.getByRole("tab", { name: "Captions" }).click()
+  await expect(page.getByRole("list", { name: "Caption text" })).toBeVisible()
+  await page
+    .getByLabel("Caption 1", { exact: false })
+    .first()
+    .fill("Edited caption")
   await page
     .getByRole("group", { name: "Position", exact: true })
     .getByRole("button", { name: "Top" })
     .click()
-  await page.getByRole("button", { name: "Save", exact: true }).click()
-  await expect(page.getByText("Clip saved")).toBeVisible()
+  await expect(saveState).toHaveText("Saved")
   await page.reload()
-  await expect(
-    page
-      .getByRole("group", { name: "Webcam goes" })
-      .getByRole("button", { name: "At the bottom" })
-  ).toHaveAttribute("aria-pressed", "true")
+  await page.getByRole("tab", { name: "Captions" }).click()
   await expect(
     page
       .getByRole("group", { name: "Position", exact: true })
       .getByRole("button", { name: "Top" })
+  ).toHaveAttribute("aria-pressed", "true")
+  await page.getByRole("tab", { name: "Layout" }).click()
+  await expect(
+    page
+      .getByRole("group", { name: "Webcam goes" })
+      .getByRole("button", { name: "At the bottom" })
   ).toHaveAttribute("aria-pressed", "true")
   await expect(
     page.getByRole("button", { name: "Use project layout" })

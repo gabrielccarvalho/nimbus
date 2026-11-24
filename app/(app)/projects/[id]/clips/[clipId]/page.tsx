@@ -26,7 +26,6 @@ export default async function ClipEditorPage({
   return (
     <>
       <BreadcrumbLabel segment={clip.id} label={clip.title} />
-      <h2 className="font-heading text-lg font-medium">{clip.title}</h2>
       <ClipEditor
         key={clip.updatedAt.getTime()}
         projectId={project.id}
@@ -50,6 +49,7 @@ export default async function ClipEditorPage({
         installedFonts={installedCaptionFonts()}
         render={data.render}
         snapshot={data.snapshot}
+        siblings={data.siblings}
       />
     </>
   )

@@ -27,7 +27,7 @@ export default async function TranscriptPage({
 
   if (!transcript || !video) {
     return (
-      <Empty className="border">
+      <Empty className="rounded-[18px] bg-graphite">
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <TextAlignLeftIcon />
