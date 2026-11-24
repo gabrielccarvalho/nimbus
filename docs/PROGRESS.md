@@ -284,7 +284,7 @@ Spec: Claude Design handoff (`~/Downloads/nimbus-redesign-handoff/design/`). Aut
 - [x] 4. Projects home (one import card with overrides, needs-you banner, filtered grid), then Overview (one-line meta, paused-pipeline action card, stepper). The proxy no longer sees uploads (it truncated bodies past 10 MB, ADR-0059)
 - [x] 5. Layout & captions at `/projects/[id]/layout` with the live 9:16 preview: source frame card with Detect again and jump-to points across the recording, mode cards, caption style cards with a sample, sticky preview with the confirm action
 - [x] 6. Clips review: export bar (approve all, render approved, horizontal edit in the ⋯ menu), To review / Approved / Rejected filters with counts, best-first or in-order sort, 9:16 tiles with inline approve and reject, A / X on a focused tile and ←/→ between tiles. Clip editor: toolbar with previous/next clip and approve/reject, trim card, output panel with Render this clip, Details / Layout / Captions inspector tabs, autosave (ADR-0060)
-- [ ] 7. Transcript (search, follow playback, grouped by clip, make a clip)
+- [x] 7. Transcript: player card with playback speed and clip ranges on the waveform, the spoken line over the video, search, follow playback, lines headed by the clip they start, click and shift-click to select lines, then Make a clip (`createClipAction`, a new candidate titled from its words) opens it in the editor
 - [ ] 8. Settings (profile, plan and usage, channels, security, defaults, rendering); project settings move to a sheet in ProjectHeader's menu
 
 ### Not verified

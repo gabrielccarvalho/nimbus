@@ -4,6 +4,7 @@ import { GET as exportZip } from "@/app/api/projects/[id]/export/route"
 import { clipRepository } from "@/features/clips/repository"
 import {
   approveAllCandidates,
+  createClipFromRange,
   planClipEffects,
   setClipReviewStatus,
   updateClip,
@@ -63,6 +64,33 @@ const request = (projectId: string) =>
   exportZip(new Request(`http://local/api/projects/${projectId}/export`), {
     params: Promise.resolve({ id: projectId }),
   })
+
+describe("createClipFromRange", () => {
+  it("adds a candidate titled from what was said", async () => {
+    const { projectId } = await reviewedProject()
+    const before = await clipRepository(env.db).listForProject(projectId)
+    const clip = await createClipFromRange(env.db, projectId, {
+      startMs: 8000,
+      endMs: 14_000,
+    })
+    expect(clip.status).toBe("candidate")
+    expect(clip.title).toMatch(/^No way!/)
+    expect(clip.reason).toBe("Made from the transcript")
+    expect(await clipRepository(env.db).listForProject(projectId)).toHaveLength(
+      before.length + 1
+    )
+  })
+
+  it("rejects ranges outside the recording or the length limits", async () => {
+    const { projectId } = await reviewedProject()
+    await expect(
+      createClipFromRange(env.db, projectId, { startMs: 1000, endMs: 2000 })
+    ).rejects.toThrow(/between 3 and 180 seconds/)
+    await expect(
+      createClipFromRange(env.db, projectId, { startMs: 15_000, endMs: 25_000 })
+    ).rejects.toThrow(/inside the recording/)
+  })
+})
 
 describe("updateClip", () => {
   it("saves a layout for one clip and can go back to the project's", async () => {

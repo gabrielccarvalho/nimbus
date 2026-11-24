@@ -1,10 +1,13 @@
 "use client"
 
-import { MagnifyingGlassIcon } from "@phosphor-icons/react"
+import { FilmSlateIcon, MagnifyingGlassIcon } from "@phosphor-icons/react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
 import * as React from "react"
+import { toast } from "sonner"
 
-import { AudioTimelineLayers } from "./audio-timeline"
-
+import { languageLabel } from "@/components/settings/settings-fields"
+import { Button } from "@/components/ui/button"
 import {
   InputGroup,
   InputGroupAddon,
@@ -12,7 +15,12 @@ import {
 } from "@/components/ui/input-group"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { Timeline, TimelinePlayhead } from "@/components/ui/timeline"
+import {
+  Timeline,
+  TimelinePlayhead,
+  TimelineRange,
+} from "@/components/ui/timeline"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
   useVideoPlayer,
   VideoPlayer,
@@ -24,35 +32,56 @@ import {
   VideoPlayerTime,
   VideoPlayerVideo,
 } from "@/components/ui/video-player"
+import { createClipAction } from "@/features/clips/actions"
+import { CLIP_MAX_EDIT_MS, CLIP_MIN_EDIT_MS } from "@/features/clips/schema"
 import type { AudioSummary } from "@/features/projects/queries"
 import { findActiveIndex } from "@/features/transcription/lookup"
 import type { Segment, Word } from "@/features/transcription/schema"
 import { formatTimestamp } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
+import { AudioTimelineLayers } from "./audio-timeline"
+
+export type TranscriptClip = {
+  id: string
+  title: string
+  startMs: number
+  endMs: number
+}
+
 type TranscriptViewProps = {
+  projectId: string
   src: string
   poster?: string
   durationMs: number
   words: Word[]
   segments: Segment[]
+  language: string
+  clips: TranscriptClip[]
   audio?: AudioSummary
 }
 
+const SPEEDS = ["0.75", "1", "1.5"]
+const count = new Intl.NumberFormat("en")
+
 export function TranscriptView({
+  projectId,
   src,
   poster,
   durationMs,
   words,
   segments,
+  language,
+  clips,
   audio,
 }: TranscriptViewProps) {
   return (
     <VideoPlayerProvider>
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
-        <div className="flex min-w-0 flex-col gap-3 lg:sticky lg:top-4 lg:self-start">
-          <VideoPlayer aria-label="Source video">
+      <div className="flex flex-wrap items-start gap-[22px]">
+        <div className="grid min-w-0 flex-[999_1_520px] gap-3.5 lg:sticky lg:top-4">
+          <VideoPlayer aria-label="Source video" className="rounded-[18px]">
             <VideoPlayerVideo src={src} poster={poster} />
+            <SpokenLine segments={segments} />
             <VideoPlayerControls>
               <VideoPlayerPlayButton />
               <VideoPlayerSeekBar />
@@ -60,45 +89,117 @@ export function TranscriptView({
               <VideoPlayerMuteButton />
             </VideoPlayerControls>
           </VideoPlayer>
-          {audio && <PlayerTimeline durationMs={durationMs} audio={audio} />}
+          <PlayerCard durationMs={durationMs} audio={audio} clips={clips} />
         </div>
-        <TranscriptPanel words={words} segments={segments} />
+        <TranscriptPanel
+          projectId={projectId}
+          words={words}
+          segments={segments}
+          language={language}
+          clips={clips}
+        />
       </div>
     </VideoPlayerProvider>
   )
 }
 
-function PlayerTimeline({
+function SpokenLine({ segments }: { segments: Segment[] }) {
+  const { currentMs } = useVideoPlayer()
+  const segment = segments[findActiveIndex(segments, currentMs)]
+  if (!segment) return null
+  return (
+    <p
+      aria-hidden
+      className="pointer-events-none absolute inset-x-[12%] bottom-[18%] text-center text-lg font-medium text-balance text-white [text-shadow:0_1px_8px_rgb(0_0_0/0.8)]"
+    >
+      {segment.text}
+    </p>
+  )
+}
+
+function PlayerCard({
   durationMs,
   audio,
+  clips,
 }: {
   durationMs: number
-  audio: AudioSummary
+  audio?: AudioSummary
+  clips: TranscriptClip[]
 }) {
-  const { currentMs, seek } = useVideoPlayer()
+  const { currentMs, seek, videoRef } = useVideoPlayer()
+  const [speed, setSpeed] = React.useState("1")
   return (
-    <Timeline
-      aria-label="Timeline"
-      durationMs={durationMs}
-      value={currentMs}
-      onValueChange={seek}
-    >
-      <AudioTimelineLayers audio={audio} />
-      <TimelinePlayhead />
-    </Timeline>
+    <div className="grid gap-2.5 rounded-[18px] bg-graphite px-4 py-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-2.5">
+        <span className="font-mono text-[13px] tabular-nums">
+          {formatTimestamp(currentMs)}{" "}
+          <span className="text-tertiary">/ {formatTimestamp(durationMs)}</span>
+        </span>
+        <ToggleGroup
+          aria-label="Playback speed"
+          size="sm"
+          value={[speed]}
+          onValueChange={(value) => {
+            const next = value[0]
+            if (!next) return
+            setSpeed(next)
+            if (videoRef.current) videoRef.current.playbackRate = Number(next)
+          }}
+        >
+          {SPEEDS.map((value) => (
+            <ToggleGroupItem key={value} value={value}>
+              {value}×
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      </div>
+      <Timeline
+        aria-label="Timeline"
+        durationMs={durationMs}
+        value={currentMs}
+        onValueChange={seek}
+      >
+        {audio && <AudioTimelineLayers audio={audio} />}
+        {clips.map((clip) => (
+          <TimelineRange
+            key={clip.id}
+            startMs={clip.startMs}
+            endMs={clip.endMs}
+            title={clip.title}
+          />
+        ))}
+        <TimelinePlayhead />
+      </Timeline>
+      <p className="text-[13px] text-tertiary">
+        Lavender ranges are clips. Select lines in the transcript to make a new
+        one.
+      </p>
+    </div>
   )
 }
 
 function TranscriptPanel({
+  projectId,
   words,
   segments,
+  language,
+  clips,
 }: {
+  projectId: string
   words: Word[]
   segments: Segment[]
+  language: string
+  clips: TranscriptClip[]
 }) {
+  const router = useRouter()
   const { currentMs, seek } = useVideoPlayer()
   const [query, setQuery] = React.useState("")
   const [follow, setFollow] = React.useState(true)
+  const [selection, setSelection] = React.useState<{
+    anchor: number
+    focus: number
+  } | null>(null)
+  const [pending, startTransition] = React.useTransition()
   const activeWord = findActiveIndex(words, currentMs)
   const activeSegment = findActiveIndex(segments, currentMs)
   const listRef = React.useRef<HTMLOListElement>(null)
@@ -114,6 +215,14 @@ function TranscriptPanel({
         ),
     [segments, needle]
   )
+  const clipStarts = React.useMemo(() => {
+    const starts = new Map<number, TranscriptClip>()
+    for (const clip of clips.toSorted((a, b) => a.startMs - b.startMs)) {
+      const index = segments.findIndex((s) => s.endMs > clip.startMs)
+      if (index >= 0 && !starts.has(index)) starts.set(index, clip)
+    }
+    return starts
+  }, [clips, segments])
 
   React.useEffect(() => {
     if (!follow || activeSegment === -1) return
@@ -122,56 +231,145 @@ function TranscriptPanel({
       ?.scrollIntoView({ block: "nearest", behavior: "smooth" })
   }, [follow, activeSegment])
 
+  const first = selection ? Math.min(selection.anchor, selection.focus) : -1
+  const last = selection ? Math.max(selection.anchor, selection.focus) : -1
+  const range = selection && {
+    startMs: segments[first]!.startMs,
+    endMs: segments[last]!.endMs,
+  }
+  const length = range ? range.endMs - range.startMs : 0
+  const fits = length >= CLIP_MIN_EDIT_MS && length <= CLIP_MAX_EDIT_MS
+  const selectionLabel = !range
+    ? "Click a line, then shift-click another to select a range."
+    : `${last - first + 1} ${last === first ? "line" : "lines"} · ${formatTimestamp(range.startMs)} → ${formatTimestamp(range.endMs)}${
+        fits
+          ? ""
+          : length < CLIP_MIN_EDIT_MS
+            ? ` · at least ${CLIP_MIN_EDIT_MS / 1000} s needed`
+            : ` · at most ${CLIP_MAX_EDIT_MS / 1000} s`
+      }`
+
+  const pick = React.useCallback(
+    (index: number, extend: boolean) => {
+      setSelection((current) =>
+        extend && current
+          ? { anchor: current.anchor, focus: index }
+          : { anchor: index, focus: index }
+      )
+      seek(segments[index]!.startMs)
+    },
+    [seek, segments]
+  )
+
+  const makeClip = () =>
+    range &&
+    startTransition(async () => {
+      const result = await createClipAction(projectId, range)
+      if (!result.ok) {
+        toast.error(result.error.message)
+        return
+      }
+      toast.success("Clip added")
+      router.push(`/projects/${projectId}/clips/${result.value.clipId}`)
+    })
+
   return (
-    <section aria-label="Transcript" className="flex min-w-0 flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-3">
-        <InputGroup className="min-w-48 flex-1">
-          <InputGroupAddon>
+    <section
+      aria-label="Transcript"
+      className="grid max-h-[820px] min-w-0 flex-[1_1_380px] grid-rows-[auto_minmax(0,1fr)_auto] rounded-[18px] bg-graphite"
+    >
+      <div className="grid gap-3 px-4 pt-4 pb-3 shadow-[inset_0_-1px_0_var(--hair)]">
+        <InputGroup className="rounded-full">
+          <InputGroupAddon className="ps-3">
             <MagnifyingGlassIcon aria-hidden />
           </InputGroupAddon>
           <InputGroupInput
             type="search"
             aria-label="Search transcript"
-            placeholder="Search transcript"
+            placeholder={`Search ${count.format(words.length)} words`}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
         </InputGroup>
-        <div className="flex items-center gap-2">
-          <Switch
-            id="follow-playback"
-            checked={follow}
-            onCheckedChange={setFollow}
-          />
-          <Label htmlFor="follow-playback">Follow playback</Label>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="mono-label text-tertiary" aria-live="polite">
+            {needle
+              ? `${visible.length} of ${segments.length} lines match`
+              : `${count.format(segments.length)} lines · ${count.format(words.length)} words · ${languageLabel(language)}`}
+          </span>
+          <div className="flex items-center gap-2">
+            <Label
+              htmlFor="follow-playback"
+              className="text-[13px] font-normal text-muted-foreground"
+            >
+              Follow playback
+            </Label>
+            <Switch
+              id="follow-playback"
+              checked={follow}
+              onCheckedChange={setFollow}
+            />
+          </div>
         </div>
       </div>
-      <p className="text-xs text-muted-foreground" aria-live="polite">
-        {needle
-          ? `${visible.length} of ${segments.length} lines match`
-          : `${segments.length} lines · ${words.length} words`}
-      </p>
       <ol
         ref={listRef}
-        className="flex max-h-[70vh] flex-col gap-1 overflow-y-auto rounded-xl border p-2"
+        className="grid content-start gap-0.5 overflow-y-auto p-2"
       >
-        {visible.map(({ segment, index }) => (
-          <TranscriptSegment
-            key={index}
-            index={index}
-            segment={segment}
-            words={words}
-            active={index === activeSegment}
-            activeWord={index === activeSegment ? activeWord : -1}
-            onSeek={seek}
-          />
-        ))}
+        {visible.map(({ segment, index }) => {
+          const clip = needle ? undefined : clipStarts.get(index)
+          return (
+            <React.Fragment key={index}>
+              {clip && (
+                <li className="mx-2 mt-2.5 mb-1">
+                  <Link
+                    href={`/projects/${projectId}/clips/${clip.id}`}
+                    className="inline-flex items-center gap-2 text-[12.5px] font-semibold text-lav hover:underline"
+                  >
+                    <FilmSlateIcon className="size-3.5" aria-hidden />
+                    {clip.title}
+                  </Link>
+                </li>
+              )}
+              <TranscriptSegment
+                index={index}
+                segment={segment}
+                words={words}
+                active={index === activeSegment}
+                activeWord={index === activeSegment ? activeWord : -1}
+                selected={index >= first && index <= last}
+                onPick={pick}
+                onSeek={seek}
+              />
+            </React.Fragment>
+          )
+        })}
         {visible.length === 0 && (
           <li className="p-4 text-center text-sm text-muted-foreground">
             No lines match “{query.trim()}”.
           </li>
         )}
       </ol>
+      <div className="flex flex-wrap items-center gap-2.5 px-4 py-3 shadow-[inset_0_1px_0_var(--hair)]">
+        <span
+          className="min-w-0 flex-1 text-[13px] text-muted-foreground"
+          aria-live="polite"
+        >
+          {selectionLabel}
+        </span>
+        {selection && (
+          <Button size="sm" variant="ghost" onClick={() => setSelection(null)}>
+            Clear
+          </Button>
+        )}
+        <Button
+          size="sm"
+          disabled={!range || !fits || pending}
+          onClick={makeClip}
+        >
+          Make a clip
+        </Button>
+      </div>
     </section>
   )
 }
@@ -182,6 +380,8 @@ const TranscriptSegment = React.memo(function TranscriptSegment({
   words,
   active,
   activeWord,
+  selected,
+  onPick,
   onSeek,
 }: {
   index: number
@@ -189,6 +389,8 @@ const TranscriptSegment = React.memo(function TranscriptSegment({
   words: Word[]
   active: boolean
   activeWord: number
+  selected: boolean
+  onPick: (index: number, extend: boolean) => void
   onSeek: (ms: number) => void
 }) {
   const segmentWords = words.slice(segment.firstWord, segment.lastWord + 1)
@@ -196,19 +398,25 @@ const TranscriptSegment = React.memo(function TranscriptSegment({
     <li
       data-segment={index}
       data-active={active || undefined}
-      className="group/segment flex gap-3 rounded-lg p-2 data-active:bg-muted"
+      data-selected={selected || undefined}
+      className="flex gap-3 rounded-[10px] px-2.5 py-2 transition-colors data-selected:bg-lav/10 data-selected:inset-ring-1 data-selected:inset-ring-lav/40 data-active:bg-glass-2"
     >
       <button
         type="button"
-        onClick={() => onSeek(segment.startMs)}
-        className="h-fit shrink-0 rounded font-mono text-xs text-muted-foreground tabular-nums outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+        onClick={(event) => onPick(index, event.shiftKey)}
+        className="h-fit shrink-0 rounded pt-0.5 font-mono text-[11.5px] text-muted-foreground tabular-nums outline-none hover:text-foreground focus-visible:outline-2 focus-visible:outline-lav"
         aria-label={`Play from ${formatTimestamp(segment.startMs)}`}
+        aria-pressed={selected}
       >
         {formatTimestamp(segment.startMs)}
       </button>
       <p
         className="text-sm leading-relaxed"
         onClick={(event) => {
+          if (event.shiftKey) {
+            onPick(index, true)
+            return
+          }
           const start = (event.target as HTMLElement).dataset.start
           if (start) onSeek(Number(start))
         }}
@@ -221,11 +429,10 @@ const TranscriptSegment = React.memo(function TranscriptSegment({
                 data-start={word.startMs}
                 aria-current={wordIndex === activeWord || undefined}
                 className={cn(
-                  "cursor-pointer rounded-sm transition-colors hover:bg-accent",
+                  "cursor-pointer rounded-sm transition-colors hover:bg-glass-2",
                   word.confidence < 0.5 &&
-                    "underline decoration-muted-foreground decoration-dotted",
-                  wordIndex === activeWord &&
-                    "bg-primary text-primary-foreground hover:bg-primary"
+                    "underline decoration-tertiary decoration-dotted",
+                  wordIndex === activeWord && "bg-lav text-night hover:bg-lav"
                 )}
               >
                 {word.text}

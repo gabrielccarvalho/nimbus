@@ -17,6 +17,7 @@ import {
   CLIP_MIN_EDIT_MS,
   type ClipEdit,
   type ClipPlan,
+  type ClipRange,
   type ClipStatus,
 } from "./schema"
 
@@ -60,6 +61,55 @@ export async function applyManualSelection(
   }
   await projectRepository(db).setAwaitingManualSelection(projectId, false)
   return clips.length
+}
+
+const TITLE_WORDS = 8
+
+export async function createClipFromRange(
+  db: Db,
+  projectId: string,
+  range: ClipRange
+) {
+  const project = await projectRepository(db).getOrThrow(projectId)
+  if (!REVIEWABLE.has(project.status)) {
+    throw new AppError(
+      "CONFLICT",
+      "Wait for analysis to finish before adding clips"
+    )
+  }
+  const source = await assetRepository(db).findByKind(projectId, "source")
+  const length = range.endMs - range.startMs
+  if (range.endMs > (source?.durationMs ?? 0)) {
+    throw new AppError("VALIDATION", "The clip must stay inside the recording")
+  }
+  if (length < CLIP_MIN_EDIT_MS || length > CLIP_MAX_EDIT_MS) {
+    throw new AppError(
+      "VALIDATION",
+      `Clips must be between ${CLIP_MIN_EDIT_MS / 1000} and ${CLIP_MAX_EDIT_MS / 1000} seconds long`
+    )
+  }
+  const transcript = await transcriptRepository(db).get(projectId)
+  const spoken = (transcript?.words ?? [])
+    .filter((w) => w.startMs >= range.startMs && w.endMs <= range.endMs)
+    .map((w) => w.text)
+  const title =
+    spoken.length === 0
+      ? "New clip"
+      : spoken.slice(0, TITLE_WORDS).join(" ") +
+        (spoken.length > TITLE_WORDS ? "…" : "")
+  const repository = clipRepository(db)
+  const [clip] = await repository.addCandidates(projectId, [
+    {
+      ...range,
+      title: title.slice(0, 100),
+      reason: "Made from the transcript",
+    },
+  ])
+  if (project.settings.autoEffects) {
+    const effects = (await autoEffectsFor(db, projectId, [clip!])).get(clip!.id)
+    if (effects) return repository.update(clip!.id, { effects })
+  }
+  return clip!
 }
 
 const REVIEW_STATUSES: ClipStatus[] = ["candidate", "approved", "rejected"]
