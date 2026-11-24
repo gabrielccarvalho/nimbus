@@ -1,15 +1,39 @@
+import type { ReadStream } from "node:fs"
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 
 import { http, HttpResponse } from "msw"
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest"
 
 import type { YouTubeClient } from "@/features/publishing/youtube"
 import { YouTubeFake } from "@/features/publishing/youtube-fake"
 import { YouTubeHttp } from "@/features/publishing/youtube-http"
 
 import { server } from "../utils/msw"
+
+const opened = vi.hoisted(() => [] as ReadStream[])
+vi.mock("node:fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs")>()
+  return {
+    ...actual,
+    createReadStream: ((
+      ...args: Parameters<typeof actual.createReadStream>
+    ) => {
+      const stream = actual.createReadStream(...args)
+      opened.push(stream)
+      return stream
+    }) as typeof actual.createReadStream,
+  }
+})
 
 const API = "https://www.googleapis.com"
 const SESSION = "https://upload.youtube.test/session/abc"
@@ -210,6 +234,51 @@ describe("http YouTube client", () => {
         () => {}
       )
     ).rejects.toThrow()
+  })
+
+  it("rejects when the file cannot be read", async () => {
+    server.use(
+      http.put(SESSION, async ({ request }) => {
+        await request.arrayBuffer().catch(() => null)
+        return HttpResponse.json({ id: "late" })
+      })
+    )
+    await expect(
+      client().uploadFrom(
+        "tok",
+        SESSION,
+        path.join(dir, "missing.mp4"),
+        0,
+        SIZE,
+        new AbortController().signal,
+        () => {}
+      )
+    ).rejects.toMatchObject({ code: "STORAGE" })
+  })
+
+  it("closes the file stream when aborted mid-upload", async () => {
+    server.use(
+      http.put(SESSION, async ({ request }) => {
+        await request.arrayBuffer().catch(() => null)
+        await new Promise((resolve) => setTimeout(resolve, 200))
+        return HttpResponse.json({ id: "late" })
+      })
+    )
+    opened.length = 0
+    const controller = new AbortController()
+    const upload = client().uploadFrom(
+      "tok",
+      SESSION,
+      file,
+      0,
+      SIZE,
+      controller.signal,
+      () => {}
+    )
+    setTimeout(() => controller.abort(), 20)
+    await expect(upload).rejects.toThrow()
+    expect(opened).toHaveLength(1)
+    expect(opened[0]?.destroyed).toBe(true)
   })
 
   it("maps 401 to a token error", async () => {

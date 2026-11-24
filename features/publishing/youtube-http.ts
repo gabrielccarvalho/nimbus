@@ -1,7 +1,7 @@
 import "server-only"
 
 import { createReadStream } from "node:fs"
-import { Readable, Transform } from "node:stream"
+import { pipeline, Readable, Transform } from "node:stream"
 
 import { AppError } from "@/lib/errors"
 
@@ -140,18 +140,35 @@ export class YouTubeHttp implements YouTubeClient {
         callback(null, chunk)
       },
     })
-    const stream = createReadStream(file, { start: offset }).pipe(counter)
-    const response = await send(uploadUri, {
-      method: "PUT",
-      headers: {
-        authorization: `Bearer ${token}`,
-        "content-length": String(bytes - offset),
-        "content-range": `bytes ${offset}-${bytes - 1}/${bytes}`,
-      },
-      body: Readable.toWeb(stream) as ReadableStream,
-      duplex: "half",
-      signal,
+    const source = createReadStream(file, { start: offset })
+    let readError: Error | undefined
+    pipeline(source, counter, (error) => {
+      if (error && !signal.aborted) readError = error
     })
+    let response: Response
+    try {
+      response = await send(uploadUri, {
+        method: "PUT",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-length": String(bytes - offset),
+          "content-range": `bytes ${offset}-${bytes - 1}/${bytes}`,
+        },
+        body: Readable.toWeb(counter) as ReadableStream,
+        duplex: "half",
+        signal,
+      })
+    } catch (error) {
+      if (readError) {
+        throw new AppError("STORAGE", "Could not read the clip to upload", {
+          cause: readError,
+        })
+      }
+      throw error
+    } finally {
+      source.destroy()
+      counter.destroy()
+    }
     if (!response.ok) throw await failure(response)
     const body = (await response.json()) as { id: string }
     return { videoId: body.id }
