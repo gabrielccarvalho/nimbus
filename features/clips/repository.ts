@@ -14,6 +14,7 @@ export type Clip = typeof clips.$inferSelect
 export type NewClip = Omit<typeof clips.$inferInsert, "id" | "projectId">
 
 function fromRow(row: Clip): Clip {
+  if (row.effects === null) return row
   const effects = clipEffectsSchema.safeParse(row.effects)
   if (!effects.success) {
     logger.warn(

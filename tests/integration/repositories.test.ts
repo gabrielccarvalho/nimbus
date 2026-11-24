@@ -172,9 +172,10 @@ describe("clipRepository", () => {
   it("reads stored effects through the schema", async () => {
     const project = await seedProject()
     const repo = clipRepository(env.db)
-    const [legacy, broken] = await repo.replaceCandidates(project.id, [
+    const [legacy, broken, none] = await repo.replaceCandidates(project.id, [
       { startMs: 0, endMs: 20_000, title: "Legacy", score: 0.5 },
       { startMs: 30_000, endMs: 50_000, title: "Broken", score: 0.4 },
+      { startMs: 60_000, endMs: 70_000, title: "None", score: 0.3 },
     ])
     await env.db.execute(
       sql`update clips set effects = ${JSON.stringify({
@@ -194,8 +195,10 @@ describe("clipRepository", () => {
     })
     expect(
       (await repo.listForProject(project.id)).map((clip) => clip.effects)
-    ).toEqual([{ edited: true, events: [focus] }, null])
+    ).toEqual([{ edited: true, events: [focus] }, null, null])
     const warn = vi.spyOn(logger, "warn").mockImplementation(() => {})
+    expect((await repo.getOrThrow(none!.id)).effects).toBeNull()
+    expect(warn).not.toHaveBeenCalled()
     expect((await repo.getOrThrow(broken!.id)).effects).toBeNull()
     expect(warn).toHaveBeenCalledWith(
       expect.objectContaining({ clipId: broken!.id }),
