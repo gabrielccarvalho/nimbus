@@ -1,0 +1,7 @@
+[0:v]trim=start=2.000:end=31.500,setpts=PTS-STARTPTS,fps=30,sendcmd=f=/data/work/c1.cmds.txt,split=3[s0][s1][s2];
+[s0]crop=346:216:1520:832,scale@e0=1080:672,crop@e0=1080:672:0:0:exact=1,setsar=1[r0];
+[s1]crop=934:1080:492:0,scale@e1=1080:1248,crop@e1=1080:1248:0:0:exact=1,setsar=1[r1];
+[s2]crop=120:216:1634:832,scale@e2=1080:1920,crop@e2=1080:1920:0:0:exact=1,setsar=1[r2];
+[r0][r1]vstack=inputs=2[stack];
+[stack][r2]overlay=0:0:enable='between(t,8.983,12.483)',format=yuv420p,ass=filename=/data/work/c1.ass:fontsdir=/app/assets/fonts[v];
+[0:a]atrim=start=2.000:end=31.500,asetpts=PTS-STARTPTS[a]

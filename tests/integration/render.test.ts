@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { clipRepository } from "@/features/clips/repository"
 import { setClipReviewStatus } from "@/features/clips/service"
+import { frameAt } from "@/features/effects/frame"
+import type { LayoutInput } from "@/features/layout/schema"
 import { confirmLayout } from "@/features/layout/service"
 import {
   assetRepository,
@@ -49,7 +51,7 @@ function probe(file: string) {
   }
 }
 
-function grayFrame(file: string, atS: number) {
+function rawFrame(file: string, atS: number, pixFmt: "gray" | "rgb24") {
   return execFileSync(
     getEnv().FFMPEG_PATH,
     [
@@ -64,10 +66,37 @@ function grayFrame(file: string, atS: number) {
       "-f",
       "rawvideo",
       "-pix_fmt",
-      "gray",
+      pixFmt,
       "-",
     ],
     { maxBuffer: 16 * 1024 ** 2 }
+  )
+}
+
+const grayFrame = (file: string, atS: number) => rawFrame(file, atS, "gray")
+
+function columnColors(
+  frame: Buffer,
+  width: number,
+  rect: { x: number; y: number; w: number; h: number },
+  columns = 6
+) {
+  return Array.from({ length: columns }, (_, col) => {
+    const fromX = rect.x + Math.round((rect.w * col) / columns)
+    const toX = rect.x + Math.round((rect.w * (col + 1)) / columns)
+    const sum = [0, 0, 0]
+    for (let y = rect.y; y < rect.y + rect.h; y++) {
+      for (let x = fromX; x < toX; x++) {
+        for (let c = 0; c < 3; c++) sum[c]! += frame[(y * width + x) * 3 + c]!
+      }
+    }
+    return sum.map((s) => s / ((toX - fromX) * rect.h))
+  })
+}
+
+function colorDistance(a: number[][], b: number[][]) {
+  return Math.max(
+    ...a.flatMap((cell, i) => cell.map((c, j) => Math.abs(c - b[i]![j]!)))
   )
 }
 
@@ -77,6 +106,13 @@ function bandDiff(a: Buffer, b: Buffer, fromY: number, toY: number) {
   return sum / ((toY - fromY) * 1080)
 }
 
+const camTop = {
+  webcamRect: { x: 0.7833, y: 0.7704, w: 0.2, h: 0.2 },
+  gameplayRect: { x: 0, y: 0, w: 1, h: 1 },
+  gameplayFocusX: 0.5,
+  mode: "cam-top",
+} satisfies LayoutInput
+
 async function readyProject(captionsEnabled: boolean) {
   const { projectId } = await uploadFixture(fixtures.wide)
   const projects = projectRepository(env.db)
@@ -85,12 +121,7 @@ async function readyProject(captionsEnabled: boolean) {
     captionsEnabled,
   })
   await runJobs(env.db, ["probe", "transcribe", "analyze", "select"])
-  await confirmLayout(env.db, projectId, {
-    webcamRect: { x: 0.7833, y: 0.7704, w: 0.2, h: 0.2 },
-    gameplayRect: { x: 0, y: 0, w: 1, h: 1 },
-    gameplayFocusX: 0.5,
-    mode: "cam-top",
-  })
+  await confirmLayout(env.db, projectId, camTop)
   const [clip] = await clipRepository(env.db).listForProject(projectId)
   await setClipReviewStatus(env.db, projectId, clip!.id, "approved")
   return { projectId, clipId: clip!.id }
@@ -194,6 +225,99 @@ describe("cancelling renders", () => {
       /isn't rendering/
     )
     await expect(startEditRender(env.db, projectId)).resolves.toBeDefined()
+  })
+})
+
+describe("render_clip with effects", () => {
+  const noCam = {
+    webcamRect: null,
+    gameplayRect: { x: 0, y: 0, w: 1, h: 1 },
+    gameplayFocusX: 0.5,
+    mode: "no-cam-blur-fill",
+  } satisfies LayoutInput
+  const focusFromS = 3
+  const insideS = 4.5
+
+  async function renderWithFocus(
+    focus: boolean,
+    layoutOverride: LayoutInput | null = null
+  ) {
+    const { projectId, clipId } = await readyProject(false)
+    const clips = clipRepository(env.db)
+    const { startMs, endMs } = (await clips.get(clipId))!
+    expect(endMs - startMs).toBeGreaterThan(7000)
+    await clips.update(clipId, {
+      layoutOverride,
+      effects: focus
+        ? {
+            events: [
+              {
+                kind: "focus",
+                startMs: startMs + focusFromS * 1000,
+                endMs: startMs + (focusFromS + 3) * 1000,
+              },
+            ],
+            edited: true,
+          }
+        : null,
+    })
+    await startClipRenders(env.db, projectId, [clipId])
+    await runJobs(env.db, ["render_clip"])
+    const clip = (await clips.get(clipId))!
+    expect(clip.status).toBe("rendered")
+    const asset = (await assetRepository(env.db).get(clip.renderAssetId!))!
+    return { clip, file: getStorage().resolve(asset.storageKey) }
+  }
+
+  it("renders a focus range as webcam content", async () => {
+    const plain = await renderWithFocus(false)
+    const focused = await renderWithFocus(true)
+
+    const { crop } = frameAt(
+      camTop,
+      { width: 1920, height: 1080 },
+      [{ kind: "focus", startMs: 0, endMs: 1 }],
+      0
+    ).regions[0]!
+    const band = { x: 0, y: 800, w: 1080, h: 300 }
+    const webcam = columnColors(
+      rawFrame(fixtures.wide, focused.clip.startMs / 1000 + insideS, "rgb24"),
+      1920,
+      {
+        x: Math.round(crop.x),
+        y: Math.round(crop.y + (crop.h * band.y) / 1920),
+        w: Math.round(crop.w),
+        h: Math.round((crop.h * band.h) / 1920),
+      }
+    )
+    const at = (file: string) =>
+      columnColors(rawFrame(file, insideS, "rgb24"), 1080, band)
+    expect(colorDistance(at(focused.file), webcam)).toBeLessThan(15)
+    expect(colorDistance(at(plain.file), webcam)).toBeGreaterThan(40)
+    expect(
+      bandDiff(
+        grayFrame(plain.file, insideS),
+        grayFrame(focused.file, insideS),
+        800,
+        1100
+      )
+    ).toBeGreaterThan(10)
+    expect(
+      bandDiff(grayFrame(plain.file, 1), grayFrame(focused.file, 1), 0, 1920)
+    ).toBeLessThan(1.5)
+  })
+
+  it("ignores focus when the clip's layout has no webcam", async () => {
+    const plain = await renderWithFocus(false, noCam)
+    const focused = await renderWithFocus(true, noCam)
+    expect(
+      bandDiff(
+        grayFrame(plain.file, insideS),
+        grayFrame(focused.file, insideS),
+        0,
+        1920
+      )
+    ).toBeLessThan(1.5)
   })
 })
 

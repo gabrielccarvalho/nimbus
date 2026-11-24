@@ -19,6 +19,7 @@ import { OUTPUT_HEIGHT, OUTPUT_WIDTH, planLayout } from "../../layout/geometry"
 import { layoutRepository } from "../../layout/repository"
 import { assetRepository, projectRepository } from "../../projects/repository"
 import { estimateRenderBytes } from "../../render/disk"
+import { effectCommands, effectsGraph } from "../../render/effects-graph"
 import { runFfmpeg } from "../../render/ffmpeg-runner"
 import {
   chooseEncoder,
@@ -106,13 +107,29 @@ export const renderClipStep: JobHandler = async ({
   }
 
   const fps = outputFps(source.fps)
-  const graph = verticalGraph({
-    plan: planLayout(layout, source.width, source.height),
-    startMs: clip.startMs,
-    endMs: clip.endMs,
-    fps,
-    subtitles,
-  })
+  const events = clip.effects?.events ?? []
+  const range = { startMs: clip.startMs, endMs: clip.endMs, fps }
+  let graph: string
+  if (events.length > 0) {
+    const effects = {
+      layout,
+      source: { width: source.width, height: source.height },
+      events,
+      ...range,
+    }
+    await storage.writeBuffer(workKey("cmds.txt"), effectCommands(effects))
+    graph = effectsGraph({
+      ...effects,
+      commandsFile: storage.resolve(workKey("cmds.txt")),
+      subtitles,
+    })
+  } else {
+    graph = verticalGraph({
+      plan: planLayout(layout, source.width, source.height),
+      ...range,
+      subtitles,
+    })
+  }
   await storage.writeBuffer(workKey("graph.txt"), graph)
   const settings = await getAppSettings(db)
   const encoder = chooseEncoder(
@@ -145,6 +162,7 @@ export const renderClipStep: JobHandler = async ({
     throw error
   } finally {
     await storage.remove(workKey("graph.txt"))
+    if (events.length > 0) await storage.remove(workKey("cmds.txt"))
     if (subtitles) await storage.remove(workKey("ass"))
   }
 
