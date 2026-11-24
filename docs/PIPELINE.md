@@ -147,7 +147,7 @@ Golden copies of all three graphs and the edit graph live in `features/render/__
 
 ### Effects
 
-A clip with effect events renders through `effectsGraph` (`features/render/effects-graph.ts`) instead of `verticalGraph` (ADR-0053). `effectCommands` samples `frameAt` (`features/effects/frame.ts`, the same function the canvas preview draws) once per output frame and writes a `sendcmd` file: each region crops its layout rect, `scale@eN` resizes it so the zoomed or shaken crop lands at the destination size, and a fixed `crop@eN` picks the offset. Focus overlays a full-frame webcam branch with `enable='between(t,…)'`. Captions are burned on top of the final frame, so effects never move them. Clips with no effects (`effects` null or empty) keep the plain graph and its goldens.
+A clip with effect events renders through `effectsGraph` (`features/render/effects-graph.ts`) instead of `verticalGraph` (ADR-0053). `effectCommands` samples `frameAt` (`features/effects/frame.ts`, the same function the canvas preview draws) once per output frame and writes a `sendcmd` file: each region crops its layout rect, `scale@eN` resizes it so the zoomed or shaken crop lands at the destination size, and a fixed `crop@eN` picks the offset. Focus overlays a full-frame branch per target in use (the webcam, or the gameplay cover crop for full game) with `enable='between(t,…)'`. Captions are burned on top of the final frame, so effects never move them. Clips with no effects (`effects` null or empty) keep the plain graph and its goldens.
 
 ### Output encoding
 

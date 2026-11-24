@@ -138,6 +138,37 @@ describe("EffectsLane", () => {
     ).toHaveAttribute("data-variant", "muted")
   })
 
+  it("mutes full game blocks without a webcam", async () => {
+    const { user } = setup({
+      hasWebcam: false,
+      events: [
+        { kind: "focus", startMs: 12_000, endMs: 14_000, target: "game" },
+      ],
+    })
+    const block = screen.getByRole("button", { name: "Full game at 0:02.0" })
+    expect(block).toHaveAttribute("data-variant", "muted")
+    await user.hover(block)
+    expect(await screen.findByText("No webcam in this layout")).toBeVisible()
+  })
+
+  it("resizing a full game stops at an adjacent full cam", () => {
+    const events: Effect[] = [
+      { kind: "focus", startMs: 12_000, endMs: 14_000, target: "game" },
+      { kind: "focus", startMs: 16_000, endMs: 18_000, target: "cam" },
+    ]
+    const { onChange } = setup({ events })
+    screen.getByRole("group", { name: "Full game" }).getBoundingClientRect =
+      () => ({ left: 0, width: 1000 }) as DOMRect
+    const block = screen.getByRole("button", { name: "Full game at 0:02.0" })
+    const edge = block.querySelector("[data-edge='end']")!
+    fireEvent.pointerDown(edge, { button: 0, clientX: 100 })
+    fireEvent.pointerMove(block, { clientX: 600 })
+    expect(onChange).toHaveBeenLastCalledWith([
+      { ...events[0], endMs: 16_000 },
+      events[1],
+    ])
+  })
+
   it("dragging stops at the next block of the same kind", () => {
     const events: Effect[] = [
       { kind: "shake", startMs: 12_000, endMs: 12_500, intensity: "light" },

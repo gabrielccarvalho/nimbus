@@ -36,7 +36,7 @@ const ROWS = [
     target: "game",
     label: "Full game",
     lengthMs: 2000,
-    className: "border-ring bg-ring/30",
+    className: "border-effect-game bg-effect-game/30",
   },
   {
     kind: "zoom",

@@ -5,6 +5,7 @@ import { and, asc, desc, eq, inArray } from "drizzle-orm"
 import { newId, now, withTransaction, type Db } from "@/lib/db"
 import { clips } from "@/lib/db/schema"
 import { AppError } from "@/lib/errors"
+import { logger } from "@/lib/logger"
 
 import { clipEffectsSchema } from "../effects/schema"
 import type { ClipStatus } from "./schema"
@@ -14,6 +15,12 @@ export type NewClip = Omit<typeof clips.$inferInsert, "id" | "projectId">
 
 function fromRow(row: Clip): Clip {
   const effects = clipEffectsSchema.safeParse(row.effects)
+  if (!effects.success) {
+    logger.warn(
+      { clipId: row.id, issues: effects.error.issues },
+      "invalid stored clip effects"
+    )
+  }
   return { ...row, effects: effects.success ? effects.data : null }
 }
 

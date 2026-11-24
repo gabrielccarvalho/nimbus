@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { signalsRepository } from "@/features/analysis/repository"
 import { clipRepository } from "@/features/clips/repository"
@@ -13,6 +13,7 @@ import { settingsRepository } from "@/features/settings/repository"
 import { defaultAppSettings } from "@/features/settings/schema"
 import { transcriptRepository } from "@/features/transcription/repository"
 import { AppError } from "@/lib/errors"
+import { logger } from "@/lib/logger"
 
 import { createTestEnv, type TestEnv } from "../utils/test-env"
 
@@ -194,7 +195,13 @@ describe("clipRepository", () => {
     expect(
       (await repo.listForProject(project.id)).map((clip) => clip.effects)
     ).toEqual([{ edited: true, events: [focus] }, null])
+    const warn = vi.spyOn(logger, "warn").mockImplementation(() => {})
     expect((await repo.getOrThrow(broken!.id)).effects).toBeNull()
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({ clipId: broken!.id }),
+      "invalid stored clip effects"
+    )
+    warn.mockRestore()
   })
 })
 

@@ -24,6 +24,7 @@
   --input: oklch(0.88 0.015 285);
   --ring: oklch(0.6 0.13 285);
   --highlight-ink: oklch(0.55 0.12 75);
+  --effect-game: oklch(0.6 0.12 175);
   --chart-1: oklch(0.93 0.12 95);
   --chart-2: oklch(0.87 0.17 90);
   --chart-3: oklch(0.78 0.16 75);
@@ -60,6 +61,7 @@
   --input: oklch(0.95 0.02 285 / 16%);
   --ring: oklch(0.72 0.12 285);
   --highlight-ink: oklch(0.87 0.17 90);
+  --effect-game: oklch(0.72 0.12 175);
   --chart-1: oklch(0.93 0.12 95);
   --chart-2: oklch(0.87 0.17 90);
   --chart-3: oklch(0.78 0.16 75);
@@ -87,6 +89,7 @@
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
   --color-highlight-ink: var(--highlight-ink);
+  --color-effect-game: var(--effect-game);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
