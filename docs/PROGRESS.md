@@ -279,7 +279,7 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 Spec: Claude Design handoff (`~/Downloads/nimbus-redesign-handoff/design/`). Auth: Better Auth. Sidebar links without a designed screen (Clip library, Exports, Caption styles) are left out; Channels goes to `/settings/channels`.
 
 - [x] 1. Heycamps tokens, Geist, one dark theme; Button, Badge, Tabs, Input, Select, Switch, Dialog, Sheet, DropdownMenu, Popover, Tooltip, Kbd and Command restyled; StatusPill, SignalDot, DotMeter
-- [ ] 2. App shell: Sidebar (workspace, nav, recent, usage, account menu) and ProjectHeader (breadcrumb, ⌘K, tabs); command palette
+- [x] 2. App shell: Sidebar (nav, recent, collapse) and ProjectHeader (breadcrumb, ⌘K, tabs, project settings sheet); command palette (ADR-0058). Workspace switcher, usage card, account menu and Channels land with step 3
 - [ ] 3. Better Auth (Google, Twitch, email/password, 2FA, sessions), `/login` and `/signup`, protected routes, user and workspace models, projects scoped to the workspace, Playwright login fixture
 - [ ] 4. Projects home (one import card with overrides, needs-you banner, filtered grid), then Overview (one-line meta, paused-pipeline action card, stepper)
 - [ ] 5. Layout & captions at `/projects/[id]/layout` with the live 9:16 preview

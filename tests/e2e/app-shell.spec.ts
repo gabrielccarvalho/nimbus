@@ -20,14 +20,25 @@ test("sidebar collapse state persists across reloads", async ({ page }) => {
   await page.goto("/")
   const sidebar = page.locator("[data-slot=sidebar][data-state]")
   await expect(sidebar).toHaveAttribute("data-state", "expanded")
-  await page.getByRole("button", { name: "Toggle Sidebar" }).first().click()
+  await page.getByRole("button", { name: "Collapse sidebar" }).click()
   await expect(sidebar).toHaveAttribute("data-state", "collapsed")
   await page.reload()
   await expect(sidebar).toHaveAttribute("data-state", "collapsed")
-  await page.getByRole("button", { name: "Toggle Sidebar" }).first().click()
+  await page.getByRole("button", { name: "Expand sidebar" }).click()
   await expect(sidebar).toHaveAttribute("data-state", "expanded")
   await page.reload()
   await expect(sidebar).toHaveAttribute("data-state", "expanded")
+})
+
+test("command palette jumps to a page", async ({ page }) => {
+  await page.goto("/")
+  await page.keyboard.press("ControlOrMeta+k")
+  const palette = page.getByRole("dialog", { name: "Search" })
+  await expect(palette).toBeVisible()
+  await page.keyboard.type("settings")
+  await page.keyboard.press("Enter")
+  await expect(page).toHaveURL(/\/settings$/)
+  await expect(palette).toBeHidden()
 })
 
 test("is always dark and keyboard navigation works", async ({ page }) => {

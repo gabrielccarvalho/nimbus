@@ -16,6 +16,7 @@ export type NewAsset = Omit<typeof assets.$inferInsert, "id"> & { id?: string }
 
 export type ProjectListItem = Project & {
   clipCount: number
+  reviewCount: number
   clipRanges: { startMs: number; endMs: number }[]
   durationMs: number | null
   thumbnailKey: string | null
@@ -71,6 +72,7 @@ export function projectRepository(db: Db) {
           projectId: clips.projectId,
           startMs: clips.startMs,
           endMs: clips.endMs,
+          status: clips.status,
         })
         .from(clips)
         .where(
@@ -93,18 +95,59 @@ export function projectRepository(db: Db) {
         )
       return rows.map((row) => {
         const own = media.filter((m) => m.projectId === row.id)
-        const clipRanges = ranges
-          .filter((r) => r.projectId === row.id)
-          .map(({ startMs, endMs }) => ({ startMs, endMs }))
+        const ownClips = ranges.filter((r) => r.projectId === row.id)
+        const clipRanges = ownClips.map(({ startMs, endMs }) => ({
+          startMs,
+          endMs,
+        }))
         return {
           ...row,
           clipCount: clipRanges.length,
+          reviewCount: ownClips.filter((c) => c.status === "candidate").length,
           clipRanges,
           durationMs: own.find((m) => m.kind === "source")?.durationMs ?? null,
           thumbnailKey:
             own.find((m) => m.kind === "thumbnail")?.storageKey ?? null,
         }
       })
+    },
+
+    async count() {
+      const [row] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(projects)
+      return row?.count ?? 0
+    },
+
+    async searchIndex({ limit = 500 }: { limit?: number } = {}) {
+      const [projectRows, clipRows] = await Promise.all([
+        db
+          .select({
+            id: projects.id,
+            name: projects.name,
+            status: projects.status,
+            failedStep: projects.failedStep,
+            awaitingManualSelection: projects.awaitingManualSelection,
+          })
+          .from(projects)
+          .orderBy(desc(projects.createdAt))
+          .limit(limit),
+        db
+          .select({
+            id: clips.id,
+            projectId: clips.projectId,
+            projectName: projects.name,
+            title: clips.title,
+            status: clips.status,
+            startMs: clips.startMs,
+          })
+          .from(clips)
+          .innerJoin(projects, eq(projects.id, clips.projectId))
+          .where(sql`${clips.status} != 'rejected'`)
+          .orderBy(desc(clips.score))
+          .limit(limit),
+      ])
+      return { projects: projectRows, clips: clipRows }
     },
 
     async rename(id: string, name: string) {

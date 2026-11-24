@@ -4,9 +4,11 @@ import {
   formatBytes,
   formatDate,
   formatDuration,
+  formatRelativeDay,
   formatTimestamp,
   mediaUrl,
   slugify,
+  sourceLabel,
 } from "./format"
 
 describe("format helpers", () => {
@@ -58,5 +60,23 @@ describe("slugify", () => {
     expect(slugify("../../etc/passwd")).toBe("etc-passwd")
     expect(slugify("!!!")).toBe("clip")
     expect(slugify("a".repeat(80)).length).toBe(60)
+  })
+
+  it("names days relative to today", () => {
+    const now = new Date(2026, 10, 24, 9)
+    expect(formatRelativeDay(new Date(2026, 10, 24, 1), now)).toBe("Today")
+    expect(formatRelativeDay(new Date(2026, 10, 23, 23), now)).toBe("Yesterday")
+    expect(formatRelativeDay(new Date(2026, 10, 19), now)).toBe("Nov 19")
+    expect(formatRelativeDay(new Date(2025, 0, 2), now)).toBe("Jan 2, 2025")
+  })
+
+  it.each([
+    [null, "Upload"],
+    ["https://www.youtube.com/watch?v=x", "YouTube"],
+    ["https://youtu.be/x", "YouTube"],
+    ["https://www.twitch.tv/videos/1", "Twitch VOD"],
+    ["https://vimeo.com/1", "vimeo.com"],
+  ])("sourceLabel(%s) = %s", (url, expected) => {
+    expect(sourceLabel(url)).toBe(expected)
   })
 })

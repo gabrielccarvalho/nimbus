@@ -19,7 +19,7 @@ export const metadata: Metadata = { title: "Layout" }
 
 export default async function LayoutPage({
   params,
-}: PageProps<"/projects/[id]/layout-editor">) {
+}: PageProps<"/projects/[id]/layout">) {
   const { id } = await params
   const data = await getProjectLayout(id)
   if (!data) notFound()

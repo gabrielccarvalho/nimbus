@@ -31,7 +31,7 @@ Raw tokens live in `:root`; the shadcn variables point at them, so `bg-card`, `t
 
 Use them through `StatusPill`, `SignalDot`, `DotMeter` and `toneVariants` (see COMPONENTS). Status is always text plus colour. A lit `SignalDot` marks the one thing that needs attention, so keep it rare. The brand gradient (`text-gradient`) goes on a few words of the login headline and nowhere else; never on a button.
 
-`ProjectStatusBadge` maps running steps to `lav`, `awaiting_layout`/`ready_for_review` to `amber`, `done` to `mint`, `failed` to `pink` and `cancelled` to `neutral`. `ClipStatusBadge` maps `candidate` ("To review") to `amber`, `approved`/`rendered` to `mint`, `rendering` to `lav`, `failed` to `pink`, `rejected` to `neutral`.
+`projectSignal` (and `ProjectStatusBadge`) maps running steps to `lav`, `awaiting_layout` and a paused manual selection to `amber` ("Needs you", lit dot), `ready_for_review` to `mint` ("9 to review"), `done` to `sky`, `failed` to `pink` and `cancelled` to `neutral`. `ClipStatusBadge` maps `candidate` ("To review") to `amber`, `approved`/`rendered` to `mint`, `rendering` to `lav`, `failed` to `pink`, `rejected` to `neutral`.
 
 ## No borders
 

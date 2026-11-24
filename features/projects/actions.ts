@@ -19,6 +19,14 @@ import {
 
 const parseId = (input: unknown) => parseAnyId(input, "project id")
 
+export async function getSearchIndexAction() {
+  return run(
+    "getSearchIndex",
+    () => projectRepository(getDb()).searchIndex(),
+    []
+  )
+}
+
 export async function deleteProjectAction(projectId: unknown) {
   return run(
     "deleteProject",
