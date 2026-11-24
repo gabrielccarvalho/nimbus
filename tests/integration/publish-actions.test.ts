@@ -1,0 +1,309 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+import { accountRepository } from "@/features/accounts/repository"
+import { clipRepository } from "@/features/clips/repository"
+import {
+  assetRepository,
+  projectRepository,
+} from "@/features/projects/repository"
+import { defaultProjectSettings } from "@/features/projects/schema"
+import {
+  publishClipAction,
+  retryPublicationAction,
+} from "@/features/publishing/actions"
+import { getPublishing } from "@/features/publishing/queries"
+import { publishingRepository } from "@/features/publishing/repository"
+import {
+  account,
+  jobs,
+  user,
+  workspaces,
+  youtubeChannels,
+} from "@/lib/db/schema"
+import { eq } from "drizzle-orm"
+
+import { createTestEnv, type TestEnv } from "../utils/test-env"
+
+const signedIn: { user: { id: string; name: string } | null } = { user: null }
+
+vi.mock("next/headers", () => ({ headers: async () => new Headers() }))
+vi.mock("next/cache", () => ({ revalidatePath: () => {} }))
+vi.mock("next/server", () => ({ connection: async () => {} }))
+vi.mock("@/features/accounts/auth", () => ({
+  getAuth: () => ({
+    api: {
+      getSession: async () =>
+        signedIn.user && { user: signedIn.user, session: {} },
+    },
+  }),
+}))
+
+const input = {
+  title: "Great play",
+  description: "desc",
+  tags: ["a"],
+  privacy: "private",
+  publishAt: null,
+}
+
+let env: TestEnv
+
+beforeEach(async () => {
+  env = await createTestEnv()
+})
+afterEach(() => env.cleanup())
+
+async function seed(opts: { plan?: "free" | "admin" } = {}) {
+  const id = crypto.randomUUID()
+  const owner = { id, name: "Owner", email: `${id}@example.com` }
+  await env.db.insert(user).values(owner)
+  const workspace = await accountRepository(env.db).createPersonalWorkspace(
+    owner
+  )
+  await env.db
+    .update(workspaces)
+    .set({ plan: opts.plan ?? "free" })
+    .where(eq(workspaces.id, workspace.id))
+  const project = await projectRepository(env.db).create({
+    name: "Stream",
+    workspaceId: workspace.id,
+    settings: defaultProjectSettings,
+  })
+  const render = await assetRepository(env.db).create({
+    projectId: project.id,
+    kind: "render",
+    storageKey: `projects/${project.id}/clip.mp4`,
+    mime: "video/mp4",
+    durationMs: 20_000,
+  })
+  const [clip] = await clipRepository(env.db).addCandidates(project.id, [
+    { startMs: 1_000, endMs: 20_000, title: "Clip" },
+  ])
+  await clipRepository(env.db).update(clip!.id, {
+    status: "rendered",
+    renderAssetId: render.id,
+  })
+  const accountRow = crypto.randomUUID()
+  await env.db.insert(account).values({
+    id: accountRow,
+    accountId: "g1",
+    providerId: "google",
+    userId: owner.id,
+  })
+  const channel = await publishingRepository(env.db).upsertChannel({
+    workspaceId: workspace.id,
+    accountId: accountRow,
+    channelId: "UC1",
+    title: "My Channel",
+  })
+  signedIn.user = owner
+  return { owner, workspace, project, clip: clip!, render, channel }
+}
+
+const publishJobs = () =>
+  env.db.select().from(jobs).where(eq(jobs.type, "publish_clip"))
+
+describe("publishClipAction", () => {
+  it("creates a queued publication and enqueues one job", async () => {
+    const { clip, render, project } = await seed()
+    const result = await publishClipAction(clip.id, input)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const publication = await publishingRepository(env.db).getPublication(
+      result.value.publicationId
+    )
+    expect(publication).toMatchObject({
+      status: "queued",
+      renderAssetId: render.id,
+      clipId: clip.id,
+    })
+    const rows = await publishJobs()
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      projectId: project.id,
+      payload: { publicationId: result.value.publicationId },
+    })
+  })
+
+  it("rejects a clip that is not rendered", async () => {
+    const { clip } = await seed()
+    await clipRepository(env.db).update(clip.id, { status: "approved" })
+    const result = await publishClipAction(clip.id, input)
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "CONFLICT", message: "Render the latest edit first" },
+    })
+    expect(await publishJobs()).toHaveLength(0)
+  })
+
+  it("rejects when no channel is connected", async () => {
+    const { clip, channel } = await seed()
+    await env.db
+      .delete(youtubeChannels)
+      .where(eq(youtubeChannels.id, channel.id))
+    const result = await publishClipAction(clip.id, input)
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "CONFLICT", message: "Connect YouTube first" },
+    })
+  })
+
+  it("rejects when the channel needs reconnecting", async () => {
+    const { clip, channel } = await seed()
+    await publishingRepository(env.db).setChannelStatus(
+      channel.id,
+      "needs_reconnect"
+    )
+    const result = await publishClipAction(clip.id, input)
+    expect(result).toMatchObject({ ok: false, error: { code: "CONFLICT" } })
+    expect(await publishJobs()).toHaveLength(0)
+  })
+
+  it("rejects a second publish while one is active", async () => {
+    const { clip } = await seed({ plan: "admin" })
+    expect((await publishClipAction(clip.id, input)).ok).toBe(true)
+    const second = await publishClipAction(clip.id, input)
+    expect(second).toMatchObject({
+      ok: false,
+      error: { code: "CONFLICT", message: "This clip is already publishing" },
+    })
+    expect(await publishJobs()).toHaveLength(1)
+  })
+
+  it("rejects once the plan's daily limit is reached", async () => {
+    const { clip, project, render } = await seed()
+    const second = (
+      await clipRepository(env.db).addCandidates(project.id, [
+        { startMs: 1_000, endMs: 20_000, title: "B" },
+        { startMs: 1_000, endMs: 20_000, title: "C" },
+      ])
+    ).map((c) => c.id)
+    for (const id of second) {
+      await clipRepository(env.db).update(id, {
+        status: "rendered",
+        renderAssetId: render.id,
+      })
+    }
+    expect((await publishClipAction(clip.id, input)).ok).toBe(true)
+    expect((await publishClipAction(second[0]!, input)).ok).toBe(true)
+    const third = await publishClipAction(second[1]!, input)
+    expect(third).toMatchObject({
+      ok: false,
+      error: {
+        code: "CONFLICT",
+        message: "Your plan allows 2 publishes a day",
+      },
+    })
+  })
+
+  it("returns NOT_FOUND for another workspace's clip", async () => {
+    const { clip } = await seed()
+    const id = crypto.randomUUID()
+    const other = { id, name: "Other", email: `${id}@example.com` }
+    await env.db.insert(user).values(other)
+    await accountRepository(env.db).createPersonalWorkspace(other)
+    signedIn.user = other
+    const result = await publishClipAction(clip.id, input)
+    expect(result).toMatchObject({ ok: false, error: { code: "NOT_FOUND" } })
+    expect(await publishJobs()).toHaveLength(0)
+  })
+
+  it("rejects invalid input", async () => {
+    const { clip } = await seed()
+    const result = await publishClipAction(clip.id, { ...input, title: "" })
+    expect(result).toMatchObject({ ok: false, error: { code: "VALIDATION" } })
+  })
+})
+
+describe("retryPublicationAction", () => {
+  it("creates a new publication with the same metadata from a failed one", async () => {
+    const { clip } = await seed({ plan: "admin" })
+    const first = await publishClipAction(clip.id, input)
+    if (!first.ok) throw new Error("setup")
+    const repo = publishingRepository(env.db)
+    await repo.updatePublication(first.value.publicationId, {
+      status: "failed",
+      error: "boom",
+    })
+    const retry = await retryPublicationAction(first.value.publicationId)
+    expect(retry.ok).toBe(true)
+    if (!retry.ok) return
+    expect(retry.value.publicationId).not.toBe(first.value.publicationId)
+    const created = await repo.getPublication(retry.value.publicationId)
+    expect(created).toMatchObject({ status: "queued", clipId: clip.id })
+    expect(created?.metadata).toMatchObject({ title: "Great play" })
+    expect(await publishJobs()).toHaveLength(2)
+  })
+
+  it("rejects retry unless the publication failed", async () => {
+    const { clip } = await seed({ plan: "admin" })
+    const first = await publishClipAction(clip.id, input)
+    if (!first.ok) throw new Error("setup")
+    const retry = await retryPublicationAction(first.value.publicationId)
+    expect(retry).toMatchObject({ ok: false, error: { code: "CONFLICT" } })
+  })
+
+  it("runs the checks again", async () => {
+    const { clip, channel } = await seed({ plan: "admin" })
+    const first = await publishClipAction(clip.id, input)
+    if (!first.ok) throw new Error("setup")
+    const repo = publishingRepository(env.db)
+    await repo.updatePublication(first.value.publicationId, {
+      status: "failed",
+    })
+    await repo.setChannelStatus(channel.id, "needs_reconnect")
+    const retry = await retryPublicationAction(first.value.publicationId)
+    expect(retry).toMatchObject({ ok: false, error: { code: "CONFLICT" } })
+  })
+
+  it("returns NOT_FOUND for another workspace's publication", async () => {
+    const { clip } = await seed({ plan: "admin" })
+    const first = await publishClipAction(clip.id, input)
+    if (!first.ok) throw new Error("setup")
+    await publishingRepository(env.db).updatePublication(
+      first.value.publicationId,
+      { status: "failed" }
+    )
+    const id = crypto.randomUUID()
+    const other = { id, name: "Other", email: `${id}@example.com` }
+    await env.db.insert(user).values(other)
+    await accountRepository(env.db).createPersonalWorkspace(other)
+    signedIn.user = other
+    const retry = await retryPublicationAction(first.value.publicationId)
+    expect(retry).toMatchObject({ ok: false, error: { code: "NOT_FOUND" } })
+  })
+})
+
+describe("getPublishing", () => {
+  it("reports channel, defaults, publications and remaining publishes", async () => {
+    const { clip, project } = await seed()
+    const published = await publishClipAction(clip.id, input)
+    if (!published.ok) throw new Error("setup")
+    const [running] = await publishJobs()
+    await env.db
+      .update(jobs)
+      .set({ status: "running", progress: 40 })
+      .where(eq(jobs.id, running!.id))
+
+    const state = await getPublishing(project.id)
+    expect(state.channel).toEqual({ title: "My Channel", status: "ok" })
+    expect(state.defaults.privacy).toBeDefined()
+    expect(state.publishesLeftToday).toBe(1)
+    expect(state.publications[clip.id]).toMatchObject({
+      status: "queued",
+      url: null,
+      error: null,
+      progress: 40,
+    })
+  })
+
+  it("returns null channel and unlimited publishes on the admin plan", async () => {
+    const { project, channel } = await seed({ plan: "admin" })
+    await env.db
+      .delete(youtubeChannels)
+      .where(eq(youtubeChannels.id, channel.id))
+    const state = await getPublishing(project.id)
+    expect(state.channel).toBeNull()
+    expect(state.publishesLeftToday).toBeNull()
+  })
+})

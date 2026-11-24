@@ -1,12 +1,20 @@
 import "server-only"
 
+import { and, eq } from "drizzle-orm"
 import { connection } from "next/server"
 
 import { accountRepository } from "@/features/accounts/repository"
-import { requireViewer } from "@/features/accounts/session"
+import { PLANS } from "@/features/accounts/schema"
+import { assertProjectAccess, requireViewer } from "@/features/accounts/session"
+import { clipRepository } from "@/features/clips/repository"
+import { getAppSettings } from "@/features/settings/service"
 import { getDb } from "@/lib/db"
+import { jobs } from "@/lib/db/schema"
 
+import { publishingDefaults } from "./metadata"
+import { pacificDay } from "./quota"
 import { publishingRepository } from "./repository"
+import type { PublicationStatus } from "./schema"
 import { syncYouTubeChannel } from "./service"
 
 export async function getYouTubeChannelCard() {
@@ -28,5 +36,65 @@ export async function getYouTubeChannelCard() {
       publishedCount: await publishingRepository(db).countPublished(channel.id),
     },
     error,
+  }
+}
+
+export async function getPublishing(projectId: string) {
+  await connection()
+  const { workspace } = await requireViewer()
+  await assertProjectAccess(projectId)
+  const db = getDb()
+  const repo = publishingRepository(db)
+  const [channel, settings, clips] = await Promise.all([
+    repo.getChannel(workspace.id),
+    getAppSettings(db, workspace.id),
+    clipRepository(db).listForProject(projectId),
+  ])
+  const latest = await repo.latestForClips(clips.map((c) => c.id))
+  const running = await db
+    .select({ payload: jobs.payload, progress: jobs.progress })
+    .from(jobs)
+    .where(
+      and(
+        eq(jobs.projectId, projectId),
+        eq(jobs.type, "publish_clip"),
+        eq(jobs.status, "running")
+      )
+    )
+  const progressById = new Map(
+    running.map((j) => [String(j.payload.publicationId), j.progress])
+  )
+  const publications: Record<
+    string,
+    {
+      status: PublicationStatus
+      url: string | null
+      error: string | null
+      progress?: number
+    }
+  > = {}
+  for (const [clipId, p] of latest) {
+    const progress = progressById.get(p.id)
+    publications[clipId] = {
+      status: p.status,
+      url: p.url,
+      error: p.error,
+      ...(progress === undefined ? {} : { progress }),
+    }
+  }
+  const limit = (PLANS[workspace.plan] ?? PLANS.free).publishesPerDay
+  const publishesLeftToday =
+    limit === null
+      ? null
+      : Math.max(
+          0,
+          limit -
+            (await repo.countCreatedOnDay(workspace.id, pacificDay(new Date())))
+        )
+  return {
+    channel: channel ? { title: channel.title, status: channel.status } : null,
+    defaults: publishingDefaults(settings),
+    publications,
+    publishesLeftToday,
   }
 }

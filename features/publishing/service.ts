@@ -1,7 +1,9 @@
 import "server-only"
 
-import { YOUTUBE_SCOPES } from "@/features/accounts/schema"
+import type { Workspace } from "@/features/accounts/repository"
+import { PLANS, YOUTUBE_SCOPES } from "@/features/accounts/schema"
 import { clipRepository } from "@/features/clips/repository"
+import { jobQueue } from "@/features/jobs/queue"
 import { assetRepository } from "@/features/projects/repository"
 import type { Db } from "@/lib/db"
 import { getEnv } from "@/lib/env"
@@ -16,6 +18,7 @@ import {
   type Publication,
   type YouTubeChannel,
 } from "./repository"
+import type { PublishInput } from "./schema"
 import { getYouTubeClient } from "./youtube"
 
 export async function ensureYouTubeChannel(
@@ -124,4 +127,46 @@ export async function releaseRenderAsset(db: Db, publication: Publication) {
   if (!asset) return
   await assets.delete(asset.id)
   await getStorage().remove(asset.storageKey)
+}
+
+export async function queuePublication(
+  db: Db,
+  workspace: Pick<Workspace, "id" | "plan">,
+  clipId: string,
+  input: PublishInput
+) {
+  const clip = await clipRepository(db).getOrThrow(clipId)
+  if (clip.status !== "rendered" || !clip.renderAssetId) {
+    throw new AppError("CONFLICT", "Render the latest edit first")
+  }
+  const repo = publishingRepository(db)
+  const channel = await repo.getChannel(workspace.id)
+  if (!channel) throw new AppError("CONFLICT", "Connect YouTube first")
+  if (channel.status !== "ok") {
+    throw new AppError("CONFLICT", "Reconnect YouTube to keep publishing")
+  }
+  if (await repo.activeForClip(clip.id)) {
+    throw new AppError("CONFLICT", "This clip is already publishing")
+  }
+  const limit = (PLANS[workspace.plan] ?? PLANS.free).publishesPerDay
+  if (
+    limit !== null &&
+    (await repo.countCreatedOnDay(workspace.id, pacificDay(new Date()))) >=
+      limit
+  ) {
+    throw new AppError("CONFLICT", `Your plan allows ${limit} publishes a day`)
+  }
+  const publication = await repo.createPublication({
+    clipId: clip.id,
+    channelId: channel.id,
+    renderAssetId: clip.renderAssetId,
+    metadata: input,
+    status: "queued",
+  })
+  await jobQueue(db).enqueue({
+    type: "publish_clip",
+    projectId: clip.projectId,
+    payload: { publicationId: publication.id },
+  })
+  return publication
 }
