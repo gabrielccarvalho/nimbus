@@ -8,6 +8,7 @@ import { toast } from "sonner"
 import {
   CaptionFields,
   HighlightFields,
+  NicheField,
   LanguageField,
   languageLabel,
   QualityField,
@@ -237,11 +238,14 @@ export function ProjectSettingsForm({
           <CardTitle>Highlights</CardTitle>
         </CardHeader>
         <CardContent>
-          <HighlightFields
-            value={settings}
-            set={set}
-            claudeAvailable={claudeAvailable}
-          />
+          <FieldGroup>
+            <NicheField value={settings} set={set} />
+            <HighlightFields
+              value={settings}
+              set={set}
+              claudeAvailable={claudeAvailable}
+            />
+          </FieldGroup>
         </CardContent>
       </Card>
 

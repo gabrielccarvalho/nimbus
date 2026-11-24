@@ -509,7 +509,7 @@ export function ClipEditor({
           </div>
 
           <aside className="grid min-w-0 flex-[1_1_340px] gap-4">
-            <div className="grid grid-cols-[minmax(0,200px)_minmax(0,1fr)] items-start gap-3.5">
+            <div className="grid grid-cols-[150px_minmax(0,1fr)] items-start gap-3.5">
               <ClipEffectsPreview
                 layout={layout}
                 source={{ width: sourceWidth, height: sourceHeight }}
