@@ -45,6 +45,14 @@ export function defaultPublishInput(
   }
 }
 
+// jsonb hands publishAt back as an ISO string.
+export function storedPublishInput(metadata: PublishInput): PublishInput {
+  return {
+    ...metadata,
+    publishAt: metadata.publishAt ? new Date(metadata.publishAt) : null,
+  }
+}
+
 export function videoResource(input: PublishInput, language: string) {
   return {
     snippet: {

@@ -13,17 +13,14 @@ import {
   googleAccessToken,
   RECONNECT_MESSAGE,
 } from "../../publishing/google-token"
-import { videoResource } from "../../publishing/metadata"
+import { storedPublishInput, videoResource } from "../../publishing/metadata"
 import {
   nextQuotaReset,
   pacificDay,
   UPLOAD_UNITS,
 } from "../../publishing/quota"
-import {
-  publishingRepository,
-  type Publication,
-} from "../../publishing/repository"
-import type { PublicationStatus, PublishInput } from "../../publishing/schema"
+import { publishingRepository } from "../../publishing/repository"
+import type { PublicationStatus } from "../../publishing/schema"
 import { releaseRenderAsset } from "../../publishing/service"
 import { getYouTubeClient } from "../../publishing/youtube"
 import { transcriptRepository } from "../../transcription/repository"
@@ -36,15 +33,6 @@ const RUNNABLE: ReadonlySet<PublicationStatus> = new Set([
 
 const hasCause = (error: unknown, cause: string) =>
   error instanceof AppError && error.cause === cause
-
-// jsonb hands publishAt back as an ISO string.
-function storedInput(publication: Publication): PublishInput {
-  const { publishAt } = publication.metadata
-  return {
-    ...publication.metadata,
-    publishAt: publishAt ? new Date(publishAt) : null,
-  }
-}
 
 export const publishClipStep: JobHandler = async ({
   job,
@@ -145,7 +133,7 @@ export const publishClipStep: JobHandler = async ({
     if (!uploadUri) {
       const transcript = await transcriptRepository(db).get(project.id)
       const body = videoResource(
-        storedInput(publication),
+        storedPublishInput(publication.metadata),
         transcript?.language ?? project.settings.language
       )
       uploadUri = await authorized((t) => youtube.startUpload(t, body, bytes))

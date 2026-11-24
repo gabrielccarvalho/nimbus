@@ -277,6 +277,37 @@ describe("retryPublicationAction", () => {
     expect(retry).toMatchObject({ ok: false, error: { code: "CONFLICT" } })
   })
 
+  it("refuses to retry once the scheduled time has passed", async () => {
+    const { clip } = await seed({ plan: "admin" })
+    const first = await publishClipAction(clip.id, {
+      ...input,
+      privacy: "public",
+      publishAt: new Date(Date.now() + 3_600_000),
+    })
+    if (!first.ok) throw new Error("setup")
+    const repo = publishingRepository(env.db)
+    await repo.updatePublication(first.value.publicationId, {
+      status: "failed",
+      metadata: {
+        ...input,
+        privacy: "public",
+        publishAt: new Date(Date.now() - 60_000),
+      },
+    })
+
+    const retry = await retryPublicationAction(first.value.publicationId)
+
+    expect(retry).toMatchObject({
+      ok: false,
+      error: {
+        code: "CONFLICT",
+        message:
+          "The scheduled time has passed. Publish again with a new time.",
+      },
+    })
+    expect(await publishJobs()).toHaveLength(1)
+  })
+
   it("runs the checks again", async () => {
     const { clip, channel } = await seed({ plan: "admin" })
     const first = await publishClipAction(clip.id, input)

@@ -8,6 +8,7 @@ import { getDb } from "@/lib/db"
 import { AppError } from "@/lib/errors"
 import { parseId, runAction } from "@/lib/server-action"
 
+import { storedPublishInput } from "./metadata"
 import { publishingRepository } from "./repository"
 import { publishInputSchema } from "./schema"
 import { queuePublication } from "./service"
@@ -53,11 +54,18 @@ export async function retryPublicationAction(publicationId: unknown) {
       if (previous.status !== "failed") {
         throw new AppError("CONFLICT", "Only a failed publish can be retried")
       }
+      const metadata = storedPublishInput(previous.metadata)
+      if (metadata.publishAt && metadata.publishAt <= new Date()) {
+        throw new AppError(
+          "CONFLICT",
+          "The scheduled time has passed. Publish again with a new time."
+        )
+      }
       const publication = await queuePublication(
         getDb(),
         workspace,
         clip.id,
-        previous.metadata
+        metadata
       )
       revalidatePath(`/projects/${clip.projectId}`, "layout")
       return { publicationId: publication.id }
