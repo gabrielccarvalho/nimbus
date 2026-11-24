@@ -104,6 +104,31 @@ Horizontal time strip for a whole recording: loudness, silences, clip ranges and
 </Timeline>
 ```
 
+### TimelineTrack (`components/ui/timeline-track.tsx`)
+
+A lane of draggable blocks positioned by milliseconds, for editing time ranges (for example clip effects under a `Timeline`).
+
+- Parts: `TimelineTrack` (`durationMs`; a `role="group"`, so give it an `aria-label`), `TimelineBlock` (`startMs`, `endMs`, `variant` = `default` | `muted`, `selected`, `resizable` (default true), `minMs` (default 100), `stepMs` (default 100), `onChange(startMs, endMs)`, `onSelect`, `onDelete`). `useTimelineTrack()` exposes `{ durationMs, trackRef }`.
+- Blocks are controlled only: the parent owns the ranges and applies `onChange`. Ranges are clamped to `[0, durationMs]` and kept at least `minMs` long. Same-lane overlap rules belong to the parent.
+- Pointer: dragging the body moves, dragging either edge resizes (pointer capture, like `CropRegionEditor`). Pointer down also calls `onSelect`.
+- A11y: each block is a focusable `role="button"` with `aria-pressed` for selection, so give it an `aria-label`. ←/→ move by `stepMs`, Shift+←/→ resize the end, Enter/Space select, Delete/Backspace call `onDelete`.
+
+```tsx
+<TimelineTrack aria-label="Zoom" durationMs={durationMs}>
+  <TimelineBlock
+    aria-label="Zoom 1"
+    startMs={block.startMs}
+    endMs={block.endMs}
+    selected={selectedId === block.id}
+    onSelect={() => setSelectedId(block.id)}
+    onChange={(startMs, endMs) => update(block.id, { startMs, endMs })}
+    onDelete={() => remove(block.id)}
+  >
+    Zoom
+  </TimelineBlock>
+</TimelineTrack>
+```
+
 ### CaptionPreview (`components/ui/caption-preview.tsx`)
 
 A 9:16 frame that shows the caption page at a given time, styled like the burned-in ASS output.
