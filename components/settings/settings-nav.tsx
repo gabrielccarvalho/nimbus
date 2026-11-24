@@ -9,7 +9,6 @@ const GROUPS = [
     label: "Account",
     items: [
       { href: "/settings/profile", label: "Profile" },
-      { href: "/settings/plan", label: "Plan & usage" },
       { href: "/settings/channels", label: "Connected channels" },
       { href: "/settings/security", label: "Sign-in & security" },
     ],
@@ -17,9 +16,11 @@ const GROUPS = [
   {
     label: "Workspace",
     items: [
-      { href: "/settings/workspace", label: "Workspace" },
-      { href: "/settings", label: "Project defaults" },
-      { href: "/settings#rendering", label: "Captions & rendering" },
+      { href: "/settings/workspace", label: "General" },
+      { href: "/settings/workspace/plan", label: "Plan & usage" },
+      { href: "/settings/workspace/defaults", label: "Project defaults" },
+      { href: "/settings/workspace/captions", label: "Captions" },
+      { href: "/settings/workspace/rendering", label: "Rendering" },
     ],
   },
 ] as const

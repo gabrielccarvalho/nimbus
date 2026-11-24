@@ -11,7 +11,7 @@ test("navigates between projects and settings", async ({ page }) => {
     })
   ).toBeVisible()
   await page.keyboard.press(",")
-  await expect(page).toHaveURL(/\/settings$/)
+  await expect(page).toHaveURL(/\/settings\/profile$/)
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible()
   await expect(
     page.getByRole("navigation", { name: "breadcrumb" }).getByText("Settings")
@@ -24,7 +24,7 @@ test("channels is a page of its own, for now a preview", async ({ page }) => {
   await expect(page.getByRole("link", { name: "New project" })).toHaveCount(0)
   await expect(page.getByRole("link", { name: "Free plan" })).toHaveAttribute(
     "href",
-    "/settings/plan"
+    "/settings/workspace/plan"
   )
   await page
     .getByRole("navigation", { name: "Sections" })
@@ -60,7 +60,7 @@ test("command palette jumps to a page", async ({ page }) => {
   await expect(palette).toBeVisible()
   await page.keyboard.type("settings")
   await page.keyboard.press("Enter")
-  await expect(page).toHaveURL(/\/settings$/)
+  await expect(page).toHaveURL(/\/settings\/profile$/)
   await expect(palette).toBeHidden()
 })
 

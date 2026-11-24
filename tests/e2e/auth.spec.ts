@@ -7,8 +7,8 @@ test.describe("signed out", () => {
   test.use({ storageState: { cookies: [], origins: [] } })
 
   test("protects pages and the API", async ({ page, request }) => {
-    await page.goto("/settings")
-    await expect(page).toHaveURL(/\/login\?next=%2Fsettings$/)
+    await page.goto("/settings/profile")
+    await expect(page).toHaveURL(/\/login\?next=%2Fsettings%2Fprofile$/)
     await expect(
       page.getByRole("heading", { name: /Long streams in/ })
     ).toBeVisible()
@@ -20,7 +20,7 @@ test.describe("signed out", () => {
   })
 
   test("signs in, returns to the page and signs out", async ({ page }) => {
-    await page.goto("/settings")
+    await page.goto("/settings/profile")
     await page.getByLabel("Email", { exact: true }).fill(E2E_USER.email)
     await page
       .getByLabel("Password", { exact: true })
@@ -30,7 +30,7 @@ test.describe("signed out", () => {
 
     await page.getByLabel("Password", { exact: true }).fill(E2E_USER.password)
     await page.getByRole("button", { name: "Sign in" }).click()
-    await expect(page).toHaveURL(/\/settings$/)
+    await expect(page).toHaveURL(/\/settings\/profile$/)
 
     await page.getByRole("button", { name: new RegExp(E2E_USER.name) }).click()
     await page.getByRole("menuitem", { name: "Sign out" }).click()
@@ -58,7 +58,7 @@ test.describe("signed out", () => {
 test("keeps the Claude key encrypted and shows only a hint", async ({
   page,
 }) => {
-  await page.goto("/settings/security")
+  await page.goto("/settings/workspace")
   await page.getByRole("button", { name: "Add key" }).click()
   await page
     .getByLabel("Key", { exact: true })
