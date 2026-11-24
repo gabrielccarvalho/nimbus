@@ -19,17 +19,14 @@ export type PixelRect = { x: number; y: number; w: number; h: number }
 const even = (n: number) => Math.max(2, Math.floor(n / 2) * 2)
 const evenFloor = (n: number) => Math.max(0, Math.floor(n / 2) * 2)
 
-const scaled = (value: number, size: number) =>
-  Math.round(value * size * 1e6) / 1e6
-
 export function toPixels(rect: Rect, width: number, height: number): PixelRect {
-  const x = evenFloor(scaled(rect.x, width))
-  const y = evenFloor(scaled(rect.y, height))
+  const x = evenFloor(rect.x * width)
+  const y = evenFloor(rect.y * height)
   return {
     x,
     y,
-    w: Math.min(even(scaled(rect.w, width)), evenFloor(width - x)),
-    h: Math.min(even(scaled(rect.h, height)), evenFloor(height - y)),
+    w: Math.min(even(rect.w * width), evenFloor(width - x)),
+    h: Math.min(even(rect.h * height), evenFloor(height - y)),
   }
 }
 
@@ -149,6 +146,10 @@ export function gameplayBox(
         ? plan.regions.find((r) => r.content === "gameplay")?.crop
         : undefined
   if (!crop) return null
+  const aspect = gameplaySlotAspect(layout.mode)!
+  const stored = layout.gameplayRect
+  const storedAspect = (stored.w * width) / (stored.h * height)
+  if (Math.abs(storedAspect / aspect - 1) <= 0.01) return stored
   return {
     x: crop.x / width,
     y: crop.y / height,

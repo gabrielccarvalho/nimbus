@@ -297,7 +297,20 @@ describe("gameplay box", () => {
     expect(gameplaySlotAspect("no-cam-blur-fill")).toBeNull()
   })
 
-  it("matches the planned gameplay crop and round-trips", () => {
+  const planCrop = (
+    layout: Parameters<typeof planLayout>[0],
+    w: number,
+    h: number
+  ) => {
+    const plan = planLayout(layout, w, h)
+    return plan.mode === "no-cam-fill"
+      ? plan.crop
+      : "regions" in plan
+        ? plan.regions.find((r) => r.content === "gameplay")!.crop
+        : null
+  }
+
+  it("derives the planned gameplay crop for an unfitted rect", () => {
     for (const mode of ["cam-top", "split-50", "no-cam-fill"] as const) {
       const layout = {
         ...base,
@@ -306,29 +319,36 @@ describe("gameplay box", () => {
         gameplayRect,
         gameplayFocusX: 0.2,
       }
-      const plan = planLayout(layout, W, H)
-      const expected =
-        plan.mode === "no-cam-fill"
-          ? plan.crop
-          : "regions" in plan
-            ? plan.regions.find((r) => r.content === "gameplay")!.crop
-            : null
       const box = gameplayBox(layout, W, H)!
-      expect(toPixels(box, W, H)).toEqual(expected)
+      expect(toPixels(box, W, H)).toEqual(planCrop(layout, W, H))
+    }
+  })
 
-      const again = planLayout(
-        { ...layout, gameplayRect: box, gameplayFocusX: 0.5 },
-        W,
-        H
-      )
-      const crop =
-        again.mode === "no-cam-fill"
-          ? again.crop
-          : "regions" in again
-            ? again.regions.find((r) => r.content === "gameplay")!.crop
-            : null
-      for (const key of ["x", "y", "w", "h"] as const) {
-        expect(Math.abs(crop![key] - expected![key])).toBeLessThanOrEqual(4)
+  it("is a fixed point once the box is committed", () => {
+    for (const [w, h] of [
+      [1920, 1080],
+      [2560, 1080],
+      [1280, 720],
+      [3840, 1600],
+    ] as const) {
+      for (const mode of ["cam-top", "split-50", "no-cam-fill"] as const) {
+        const layout = {
+          ...base,
+          mode,
+          webcamRect: cam,
+          gameplayRect,
+          gameplayFocusX: 0.2,
+        }
+        const first = gameplayBox(layout, w, h)!
+        let box = first
+        for (let i = 0; i < 40; i++) {
+          box = gameplayBox(
+            { ...layout, gameplayRect: box, gameplayFocusX: 0.5 },
+            w,
+            h
+          )!
+        }
+        expect(box).toEqual(first)
       }
     }
   })

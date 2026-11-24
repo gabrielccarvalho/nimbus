@@ -71,6 +71,8 @@ function resizeRectLocked(
   }
 }
 
+const noop = () => {}
+
 const percent = (value: number) => `${Math.round(value * 1000) / 10}%`
 
 type CropRegionEditorContextValue = {
@@ -167,7 +169,7 @@ function CropRegion({
   const editor = useCropRegionEditor()
   const { frameRef, disabled } = editor
   const value = valueProp ?? editor.value
-  const commit = valueProp ? (onValueChange ?? editor.commit) : editor.commit
+  const commit = valueProp ? (onValueChange ?? noop) : editor.commit
 
   const lockedRatio = () => {
     const frame = frameRef.current?.getBoundingClientRect()

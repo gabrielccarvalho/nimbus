@@ -186,6 +186,39 @@ describe("multi-region and aspect lock", () => {
     expect(screen.getByRole("group", { name: "Webcam" }).style.left).toBe("50%")
   })
 
+  it("treats a controlled region without a handler as read-only", async () => {
+    const user = userEvent.setup()
+    const first = vi.fn()
+    render(
+      <CropRegionEditor value={rect} onValueChange={first}>
+        <CropRegion aria-label="Gameplay" value={start} />
+      </CropRegionEditor>
+    )
+    screen.getByRole("group", { name: "Gameplay" }).focus()
+    await user.keyboard("{ArrowRight}")
+    expect(first).not.toHaveBeenCalled()
+  })
+
+  it("snaps a start rect that is off the ratio", () => {
+    const next = resizeRectLocked(
+      { x: 0.1, y: 0.1, w: 0.3, h: 0.1 },
+      "se",
+      0,
+      0,
+      1
+    )
+    expect(next.w / next.h).toBeCloseTo(1)
+  })
+
+  it("moves without drifting in size", () => {
+    let next = { x: 0.3, y: 0.3, w: 0.2, h: 0.4 }
+    for (let i = 0; i < 40; i++) {
+      next = moveRect(next, i % 2 ? -0.005 : 0.005, 0)
+    }
+    expect(next.x).toBeCloseTo(0.3)
+    expect([next.w, next.h]).toEqual([0.2, 0.4])
+  })
+
   it("clamps locked resizes to the frame", () => {
     const next = resizeRectLocked(
       { x: 0.6, y: 0.6, w: 0.2, h: 0.2 },
