@@ -138,6 +138,19 @@ export function publishingRepository(db: Db) {
       return row !== undefined
     },
 
+    async countPublished(channelId: string): Promise<number> {
+      const [row] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(publications)
+        .where(
+          and(
+            eq(publications.channelId, channelId),
+            eq(publications.status, "published")
+          )
+        )
+      return row?.count ?? 0
+    },
+
     async countCreatedOnDay(workspaceId: string, day: string) {
       const [row] = await db
         .select({ count: sql<number>`count(*)::int` })

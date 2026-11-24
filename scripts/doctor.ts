@@ -202,6 +202,17 @@ async function main() {
     ].join("; ")
   )
 
+  const googleConfigured = Boolean(
+    env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
+  )
+  add(
+    "youtube",
+    googleConfigured ? "ok" : "warn",
+    googleConfigured
+      ? "Google credentials configured"
+      : "GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET unset: clips cannot be published to YouTube"
+  )
+
   try {
     await access(modelFile, constants.R_OK)
     add("face detection", "ok", path.relative(process.cwd(), modelFile))

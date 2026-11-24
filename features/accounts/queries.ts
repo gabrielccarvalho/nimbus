@@ -3,6 +3,7 @@ import "server-only"
 import { headers } from "next/headers"
 import { connection } from "next/server"
 
+import { syncYouTubeChannel } from "@/features/publishing/service"
 import { getDb } from "@/lib/db"
 
 import { enabledSocialProviders, getAuth } from "./auth"
@@ -68,7 +69,7 @@ export async function getSecuritySettings() {
 
 export async function getChannelSettings() {
   await connection()
-  const { user } = await requireViewer()
+  const { user, workspace } = await requireViewer()
   const linked = await accountRepository(getDb()).linkedAccounts(user.id)
   const providers = enabledSocialProviders()
   const google = linked.find((a) => a.providerId === "google")
@@ -76,6 +77,10 @@ export async function getChannelSettings() {
   const youtubeConnected = Boolean(
     google && YOUTUBE_SCOPES.every((scope) => google.scope?.includes(scope))
   )
+  const channel =
+    google && youtubeConnected
+      ? await syncYouTubeChannel(getDb(), workspace.id, google)
+      : undefined
   return [
     {
       id: "youtube" as const,
@@ -84,6 +89,8 @@ export async function getChannelSettings() {
       connectedAt: youtubeConnected ? google!.updatedAt : null,
       providerId: "google" as const,
       accountId: google?.accountId ?? null,
+      needsReconnect: channel?.status === "needs_reconnect",
+      channelTitle: channel?.title ?? null,
     },
     {
       id: "twitch" as const,
@@ -92,6 +99,8 @@ export async function getChannelSettings() {
       connectedAt: twitch?.updatedAt ?? null,
       providerId: "twitch" as const,
       accountId: twitch?.accountId ?? null,
+      needsReconnect: false,
+      channelTitle: null,
     },
     {
       id: "tiktok" as const,
@@ -100,6 +109,8 @@ export async function getChannelSettings() {
       connectedAt: null,
       providerId: null,
       accountId: null,
+      needsReconnect: false,
+      channelTitle: null,
     },
     {
       id: "instagram" as const,
@@ -108,6 +119,8 @@ export async function getChannelSettings() {
       connectedAt: null,
       providerId: null,
       accountId: null,
+      needsReconnect: false,
+      channelTitle: null,
     },
   ]
 }

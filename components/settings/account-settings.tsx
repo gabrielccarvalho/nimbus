@@ -668,14 +668,35 @@ export function ChannelList({ channels }: { channels: ChannelRow[] }) {
             className="flex items-center gap-3.5 rounded-[14px] bg-graphite-2 p-3.5"
           >
             <ChannelIcon provider={channel.id} />
-            <span className="min-w-0 flex-1 font-medium">{channel.name}</span>
+            <span className="grid min-w-0 flex-1">
+              <span className="font-medium">{channel.name}</span>
+              {channel.channelTitle && (
+                <span className="truncate text-[13px] text-muted-foreground">
+                  {channel.channelTitle}
+                </span>
+              )}
+            </span>
             {!channel.configured ? (
               <StatusPill tone="neutral">
                 {channel.providerId ? "Not set up" : "Soon"}
               </StatusPill>
             ) : channel.connectedAt ? (
               <>
-                <StatusPill tone="mint">Connected</StatusPill>
+                {channel.needsReconnect ? (
+                  <>
+                    <StatusPill tone="amber">Needs reconnect</StatusPill>
+                    <Button
+                      size="sm"
+                      disabled={pending}
+                      aria-label={`Reconnect ${channel.name}`}
+                      onClick={() => connect(channel)}
+                    >
+                      Reconnect
+                    </Button>
+                  </>
+                ) : (
+                  <StatusPill tone="mint">Connected</StatusPill>
+                )}
                 <Button
                   size="sm"
                   variant="ghost"
