@@ -302,17 +302,17 @@ Spec: Claude Design handoff (`~/Downloads/nimbus-redesign-handoff/design/`). Aut
 Spec: `docs/superpowers/specs/2026-11-24-youtube-publishing-and-insights-design.md`. Plan: `docs/superpowers/plans/2026-11-24-youtube-publishing.md`.
 
 - [x] 1. Google's rules checked, ADR-0065 and docs
-- [ ] 2. Schema, migration and repository
-- [ ] 3. Pure metadata and quota-day logic
-- [ ] 4. Google access tokens
-- [ ] 5. YouTube client adapter
-- [ ] 6. Channel connection and the Channels pages
-- [ ] 7. Description drafted at selection
-- [ ] 8. The `publish_clip` job
-- [ ] 9. Server actions and queries
-- [ ] 10. Publishing defaults and plan usage
-- [ ] 11. Publish dialog and status on clips
-- [ ] 12. End to end and phase close
+- [x] 2. Schema, migration and repository
+- [x] 3. Pure metadata and quota-day logic
+- [x] 4. Google access tokens
+- [x] 5. YouTube client adapter
+- [x] 6. Channel connection and the Channels pages
+- [x] 7. Description drafted at selection
+- [x] 8. The `publish_clip` job
+- [x] 9. Server actions and queries
+- [x] 10. Publishing defaults and plan usage
+- [x] 11. Publish dialog and status on clips
+- [x] 12. End to end and phase close
 
 ### Not verified
 
@@ -320,3 +320,4 @@ Spec: `docs/superpowers/specs/2026-11-24-youtube-publishing-and-insights-design.
 - Real multi-hour recordings end to end (a 3 h stream was transcribed and scored; rendering from it wasn't). Claude's chunking of long transcripts is tested against a mocked API only.
 - Hardware encoders other than VideoToolbox.
 - Linux and Windows.
+- A real upload to YouTube (needs a Google project with the YouTube Data API enabled).

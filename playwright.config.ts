@@ -19,6 +19,7 @@ const testEnv = {
   DATABASE_URL: process.env.E2E_DATABASE_URL,
   TRANSCRIBER: "fake",
   DOWNLOADER: "fake",
+  YOUTUBE_CLIENT: "fake",
   FAKE_DOWNLOAD_FILE: path.resolve(
     "tests/fixtures/.generated/gameplay-16x9.mp4"
   ),
