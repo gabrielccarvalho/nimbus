@@ -4,6 +4,7 @@ import { GET as exportZip } from "@/app/api/projects/[id]/export/route"
 import { clipRepository } from "@/features/clips/repository"
 import {
   approveAllCandidates,
+  resetClipEffects,
   setClipReviewStatus,
   updateClip,
 } from "@/features/clips/service"
@@ -107,6 +108,109 @@ describe("updateClip", () => {
     await expect(
       updateClip(env.db, projectId, clip.id, edit())
     ).rejects.toThrow(/rendering/)
+  })
+})
+
+describe("clip effects", () => {
+  const zoom = (startMs: number, endMs: number) => ({
+    kind: "zoom" as const,
+    startMs,
+    endMs,
+    scale: 1.4,
+    focus: { x: 0.5, y: 0.5 },
+  })
+
+  it("clips edited effects to a new trim", async () => {
+    const { projectId, clip } = await reviewedProject()
+    const saved = await updateClip(
+      env.db,
+      projectId,
+      clip.id,
+      edit({
+        startMs: 4000,
+        endMs: 14_000,
+        effects: {
+          edited: true,
+          events: [zoom(1000, 6000), zoom(20_000, 22_000)],
+        },
+      })
+    )
+    expect(saved.effects).toEqual({
+      edited: true,
+      events: [zoom(4000, 6000)],
+    })
+  })
+
+  it("replans an auto track when the trim changes", async () => {
+    const { projectId, clip } = await reviewedProject()
+    const saved = await updateClip(
+      env.db,
+      projectId,
+      clip.id,
+      edit({ startMs: 3000, endMs: 13_000, effects: null })
+    )
+    expect(saved.effects).toMatchObject({ edited: false })
+    for (const event of saved.effects!.events) {
+      expect(event.startMs).toBeGreaterThanOrEqual(3000)
+      expect(event.endMs).toBeLessThanOrEqual(13_000)
+    }
+  })
+
+  it("keeps null when autoEffects is off", async () => {
+    const { projectId, clip } = await reviewedProject()
+    const projects = projectRepository(env.db)
+    await projects.updateSettings(projectId, {
+      ...(await projects.getOrThrow(projectId)).settings,
+      autoEffects: false,
+    })
+    const saved = await updateClip(env.db, projectId, clip.id, edit())
+    expect(saved.effects).toBeNull()
+  })
+
+  it("resetClipEffects replans from stored beats and clears edited", async () => {
+    const { projectId, clip } = await reviewedProject()
+    const clips = clipRepository(env.db)
+    await clips.update(clip.id, {
+      beats: [{ ms: clip.startMs + 4000, kind: "reaction" }],
+      effects: { edited: true, events: [] },
+    })
+    const effects = await resetClipEffects(env.db, projectId, clip.id)
+    expect(effects.edited).toBe(false)
+    expect(effects.events).toContainEqual(
+      expect.objectContaining({ kind: "focus" })
+    )
+    expect((await clips.getOrThrow(clip.id)).effects).toEqual(effects)
+  })
+
+  it("moves a rendered clip back to approved when effects are saved", async () => {
+    const { projectId, clip } = await reviewedProject()
+    await clipRepository(env.db).update(clip.id, { status: "rendered" })
+    const saved = await updateClip(
+      env.db,
+      projectId,
+      clip.id,
+      edit({
+        startMs: clip.startMs,
+        endMs: clip.endMs,
+        effects: {
+          edited: true,
+          events: [zoom(clip.startMs, clip.startMs + 2000)],
+        },
+      })
+    )
+    expect(saved.status).toBe("approved")
+  })
+
+  it("moves a rendered clip back to approved when effects are reset", async () => {
+    const { projectId, clip } = await reviewedProject()
+    await clipRepository(env.db).update(clip.id, {
+      status: "rendered",
+      effects: { edited: true, events: [] },
+    })
+    await resetClipEffects(env.db, projectId, clip.id)
+    expect((await clipRepository(env.db).getOrThrow(clip.id)).status).toBe(
+      "approved"
+    )
   })
 })
 

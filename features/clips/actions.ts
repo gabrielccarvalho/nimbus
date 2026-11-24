@@ -10,6 +10,7 @@ import { clipEditSchema, clipStatusSchema } from "./schema"
 import {
   applyManualSelection,
   approveAllCandidates,
+  resetClipEffects,
   setClipReviewStatus,
   updateClip,
 } from "./service"
@@ -69,6 +70,19 @@ export async function updateClipAction(
       }
       await updateClip(getDb(), project, clip, parsed.data)
     },
+    [`/projects/${project}`]
+  )
+}
+
+export async function resetClipEffectsAction(
+  projectId: unknown,
+  clipId: unknown
+) {
+  const project = parseId(projectId, "project id")
+  const clip = parseId(clipId, "clip id")
+  return runAction(
+    "resetClipEffects",
+    () => resetClipEffects(getDb(), project, clip),
     [`/projects/${project}`]
   )
 }

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { clipRepository } from "@/features/clips/repository"
 import { setClipReviewStatus } from "@/features/clips/service"
 import { importFromUrl } from "@/features/downloads/service"
+import { layoutRepository } from "@/features/layout/repository"
 import { jobQueue } from "@/features/jobs/queue"
 import { projectRepository } from "@/features/projects/repository"
 import {
@@ -89,6 +90,50 @@ describe("project settings", () => {
       (await projectRepository(env.db).getOrThrow(project.id)).settings
         .renderQuality
     ).toBe("high")
+  })
+
+  it("turning autoEffects off clears only unedited tracks", async () => {
+    const project = await analyzedProject()
+    const clips = clipRepository(env.db)
+    const [first] = await clips.listForProject(project.id)
+    const [second] = await clips.addCandidates(project.id, [
+      {
+        startMs: first!.endMs,
+        endMs: first!.endMs + 10_000,
+        title: "Second",
+        hook: "Hook",
+        reason: "r",
+        score: 0.5,
+        beats: null,
+      },
+    ])
+    await layoutRepository(env.db).savePreset(1920, 1080, {
+      webcamRect: { x: 0.78, y: 0.03, w: 0.2, h: 0.2 },
+      gameplayRect: { x: 0, y: 0, w: 1, h: 1 },
+      gameplayFocusX: 0.5,
+      mode: "cam-top",
+    })
+    const kept = { edited: true, events: [] }
+    await clips.update(first!.id, { effects: kept })
+    await clips.update(second!.id, {
+      effects: { edited: false, events: [] },
+    })
+    const settings = (await projectRepository(env.db).getOrThrow(project.id))
+      .settings
+    await updateProjectSettings(env.db, project.id, {
+      ...settings,
+      autoEffects: false,
+    })
+    expect((await clips.getOrThrow(first!.id)).effects).toEqual(kept)
+    expect((await clips.getOrThrow(second!.id)).effects).toBeNull()
+    await updateProjectSettings(env.db, project.id, {
+      ...settings,
+      autoEffects: true,
+    })
+    expect((await clips.getOrThrow(first!.id)).effects).toEqual(kept)
+    expect((await clips.getOrThrow(second!.id)).effects).toMatchObject({
+      edited: false,
+    })
   })
 
   it("re-transcribes and keeps approved clips", async () => {

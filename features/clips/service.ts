@@ -5,6 +5,8 @@ import { AppError } from "@/lib/errors"
 
 import { postprocessCandidates } from "../highlights/postprocess"
 import { parseCandidatesJson } from "../highlights/prompt"
+import { normalizeEffects, type ClipEffects } from "../effects/schema"
+import { autoEffectsFor } from "../effects/service"
 import { assetRepository, projectRepository } from "../projects/repository"
 import { transcriptRepository } from "../transcription/repository"
 import { clipRepository } from "./repository"
@@ -106,6 +108,25 @@ export async function updateClip(
     )
   }
   const trimmed = edit.startMs !== clip.startMs || edit.endMs !== clip.endMs
+  const project = await projectRepository(db).getOrThrow(projectId)
+  const range = { startMs: edit.startMs, endMs: edit.endMs }
+  let effects: ClipEffects | null = null
+  if (edit.effects?.edited) {
+    effects = {
+      edited: true,
+      events: normalizeEffects(edit.effects.events, range),
+    }
+  } else if (trimmed && (edit.effects || project.settings.autoEffects)) {
+    effects =
+      (await autoEffectsFor(db, projectId, [{ ...clip, ...range }])).get(
+        clip.id
+      ) ?? null
+  } else if (edit.effects) {
+    effects = {
+      edited: false,
+      events: normalizeEffects(edit.effects.events, range),
+    }
+  }
   return clips.update(clipId, {
     startMs: edit.startMs,
     endMs: edit.endMs,
@@ -116,6 +137,7 @@ export async function updateClip(
       pages: trimmed ? [] : edit.captionOverrides.pages,
     },
     layoutOverride: edit.layoutOverride,
+    effects,
     status: clip.status === "rendered" ? "approved" : clip.status,
   })
 }
@@ -127,4 +149,29 @@ export async function approveAllCandidates(db: Db, projectId: string) {
     .map((clip) => clip.id)
   await clips.setStatus(ids, "approved")
   return ids.length
+}
+
+export async function resetClipEffects(
+  db: Db,
+  projectId: string,
+  clipId: string
+): Promise<ClipEffects> {
+  const clips = clipRepository(db)
+  const clip = await clips.getOrThrow(clipId)
+  if (clip.projectId !== projectId) {
+    throw new AppError("NOT_FOUND", "Clip not found")
+  }
+  if (clip.status === "rendering") {
+    throw new AppError("CONFLICT", "Wait for this clip to finish rendering")
+  }
+  const effects = (await autoEffectsFor(db, projectId, [clip])).get(clip.id)
+  if (!effects) {
+    throw new AppError("CONFLICT", "Confirm the layout before planning effects")
+  }
+  const changed = JSON.stringify(effects) !== JSON.stringify(clip.effects)
+  await clips.update(clipId, {
+    effects,
+    status: changed && clip.status === "rendered" ? "approved" : clip.status,
+  })
+  return effects
 }
