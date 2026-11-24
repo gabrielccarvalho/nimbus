@@ -14,6 +14,7 @@ import {
 } from "@/features/projects/repository"
 import { defaultProjectSettings } from "@/features/projects/schema"
 import { cancelProject } from "@/features/projects/service"
+import { RECONNECT_MESSAGE } from "@/features/publishing/google-token"
 import { nextQuotaReset, pacificDay } from "@/features/publishing/quota"
 import { publishingRepository } from "@/features/publishing/repository"
 import type { PublishInput } from "@/features/publishing/schema"
@@ -326,9 +327,9 @@ describe("publish_clip", () => {
     expect(upload.mock.calls[1]![3]).toBe(512)
   })
 
-  it("fails UNAUTHORIZED on a second 401", async () => {
+  it("asks to reconnect on a second 401", async () => {
     const calls = tokenEndpoint()
-    const { repo, publication, job } = await seed()
+    const { repo, channel, publication, job, project } = await seed()
     vi.spyOn(getYouTubeClient(), "uploadFrom").mockRejectedValue(
       tokenRejected()
     )
@@ -341,7 +342,11 @@ describe("publish_clip", () => {
     expect(failed.attempts).toBe(1)
     const saved = (await repo.getPublication(publication.id))!
     expect(saved.status).toBe("failed")
-    expect(saved.error).toBe("YouTube rejected the access token")
+    expect(saved.error).toBe(RECONNECT_MESSAGE)
+    expect((await repo.getChannel(project.workspaceId!))!.id).toBe(channel.id)
+    expect((await repo.getChannel(project.workspaceId!))!.status).toBe(
+      "needs_reconnect"
+    )
   })
 
   it("fails once without spending again when the channel hit YouTube's upload limit", async () => {

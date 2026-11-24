@@ -116,14 +116,18 @@ export const publishClipStep: JobHandler = async ({
   const youtube = getYouTubeClient()
   let token = await googleAccessToken(db, channel)
   let refreshed = false
-  const authorized = async <T>(call: (t: string) => Promise<T>) => {
+  const authorized = async <T>(call: (t: string) => Promise<T>): Promise<T> => {
     try {
       return await call(token)
     } catch (error) {
-      if (refreshed || !hasCause(error, "token")) throw error
+      if (!hasCause(error, "token")) throw error
+      if (refreshed) {
+        await publishing.setChannelStatus(channel.id, "needs_reconnect")
+        throw new AppError("UNAUTHORIZED", RECONNECT_MESSAGE)
+      }
       refreshed = true
       token = await googleAccessToken(db, channel, { force: true })
-      return call(token)
+      return authorized(call)
     }
   }
 
