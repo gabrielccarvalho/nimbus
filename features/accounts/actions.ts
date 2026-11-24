@@ -1,10 +1,15 @@
 "use server"
 
+import { and, eq } from "drizzle-orm"
+import { headers } from "next/headers"
+
 import { getDb } from "@/lib/db"
+import { session } from "@/lib/db/schema"
 import { AppError } from "@/lib/errors"
 import { runAction } from "@/lib/server-action"
 import { getStorage, type AvatarOwner } from "@/lib/storage"
 
+import { getAuth } from "./auth"
 import { removeAvatar, saveAvatar } from "./avatar"
 import { requireActor, workspaceId } from "./session"
 import {
@@ -62,5 +67,29 @@ export async function removeAvatarAction(target: unknown) {
       await removeAvatar(getDb(), getStorage(), owner, id)
     },
     ["/"]
+  )
+}
+
+export async function revokeSessionAction(sessionId: unknown) {
+  return runAction(
+    "revokeSession",
+    async () => {
+      const viewer = await requireActor()
+      if (typeof sessionId !== "string" || sessionId === viewer.session.id) {
+        throw new AppError("VALIDATION", "Choose another session")
+      }
+      const [target] = await getDb()
+        .select({ token: session.token })
+        .from(session)
+        .where(
+          and(eq(session.id, sessionId), eq(session.userId, viewer.user.id))
+        )
+      if (!target) throw new AppError("NOT_FOUND", "Session not found")
+      await getAuth().api.revokeSession({
+        body: { token: target.token },
+        headers: await headers(),
+      })
+    },
+    ["/settings/security"]
   )
 }

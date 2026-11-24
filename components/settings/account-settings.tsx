@@ -1,5 +1,6 @@
 "use client"
 
+import { DesktopIcon, DeviceMobileIcon } from "@phosphor-icons/react"
 import { useRouter } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
@@ -25,9 +26,11 @@ import {
 import { Input } from "@/components/ui/input"
 import { StatusPill } from "@/components/ui/status-pill"
 import { Switch } from "@/components/ui/switch"
+import { ChannelIcon } from "@/components/channels/channel-icon"
 import {
   removeAnthropicKeyAction,
   renameWorkspaceAction,
+  revokeSessionAction,
   saveAnthropicKeyAction,
 } from "@/features/accounts/actions"
 import type { ChannelRow, SecuritySettings } from "@/features/accounts/queries"
@@ -407,137 +410,82 @@ function ApiKeyDialog({
   )
 }
 
-function deviceName(userAgent: string | null) {
-  if (!userAgent) return "Unknown device"
-  const browser = /Edg\//.test(userAgent)
-    ? "Edge"
-    : /Chrome\//.test(userAgent)
-      ? "Chrome"
-      : /Firefox\//.test(userAgent)
-        ? "Firefox"
-        : /Safari\//.test(userAgent)
-          ? "Safari"
-          : "Browser"
-  const os = /Mac OS X/.test(userAgent)
-    ? "Mac"
-    : /Windows/.test(userAgent)
-      ? "Windows"
-      : /Android/.test(userAgent)
-        ? "Android"
-        : /iPhone|iPad/.test(userAgent)
-          ? "iOS"
-          : /Linux/.test(userAgent)
-            ? "Linux"
-            : "device"
-  return `${browser} on ${os}`
-}
-
 export function SecuritySettingsView({ data }: { data: SecuritySettings }) {
   const [dialog, setDialog] = React.useState<"password" | "2fa" | "key" | null>(
     null
   )
   const { pending, run } = useAction()
-  const others = data.sessions.filter((s) => !s.current)
-
   return (
-    <SettingsSection className="gap-1">
-      <SettingsSectionHeader title="Sign-in & security" />
-      {data.hasPassword && (
-        <SettingRow
-          title="Password"
-          description={
-            data.passwordChangedAt
-              ? `Last changed ${formatRelativeDay(data.passwordChangedAt).toLowerCase()}`
-              : undefined
-          }
-        >
-          <Button size="sm" onClick={() => setDialog("password")}>
-            Change
-          </Button>
-        </SettingRow>
-      )}
-      {data.hasPassword && (
-        <SettingRow
-          title="Two-step verification"
-          description="A code from your authenticator app at sign-in"
-        >
-          <Switch
-            aria-label="Two-step verification"
-            checked={data.twoFactorEnabled}
-            onCheckedChange={() => setDialog("2fa")}
-          />
-        </SettingRow>
-      )}
-      <SettingRow
-        title="Claude API key"
-        description="Used by the Claude highlight selector. Stored encrypted."
-      >
-        {data.keyHint && (
-          <span className="font-mono text-[13px] text-muted-foreground">
-            {data.keyHint}
-          </span>
-        )}
-        <Button size="sm" onClick={() => setDialog("key")}>
-          {data.keyHint ? "Replace" : "Add key"}
-        </Button>
-        {data.keyHint && (
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={pending}
-            onClick={() =>
-              run(() => removeAnthropicKeyAction(), "Claude API key removed")
+    <>
+      <SettingsSection className="gap-1">
+        <SettingsSectionHeader title="Sign-in & security" />
+        {data.hasPassword && (
+          <SettingRow
+            title="Password"
+            description={
+              data.passwordChangedAt
+                ? `Last changed ${formatRelativeDay(data.passwordChangedAt).toLowerCase()}`
+                : undefined
             }
           >
-            Remove
-          </Button>
+            <Button size="sm" onClick={() => setDialog("password")}>
+              Change
+            </Button>
+          </SettingRow>
         )}
-      </SettingRow>
-      <SettingRow
-        title="Sessions"
-        description={
-          <span className="grid gap-0.5">
-            {data.sessions.map((s) => (
-              <span key={s.id}>
-                {deviceName(s.userAgent)}
-                {s.current
-                  ? " · this session"
-                  : ` · ${formatRelativeDay(s.updatedAt).toLowerCase()}`}
-              </span>
-            ))}
-          </span>
-        }
-      >
-        {others.length > 0 && (
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={pending}
-            onClick={() =>
-              run(
-                () => authClient.revokeOtherSessions(),
-                "Signed out everywhere else"
-              )
-            }
+        {data.hasPassword && (
+          <SettingRow
+            title="Two-step verification"
+            description="A code from your authenticator app at sign-in"
           >
-            Sign out everywhere else
-          </Button>
+            <Switch
+              aria-label="Two-step verification"
+              checked={data.twoFactorEnabled}
+              onCheckedChange={() => setDialog("2fa")}
+            />
+          </SettingRow>
         )}
-      </SettingRow>
-      <PasswordDialog
-        open={dialog === "password"}
-        onOpenChange={(o) => setDialog(o ? "password" : null)}
-      />
-      <TwoFactorDialog
-        enabled={data.twoFactorEnabled}
-        open={dialog === "2fa"}
-        onOpenChange={(o) => setDialog(o ? "2fa" : null)}
-      />
-      <ApiKeyDialog
-        open={dialog === "key"}
-        onOpenChange={(o) => setDialog(o ? "key" : null)}
-      />
-    </SettingsSection>
+        <SettingRow
+          title="Claude API key"
+          description="Used by the Claude highlight selector. Stored encrypted."
+        >
+          {data.keyHint && (
+            <span className="font-mono text-[13px] text-muted-foreground">
+              {data.keyHint}
+            </span>
+          )}
+          <Button size="sm" onClick={() => setDialog("key")}>
+            {data.keyHint ? "Replace" : "Add key"}
+          </Button>
+          {data.keyHint && (
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={pending}
+              onClick={() =>
+                run(() => removeAnthropicKeyAction(), "Claude API key removed")
+              }
+            >
+              Remove
+            </Button>
+          )}
+        </SettingRow>
+        <PasswordDialog
+          open={dialog === "password"}
+          onOpenChange={(o) => setDialog(o ? "password" : null)}
+        />
+        <TwoFactorDialog
+          enabled={data.twoFactorEnabled}
+          open={dialog === "2fa"}
+          onOpenChange={(o) => setDialog(o ? "2fa" : null)}
+        />
+        <ApiKeyDialog
+          open={dialog === "key"}
+          onOpenChange={(o) => setDialog(o ? "key" : null)}
+        />
+      </SettingsSection>
+      <SessionList sessions={data.sessions} />
+    </>
   )
 }
 
@@ -605,6 +553,85 @@ export function DeleteAccount({ hasPassword }: { hasPassword: boolean }) {
   )
 }
 
+function SessionList({ sessions }: { sessions: SecuritySettings["sessions"] }) {
+  const { pending, run } = useAction()
+  const others = sessions.filter((s) => !s.current).length
+
+  return (
+    <SettingsSection aria-labelledby="sessions-title">
+      <SettingsSectionHeader
+        id="sessions-title"
+        title="Sessions"
+        description="Everywhere you're signed in."
+      >
+        {others > 0 && (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={pending}
+            onClick={() =>
+              run(
+                () => authClient.revokeOtherSessions(),
+                "Signed out everywhere else"
+              )
+            }
+          >
+            Sign out all others
+          </Button>
+        )}
+      </SettingsSectionHeader>
+      <ul className="grid gap-2">
+        {sessions.map((s) => {
+          const Icon = s.device?.mobile ? DeviceMobileIcon : DesktopIcon
+          const name = s.device
+            ? `${s.device.browser} on ${s.device.os}`
+            : "Unknown device"
+          return (
+            <li
+              key={s.id}
+              className="flex flex-wrap items-center gap-3.5 rounded-[14px] bg-graphite-2 px-4 py-3"
+            >
+              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-glass-2 text-muted-foreground inset-ring-1 inset-ring-white/8">
+                <Icon className="size-5" aria-hidden />
+              </span>
+              <div className="grid min-w-0 flex-1 gap-0.5">
+                <span className="flex flex-wrap items-center gap-2 font-medium">
+                  {name}
+                  {s.current && (
+                    <StatusPill tone="mint">This device</StatusPill>
+                  )}
+                </span>
+                <span className="text-[13px] text-muted-foreground">
+                  {[
+                    s.ipAddress,
+                    s.current
+                      ? "Active now"
+                      : `Last active ${formatRelativeDay(s.updatedAt).toLowerCase()}`,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              </div>
+              {!s.current && (
+                <Button
+                  size="sm"
+                  disabled={pending}
+                  aria-label={`Sign out ${name}`}
+                  onClick={() =>
+                    run(() => revokeSessionAction(s.id), `Signed out ${name}`)
+                  }
+                >
+                  Sign out
+                </Button>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </SettingsSection>
+  )
+}
+
 export function ChannelList({ channels }: { channels: ChannelRow[] }) {
   const { pending, run } = useAction()
   const connect = (channel: ChannelRow) =>
@@ -625,28 +652,20 @@ export function ChannelList({ channels }: { channels: ChannelRow[] }) {
     <SettingsSection className="gap-1">
       <SettingsSectionHeader
         title="Connected channels"
-        description="Import VODs without pasting links, and publish approved clips to your channels. Tokens stay on this server."
+        description="Import VODs without pasting links, and publish approved clips to your channels."
       />
-      <div className="pt-2">
+      <ul className="grid gap-2 pt-3 sm:grid-cols-2">
         {channels.map((channel) => (
-          <SettingRow
+          <li
             key={channel.id}
-            title={
-              <span className="flex items-center gap-3">
-                <span className="grid size-9 place-items-center rounded-[10px] bg-graphite-2 text-sm font-semibold inset-ring-1 inset-ring-hair">
-                  {channel.name[0]}
-                </span>
-                {channel.name}
-              </span>
-            }
-            description={
-              channel.connectedAt
-                ? `${channel.detail} · connected ${formatRelativeDay(channel.connectedAt).toLowerCase()}`
-                : channel.detail
-            }
+            className="flex items-center gap-3.5 rounded-[14px] bg-graphite-2 p-3.5"
           >
+            <ChannelIcon provider={channel.id} />
+            <span className="min-w-0 flex-1 font-medium">{channel.name}</span>
             {!channel.configured ? (
-              <StatusPill tone="neutral">Not configured</StatusPill>
+              <StatusPill tone="neutral">
+                {channel.providerId ? "Not set up" : "Soon"}
+              </StatusPill>
             ) : channel.connectedAt ? (
               <>
                 <StatusPill tone="mint">Connected</StatusPill>
@@ -654,6 +673,7 @@ export function ChannelList({ channels }: { channels: ChannelRow[] }) {
                   size="sm"
                   variant="ghost"
                   disabled={pending}
+                  aria-label={`Disconnect ${channel.name}`}
                   onClick={() => disconnect(channel)}
                 >
                   Disconnect
@@ -663,14 +683,15 @@ export function ChannelList({ channels }: { channels: ChannelRow[] }) {
               <Button
                 size="sm"
                 disabled={pending}
+                aria-label={`Connect ${channel.name}`}
                 onClick={() => connect(channel)}
               >
                 Connect
               </Button>
             )}
-          </SettingRow>
+          </li>
         ))}
-      </div>
+      </ul>
     </SettingsSection>
   )
 }
