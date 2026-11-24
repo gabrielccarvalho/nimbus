@@ -167,6 +167,35 @@ describe("clipRepository", () => {
     })
     expect(updated.captionOverrides?.pages[0]?.text).toBe("Hello")
   })
+
+  it("reads stored effects through the schema", async () => {
+    const project = await seedProject()
+    const repo = clipRepository(env.db)
+    const [legacy, broken] = await repo.replaceCandidates(project.id, [
+      { startMs: 0, endMs: 20_000, title: "Legacy", score: 0.5 },
+      { startMs: 30_000, endMs: 50_000, title: "Broken", score: 0.4 },
+    ])
+    await env.db.execute(
+      sql`update clips set effects = ${JSON.stringify({
+        edited: true,
+        events: [{ kind: "focus", startMs: 1000, endMs: 3000 }],
+      })}::jsonb where id = ${legacy!.id}`
+    )
+    await env.db.execute(
+      sql`update clips set effects = ${JSON.stringify({
+        events: [{ kind: "spin" }],
+      })}::jsonb where id = ${broken!.id}`
+    )
+    const focus = { kind: "focus", startMs: 1000, endMs: 3000, target: "cam" }
+    expect((await repo.getOrThrow(legacy!.id)).effects).toEqual({
+      edited: true,
+      events: [focus],
+    })
+    expect(
+      (await repo.listForProject(project.id)).map((clip) => clip.effects)
+    ).toEqual([{ edited: true, events: [focus] }, null])
+    expect((await repo.getOrThrow(broken!.id)).effects).toBeNull()
+  })
 })
 
 describe("transcript, signals and layout repositories", () => {

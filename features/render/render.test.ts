@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 
+import { clipEffectsSchema } from "../effects/schema"
 import { planLayout } from "../layout/geometry"
 import { FULL_FRAME } from "../layout/schema"
 import { hasRoomFor } from "@/lib/storage/disk"
@@ -211,6 +212,24 @@ describe("effectsGraph", () => {
       subtitles,
     })
     await expect(graph).toMatchFileSnapshot("./__golden__/effects-fill.txt")
+  })
+
+  it("overlays full cam for a stored focus without a target", () => {
+    const { events } = clipEffectsSchema.parse({
+      edited: true,
+      events: [{ kind: "focus", startMs: 13_000, endMs: 15_000 }],
+    })
+    const graph = effectsGraph({
+      layout: camTop,
+      source,
+      events,
+      startMs: 12_000,
+      endMs: 20_000,
+      fps: 30,
+    })
+    expect(graph).toContain(
+      "[stack][r2]overlay=0:0:enable='between(t,0.983,2.983)',"
+    )
   })
 
   it("leaves sendcmd out without a commands file", () => {
