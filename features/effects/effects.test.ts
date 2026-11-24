@@ -26,10 +26,15 @@ const shake = (startMs: number, endMs: number): Effect => ({
   endMs,
   intensity: "light",
 })
-const focus = (startMs: number, endMs: number): Effect => ({
+const focus = (
+  startMs: number,
+  endMs: number,
+  target: "cam" | "game" = "cam"
+): Effect => ({
   kind: "focus",
   startMs,
   endMs,
+  target,
 })
 
 const range = { startMs: 1000, endMs: 5000 }
@@ -77,6 +82,15 @@ describe("effectSchema", () => {
       effectSchema.safeParse({ ...zoom(0, 1000), scale: 2.5 }).success
     ).toBe(false)
     expect(effectSchema.safeParse(zoom(0, 1000)).success).toBe(true)
+  })
+
+  it("focus without target parses as cam", () => {
+    expect(
+      effectSchema.parse({ kind: "focus", startMs: 0, endMs: 1000 })
+    ).toEqual(focus(0, 1000))
+    expect(effectSchema.parse(focus(0, 1000, "game"))).toEqual(
+      focus(0, 1000, "game")
+    )
   })
 })
 
@@ -176,6 +190,65 @@ describe("frameAt", () => {
         1500
       )
     ).toEqual(frameAt({ ...camTop, webcamRect: null }, source, [], 1500))
+  })
+
+  it("full game shows one full-frame gameplay region", () => {
+    const left: LayoutInput = {
+      ...camTop,
+      gameplayRect: { x: 0.1, y: 0.1, w: 0.8, h: 0.8 },
+      gameplayFocusX: 0.2,
+    }
+    const game = [focus(1000, 2000, "game")]
+    expect(frameAt(left, source, game, 1000)).toEqual({
+      regions: [
+        {
+          crop: coverCrop(
+            toPixels(left.gameplayRect, 1920, 1080),
+            1080 / 1920,
+            0.2
+          ),
+          dest: { x: 0, y: 0, w: 1080, h: 1920 },
+        },
+      ],
+    })
+    expect(frameAt(left, source, game, 2000)).toEqual(
+      frameAt(left, source, [], 2000)
+    )
+    const split = { ...left, mode: "split-50" as const }
+    expect(frameAt(split, source, game, 1500)).toEqual(
+      frameAt(left, source, game, 1500)
+    )
+  })
+
+  it("full game is ignored without a webcam", () => {
+    const game = [focus(1000, 2000, "game")]
+    for (const layout of [blur, fill, { ...camTop, webcamRect: null }]) {
+      expect(frameAt(layout, source, game, 1500)).toEqual(
+        frameAt(layout, source, [], 1500)
+      )
+    }
+  })
+
+  it("zoom inside full game zooms that region", () => {
+    const game = focus(0, 4000, "game")
+    const base = frameAt(camTop, source, [game], 2000).regions[0]!
+    const zoomed = frameAt(
+      camTop,
+      source,
+      [game, zoomAt(2, { x: 0.3, y: 0.6 })],
+      2000
+    ).regions
+    expect(zoomed).toHaveLength(1)
+    expect(zoomed[0]!.dest).toEqual(base.dest)
+    const crop = zoomed[0]!.crop
+    expect(crop.w).toBeCloseTo(base.crop.w / 2)
+    expect(crop.x + crop.w / 2).toBeCloseTo(base.crop.x + 0.3 * base.crop.w)
+    expect(crop.y + crop.h / 2).toBeCloseTo(base.crop.y + 0.6 * base.crop.h)
+
+    const shaken = frameAt(camTop, source, [game, shake(1000, 3000)], 2000)
+      .regions[0]!.crop
+    inside(shaken, base.crop)
+    expect(shaken.w).toBeCloseTo(base.crop.w / SHAKE_SCALE.light)
   })
 
   it("zoom midpoint crops to 1/scale around the focus point", () => {
@@ -377,6 +450,26 @@ describe("frameAt", () => {
       })
     ).toEqual({ x: 0, y: 0 })
   })
+
+  it("zoomFocusAt maps a click through full game on screen", () => {
+    const game = focus(0, 4000, "game")
+    expect(
+      zoomFocusAt(camTop, source, [game], 2000, { x: 270, y: 1440 })
+    ).toEqual({ x: 0.25, y: 0.75 })
+    expect(
+      zoomFocusAt(camTop, source, [game, zoomAt(2)], 2000, { x: 0, y: 0 })
+    ).toEqual({ x: 0.25, y: 0.25 })
+
+    const target = zoomFocusAt(camTop, source, [game], 2000, {
+      x: 810,
+      y: 480,
+    })
+    const crop = frameAt(camTop, source, [game, zoomAt(2, target)], 2000)
+      .regions[0]!.crop
+    const full = frameAt(camTop, source, [game], 2000).regions[0]!.crop
+    expect(crop.x + crop.w / 2).toBeCloseTo(full.x + 0.75 * full.w)
+    expect(crop.y + crop.h / 2).toBeCloseTo(full.y + 0.25 * full.h)
+  })
 })
 
 function signalsWith(
@@ -410,7 +503,7 @@ describe("planEffects", () => {
   it("scream gives a strong shake and a focus with a webcam", () => {
     const events = plan({ signals: signalsWith([{ ms: 10_000, lufs: -10 }]) })
     expect(events).toEqual([
-      { kind: "focus", startMs: 9700, endMs: 11_500 },
+      { kind: "focus", startMs: 9700, endMs: 11_500, target: "cam" },
       { kind: "shake", startMs: 10_000, endMs: 10_500, intensity: "strong" },
     ])
   })
@@ -430,7 +523,9 @@ describe("planEffects", () => {
       signals: signalsWith([{ ms: 11_500, lufs: -25 }]),
       beats: [{ ms: 10_000, kind: "reaction" }],
     })
-    expect(events).toEqual([{ kind: "focus", startMs: 11_200, endMs: 13_000 }])
+    expect(events).toEqual([
+      { kind: "focus", startMs: 11_200, endMs: 13_000, target: "cam" },
+    ])
   })
 
   it("snaps to the densest speech window when loudness is flat", () => {
@@ -444,12 +539,16 @@ describe("planEffects", () => {
       },
       beats: [{ ms: 10_000, kind: "reaction" }],
     })
-    expect(events).toEqual([{ kind: "focus", startMs: 11_200, endMs: 13_000 }])
+    expect(events).toEqual([
+      { kind: "focus", startMs: 11_200, endMs: 13_000, target: "cam" },
+    ])
   })
 
   it("keeps the beat time when nothing can snap it", () => {
     const events = plan({ beats: [{ ms: 10_000, kind: "reaction" }] })
-    expect(events).toEqual([{ kind: "focus", startMs: 9700, endMs: 11_500 }])
+    expect(events).toEqual([
+      { kind: "focus", startMs: 9700, endMs: 11_500, target: "cam" },
+    ])
   })
 
   it("weird beat becomes a zoom at its focus point", () => {
@@ -546,6 +645,16 @@ describe("planEffects", () => {
     }
   })
 
+  it("planner never creates a full game event", () => {
+    const events = plan({
+      signals: signalsWith([{ ms: 20_000, lufs: -10 }]),
+      beats: [{ ms: 10_000, kind: "reaction" }],
+    })
+    const focuses = events.filter((e) => e.kind === "focus")
+    expect(focuses).toHaveLength(2)
+    for (const event of focuses) expect(event.target).toBe("cam")
+  })
+
   it("flat audio and no beats yields no events", () => {
     expect(plan()).toEqual([])
   })
@@ -565,7 +674,7 @@ describe("planEffects", () => {
       ],
     })
     expect(twoReactions).toEqual([
-      { kind: "focus", startMs: 9700, endMs: 11_500 },
+      { kind: "focus", startMs: 9700, endMs: 11_500, target: "cam" },
     ])
   })
 
@@ -615,6 +724,8 @@ describe("planEffects", () => {
       signals: signalsWith([{ ms: 8000, lufs: -10 }]),
       beats: [{ ms: 10_500, kind: "reaction" }],
     })
-    expect(events).toEqual([{ kind: "focus", startMs: 10_200, endMs: 12_000 }])
+    expect(events).toEqual([
+      { kind: "focus", startMs: 10_200, endMs: 12_000, target: "cam" },
+    ])
   })
 })

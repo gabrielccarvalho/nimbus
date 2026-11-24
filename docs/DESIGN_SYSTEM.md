@@ -20,6 +20,8 @@ All colors are OKLCH CSS variables. Use them through Tailwind utilities (`bg-pri
 | `chart-1…5`                          | Yellow-to-amber ramp. Replay heatmap band, score bars                                          |                                                                                                                                     |                                                   |
 | `sidebar-*`                          | Sidebar surface and its primary/accent                                                         |                                                                                                                                     |                                                   |
 
+`effect-game` is a teal reserved for the editor's Full game effect row and blocks, so it stays distinct from `ring` (selection and focus) and the amber effect rows.
+
 `primary-foreground` is the indigo ink, not white. For yellow-ish text that must stay readable on light surfaces (timeline clip labels), use `highlight-ink`: a darker amber in light mode, the highlighter yellow in dark mode. The timeline loudness wave is `foreground/25` so yellow stays reserved for clips.
 
 ### Status color mapping

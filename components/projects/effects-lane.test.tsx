@@ -39,7 +39,7 @@ describe("EffectsLane", () => {
 
   it("deleting a block removes the event", async () => {
     const events: Effect[] = [
-      { kind: "focus", startMs: 12_000, endMs: 14_000 },
+      { kind: "focus", startMs: 12_000, endMs: 14_000, target: "cam" },
       { kind: "shake", startMs: 20_000, endMs: 20_500, intensity: "light" },
     ]
     const { onChange, user } = setup({ events })
@@ -73,6 +73,45 @@ describe("EffectsLane", () => {
     expect(screen.getByRole("button", { name: "Add zoom" })).toBeEnabled()
   })
 
+  it("adds a full game at the playhead", async () => {
+    const { onChange, user } = setup()
+    await user.click(screen.getByRole("button", { name: "Add full game" }))
+    expect(onChange).toHaveBeenCalledWith([
+      { kind: "focus", startMs: 17_200, endMs: 19_200, target: "game" },
+    ])
+  })
+
+  it("full game can't be dragged into a full cam", () => {
+    const events: Effect[] = [
+      { kind: "focus", startMs: 12_000, endMs: 14_000, target: "game" },
+      { kind: "focus", startMs: 16_000, endMs: 18_000, target: "cam" },
+    ]
+    const { onChange } = setup({ events })
+    screen.getByRole("group", { name: "Full game" }).getBoundingClientRect =
+      () => ({ left: 0, width: 1000 }) as DOMRect
+    const block = screen.getByRole("button", { name: "Full game at 0:02.0" })
+    fireEvent.pointerDown(block, { button: 0, clientX: 100 })
+    fireEvent.pointerMove(block, { clientX: 600 })
+    expect(onChange).toHaveBeenLastCalledWith([
+      { ...events[0], startMs: 14_000, endMs: 16_000 },
+      events[1],
+    ])
+  })
+
+  it("full game add is disabled without a webcam", () => {
+    setup({ hasWebcam: false })
+    expect(screen.getByRole("button", { name: "Add full game" })).toBeDisabled()
+  })
+
+  it("full game add is disabled when the playhead is inside a full cam", () => {
+    setup({
+      events: [
+        { kind: "focus", startMs: 17_000, endMs: 18_000, target: "cam" },
+      ],
+    })
+    expect(screen.getByRole("button", { name: "Add full game" })).toBeDisabled()
+  })
+
   it("changing shake intensity updates the event", async () => {
     const events: Effect[] = [
       { kind: "shake", startMs: 20_000, endMs: 20_500, intensity: "light" },
@@ -90,11 +129,44 @@ describe("EffectsLane", () => {
   it("mutes full cam blocks without a webcam", () => {
     setup({
       hasWebcam: false,
-      events: [{ kind: "focus", startMs: 12_000, endMs: 14_000 }],
+      events: [
+        { kind: "focus", startMs: 12_000, endMs: 14_000, target: "cam" },
+      ],
     })
     expect(
       screen.getByRole("button", { name: "Full cam at 0:02.0" })
     ).toHaveAttribute("data-variant", "muted")
+  })
+
+  it("mutes full game blocks without a webcam", async () => {
+    const { user } = setup({
+      hasWebcam: false,
+      events: [
+        { kind: "focus", startMs: 12_000, endMs: 14_000, target: "game" },
+      ],
+    })
+    const block = screen.getByRole("button", { name: "Full game at 0:02.0" })
+    expect(block).toHaveAttribute("data-variant", "muted")
+    await user.hover(block)
+    expect(await screen.findByText("No webcam in this layout")).toBeVisible()
+  })
+
+  it("resizing a full game stops at an adjacent full cam", () => {
+    const events: Effect[] = [
+      { kind: "focus", startMs: 12_000, endMs: 14_000, target: "game" },
+      { kind: "focus", startMs: 16_000, endMs: 18_000, target: "cam" },
+    ]
+    const { onChange } = setup({ events })
+    screen.getByRole("group", { name: "Full game" }).getBoundingClientRect =
+      () => ({ left: 0, width: 1000 }) as DOMRect
+    const block = screen.getByRole("button", { name: "Full game at 0:02.0" })
+    const edge = block.querySelector("[data-edge='end']")!
+    fireEvent.pointerDown(edge, { button: 0, clientX: 100 })
+    fireEvent.pointerMove(block, { clientX: 600 })
+    expect(onChange).toHaveBeenLastCalledWith([
+      { ...events[0], endMs: 16_000 },
+      events[1],
+    ])
   })
 
   it("dragging stops at the next block of the same kind", () => {
@@ -116,25 +188,31 @@ describe("EffectsLane", () => {
 
   it("adds into the free gap without touching neighbours", async () => {
     const events: Effect[] = [
-      { kind: "focus", startMs: 16_000, endMs: 17_000 },
-      { kind: "focus", startMs: 18_000, endMs: 22_000 },
+      { kind: "focus", startMs: 16_000, endMs: 17_000, target: "cam" },
+      { kind: "focus", startMs: 18_000, endMs: 22_000, target: "cam" },
     ]
     const { onChange, user } = setup({ events })
     await user.click(screen.getByRole("button", { name: "Add full cam" }))
     expect(onChange).toHaveBeenCalledWith([
       ...events,
-      { kind: "focus", startMs: 17_000, endMs: 18_000 },
+      { kind: "focus", startMs: 17_000, endMs: 18_000, target: "cam" },
     ])
   })
 
   it("can't add where the playhead is inside a block of that kind", () => {
-    setup({ events: [{ kind: "focus", startMs: 17_000, endMs: 18_000 }] })
+    setup({
+      events: [
+        { kind: "focus", startMs: 17_000, endMs: 18_000, target: "cam" },
+      ],
+    })
     expect(screen.getByRole("button", { name: "Add full cam" })).toBeDisabled()
     expect(screen.getByRole("button", { name: "Add zoom" })).toBeEnabled()
   })
 
   it("clamps blocks that run past the clip to the track", () => {
-    setup({ events: [{ kind: "focus", startMs: 8000, endMs: 12_000 }] })
+    setup({
+      events: [{ kind: "focus", startMs: 8000, endMs: 12_000, target: "cam" }],
+    })
     const block = screen.getByRole("button", { name: /^Full cam at/ })
     expect(block.style.left).toBe("0%")
     expect(block.style.width).toBe("10%")

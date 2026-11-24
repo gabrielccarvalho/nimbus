@@ -9,7 +9,12 @@ const unit = z.number().min(0).max(1)
 
 export const effectSchema = z
   .discriminatedUnion("kind", [
-    z.object({ kind: z.literal("focus"), startMs: ms, endMs: ms }),
+    z.object({
+      kind: z.literal("focus"),
+      startMs: ms,
+      endMs: ms,
+      target: z.enum(["cam", "game"]).default("cam"),
+    }),
     z.object({
       kind: z.literal("zoom"),
       startMs: ms,

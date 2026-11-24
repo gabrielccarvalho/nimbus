@@ -160,21 +160,21 @@ Transcripts over ~60k characters are split into parts with a minute of overlap, 
 
 A clip's `effects` is `{ events, edited }` or null. Null renders and previews exactly as before effects existed. Event times are absolute source ms, so a trim keeps them where they are in the recording; saving drops events outside the clip and clips the ones crossing its edges.
 
-| Kind    | What it does                                    | Defaults                                                            |
-| ------- | ----------------------------------------------- | ------------------------------------------------------------------- |
-| `focus` | the webcam fills 9:16                           | ignored (kept, greyed out in the editor) with no webcam             |
-| `zoom`  | punches in on the gameplay region               | `scale` 1.1–2.0 (1.4), `focus` x/y 0–1 (centre), 150 ms ease in/out |
-| `shake` | jitters the frame at ~12 Hz, slightly zoomed in | `intensity` light (1.06×) or strong (1.12×), 300–800 ms             |
+| Kind    | What it does                                                                                                                                                                                     | Defaults                                                              |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| `focus` | `target: "cam"` (full cam): the webcam fills 9:16. `target: "game"` (full game): the 9:16 cover crop of the gameplay rect at `gameplayFocusX` fills the frame, the same framing as `no-cam-fill` | `target` cam; ignored (kept, greyed out in the editor) with no webcam |
+| `zoom`  | punches in on the gameplay region                                                                                                                                                                | `scale` 1.1–2.0 (1.4), `focus` x/y 0–1 (centre), 150 ms ease in/out   |
+| `shake` | jitters the frame at ~12 Hz, slightly zoomed in                                                                                                                                                  | `intensity` light (1.06×) or strong (1.12×), 300–800 ms               |
 
-Same-kind events never overlap; a shake can overlap anything; a zoom inside a focus range has no effect. `frameAt` (`features/effects/frame.ts`) turns the layout, source size, events and a time into crop rects, and both the canvas preview and the render use it. Captions are drawn on the final frame and never move.
+Same-kind events never overlap; a shake can overlap anything; a zoom inside full cam has no effect, and inside full game it zooms the full-frame gameplay (its `focus` is relative to that crop). `frameAt` (`features/effects/frame.ts`) turns the layout, source size, events and a time into crop rects, and both the canvas preview and the render use it. Captions are drawn on the final frame and never move.
 
 Planner (`features/effects/planner.ts`, constants in `PLANNER`), in priority order:
 
-- **Review beats**: a `reaction` beat → focus from 300 ms before to 1.5 s after (webcam layouts only); a `weird` beat → 1.5 s zoom centred on it, at the beat's x/y (a share of the full frame) converted to the gameplay crop that zoom scales, i.e. the cover crop `planLayout` cuts from the gameplay rect. Beats snap to the loudest loudness window within ±2.5 s and inside the clip (unless tied), else to the fastest speech-rate window, else stay put. Beats may start in the lead-in.
+- **Review beats**: a `reaction` beat → full cam focus from 300 ms before to 1.5 s after (webcam layouts only); a `weird` beat → 1.5 s zoom centred on it, at the beat's x/y (a share of the full frame) converted to the gameplay crop that zoom scales, i.e. the cover crop `planLayout` cuts from the gameplay rect. Beats snap to the loudest loudness window within ±2.5 s and inside the clip (unless tied), else to the fastest speech-rate window, else stay put. Beats may start in the lead-in.
 - **Screams**: windows ≥ 8 LU over the clip's median loudness and above −18 LUFS → a 500 ms shake (strong at +14 LU) plus a focus when there's a webcam and no focus already covers it.
 - **Jumps** (only without beats): a window ≥ 10 LU above the 1.5 s before it → a 1.5 s centre zoom.
 
-Caps: at most one effect start per 3 s (shakes included), focus at most 40% of the clip (over budget, a scream keeps only its shake), at most 4 shakes, and nothing starts in the first 500 ms except beats.
+The planner only ever creates full cam; full game is added by hand. Caps: at most one effect start per 3 s (shakes included), focus at most 40% of the clip (over budget, a scream keeps only its shake), at most 4 shakes, and nothing starts in the first 500 ms except beats.
 
 When tracks change:
 
