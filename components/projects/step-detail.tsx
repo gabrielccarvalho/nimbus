@@ -48,7 +48,9 @@ export function StepDetailView({
   ) {
     return <RenderGrid jobs={renders} clips={clips} videoSrc={videoSrc} />
   }
-  const active = snapshot.jobs.find((job) => job.status === "running")
+  const active = snapshot.jobs.find(
+    (job) => job.status === "running" && job.type !== "publish_clip"
+  )
   const detail = active?.detail
   if (!detail) return null
   switch (detail.kind) {
