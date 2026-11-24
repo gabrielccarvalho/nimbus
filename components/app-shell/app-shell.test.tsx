@@ -70,8 +70,18 @@ describe("AppSidebar", () => {
   const shell = {
     recent,
     projectCount: 4,
-    account: { name: "Gabe", email: "g@example.com", initials: "G" },
-    workspace: { name: "Gabe's studio", initials: "GS", planName: "Free" },
+    account: {
+      name: "Gabe",
+      email: "g@example.com",
+      initials: "G",
+      image: null,
+    },
+    workspace: {
+      name: "Gabe's studio",
+      initials: "GS",
+      image: null,
+      planName: "Free",
+    },
     usage: {
       renderMinutes: 12,
       renderMinutesLimit: 60,

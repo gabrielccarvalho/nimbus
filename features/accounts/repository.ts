@@ -91,6 +91,36 @@ export function accountRepository(db: Db) {
       })
     },
 
+    async userImage(id: string) {
+      const [row] = await db
+        .select({ image: user.image })
+        .from(user)
+        .where(eq(user.id, id))
+      return row?.image ?? null
+    },
+
+    async setUserImage(id: string, image: string | null) {
+      await db
+        .update(user)
+        .set({ image, updatedAt: now() })
+        .where(eq(user.id, id))
+    },
+
+    async workspaceImage(id: string) {
+      const [row] = await db
+        .select({ image: workspaces.image })
+        .from(workspaces)
+        .where(eq(workspaces.id, id))
+      return row?.image ?? null
+    },
+
+    async setWorkspaceImage(id: string, image: string | null) {
+      await db
+        .update(workspaces)
+        .set({ image, updatedAt: now() })
+        .where(eq(workspaces.id, id))
+    },
+
     async renameWorkspace(id: string, name: string) {
       await db
         .update(workspaces)

@@ -34,17 +34,20 @@ import {
 import { Kbd } from "@/components/ui/kbd"
 import { cn } from "@/lib/utils"
 
+import { EntityAvatar } from "./entity-avatar"
 import { useHotkey } from "./use-hotkey"
 
 export type SidebarAccount = {
   name: string
   email: string
   initials: string
+  image: string | null
 }
 
 export type SidebarWorkspace = {
   name: string
   initials: string
+  image: string | null
   planName: string
 }
 
@@ -82,9 +85,12 @@ export function WorkspaceButton({
           collapsed && "md:justify-center md:p-1"
         )}
       >
-        <span className="grid size-[30px] shrink-0 place-items-center rounded-[9px] bg-graphite-3 text-[13px] font-semibold text-lav inset-ring-1 inset-ring-lav/45">
-          {workspace.initials}
-        </span>
+        <EntityAvatar
+          image={workspace.image}
+          initials={workspace.initials}
+          shape="square"
+          className="size-[30px] text-[13px]"
+        />
         <span
           className={cn(
             "grid min-w-0 flex-1 gap-px",
@@ -110,9 +116,12 @@ export function WorkspaceButton({
         <DropdownMenuGroup>
           <DropdownMenuLabel>Workspaces</DropdownMenuLabel>
           <DropdownMenuItem render={<Link href="/settings/workspace" />}>
-            <span className="grid size-5 place-items-center rounded-md bg-graphite-3 text-[10px] font-semibold text-lav">
-              {workspace.initials}
-            </span>
+            <EntityAvatar
+              image={workspace.image}
+              initials={workspace.initials}
+              shape="square"
+              className="size-5 text-[10px]"
+            />
             {workspace.name}
             <DropdownMenuShortcut>Current</DropdownMenuShortcut>
           </DropdownMenuItem>
@@ -230,9 +239,11 @@ export function AccountMenu({
             collapsed && "md:justify-center md:p-1"
           )}
         >
-          <span className="grid size-8 shrink-0 place-items-center rounded-full bg-linear-160 from-violet to-violet-deep text-[13px] font-semibold text-white">
-            {account.initials}
-          </span>
+          <EntityAvatar
+            image={account.image}
+            initials={account.initials}
+            className="size-8 text-[13px]"
+          />
           <span
             className={cn(
               "grid min-w-0 flex-1 gap-px",

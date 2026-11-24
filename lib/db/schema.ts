@@ -129,6 +129,7 @@ export const workspaces = pgTable("workspaces", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   plan: text("plan").$type<PlanId>().notNull().default("free"),
+  image: text("image"),
   anthropicKey: text("anthropic_key"),
   anthropicKeyHint: text("anthropic_key_hint"),
   ...timestamps,

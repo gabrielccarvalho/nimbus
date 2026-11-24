@@ -23,6 +23,8 @@ alert, alert-dialog, badge, breadcrumb, button, card, command, dialog, dropdown-
 
 \* custom, see below.
 
+`avatar` uses an inset hairline instead of the registry's border.
+
 `InputGroupInput` also clears the inset ring that the restyled `Input` draws, so the group's own ring is the only one.
 
 The registry's `empty` component covers the planned EmptyState, so there is no custom EmptyState.
@@ -224,3 +226,15 @@ A channel's brand logo (Phosphor, filled) on its brand colour: YouTube red, Twit
 ```tsx
 <ChannelIcon provider="youtube" />
 ```
+
+### EntityAvatar (`components/app-shell/entity-avatar.tsx`)
+
+A person's photo (circle, violet initials fallback) or a workspace logo (`shape="square"`, lavender initials fallback), on the registry `Avatar`. Size and text size come from `className`.
+
+```tsx
+<EntityAvatar image={user.image} initials="GC" className="size-8 text-[13px]" />
+```
+
+### AvatarField (`components/settings/avatar-field.tsx`)
+
+Upload, change or remove the profile photo (`target="user"`) or workspace logo (`target="workspace"`). The browser crops the image to a square and re-encodes it at 256 px before sending it, so uploads stay a few kilobytes.

@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 
 import { WorkspaceName } from "@/components/settings/account-settings"
+import { AvatarField } from "@/components/settings/avatar-field"
 import {
   SettingRow,
   SettingsSection,
@@ -8,6 +9,8 @@ import {
 } from "@/components/settings/section"
 import { StatusPill } from "@/components/ui/status-pill"
 import { getWorkspaceSettings } from "@/features/accounts/queries"
+
+import { initials } from "@/features/accounts/schema"
 
 export const metadata: Metadata = { title: "Workspace" }
 
@@ -18,6 +21,13 @@ export default async function WorkspacePage() {
       <SettingsSectionHeader
         title="Workspace"
         description="Projects, defaults and the Claude key belong to the workspace."
+      />
+      <AvatarField
+        target="workspace"
+        image={workspace.image}
+        initials={initials(workspace.name)}
+        label="Logo"
+        shape="square"
       />
       <WorkspaceName name={workspace.name} />
       <SettingRow
