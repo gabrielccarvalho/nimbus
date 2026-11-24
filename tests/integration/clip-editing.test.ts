@@ -12,6 +12,8 @@ import { confirmLayout } from "@/features/layout/service"
 import { projectRepository } from "@/features/projects/repository"
 import { startClipRenders } from "@/features/render/service"
 
+import { layouts } from "@/lib/db/schema"
+
 import { fixtures } from "../../scripts/make-fixtures"
 import { runJobs, uploadFixture } from "../utils/pipeline"
 import { createTestEnv, type TestEnv } from "../utils/test-env"
@@ -156,6 +158,46 @@ describe("clip effects", () => {
     }
   })
 
+  it("keeps the stored track when an untrimmed save omits effects", async () => {
+    const { projectId, clip } = await reviewedProject()
+    const clips = clipRepository(env.db)
+    const same = { startMs: clip.startMs, endMs: clip.endMs }
+    const edited = {
+      edited: true,
+      events: [zoom(clip.startMs, clip.startMs + 2000)],
+    }
+    await clips.update(clip.id, { effects: edited })
+    await updateClip(env.db, projectId, clip.id, edit({ ...same }))
+    expect((await clips.getOrThrow(clip.id)).effects).toEqual(edited)
+    const auto = { edited: false, events: [] }
+    await clips.update(clip.id, { effects: auto })
+    await updateClip(env.db, projectId, clip.id, edit({ ...same }))
+    expect((await clips.getOrThrow(clip.id)).effects).toEqual(auto)
+  })
+
+  it("clips a stored edited track when a trimmed save omits effects", async () => {
+    const { projectId, clip } = await reviewedProject()
+    const clips = clipRepository(env.db)
+    await clips.update(clip.id, {
+      effects: { edited: true, events: [zoom(1000, 6000)] },
+    })
+    const saved = await updateClip(
+      env.db,
+      projectId,
+      clip.id,
+      edit({ startMs: 4000, endMs: 14_000 })
+    )
+    expect(saved.effects).toEqual({ edited: true, events: [zoom(4000, 6000)] })
+  })
+
+  it("resetClipEffects needs a layout", async () => {
+    const { projectId, clip } = await reviewedProject()
+    await env.db.delete(layouts)
+    await expect(
+      resetClipEffects(env.db, projectId, clip.id)
+    ).rejects.toMatchObject({ code: "CONFLICT" })
+  })
+
   it("keeps null when autoEffects is off", async () => {
     const { projectId, clip } = await reviewedProject()
     const projects = projectRepository(env.db)
@@ -163,6 +205,7 @@ describe("clip effects", () => {
       ...(await projects.getOrThrow(projectId)).settings,
       autoEffects: false,
     })
+    await clipRepository(env.db).update(clip.id, { effects: null })
     const saved = await updateClip(env.db, projectId, clip.id, edit())
     expect(saved.effects).toBeNull()
   })

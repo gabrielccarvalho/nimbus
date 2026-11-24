@@ -32,10 +32,12 @@ export async function updateProjectSettings(
       "Wait for the current step to finish before changing settings"
     )
   }
-  await projects.updateSettings(projectId, parsed.data)
-  if (project.settings.autoEffects !== parsed.data.autoEffects) {
-    await syncAutoEffects(db, projectId, parsed.data.autoEffects)
-  }
+  await withTransaction(db, async (tx) => {
+    await projectRepository(tx).updateSettings(projectId, parsed.data)
+    if (project.settings.autoEffects !== parsed.data.autoEffects) {
+      await syncAutoEffects(tx, projectId, parsed.data.autoEffects)
+    }
+  })
   const step = rerunStepFor(project.settings, parsed.data)
   if (!step || !project.sourceAssetId) return { rerun: null }
   if (step === "render") {

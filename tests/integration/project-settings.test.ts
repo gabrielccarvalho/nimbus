@@ -136,6 +136,21 @@ describe("project settings", () => {
     })
   })
 
+  it("offers the render re-run when autoEffects changes with rendered clips", async () => {
+    const project = await analyzedProject()
+    const clips = clipRepository(env.db)
+    const [clip] = await clips.listForProject(project.id)
+    await clips.update(clip!.id, { status: "rendered" })
+    const settings = (await projectRepository(env.db).getOrThrow(project.id))
+      .settings
+    expect(
+      await updateProjectSettings(env.db, project.id, {
+        ...settings,
+        autoEffects: !settings.autoEffects,
+      })
+    ).toEqual({ rerun: "render" })
+  })
+
   it("re-transcribes and keeps approved clips", async () => {
     const project = await analyzedProject()
     const clips = clipRepository(env.db)

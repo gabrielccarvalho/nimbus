@@ -3,10 +3,10 @@ import "server-only"
 import type { Db } from "@/lib/db"
 import { AppError } from "@/lib/errors"
 
-import { postprocessCandidates } from "../highlights/postprocess"
-import { parseCandidatesJson } from "../highlights/prompt"
 import { normalizeEffects, type ClipEffects } from "../effects/schema"
 import { autoEffectsFor } from "../effects/service"
+import { postprocessCandidates } from "../highlights/postprocess"
+import { parseCandidatesJson } from "../highlights/prompt"
 import { assetRepository, projectRepository } from "../projects/repository"
 import { transcriptRepository } from "../transcription/repository"
 import { clipRepository } from "./repository"
@@ -110,13 +110,14 @@ export async function updateClip(
   const trimmed = edit.startMs !== clip.startMs || edit.endMs !== clip.endMs
   const project = await projectRepository(db).getOrThrow(projectId)
   const range = { startMs: edit.startMs, endMs: edit.endMs }
-  let effects: ClipEffects | null = null
-  if (edit.effects?.edited) {
+  const stored = edit.effects ?? clip.effects
+  let effects: ClipEffects | null | undefined
+  if (stored?.edited) {
     effects = {
       edited: true,
-      events: normalizeEffects(edit.effects.events, range),
+      events: normalizeEffects(stored.events, range),
     }
-  } else if (trimmed && (edit.effects || project.settings.autoEffects)) {
+  } else if (trimmed && (stored || project.settings.autoEffects)) {
     effects =
       (await autoEffectsFor(db, projectId, [{ ...clip, ...range }])).get(
         clip.id
@@ -137,7 +138,7 @@ export async function updateClip(
       pages: trimmed ? [] : edit.captionOverrides.pages,
     },
     layoutOverride: edit.layoutOverride,
-    effects,
+    ...(effects === undefined ? {} : { effects }),
     status: clip.status === "rendered" ? "approved" : clip.status,
   })
 }
