@@ -75,7 +75,8 @@ export async function updateClipAction(
           parsed.error.issues[0]?.message ?? "Invalid clip"
         )
       }
-      await updateClip(getDb(), project, clip, parsed.data)
+      const saved = await updateClip(getDb(), project, clip, parsed.data)
+      return { effects: saved.effects }
     }),
     [`/projects/${project}`]
   )

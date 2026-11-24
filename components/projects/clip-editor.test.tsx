@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -133,6 +133,37 @@ describe("ClipEditor", () => {
     expect(updateClipAction).toHaveBeenCalledTimes(1)
   })
 
+  it("shows the effects the server stored after a save", async () => {
+    vi.mocked(updateClipAction).mockResolvedValue({
+      ok: true,
+      value: {
+        effects: {
+          edited: false,
+          events: [
+            {
+              kind: "shake",
+              intensity: "light",
+              startMs: 12_000,
+              endMs: 12_500,
+            },
+          ],
+        },
+      },
+    })
+    renderEditor()
+    await userEvent.type(screen.getByLabelText("Title"), "!")
+    await waitFor(() =>
+      expect(screen.getByTestId("save-state")).toHaveTextContent("Saved")
+    )
+    expect(
+      within(screen.getByRole("group", { name: "Shake" })).getAllByRole(
+        "button"
+      )
+    ).toHaveLength(1)
+    expect(screen.getByText(/^Planned from the audio/)).toBeInTheDocument()
+    expect(updateClipAction).toHaveBeenCalledTimes(1)
+  })
+
   it("links to the neighbouring clips", () => {
     renderEditor()
     expect(screen.getByRole("button", { name: "Previous clip" })).toBeDisabled()
@@ -147,8 +178,8 @@ describe("ClipEditor gameplay box", () => {
   it("saves a keyboard-moved gameplay box in the layout override", async () => {
     vi.mocked(updateClipAction).mockResolvedValue({
       ok: true,
-      value: undefined,
-    } as never)
+      value: { effects: null },
+    })
     renderEditor()
     const before = gameplayBox(layout, W, H)!
     const region = screen.getByRole("group", { name: "Gameplay region" })
