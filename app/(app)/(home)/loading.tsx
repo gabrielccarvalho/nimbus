@@ -4,11 +4,11 @@ import { Skeleton } from "@/components/ui/skeleton"
 export default function Loading() {
   return (
     <Page aria-busy>
-      <Skeleton className="h-12 w-56" />
-      <Skeleton className="h-56 rounded-xl" />
-      <div className="grid grid-cols-1 gap-3 2xl:grid-cols-2">
+      <Skeleton className="h-12 w-72" />
+      <Skeleton className="h-72 rounded-[18px]" />
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-[18px]">
         {Array.from({ length: 3 }, (_, i) => (
-          <Skeleton key={i} className="h-36 rounded-xl" />
+          <Skeleton key={i} className="aspect-video rounded-[14px]" />
         ))}
       </div>
     </Page>

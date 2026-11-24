@@ -8,7 +8,7 @@ test("shows a synced, searchable transcript", async ({ page }) => {
   await page.locator("input[type=file]").setInputFiles(fixtures.wide)
   await expect(page).toHaveURL(/\/projects\/[\w-]+$/, { timeout: 30_000 })
   await expect(
-    page.getByRole("listitem").filter({ hasText: "Analyze, completed" })
+    page.getByRole("listitem").filter({ hasText: "Analyze audio, completed" })
   ).toBeVisible({ timeout: 30_000 })
   await expect(page.getByTestId("audio-summary")).toHaveText(
     "2 silences · 17% silent"

@@ -4,14 +4,14 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
 
 const pipelineStepVariants = cva(
-  "group/pipeline-step relative flex min-w-0 flex-1 items-center gap-2 text-sm",
+  "group/pipeline-step grid grid-cols-[28px_minmax(0,1fr)_auto] items-start gap-3.5 py-2.5",
   {
     variants: {
       state: {
-        complete: "text-foreground",
-        current: "font-medium text-foreground",
-        upcoming: "text-muted-foreground",
-        failed: "font-medium text-destructive",
+        complete: "",
+        current: "",
+        upcoming: "",
+        failed: "",
       },
     },
     defaultVariants: { state: "upcoming" },
@@ -25,19 +25,15 @@ const STATE_TEXT = {
   failed: "failed",
 } as const
 
-function PipelineStepper({
-  className,
-  orientation = "horizontal",
-  ...props
-}: React.ComponentProps<"ol"> & { orientation?: "horizontal" | "vertical" }) {
+type State = keyof typeof STATE_TEXT
+
+const PipelineStepContext = React.createContext<State>("upcoming")
+
+function PipelineStepper({ className, ...props }: React.ComponentProps<"ol">) {
   return (
     <ol
       data-slot="pipeline-stepper"
-      data-orientation={orientation}
-      className={cn(
-        "group/pipeline-stepper flex gap-3 data-[orientation=horizontal]:flex-col data-[orientation=vertical]:flex-col md:data-[orientation=horizontal]:flex-row",
-        className
-      )}
+      className={cn("grid", className)}
       {...props}
     />
   )
@@ -46,48 +42,71 @@ function PipelineStepper({
 function PipelineStep({
   className,
   state = "upcoming",
+  attention = false,
   children,
   ...props
-}: React.ComponentProps<"li"> & VariantProps<typeof pipelineStepVariants>) {
+}: React.ComponentProps<"li"> &
+  VariantProps<typeof pipelineStepVariants> & { attention?: boolean }) {
   const resolved = state ?? "upcoming"
   return (
-    <li
-      data-slot="pipeline-step"
-      data-state={resolved}
-      aria-current={resolved === "current" ? "step" : undefined}
-      className={cn(pipelineStepVariants({ state: resolved, className }))}
-      {...props}
-    >
-      <span
-        aria-hidden
-        className="flex size-6 shrink-0 items-center justify-center rounded-full border text-xs tabular-nums group-data-[state=complete]/pipeline-step:border-primary group-data-[state=complete]/pipeline-step:bg-primary group-data-[state=complete]/pipeline-step:text-primary-foreground group-data-[state=current]/pipeline-step:border-primary group-data-[state=current]/pipeline-step:ring-3 group-data-[state=current]/pipeline-step:ring-primary/30 group-data-[state=failed]/pipeline-step:border-destructive group-data-[state=failed]/pipeline-step:bg-destructive/10 [&_svg]:size-3.5"
+    <PipelineStepContext.Provider value={resolved}>
+      <li
+        data-slot="pipeline-step"
+        data-state={resolved}
+        data-attention={attention || undefined}
+        aria-current={resolved === "current" ? "step" : undefined}
+        className={cn(pipelineStepVariants({ state: resolved, className }))}
+        {...props}
       >
-        {resolved === "complete" ? (
-          <CheckIcon weight="bold" />
-        ) : resolved === "failed" ? (
-          <XIcon weight="bold" />
-        ) : (
-          <span className="size-1.5 rounded-full bg-current group-data-[state=current]/pipeline-step:bg-primary" />
-        )}
-      </span>
-      <span className="flex min-w-0 flex-col">
+        <span
+          aria-hidden
+          className="grid size-6 place-items-center rounded-full bg-glass text-tertiary inset-ring-1 inset-ring-white/6 group-data-attention/pipeline-step:bg-amber/14 group-data-attention/pipeline-step:text-amber group-data-attention/pipeline-step:shadow-[0_0_14px_rgb(255_179_107/0.35)] group-data-attention/pipeline-step:inset-ring-amber/60 group-data-[state=complete]/pipeline-step:bg-mint/14 group-data-[state=complete]/pipeline-step:text-mint group-data-[state=complete]/pipeline-step:inset-ring-mint/45 group-data-[state=current]/pipeline-step:bg-lav/14 group-data-[state=current]/pipeline-step:text-lav group-data-[state=current]/pipeline-step:shadow-[0_0_14px_rgb(179_188_255/0.35)] group-data-[state=current]/pipeline-step:inset-ring-lav/60 group-data-[state=failed]/pipeline-step:bg-pink/14 group-data-[state=failed]/pipeline-step:text-pink group-data-[state=failed]/pipeline-step:inset-ring-pink/60 [&_svg]:size-3"
+        >
+          {resolved === "complete" ? (
+            <CheckIcon weight="bold" />
+          ) : resolved === "failed" ? (
+            <XIcon weight="bold" />
+          ) : resolved === "current" ? (
+            <i className="size-1.5 rounded-[2px] bg-current" />
+          ) : null}
+        </span>
         {children}
-        <span className="sr-only">, {STATE_TEXT[resolved]}</span>
-      </span>
-    </li>
+      </li>
+    </PipelineStepContext.Provider>
   )
 }
 
-function PipelineStepLabel({
+function PipelineStepContent({
   className,
   ...props
 }: React.ComponentProps<"span">) {
   return (
     <span
-      data-slot="pipeline-step-label"
-      className={cn("truncate", className)}
+      data-slot="pipeline-step-content"
+      className={cn("grid min-w-0 gap-0.5", className)}
       {...props}
     />
+  )
+}
+
+function PipelineStepLabel({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<"b">) {
+  const state = React.useContext(PipelineStepContext)
+  return (
+    <b
+      data-slot="pipeline-step-label"
+      className={cn(
+        "truncate text-sm font-medium group-data-[state=upcoming]/pipeline-step:text-tertiary",
+        className
+      )}
+      {...props}
+    >
+      {children}
+      <span className="sr-only">, {STATE_TEXT[state]}</span>
+    </b>
   )
 }
 
@@ -98,8 +117,21 @@ function PipelineStepDescription({
   return (
     <span
       data-slot="pipeline-step-description"
+      className={cn("text-[13px] text-tertiary", className)}
+      {...props}
+    />
+  )
+}
+
+function PipelineStepTime({
+  className,
+  ...props
+}: React.ComponentProps<"span">) {
+  return (
+    <span
+      data-slot="pipeline-step-time"
       className={cn(
-        "truncate text-xs font-normal text-muted-foreground tabular-nums",
+        "pt-0.5 font-mono text-[13px] text-tertiary tabular-nums",
         className
       )}
       {...props}
@@ -109,8 +141,10 @@ function PipelineStepDescription({
 
 export {
   PipelineStep,
+  PipelineStepContent,
   PipelineStepDescription,
   PipelineStepLabel,
+  PipelineStepTime,
   PipelineStepper,
   pipelineStepVariants,
 }

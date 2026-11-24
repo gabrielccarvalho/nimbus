@@ -8,6 +8,7 @@ import {
   Dropzone,
   DropzoneDescription,
   DropzoneTitle,
+  DropzoneTrigger,
   partitionFiles,
 } from "./dropzone"
 
@@ -82,6 +83,32 @@ describe("Dropzone", () => {
     fireEvent.drop(zone, { dataTransfer: { files: [video()] } })
     expect(input).toBeDisabled()
     expect(onFilesAccepted).not.toHaveBeenCalled()
+  })
+
+  it("can hold other controls and open the picker from a trigger", async () => {
+    const onFilesAccepted = vi.fn()
+    const { container } = render(
+      <Dropzone
+        clickable={false}
+        accept={["video/*"]}
+        onFilesAccepted={onFilesAccepted}
+      >
+        <input aria-label="Link" />
+        <DropzoneTrigger>Browse files</DropzoneTrigger>
+      </Dropzone>
+    )
+    const zone = container.querySelector("[data-slot=dropzone]")!
+    const input = container.querySelector(
+      "input[type=file]"
+    ) as HTMLInputElement
+    const click = vi.spyOn(input, "click")
+    expect(zone).not.toHaveAttribute("role")
+    await userEvent.click(screen.getByRole("textbox", { name: "Link" }))
+    expect(click).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole("button", { name: "Browse files" }))
+    expect(click).toHaveBeenCalledTimes(1)
+    fireEvent.drop(zone, { dataTransfer: { files: [video()] } })
+    expect(onFilesAccepted).toHaveBeenCalledWith([expect.any(File)])
   })
 
   it("takes a file picked before hydration", async () => {

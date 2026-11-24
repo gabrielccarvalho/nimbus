@@ -17,6 +17,7 @@ const job = (overrides: Partial<Job>): Job => ({
   error: null,
   clipId: null,
   startedAt: new Date().toISOString(),
+  finishedAt: null,
   detail: null,
   ...overrides,
 })

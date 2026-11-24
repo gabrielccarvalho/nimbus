@@ -89,6 +89,16 @@ export function projectSignal({
   }
 }
 
+export type ProjectFilter = "needs" | "processing" | "ready" | "done" | "other"
+
+export function projectFilter(input: ProjectSignalInput): ProjectFilter {
+  if (projectSignal(input).needsYou) return "needs"
+  if (input.status === "ready_for_review") return "ready"
+  if (input.status === "done") return "done"
+  if (input.status === "failed" || input.status === "cancelled") return "other"
+  return "processing"
+}
+
 export function projectStatusLabel(status: ProjectStatus) {
   return LABELS[status]
 }

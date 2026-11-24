@@ -1,26 +1,18 @@
 "use client"
 
-import { UploadSimpleIcon } from "@phosphor-icons/react"
 import { useRouter } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
 
-import {
-  Dropzone,
-  DropzoneDescription,
-  DropzoneIcon,
-  DropzoneTitle,
-  type DropzoneRejection,
-} from "@/components/ui/dropzone"
+import type { DropzoneRejection } from "@/components/ui/dropzone"
 import {
   Progress,
   ProgressLabel,
   ProgressValue,
 } from "@/components/ui/progress"
 import type { ImportOptions } from "@/features/projects/schema"
-import { formatBytes } from "@/lib/format"
 
-const ACCEPT = [
+export const ACCEPT = [
   "video/mp4",
   "video/quicktime",
   "video/x-matroska",
@@ -31,6 +23,12 @@ const ACCEPT = [
   ".mkv",
   ".webm",
 ]
+
+export const REJECTION_MESSAGES: Record<DropzoneRejection["reason"], string> = {
+  type: "Upload an MP4, MOV, MKV or WebM video",
+  size: "This file is larger than the upload limit",
+  count: "Upload one video at a time",
+}
 
 function upload(
   file: File,
@@ -112,19 +110,7 @@ async function capturePreview(file: File): Promise<string | null> {
   }
 }
 
-const REJECTION_MESSAGES: Record<DropzoneRejection["reason"], string> = {
-  type: "Upload an MP4, MOV, MKV or WebM video",
-  size: "This file is larger than the upload limit",
-  count: "Upload one video at a time",
-}
-
-export function ProjectUploader({
-  maxBytes,
-  options = {},
-}: {
-  maxBytes: number
-  options?: ImportOptions
-}) {
+export function useRecordingUpload(options: ImportOptions) {
   const router = useRouter()
   const [progress, setProgress] = React.useState<number | null>(null)
   const [fileName, setFileName] = React.useState("")
@@ -145,45 +131,32 @@ export function ProjectUploader({
     }
   }
 
-  if (progress !== null) {
-    return (
-      <div className="flex min-h-48 flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed p-6 sm:flex-row">
-        {preview && (
-          // eslint-disable-next-line @next/next/no-img-element -- data URL from a local file
-          <img
-            src={preview}
-            alt=""
-            className="aspect-video w-48 shrink-0 rounded-lg object-cover ring-1 ring-foreground/10"
-          />
-        )}
-        <Progress value={Math.round(progress)} className="w-full min-w-0">
-          <ProgressLabel className="truncate">
-            Uploading {fileName}
-          </ProgressLabel>
-          <ProgressValue />
-        </Progress>
-      </div>
-    )
-  }
+  return { start, progress, fileName, preview }
+}
 
+export function UploadProgress({
+  progress,
+  fileName,
+  preview,
+}: {
+  progress: number
+  fileName: string
+  preview: string | null
+}) {
   return (
-    <Dropzone
-      accept={ACCEPT}
-      maxSize={maxBytes}
-      onFilesAccepted={([file]) => file && void start(file)}
-      onFilesRejected={([rejection]) =>
-        rejection && toast.error(REJECTION_MESSAGES[rejection.reason])
-      }
-    >
-      <DropzoneIcon>
-        <UploadSimpleIcon />
-      </DropzoneIcon>
-      <DropzoneTitle className="font-heading text-lg font-bold">
-        Drop a recording or click to browse
-      </DropzoneTitle>
-      <DropzoneDescription>
-        MP4, MOV, MKV or WebM, up to {formatBytes(maxBytes)}
-      </DropzoneDescription>
-    </Dropzone>
+    <div className="flex w-full flex-col items-center gap-5 sm:flex-row">
+      {preview && (
+        // eslint-disable-next-line @next/next/no-img-element -- data URL from a local file
+        <img
+          src={preview}
+          alt=""
+          className="aspect-video w-48 shrink-0 rounded-xl object-cover"
+        />
+      )}
+      <Progress value={Math.round(progress)} className="w-full min-w-0">
+        <ProgressLabel className="truncate">Uploading {fileName}</ProgressLabel>
+        <ProgressValue />
+      </Progress>
+    </div>
   )
 }

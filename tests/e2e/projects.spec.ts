@@ -15,7 +15,7 @@ test("upload a recording and see it probed", async ({ page }) => {
   await expect(page.getByTestId("stat-duration")).toHaveText("0:20")
   await expect(page.getByTestId("stat-aspect")).toHaveText("16:9")
   await expect(
-    page.getByRole("listitem").filter({ hasText: "Probe, completed" })
+    page.getByRole("listitem").filter({ hasText: "Read the video, completed" })
   ).toBeVisible()
   await expectNoSeriousA11yViolations(page)
 
@@ -43,7 +43,8 @@ test("deletes a project after confirmation", async ({ page }) => {
   await page.goto("/")
   await page.locator("input[type=file]").setInputFiles(fixtures.ultrawide)
   await expect(page).toHaveURL(/\/projects\/[\w-]+$/, { timeout: 30_000 })
-  await page.getByRole("button", { name: "Delete project" }).click()
+  await page.getByRole("button", { name: "Project settings and more" }).click()
+  await page.getByRole("menuitem", { name: "Delete project" }).click()
   const dialog = page.getByRole("alertdialog")
   await expect(dialog).toBeVisible()
   await dialog.getByRole("button", { name: "Delete" }).click()

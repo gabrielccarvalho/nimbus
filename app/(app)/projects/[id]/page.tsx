@@ -1,26 +1,14 @@
-import {
-  ClockIcon,
-  FilmSlateIcon,
-  FilmStripIcon,
-  FrameCornersIcon,
-  HardDrivesIcon,
-} from "@phosphor-icons/react/ssr"
+import { ArrowRightIcon } from "@phosphor-icons/react/ssr"
 import type { Metadata } from "next"
-import Image from "next/image"
+import Link from "next/link"
 import { notFound } from "next/navigation"
 
 import { AudioOverview } from "@/components/projects/audio-timeline"
-import { ProjectActions } from "@/components/projects/project-actions"
-import { ProjectLive } from "@/components/projects/project-live"
-import {
-  StatCard,
-  StatCardGroup,
-  StatCardIcon,
-  StatCardLabel,
-  StatCardValue,
-} from "@/components/ui/stat-card"
+import { ProjectOverview } from "@/components/projects/project-overview"
+import { SourcePreview } from "@/components/projects/source-preview"
+import { DotMeter } from "@/components/ui/dot-meter"
 import { getProject, getProjectOverview } from "@/features/projects/queries"
-import { formatBytes, formatDuration, mediaUrl } from "@/lib/format"
+import { formatDuration, mediaUrl } from "@/lib/format"
 
 export async function generateMetadata({
   params,
@@ -35,15 +23,67 @@ export default async function ProjectOverviewPage({
   const { id } = await params
   const overview = await getProjectOverview(id)
   if (!overview) notFound()
-  const { project, source, thumbnail, proxy, layout, clips, snapshot, audio } =
-    overview
+  const {
+    project,
+    source,
+    thumbnail,
+    proxy,
+    layout,
+    clips,
+    snapshot,
+    audio,
+    transcript,
+  } = overview
+  const kept = clips.filter((c) => c.status !== "rejected")
+  const top = kept.toSorted((a, b) => b.score - a.score).slice(0, 3)
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-      <div className="flex min-w-0 flex-col gap-6">
-        <ProjectLive
+    <div className="flex flex-wrap items-start gap-[22px]">
+      <div className="grid min-w-0 flex-[999_1_520px] gap-[22px]">
+        <ProjectOverview
           initial={snapshot}
-          clips={clips.map((clip) => ({
+          facts={{
+            sourceUrl: project.sourceUrl,
+            selectorMode: project.settings.selectorMode,
+            renderQuality: project.settings.renderQuality,
+            source: source
+              ? {
+                  bytes: source.bytes,
+                  durationMs: source.durationMs,
+                  width: source.width,
+                  height: source.height,
+                  fps: source.fps,
+                }
+              : null,
+            transcript,
+            silences: audio ? audio.silences.length : null,
+            clipCount: kept.length,
+            layout: layout
+              ? {
+                  confirmed: layout.confirmedByUser,
+                  mode: layout.mode,
+                  camPosition: layout.camPosition,
+                  hasWebcam: Boolean(layout.webcamRect),
+                  width: source?.width ?? null,
+                  height: source?.height ?? null,
+                }
+              : null,
+          }}
+          layout={
+            layout
+              ? {
+                  input: {
+                    webcamRect: layout.webcamRect,
+                    gameplayRect: layout.gameplayRect,
+                    gameplayFocusX: layout.gameplayFocusX,
+                    mode: layout.mode,
+                    camPosition: layout.camPosition ?? "top",
+                  },
+                  confidence: layout.confidence,
+                }
+              : null
+          }
+          clips={kept.map((clip) => ({
             id: clip.id,
             title: clip.title,
             startMs: clip.startMs,
@@ -51,86 +91,77 @@ export default async function ProjectOverviewPage({
           }))}
           videoSrc={proxy ? mediaUrl(proxy.storageKey) : null}
         />
-        <StatCardGroup aria-label="Source video">
-          <StatCard size="sm">
-            <StatCardLabel>
-              <span className="truncate">Duration</span>
-              <StatCardIcon>
-                <ClockIcon />
-              </StatCardIcon>
-            </StatCardLabel>
-            <StatCardValue data-testid="stat-duration">
-              {formatDuration(source?.durationMs)}
-            </StatCardValue>
-          </StatCard>
-          <StatCard size="sm">
-            <StatCardLabel>
-              <span className="truncate">Resolution</span>
-              <StatCardIcon>
-                <FrameCornersIcon />
-              </StatCardIcon>
-            </StatCardLabel>
-            <StatCardValue data-testid="stat-resolution">
-              {source?.width && source.height
-                ? `${source.width}×${source.height}`
-                : "—"}
-            </StatCardValue>
-          </StatCard>
-          <StatCard size="sm">
-            <StatCardLabel>
-              <span className="truncate">Aspect</span>
-              <StatCardIcon>
-                <FrameCornersIcon />
-              </StatCardIcon>
-            </StatCardLabel>
-            <StatCardValue data-testid="stat-aspect">
-              {layout?.sourceAspect ?? "—"}
-            </StatCardValue>
-          </StatCard>
-          <StatCard size="sm">
-            <StatCardLabel>
-              <span className="truncate">Size</span>
-              <StatCardIcon>
-                <HardDrivesIcon />
-              </StatCardIcon>
-            </StatCardLabel>
-            <StatCardValue>{formatBytes(source?.bytes)}</StatCardValue>
-          </StatCard>
-          <StatCard size="sm">
-            <StatCardLabel>
-              <span className="truncate">Clips</span>
-              <StatCardIcon>
-                <FilmStripIcon />
-              </StatCardIcon>
-            </StatCardLabel>
-            <StatCardValue>
-              {clips.filter((c) => c.status !== "rejected").length}
-            </StatCardValue>
-          </StatCard>
-        </StatCardGroup>
-        {audio && source?.durationMs ? (
-          <AudioOverview audio={audio} durationMs={source.durationMs} />
-        ) : null}
       </div>
-      <aside className="flex flex-col gap-4">
-        <div className="relative aspect-video overflow-hidden rounded-xl bg-muted ring-1 ring-foreground/10">
-          {thumbnail ? (
-            <Image
-              src={mediaUrl(thumbnail.storageKey)}
-              alt=""
-              fill
-              unoptimized
-              sizes="20rem"
-              className="object-cover"
-            />
-          ) : (
-            <div className="flex size-full items-center justify-center text-muted-foreground">
-              <FilmSlateIcon className="size-8" aria-hidden />
+      <div className="grid min-w-0 flex-[1_1_340px] gap-[22px]">
+        <SourcePreview
+          videoSrc={
+            proxy
+              ? mediaUrl(proxy.storageKey)
+              : source
+                ? mediaUrl(source.storageKey)
+                : null
+          }
+          thumbnailSrc={thumbnail ? mediaUrl(thumbnail.storageKey) : null}
+          durationMs={source?.durationMs ?? null}
+        />
+        {audio && source?.durationMs ? (
+          <AudioOverview
+            audio={audio}
+            durationMs={source.durationMs}
+            clips={kept}
+          />
+        ) : null}
+        {top.length > 0 && (
+          <section className="grid gap-1 rounded-[18px] bg-graphite p-[22px]">
+            <div className="flex items-baseline justify-between gap-2 pb-1.5">
+              <h2 className="text-[15px] font-semibold tracking-[-0.015em]">
+                Top picks
+              </h2>
+              <Link
+                href={`/projects/${project.id}/clips`}
+                className="inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-foreground"
+              >
+                All {kept.length}
+                <ArrowRightIcon className="size-3.5" aria-hidden />
+              </Link>
             </div>
-          )}
-        </div>
-        <ProjectActions projectId={project.id} projectName={project.name} />
-      </aside>
+            <ul>
+              {top.map((clip) => (
+                <li
+                  key={clip.id}
+                  className="shadow-[inset_0_-1px_0_var(--hair)] last:shadow-none"
+                >
+                  <Link
+                    href={`/projects/${project.id}/clips/${clip.id}`}
+                    className="flex items-center gap-3 py-3"
+                  >
+                    <span
+                      aria-hidden
+                      className="h-[52px] w-[30px] shrink-0 rounded-[7px] bg-graphite-2 bg-[radial-gradient(circle_at_center,rgb(255_255_255/0.07)_1px,transparent_1.5px)] bg-size-[11px_11px]"
+                    />
+                    <span className="grid min-w-0 flex-1 gap-1">
+                      <span className="truncate text-sm font-medium">
+                        {clip.title}
+                      </span>
+                      <span className="flex items-center gap-2.5 text-xs text-tertiary">
+                        <DotMeter
+                          value={Math.round(clip.score * 10)}
+                          max={10}
+                          aria-label={`Score ${Math.round(clip.score * 100)}`}
+                        />
+                        <span className="font-mono tabular-nums">
+                          {formatDuration(clip.startMs)} ·{" "}
+                          {formatDuration(clip.endMs - clip.startMs)}
+                        </span>
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
     </div>
   )
 }
