@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import { frameAt, zoomRegion } from "@/features/effects/frame"
 import { autoEffectsFor } from "@/features/effects/service"
 import { layoutRepository } from "@/features/layout/repository"
 import type { LayoutInput } from "@/features/layout/schema"
 
 import { fixtures } from "../../scripts/make-fixtures"
-import { uploadFixture } from "../utils/pipeline"
+import { runJobs, uploadFixture } from "../utils/pipeline"
 import { createTestEnv, type TestEnv } from "../utils/test-env"
 
 let env: TestEnv
@@ -20,6 +21,7 @@ const camTop: LayoutInput = {
   gameplayFocusX: 0.5,
   mode: "cam-top",
 }
+const source = { width: 1920, height: 1080 }
 const noCam: LayoutInput = {
   webcamRect: null,
   gameplayRect: { x: 0, y: 0, w: 1, h: 1 },
@@ -29,6 +31,7 @@ const noCam: LayoutInput = {
 
 async function project(layout: LayoutInput) {
   const { projectId } = await uploadFixture(fixtures.wide)
+  await runJobs(env.db, ["probe"])
   await layoutRepository(env.db).upsert(projectId, {
     ...layout,
     sourceAspect: "16:9",
@@ -48,21 +51,47 @@ const clip = (
 })
 
 describe("autoEffectsFor", () => {
-  it("maps a weird beat from the full frame into the gameplay region", async () => {
+  it("maps a weird beat from the full frame into the zoomed crop", async () => {
     const projectId = await project(camTop)
     const result = await autoEffectsFor(env.db, projectId, [
       clip([{ ms: 25_000, kind: "weird", x: 0.5, y: 0.5 }]),
     ])
     const zoom = result.get("c1")!.events.find((e) => e.kind === "zoom")
-    expect(zoom).toMatchObject({ focus: { x: 0.5, y: 0.5 } })
-
-    const off = await autoEffectsFor(env.db, projectId, [
-      clip([{ ms: 25_000, kind: "weird", x: 0.35, y: 0.9 }]),
-    ])
-    const shifted = off.get("c1")!.events.find((e) => e.kind === "zoom")
-    expect(shifted).toMatchObject({
-      focus: { x: expect.closeTo(0.25, 5), y: 1 },
+    expect(zoom).toMatchObject({
+      focus: { x: expect.closeTo(0.5, 2), y: expect.closeTo(0.5, 2) },
     })
+
+    const target = { x: 0.35, y: 0.6 }
+    const off = await autoEffectsFor(env.db, projectId, [
+      clip([{ ms: 25_000, kind: "weird", ...target }]),
+    ])
+    const shifted = off.get("c1")!.events.find((e) => e.kind === "zoom")!
+    const region = zoomRegion(camTop, source)
+    expect(shifted).toMatchObject({
+      focus: {
+        x: expect.closeTo((target.x - region.x) / region.w, 5),
+        y: expect.closeTo((target.y - region.y) / region.h, 5),
+      },
+    })
+    const crop = frameAt(camTop, source, [shifted], shifted.startMs + 500)
+      .regions[1]!.crop
+    expect(crop.x).toBeLessThanOrEqual(target.x * source.width)
+    expect(crop.x + crop.w).toBeGreaterThanOrEqual(target.x * source.width)
+    expect(crop.y).toBeLessThanOrEqual(target.y * source.height)
+    expect(crop.y + crop.h).toBeGreaterThanOrEqual(target.y * source.height)
+  })
+
+  it("maps a beat through the no-cam-fill crop, not the full frame", async () => {
+    const projectId = await project(noCam)
+    const result = await autoEffectsFor(env.db, projectId, [
+      clip([{ ms: 25_000, kind: "weird", x: 0.6, y: 0.5 }]),
+    ])
+    const zoom = result.get("c1")!.events.find((e) => e.kind === "zoom")!
+    if (zoom.kind !== "zoom") throw new Error("expected a zoom")
+    const region = zoomRegion(noCam, source)
+    expect(region.w).toBeLessThan(0.5)
+    expect(zoom.focus.x).toBeCloseTo((0.6 - region.x) / region.w, 5)
+    expect(zoom.focus.x).not.toBeCloseTo(0.6, 1)
   })
 
   it("prefers the clip's layout override", async () => {

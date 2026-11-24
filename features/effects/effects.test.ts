@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest"
 
 import { coverCrop, planLayout, toPixels } from "../layout/geometry"
 import { FULL_FRAME, type LayoutInput } from "../layout/schema"
-import { frameAt, SHAKE_SCALE, zoomFocusAt, type FloatRect } from "./frame"
+import {
+  frameAt,
+  SHAKE_SCALE,
+  zoomFocusAt,
+  zoomRegion,
+  type FloatRect,
+} from "./frame"
 import type { SignalsData } from "../analysis/schema"
 import { planEffects, PLANNER, type PlanInput } from "./planner"
 import { effectSchema, normalizeEffects, type Effect } from "./schema"
@@ -280,6 +286,39 @@ describe("frameAt", () => {
     expect(crop.y).toBeGreaterThan(base.y)
     expect(crop.x + crop.w).toBeLessThan(base.x + base.w)
     expect(crop.y + crop.h).toBeLessThan(base.y + base.h)
+  })
+
+  it("zoomRegion is the zoomable crop as a share of the source", () => {
+    const camTopCrop = frameAt(camTop, source, [], 0).regions[1]!.crop
+    expect(zoomRegion(camTop, source)).toEqual({
+      x: camTopCrop.x / 1920,
+      y: camTopCrop.y / 1080,
+      w: camTopCrop.w / 1920,
+      h: camTopCrop.h / 1080,
+    })
+    const left = { ...fill, gameplayFocusX: 0.2 }
+    const fillCrop = frameAt(left, source, [], 0).regions[0]!.crop
+    const region = zoomRegion(left, source)
+    expect(region).toEqual({
+      x: fillCrop.x / 1920,
+      y: 0,
+      w: fillCrop.w / 1920,
+      h: 1,
+    })
+    const target = { x: 0.3, y: 0.5 }
+    const zoomed = frameAt(
+      left,
+      source,
+      [
+        zoomAt(2, {
+          x: (target.x - region.x) / region.w,
+          y: (target.y - region.y) / region.h,
+        }),
+      ],
+      2000
+    ).regions[0]!.crop
+    expect(zoomed.x + zoomed.w / 2).toBeCloseTo(target.x * 1920, 5)
+    expect(zoomed.y + zoomed.h / 2).toBeCloseTo(target.y * 1080, 5)
   })
 
   it("zoomFocusAt maps an output point into the gameplay region", () => {

@@ -170,7 +170,7 @@ Same-kind events never overlap; a shake can overlap anything; a zoom inside a fo
 
 Planner (`features/effects/planner.ts`, constants in `PLANNER`), in priority order:
 
-- **Review beats**: a `reaction` beat → focus from 300 ms before to 1.5 s after (webcam layouts only); a `weird` beat → 1.5 s zoom centred on it, at the beat's x/y converted to the gameplay region. Beats snap to the loudest loudness window within ±2.5 s and inside the clip (unless tied), else to the fastest speech-rate window, else stay put. Beats may start in the lead-in.
+- **Review beats**: a `reaction` beat → focus from 300 ms before to 1.5 s after (webcam layouts only); a `weird` beat → 1.5 s zoom centred on it, at the beat's x/y (a share of the full frame) converted to the gameplay crop that zoom scales, i.e. the cover crop `planLayout` cuts from the gameplay rect. Beats snap to the loudest loudness window within ±2.5 s and inside the clip (unless tied), else to the fastest speech-rate window, else stay put. Beats may start in the lead-in.
 - **Screams**: windows ≥ 8 LU over the clip's median loudness and above −18 LUFS → a 500 ms shake (strong at +14 LU) plus a focus when there's a webcam and no focus already covers it.
 - **Jumps** (only without beats): a window ≥ 10 LU above the 1.5 s before it → a 1.5 s centre zoom.
 
@@ -180,7 +180,8 @@ When tracks change:
 
 - Selection plans a track for every new clip when the project's `autoEffects` is on (default), Claude, heuristic and pasted clips alike. Beats are stored on the clip so planning again never calls Claude.
 - Turning `autoEffects` on plans every track that isn't `edited`; turning it off sets them to null. Edited tracks are never touched. If clips are rendered, the settings form offers a render re-run.
-- Saving a trim re-plans a track that isn't `edited` over the new range. Any change to the events sets `edited: true`; an edited track only has out-of-range events dropped on trim.
+- Confirming or changing the project layout (with `autoEffects` on) re-plans every track that isn't `edited`, null ones included, on clips without a layout override, in the same transaction. Selection runs before webcam detection, so without a preset its tracks were planned against the probe's webcam-less placeholder.
+- Saving a trim re-plans an existing track that isn't `edited` over the new range, with the layout being saved. A null track stays null. Any change to the events sets `edited: true`; an edited track only has out-of-range events dropped on trim.
 - "Reset to auto" / "Add effects automatically" in the editor call `planClipEffectsAction`, which returns a fresh plan for the range and layout on screen without saving it. It's saved with the rest of the clip.
 
 ### Captions

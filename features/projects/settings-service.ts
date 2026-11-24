@@ -4,7 +4,7 @@ import { withTransaction, type Db } from "@/lib/db"
 import { AppError } from "@/lib/errors"
 
 import { clipRepository } from "../clips/repository"
-import { autoEffectsFor } from "../effects/service"
+import { syncAutoEffects } from "../effects/service"
 import { jobQueue } from "../jobs/queue"
 import { isRunning } from "../pipeline/state-machine"
 import { startClipRenders } from "../render/service"
@@ -47,17 +47,6 @@ export async function updateProjectSettings(
     return { rerun: rendered.length > 0 ? step : null }
   }
   return { rerun: step }
-}
-
-async function syncAutoEffects(db: Db, projectId: string, on: boolean) {
-  const clips = clipRepository(db)
-  const unedited = (await clips.listForProject(projectId)).filter(
-    (clip) => !clip.effects?.edited
-  )
-  const tracks = on ? await autoEffectsFor(db, projectId, unedited) : null
-  for (const clip of unedited) {
-    await clips.update(clip.id, { effects: tracks?.get(clip.id) ?? null })
-  }
 }
 
 export async function rerunProject(db: Db, projectId: string, step: RerunStep) {

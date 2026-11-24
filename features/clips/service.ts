@@ -111,7 +111,6 @@ export async function updateClip(
     )
   }
   const trimmed = edit.startMs !== clip.startMs || edit.endMs !== clip.endMs
-  const project = await projectRepository(db).getOrThrow(projectId)
   const range = { startMs: edit.startMs, endMs: edit.endMs }
   const stored = edit.effects ?? clip.effects
   let effects: ClipEffects | null | undefined
@@ -120,11 +119,13 @@ export async function updateClip(
       edited: true,
       events: normalizeEffects(stored.events, range),
     }
-  } else if (trimmed && (stored || project.settings.autoEffects)) {
+  } else if (trimmed && stored) {
     effects =
-      (await autoEffectsFor(db, projectId, [{ ...clip, ...range }])).get(
-        clip.id
-      ) ?? null
+      (
+        await autoEffectsFor(db, projectId, [
+          { ...clip, ...range, layoutOverride: edit.layoutOverride },
+        ])
+      ).get(clip.id) ?? null
   } else if (edit.effects) {
     effects = {
       edited: false,

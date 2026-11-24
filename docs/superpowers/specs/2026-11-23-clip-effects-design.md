@@ -73,7 +73,7 @@ Claude review change: `reviewResponseSchema` gets an optional `beats: [{ ms, kin
 When it runs:
 
 - At the end of the select step, for every new candidate, behind a project setting `autoEffects` (default on). Changing it offers the usual "re-run what it affects". That only touches tracks whose `edited` is false: turning it on generates them, and turning it off sets them to `null`. As with caption-setting re-runs today, rendered clips whose track changed are re-rendered.
-- Saving a trim on a clip whose track isn't `edited` re-runs the planner over the new range, and the track stays auto. Only changes to the events themselves set `edited: true`. On an edited track, a trim just drops or clips out-of-range events.
+- Saving a trim on a clip whose track isn't `edited` re-runs the planner over the new range with the layout being saved, and the track stays auto. A null track stays null. Only changes to the events themselves set `edited: true`. On an edited track, a trim just drops or clips out-of-range events.
 - Existing clips (`effects = null`): the editor shows "Add effects automatically". The planner is pure and cheap, so the server action computes it on demand.
 
 ## The shared frame function

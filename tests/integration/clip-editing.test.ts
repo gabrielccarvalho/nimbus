@@ -158,6 +158,50 @@ describe("clip effects", () => {
     }
   })
 
+  it("doesn't create a track when a trim saves over none", async () => {
+    const { projectId, clip } = await reviewedProject()
+    await clipRepository(env.db).update(clip.id, { effects: null })
+    const saved = await updateClip(
+      env.db,
+      projectId,
+      clip.id,
+      edit({ startMs: 3000, endMs: 13_000 })
+    )
+    expect(saved.effects).toBeNull()
+  })
+
+  it("replans a trim with the layout being saved", async () => {
+    const { projectId, clip } = await reviewedProject()
+    const clips = clipRepository(env.db)
+    const noCam = {
+      webcamRect: null,
+      gameplayRect: { x: 0, y: 0, w: 1, h: 1 },
+      gameplayFocusX: 0.5,
+      mode: "no-cam-fill" as const,
+      camPosition: "top" as const,
+    }
+    await confirmLayout(env.db, projectId, noCam)
+    await clips.update(clip.id, {
+      beats: [{ ms: 7000, kind: "reaction" }],
+      effects: { edited: false, events: [] },
+    })
+    const saved = await updateClip(
+      env.db,
+      projectId,
+      clip.id,
+      edit({
+        startMs: 3000,
+        endMs: 13_000,
+        layoutOverride: {
+          ...noCam,
+          webcamRect: { x: 0.78, y: 0.77, w: 0.2, h: 0.2 },
+          mode: "cam-top",
+        },
+      })
+    )
+    expect(saved.effects?.events.some((e) => e.kind === "focus")).toBe(true)
+  })
+
   it("keeps the stored track when an untrimmed save omits effects", async () => {
     const { projectId, clip } = await reviewedProject()
     const clips = clipRepository(env.db)

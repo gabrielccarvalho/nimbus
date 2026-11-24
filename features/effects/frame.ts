@@ -10,7 +10,7 @@ import type { Effect } from "./schema"
 
 type ShakeIntensity = Extract<Effect, { kind: "shake" }>["intensity"]
 
-export const ZOOM_EASE_MS = 150
+const ZOOM_EASE_MS = 150
 
 export const SHAKE_SCALE = { light: 1.06, strong: 1.12 } satisfies Record<
   ShakeIntensity,
@@ -89,6 +89,22 @@ function baseRegions(
       zoomable: bottom.content === "gameplay",
     },
   ]
+}
+
+export function zoomRegion(
+  layout: LayoutInput,
+  source: { width: number; height: number }
+): FloatRect {
+  const crop = baseRegions(layout, source).find(
+    (region) => region.zoomable
+  )?.crop
+  if (!crop) return { x: 0, y: 0, w: 1, h: 1 }
+  return {
+    x: crop.x / source.width,
+    y: crop.y / source.height,
+    w: crop.w / source.width,
+    h: crop.h / source.height,
+  }
 }
 
 function zoomScale(
