@@ -20,7 +20,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { DotMeter } from "@/components/ui/dot-meter"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,24 +50,12 @@ export type SidebarWorkspace = {
   planName: string
 }
 
-export type SidebarUsage = {
-  renderMinutes: number
-  renderMinutesLimit: number | null
-  resetsAt: string
-}
-
 export const SHORTCUTS = [
   { keys: ["⌘", "K"], label: "Search recordings and clips" },
   { keys: ["N"], label: "New project" },
   { keys: [","], label: "Settings" },
   { keys: ["?"], label: "Keyboard shortcuts" },
 ] as const
-
-const resets = new Intl.DateTimeFormat("en", {
-  month: "short",
-  day: "numeric",
-  timeZone: "UTC",
-})
 
 export function WorkspaceButton({
   workspace,
@@ -133,45 +120,6 @@ export function WorkspaceButton({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-  )
-}
-
-export function UsageCard({
-  usage,
-  planName,
-}: {
-  usage: SidebarUsage
-  planName: string
-}) {
-  const limit = usage.renderMinutesLimit
-  return (
-    <div className="grid gap-2.5 rounded-[14px] bg-graphite p-3.5">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-[13px] font-medium">Render minutes</span>
-        <span className="font-mono text-xs text-muted-foreground tabular-nums">
-          {limit === null
-            ? `${usage.renderMinutes} · Unlimited`
-            : `${usage.renderMinutes} / ${limit}`}
-        </span>
-      </div>
-      {limit !== null && (
-        <DotMeter
-          value={usage.renderMinutes}
-          max={limit}
-          tone={usage.renderMinutes >= limit ? "amber" : "lav"}
-          aria-label="Render minutes used this month"
-        />
-      )}
-      <div className="flex justify-between gap-2 text-xs text-tertiary">
-        <span>Resets {resets.format(new Date(usage.resetsAt))}</span>
-        <Link
-          href="/settings/workspace/plan"
-          className="font-medium text-muted-foreground hover:text-foreground"
-        >
-          {planName} plan
-        </Link>
-      </div>
-    </div>
   )
 }
 

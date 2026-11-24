@@ -22,10 +22,7 @@ test("navigates between projects and settings", async ({ page }) => {
 test("channels is a page of its own, for now a preview", async ({ page }) => {
   await page.goto("/")
   await expect(page.getByRole("link", { name: "New project" })).toHaveCount(0)
-  await expect(page.getByRole("link", { name: "Free plan" })).toHaveAttribute(
-    "href",
-    "/settings/workspace/plan"
-  )
+  await expect(page.getByText("Render minutes")).toHaveCount(0)
   await page
     .getByRole("navigation", { name: "Sections" })
     .getByRole("link", { name: "Channels" })

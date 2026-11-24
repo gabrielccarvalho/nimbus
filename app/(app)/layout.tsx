@@ -10,11 +10,9 @@ import {
   SearchTrigger,
 } from "@/components/app-shell/command-palette"
 import { SIDEBAR_COOKIE } from "@/components/app-shell/sidebar-cookie"
-import { initials } from "@/features/accounts/schema"
+import { initials, PLANS } from "@/features/accounts/schema"
 import { requireViewer } from "@/features/accounts/session"
-import { usageSummary } from "@/features/accounts/usage"
 import { countProjects, listRecentProjects } from "@/features/projects/queries"
-import { getDb } from "@/lib/db"
 
 export default async function AppLayout({
   children,
@@ -24,10 +22,9 @@ export default async function AppLayout({
   const { user, workspace } = await requireViewer()
   const cookieStore = await cookies()
   const collapsed = cookieStore.get(SIDEBAR_COOKIE)?.value === "false"
-  const [recent, projectCount, usage] = await Promise.all([
+  const [recent, projectCount] = await Promise.all([
     listRecentProjects(3),
     countProjects(),
-    usageSummary(getDb(), workspace),
   ])
 
   return (
@@ -53,12 +50,7 @@ export default async function AppLayout({
             name: workspace.name,
             initials: initials(workspace.name),
             image: workspace.image,
-            planName: usage.plan.name,
-          }}
-          usage={{
-            renderMinutes: usage.renderMinutes,
-            renderMinutesLimit: usage.plan.renderMinutes,
-            resetsAt: usage.resetsAt.toISOString(),
+            planName: PLANS[workspace.plan].name,
           }}
         />
         <div className="flex min-w-0 flex-1 flex-col">

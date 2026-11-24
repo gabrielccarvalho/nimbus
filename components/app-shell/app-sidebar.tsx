@@ -25,10 +25,8 @@ import { cn } from "@/lib/utils"
 import { Logo, LogoMark } from "./logo"
 import {
   AccountMenu,
-  UsageCard,
   WorkspaceButton,
   type SidebarAccount,
-  type SidebarUsage,
   type SidebarWorkspace,
 } from "./sidebar-account"
 import { SIDEBAR_COOKIE } from "./sidebar-cookie"
@@ -93,14 +91,12 @@ export function AppSidebar({
   projectCount,
   account,
   workspace,
-  usage,
   defaultCollapsed = false,
 }: {
   recent: RecentProject[]
   projectCount: number
   account: SidebarAccount
   workspace: SidebarWorkspace
-  usage: SidebarUsage
   defaultCollapsed?: boolean
 }) {
   const pathname = usePathname()
@@ -234,9 +230,6 @@ export function AppSidebar({
         )}
 
         <div className="min-h-6 flex-1" />
-        {!collapsed && (
-          <UsageCard usage={usage} planName={workspace.planName} />
-        )}
         <AccountMenu account={account} collapsed={collapsed} />
       </div>
     </aside>

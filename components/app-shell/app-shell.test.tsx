@@ -82,11 +82,6 @@ describe("AppSidebar", () => {
       image: null,
       planName: "Free",
     },
-    usage: {
-      renderMinutes: 12,
-      renderMinutesLimit: 60,
-      resetsAt: "2026-12-01T00:00:00.000Z",
-    },
   }
 
   it("lists recent projects with their status and marks the current one", () => {
@@ -128,27 +123,8 @@ describe("AppSidebar", () => {
     expect(
       screen.getByRole("button", { name: /Gabe's studio/ })
     ).toHaveTextContent("Personal · Free plan")
-    expect(screen.getByText("12 / 60")).toBeInTheDocument()
+    expect(screen.queryByText("Render minutes")).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: /g@example.com/ })).toBeVisible()
-  })
-
-  it("shows unlimited render minutes without a meter", () => {
-    render(
-      <TooltipProvider>
-        <AppSidebar
-          {...shell}
-          workspace={{ ...shell.workspace, planName: "Admin" }}
-          usage={{ ...shell.usage, renderMinutesLimit: null }}
-        />
-      </TooltipProvider>
-    )
-    expect(
-      screen.getByRole("button", { name: /Gabe's studio/ })
-    ).toHaveTextContent("Personal · Admin plan")
-    expect(screen.getByText("12 · Unlimited")).toBeInTheDocument()
-    expect(
-      screen.queryByLabelText("Render minutes used this month")
-    ).not.toBeInTheDocument()
   })
 
   it("opens a new project with N", async () => {
