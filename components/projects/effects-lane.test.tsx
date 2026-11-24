@@ -50,6 +50,23 @@ describe("EffectsLane", () => {
     expect(onChange).toHaveBeenCalledWith([events[0]])
   })
 
+  it("tabs from the selected block into its controls and back", async () => {
+    const events: Effect[] = [
+      { kind: "shake", startMs: 20_000, endMs: 20_500, intensity: "light" },
+    ]
+    const { user } = setup({ events })
+    const block = screen.getByRole("button", { name: "Shake light at 0:10.0" })
+    await user.click(block)
+    const light = await screen.findByRole("button", { name: "Light" })
+    await user.tab()
+    expect(light).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(block).toHaveFocus()
+    expect(screen.getByRole("button", { name: "Delete" })).toBeVisible()
+    await user.tab()
+    expect(light).toHaveFocus()
+  })
+
   it("full cam add is disabled without a webcam", () => {
     setup({ hasWebcam: false })
     expect(screen.getByRole("button", { name: "Add full cam" })).toBeDisabled()

@@ -135,6 +135,22 @@ function placeAt(
   return { startMs, endMs: startMs + length }
 }
 
+// Base UI parks a portaled popup's tab stops at tabindex -1 (original in
+// data-tabindex) while focus is outside it.
+function tabIndexOf(element: HTMLElement) {
+  const original = element.getAttribute("data-tabindex")
+  if (original === null) return element.tabIndex
+  return original === "" ? 0 : Number(original)
+}
+
+function tabbables(root: HTMLElement | null) {
+  return Array.from(
+    root?.querySelectorAll<HTMLElement>("button, input, [tabindex]") ?? []
+  ).filter(
+    (element) => tabIndexOf(element) >= 0 && !element.matches(":disabled")
+  )
+}
+
 export function EffectsLane({
   startMs,
   endMs,
@@ -157,6 +173,7 @@ export function EffectsLane({
   const id = React.useId()
   const rootRef = React.useRef<HTMLDivElement>(null)
   const anchorRef = React.useRef<HTMLDivElement>(null)
+  const popupRef = React.useRef<HTMLDivElement>(null)
   const [ownSelected, setOwnSelected] = React.useState<number | null>(null)
   const selectedIndex = selectedProp !== undefined ? selectedProp : ownSelected
   const selected = selectedIndex === null ? undefined : events[selectedIndex]
@@ -208,6 +225,14 @@ export function EffectsLane({
                   selected={index === selectedIndex}
                   onSelect={() => select(index)}
                   onDelete={() => remove(index)}
+                  onKeyDown={(keyEvent) => {
+                    if (index !== selectedIndex) return
+                    if (keyEvent.key !== "Tab" || keyEvent.shiftKey) return
+                    const first = tabbables(popupRef.current)[0]
+                    if (!first) return
+                    keyEvent.preventDefault()
+                    first.focus()
+                  }}
                   onChange={(start, end) => {
                     const moving = start - shownStart === end - shownEnd
                     const next = moveWithin(
@@ -282,9 +307,13 @@ export function EffectsLane({
         open={selected !== undefined}
         onOpenChange={(open, details) => {
           if (open) return
-          const target = details.event?.target
+          const target =
+            details.event instanceof FocusEvent
+              ? details.event.relatedTarget
+              : details.event?.target
           if (
-            details.reason === "outside-press" &&
+            (details.reason === "outside-press" ||
+              details.reason === "focus-out") &&
             target instanceof Element &&
             (rootRef.current?.contains(target) ||
               target.closest("[data-effect-focus-picker]"))
@@ -296,10 +325,25 @@ export function EffectsLane({
       >
         {selected && selectedIndex !== null && (
           <PopoverContent
+            ref={popupRef}
             anchor={anchorRef}
             initialFocus={false}
             finalFocus={false}
             className="w-60"
+            onKeyDown={(event) => {
+              const anchor = anchorRef.current
+              if (!anchor) return
+              if (event.key === "Escape") {
+                anchor.focus()
+                return
+              }
+              if (event.key !== "Tab") return
+              const items = tabbables(popupRef.current)
+              if (event.target !== (event.shiftKey ? items[0] : items.at(-1)))
+                return
+              if (event.shiftKey) event.preventDefault()
+              anchor.focus()
+            }}
           >
             <PopoverHeader>
               <PopoverTitle>
