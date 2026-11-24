@@ -50,10 +50,12 @@ export async function applyManualSelection(
       "None of those clips fit the recording and length limits"
     )
   }
-  const clips = await clipRepository(db).replaceCandidates(
-    projectId,
-    candidates
-  )
+  const repository = clipRepository(db)
+  const clips = await repository.replaceCandidates(projectId, candidates)
+  if (project.settings.autoEffects) {
+    const tracks = await autoEffectsFor(db, projectId, clips)
+    for (const [id, effects] of tracks) await repository.update(id, { effects })
+  }
   await projectRepository(db).setAwaitingManualSelection(projectId, false)
   return clips.length
 }

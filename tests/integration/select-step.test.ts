@@ -124,7 +124,11 @@ describe("select step", () => {
         .awaitingManualSelection
     ).toBe(false)
     const [clip] = await clipRepository(env.db).listForProject(projectId)
-    expect(clip).toMatchObject({ title: "The boss", endMs: 20_000 })
+    expect(clip).toMatchObject({
+      title: "The boss",
+      endMs: 20_000,
+      effects: { edited: false },
+    })
     expect(clip!.endMs - clip!.startMs).toBeGreaterThanOrEqual(15_000)
   })
 })
