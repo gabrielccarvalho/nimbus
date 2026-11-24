@@ -10,6 +10,7 @@ import {
 
 import {
   PublicationStatusView,
+  type PublicationState,
   PublishControl,
   PublishDialog,
   type PublishingState,
@@ -30,11 +31,22 @@ vi.mock("@/features/publishing/actions", () => ({
   retryPublicationAction: vi.fn(),
 }))
 
+const base = {
+  renderAssetId: "r1",
+  metadata: {
+    title: "Old title",
+    description: "Old description",
+    tags: ["old"],
+    privacy: "unlisted" as const,
+  },
+}
+
 const clip = {
   id: "c1",
   title: "Clutch ace",
   description: "A 1v4 on Ascent",
   status: "rendered" as const,
+  renderAssetId: "r1",
 }
 
 const publishing: PublishingState = {
@@ -197,7 +209,13 @@ describe("PublishControl", () => {
         publishing={{
           ...publishing,
           publications: {
-            c1: { id: "p1", status: "uploading", url: null, error: null },
+            c1: {
+              ...base,
+              id: "p1",
+              status: "uploading",
+              url: null,
+              error: null,
+            },
           },
         }}
       />
@@ -212,11 +230,65 @@ describe("PublishControl", () => {
   })
 })
 
+describe("PublishControl republishing", () => {
+  const failed = {
+    ...base,
+    id: "p1",
+    status: "failed" as const,
+    url: null,
+    error: "Upload rejected",
+  }
+  const withPublication = (publication: typeof failed | PublicationState) => ({
+    ...publishing,
+    publications: { c1: publication },
+  })
+
+  it("keeps Retry and a Publish button prefilled from the failed metadata", async () => {
+    render(<PublishControl clip={clip} publishing={withPublication(failed)} />)
+    expect(screen.getByRole("button", { name: "Retry" })).toBeVisible()
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }))
+    expect(await screen.findByLabelText("Title")).toHaveValue("Old title")
+    expect(screen.getByLabelText("Description")).toHaveValue("Old description")
+  })
+
+  it("offers no second upload of the same published render", () => {
+    render(
+      <PublishControl
+        clip={clip}
+        publishing={withPublication({
+          ...failed,
+          status: "published",
+          url: "https://youtu.be/abc",
+        })}
+      />
+    )
+    expect(screen.getByRole("link", { name: /Published/ })).toBeVisible()
+    expect(screen.queryByRole("button", { name: "Publish" })).toBeNull()
+    expect(screen.queryByText("Edited since publish")).toBeNull()
+  })
+
+  it("flags a published clip that was re-rendered and offers Publish", () => {
+    render(
+      <PublishControl
+        clip={{ ...clip, renderAssetId: "r2" }}
+        publishing={withPublication({
+          ...failed,
+          status: "published",
+          url: "https://youtu.be/abc",
+        })}
+      />
+    )
+    expect(screen.getByText("Edited since publish")).toBeVisible()
+    expect(screen.getByRole("button", { name: "Publish" })).toBeEnabled()
+  })
+})
+
 describe("PublicationStatusView", () => {
   it("shows progress while publishing", () => {
     render(
       <PublicationStatusView
         publication={{
+          ...base,
           id: "p1",
           status: "uploading",
           url: null,
@@ -232,6 +304,7 @@ describe("PublicationStatusView", () => {
     render(
       <PublicationStatusView
         publication={{
+          ...base,
           id: "p1",
           status: "waiting_quota",
           url: null,
@@ -246,6 +319,7 @@ describe("PublicationStatusView", () => {
     render(
       <PublicationStatusView
         publication={{
+          ...base,
           id: "p1",
           status: "published",
           url: "https://youtu.be/abc",
@@ -267,6 +341,7 @@ describe("PublicationStatusView", () => {
     render(
       <PublicationStatusView
         publication={{
+          ...base,
           id: "p1",
           status: "failed",
           url: null,
@@ -288,7 +363,13 @@ describe("PublicationStatusView", () => {
     })
     render(
       <PublicationStatusView
-        publication={{ id: "p1", status: "failed", url: null, error: null }}
+        publication={{
+          ...base,
+          id: "p1",
+          status: "failed",
+          url: null,
+          error: null,
+        }}
       />
     )
     await userEvent.click(screen.getByRole("button", { name: "Retry" }))

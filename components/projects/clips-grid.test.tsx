@@ -103,6 +103,13 @@ const publishing: PublishingState = {
   publishesLeftToday: null,
 }
 
+const meta = {
+  title: "t",
+  description: "",
+  tags: [],
+  privacy: "public" as const,
+}
+
 const data = {
   projectId: "p1",
   publishing,
@@ -150,6 +157,8 @@ describe("ClipsGrid", () => {
           publications: {
             b: {
               id: "pub1",
+              renderAssetId: null,
+              metadata: meta,
               status: "published",
               url: "https://youtu.be/abc",
               error: null,
@@ -174,12 +183,21 @@ describe("ClipsGrid", () => {
           publications: {
             b: {
               id: "pub1",
+              renderAssetId: null,
+              metadata: meta,
               status: "uploading",
               url: null,
               error: null,
               progress: 30,
             },
-            c: { id: "pub2", status: "waiting_quota", url: null, error: null },
+            c: {
+              id: "pub2",
+              renderAssetId: null,
+              metadata: meta,
+              status: "waiting_quota",
+              url: null,
+              error: null,
+            },
           },
         }}
       />

@@ -607,6 +607,7 @@ export function ClipEditor({
                   <PublishControl
                     clip={{ ...clip, status: clipStatus }}
                     publishing={publishing}
+                    live
                   />
                 )}
               </div>

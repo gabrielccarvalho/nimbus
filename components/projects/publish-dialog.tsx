@@ -52,6 +52,7 @@ type PublishClip = {
   title: string
   description: string
   status: ClipStatus
+  renderAssetId: string | null
 }
 
 const PRIVACY_ITEMS: Array<{ value: PrivacyStatus; label: string }> = [
@@ -79,18 +80,23 @@ function toLocalInputValue(date: Date) {
 function PublishForm({
   clip,
   publishing,
+  previous,
   onDone,
 }: {
   clip: PublishClip
   publishing: PublishingState
+  previous?: PublicationState["metadata"]
   onDone: () => void
 }) {
   const id = React.useId()
   const router = useRouter()
   const [pending, startTransition] = React.useTransition()
   const initial = React.useMemo(
-    () => defaultPublishInput(clip, publishing.defaults),
-    [clip, publishing.defaults]
+    () => ({
+      ...defaultPublishInput(clip, publishing.defaults),
+      ...previous,
+    }),
+    [clip, publishing.defaults, previous]
   )
   const [title, setTitle] = React.useState(initial.title)
   const [description, setDescription] = React.useState(initial.description)
@@ -237,9 +243,11 @@ function PublishForm({
 export function PublishDialog({
   clip,
   publishing,
+  previous,
 }: {
   clip: PublishClip
   publishing: PublishingState
+  previous?: PublicationState["metadata"]
 }) {
   const [open, setOpen] = React.useState(false)
   const reasonId = React.useId()
@@ -268,6 +276,7 @@ export function PublishDialog({
           <PublishForm
             clip={clip}
             publishing={publishing}
+            previous={previous}
             onDone={() => setOpen(false)}
           />
         </DialogContent>
@@ -283,8 +292,10 @@ export function PublishDialog({
 
 export function PublicationStatusView({
   publication,
+  live = false,
 }: {
   publication: PublicationState
+  live?: boolean
 }) {
   const router = useRouter()
   const [pending, startTransition] = React.useTransition()
@@ -346,7 +357,10 @@ export function PublicationStatusView({
   }
 
   return (
-    <span role="status" className="text-xs text-muted-foreground">
+    <span
+      role={live ? "status" : undefined}
+      className="text-xs text-muted-foreground"
+    >
       Publishing…
       {publication.progress === undefined ? "" : ` ${publication.progress}%`}
     </span>
@@ -356,18 +370,34 @@ export function PublicationStatusView({
 export function PublishControl({
   clip,
   publishing,
+  live,
 }: {
   clip: PublishClip
   publishing: PublishingState
+  live?: boolean
 }) {
   const publication = publishing.publications[clip.id]
-  if (
-    publication &&
-    (ACTIVE_PUBLICATION_STATUSES.has(publication.status) ||
-      publication.status === "published" ||
-      publication.status === "failed")
-  ) {
+  if (!publication || publication.status === "removed") {
+    return <PublishDialog clip={clip} publishing={publishing} />
+  }
+  if (ACTIVE_PUBLICATION_STATUSES.has(publication.status)) {
+    return <PublicationStatusView publication={publication} live={live} />
+  }
+  const edited = publication.renderAssetId !== clip.renderAssetId
+  if (publication.status === "published" && !edited) {
     return <PublicationStatusView publication={publication} />
   }
-  return <PublishDialog clip={clip} publishing={publishing} />
+  return (
+    <div className="grid gap-1">
+      <PublicationStatusView publication={publication} />
+      {publication.status === "published" && (
+        <span className="text-xs text-tertiary">Edited since publish</span>
+      )}
+      <PublishDialog
+        clip={clip}
+        publishing={publishing}
+        previous={publication.metadata}
+      />
+    </div>
+  )
 }

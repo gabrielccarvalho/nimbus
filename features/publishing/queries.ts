@@ -14,7 +14,7 @@ import { jobs } from "@/lib/db/schema"
 import { publishingDefaults } from "./metadata"
 import { pacificDay } from "./quota"
 import { publishingRepository } from "./repository"
-import type { PublicationStatus } from "./schema"
+import type { PublicationStatus, PublishInput } from "./schema"
 import { syncYouTubeChannel } from "./service"
 
 export async function getYouTubeChannelCard() {
@@ -68,6 +68,8 @@ export async function getPublishing(projectId: string) {
     string,
     {
       id: string
+      renderAssetId: string | null
+      metadata: Pick<PublishInput, "title" | "description" | "tags" | "privacy">
       status: PublicationStatus
       url: string | null
       error: string | null
@@ -78,6 +80,13 @@ export async function getPublishing(projectId: string) {
     const progress = progressById.get(p.id)
     publications[clipId] = {
       id: p.id,
+      renderAssetId: p.renderAssetId,
+      metadata: {
+        title: p.metadata.title,
+        description: p.metadata.description,
+        tags: p.metadata.tags,
+        privacy: p.metadata.privacy,
+      },
       status: p.status,
       url: p.url,
       error: p.error,
