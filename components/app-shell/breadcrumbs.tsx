@@ -80,7 +80,9 @@ export function BreadcrumbLabel({
 export function buildCrumbs(pathname: string, labels: Labels) {
   const segments = pathname.split("/").filter(Boolean)
   const crumbs =
-    segments[0] === "settings" ? [] : [{ href: "/", label: "Projects" }]
+    segments[0] === "settings" || segments[0] === "channels"
+      ? []
+      : [{ href: "/", label: "Projects" }]
   segments.forEach((segment, index) => {
     if (segment === "projects") return
     if (segments[0] === "projects" && PROJECT_TABS.has(segment)) return

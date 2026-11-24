@@ -19,6 +19,26 @@ test("navigates between projects and settings", async ({ page }) => {
   await expectNoSeriousA11yViolations(page)
 })
 
+test("channels is a page of its own, for now a preview", async ({ page }) => {
+  await page.goto("/")
+  await expect(page.getByRole("link", { name: "New project" })).toHaveCount(0)
+  await expect(page.getByRole("link", { name: "Free plan" })).toHaveAttribute(
+    "href",
+    "/settings/plan"
+  )
+  await page
+    .getByRole("navigation", { name: "Sections" })
+    .getByRole("link", { name: "Channels" })
+    .click()
+  await expect(page).toHaveURL(/\/channels$/)
+  await expect(
+    page.getByRole("heading", { name: "Your channels, in one place." })
+  ).toBeVisible()
+  await expectNoSeriousA11yViolations(page)
+  await page.getByRole("link", { name: "Connect accounts now" }).click()
+  await expect(page).toHaveURL(/\/settings\/channels$/)
+})
+
 test("sidebar collapse state persists across reloads", async ({ page }) => {
   await page.goto("/")
   const sidebar = page.locator("[data-slot=sidebar][data-state]")

@@ -216,3 +216,11 @@ Layout & captions: `LayoutModeOptions` (mode cards with a slot diagram; shared w
 - Heycamps restyle (ADR-0057): `button`, `badge`, `tabs`, `input`, `select`, `switch`, `dialog`, `alert-dialog`, `sheet`, `dropdown-menu`, `popover`, `tooltip`, `kbd` and `command` keep their structure and API but swap classes for the heycamps tokens (inset-ring hairlines instead of borders, `surface-menu` for floating surfaces, `focus-ring`). `Button`'s `default` variant is glass and the white pill is `variant="primary"`; `outline` and `secondary` are gone. `Select`'s `size="sm"` is the small glass pill used for inline overrides. `command` was added with `cmdk`; its install did not overwrite `dialog`.
 
 - `components/ui/popover.tsx`: `PopoverContent` forwards `anchor` to the positioner, so a controlled popover can open next to an element that isn't its trigger (the clip editor's effects lane anchors it to the selected block).
+
+### ChannelIcon (`components/channels/channel-icon.tsx`)
+
+A channel's brand logo (Phosphor, filled) on its brand colour: YouTube red, Twitch purple, TikTok black, the Instagram gradient. These are logos, not status, so they sit outside the crew-colour rule. Sizes `sm` and `default`; decorative, so the name goes in the surrounding text.
+
+```tsx
+<ChannelIcon provider="youtube" />
+```

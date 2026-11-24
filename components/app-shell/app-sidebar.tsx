@@ -3,7 +3,6 @@
 import {
   BroadcastIcon,
   FolderSimpleIcon,
-  PlusIcon,
   SidebarSimpleIcon,
 } from "@phosphor-icons/react"
 import Link from "next/link"
@@ -15,7 +14,6 @@ import {
   type ProjectSignalInput,
 } from "@/components/projects/status-badge"
 import { Button } from "@/components/ui/button"
-import { Kbd } from "@/components/ui/kbd"
 import { SignalDot } from "@/components/ui/signal-dot"
 import {
   Tooltip,
@@ -39,7 +37,7 @@ import { useHotkey } from "./use-hotkey"
 export type RecentProject = ProjectSignalInput & { id: string; name: string }
 
 type NavItem = {
-  href: "/" | "/settings/channels"
+  href: "/" | "/channels"
   label: string
   icon: React.ElementType
   count?: number
@@ -137,10 +135,10 @@ export function AppSidebar({
       active: pathname === "/",
     },
     {
-      href: "/settings/channels",
+      href: "/channels",
       label: "Channels",
       icon: BroadcastIcon,
-      active: pathname.startsWith("/settings/channels"),
+      active: pathname.startsWith("/channels"),
     },
   ]
 
@@ -198,23 +196,7 @@ export function AppSidebar({
         )}
       >
         <WorkspaceButton workspace={workspace} collapsed={collapsed} />
-        <Link
-          href="/#import"
-          aria-keyshortcuts="n"
-          aria-label={collapsed ? "New project" : undefined}
-          className={cn(
-            "mt-1.5 mb-2.5 flex h-10 items-center gap-2.5 rounded-full bg-glass-2 ps-3 pe-2.5 text-sm font-semibold inset-ring-1 inset-ring-white/10 transition-colors hover:bg-glass-3",
-            collapsed && "md:justify-center md:px-0"
-          )}
-        >
-          <PlusIcon className="size-4 shrink-0" aria-hidden />
-          <span className={cn("flex-1", collapsed && "md:hidden")}>
-            New project
-          </span>
-          <Kbd className={cn(collapsed && "md:hidden")}>N</Kbd>
-        </Link>
-
-        <nav aria-label="Sections" className="grid gap-0.5">
+        <nav aria-label="Sections" className="mt-2 grid gap-0.5">
           {nav.map((item) => (
             <SidebarLink key={item.href} item={item} collapsed={collapsed} />
           ))}
@@ -252,7 +234,9 @@ export function AppSidebar({
         )}
 
         <div className="min-h-6 flex-1" />
-        {!collapsed && <UsageCard usage={usage} />}
+        {!collapsed && (
+          <UsageCard usage={usage} planName={workspace.planName} />
+        )}
         <AccountMenu account={account} collapsed={collapsed} />
       </div>
     </aside>
