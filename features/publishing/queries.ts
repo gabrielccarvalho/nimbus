@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm"
 import { connection } from "next/server"
 
 import { accountRepository } from "@/features/accounts/repository"
-import { PLANS } from "@/features/accounts/schema"
+import { planFor } from "@/features/accounts/schema"
 import { assertProjectAccess, requireViewer } from "@/features/accounts/session"
 import { clipRepository } from "@/features/clips/repository"
 import { getAppSettings } from "@/features/settings/service"
@@ -82,7 +82,7 @@ export async function getPublishing(projectId: string) {
       ...(progress === undefined ? {} : { progress }),
     }
   }
-  const limit = (PLANS[workspace.plan] ?? PLANS.free).publishesPerDay
+  const limit = planFor(workspace.plan).publishesPerDay
   const publishesLeftToday =
     limit === null
       ? null

@@ -49,6 +49,10 @@ export const PLANS: Record<PlanId, Plan> = {
   },
 }
 
+export function planFor(id: PlanId): Plan {
+  return PLANS[id] ?? PLANS.free
+}
+
 export const ADMIN_EMAIL_DOMAIN = "nimbus.dev"
 
 export function planForEmail(email: string): PlanId {

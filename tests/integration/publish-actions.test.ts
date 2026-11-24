@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { accountRepository } from "@/features/accounts/repository"
+import * as jobQueueModule from "@/features/jobs/queue"
 import { clipRepository } from "@/features/clips/repository"
 import {
   assetRepository,
@@ -11,11 +12,13 @@ import {
   publishClipAction,
   retryPublicationAction,
 } from "@/features/publishing/actions"
+import { RECONNECT_MESSAGE } from "@/features/publishing/google-token"
 import { getPublishing } from "@/features/publishing/queries"
 import { publishingRepository } from "@/features/publishing/repository"
 import {
   account,
   jobs,
+  publications,
   user,
   workspaces,
   youtubeChannels,
@@ -155,8 +158,39 @@ describe("publishClipAction", () => {
       "needs_reconnect"
     )
     const result = await publishClipAction(clip.id, input)
-    expect(result).toMatchObject({ ok: false, error: { code: "CONFLICT" } })
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "CONFLICT", message: RECONNECT_MESSAGE },
+    })
     expect(await publishJobs()).toHaveLength(0)
+  })
+
+  it("creates one publication and job for concurrent submits", async () => {
+    const { clip } = await seed({ plan: "admin" })
+    const results = await Promise.all([
+      publishClipAction(clip.id, input),
+      publishClipAction(clip.id, input),
+    ])
+    expect(results.filter((r) => r.ok)).toHaveLength(1)
+    expect(results.find((r) => !r.ok)).toMatchObject({
+      error: { code: "CONFLICT", message: "This clip is already publishing" },
+    })
+    expect(await publishJobs()).toHaveLength(1)
+    expect(await env.db.select().from(publications)).toHaveLength(1)
+  })
+
+  it("leaves no publication behind when enqueueing fails", async () => {
+    const { clip } = await seed()
+    const spy = vi
+      .spyOn(jobQueueModule, "jobQueue")
+      .mockImplementationOnce(() => {
+        throw new Error("queue down")
+      })
+    const result = await publishClipAction(clip.id, input)
+    spy.mockRestore()
+    expect(result.ok).toBe(false)
+    expect(await env.db.select().from(publications)).toHaveLength(0)
+    expect((await publishClipAction(clip.id, input)).ok).toBe(true)
   })
 
   it("rejects a second publish while one is active", async () => {

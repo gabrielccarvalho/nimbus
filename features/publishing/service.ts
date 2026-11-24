@@ -1,17 +1,20 @@
 import "server-only"
 
+import { eq } from "drizzle-orm"
+
 import type { Workspace } from "@/features/accounts/repository"
-import { PLANS, YOUTUBE_SCOPES } from "@/features/accounts/schema"
+import { planFor, YOUTUBE_SCOPES } from "@/features/accounts/schema"
 import { clipRepository } from "@/features/clips/repository"
 import { jobQueue } from "@/features/jobs/queue"
 import { assetRepository } from "@/features/projects/repository"
-import type { Db } from "@/lib/db"
+import { withTransaction, type Db } from "@/lib/db"
+import { clips } from "@/lib/db/schema"
 import { getEnv } from "@/lib/env"
 import { AppError } from "@/lib/errors"
 import { logger } from "@/lib/logger"
 import { getStorage } from "@/lib/storage"
 
-import { accessTokenForAccount } from "./google-token"
+import { accessTokenForAccount, RECONNECT_MESSAGE } from "./google-token"
 import { LIST_UNITS, pacificDay } from "./quota"
 import {
   publishingRepository,
@@ -129,44 +132,54 @@ export async function releaseRenderAsset(db: Db, publication: Publication) {
   await getStorage().remove(asset.storageKey)
 }
 
-export async function queuePublication(
+export function queuePublication(
   db: Db,
   workspace: Pick<Workspace, "id" | "plan">,
   clipId: string,
   input: PublishInput
 ) {
-  const clip = await clipRepository(db).getOrThrow(clipId)
-  if (clip.status !== "rendered" || !clip.renderAssetId) {
-    throw new AppError("CONFLICT", "Render the latest edit first")
-  }
-  const repo = publishingRepository(db)
-  const channel = await repo.getChannel(workspace.id)
-  if (!channel) throw new AppError("CONFLICT", "Connect YouTube first")
-  if (channel.status !== "ok") {
-    throw new AppError("CONFLICT", "Reconnect YouTube to keep publishing")
-  }
-  if (await repo.activeForClip(clip.id)) {
-    throw new AppError("CONFLICT", "This clip is already publishing")
-  }
-  const limit = (PLANS[workspace.plan] ?? PLANS.free).publishesPerDay
-  if (
-    limit !== null &&
-    (await repo.countCreatedOnDay(workspace.id, pacificDay(new Date()))) >=
-      limit
-  ) {
-    throw new AppError("CONFLICT", `Your plan allows ${limit} publishes a day`)
-  }
-  const publication = await repo.createPublication({
-    clipId: clip.id,
-    channelId: channel.id,
-    renderAssetId: clip.renderAssetId,
-    metadata: input,
-    status: "queued",
+  return withTransaction(db, async (tx) => {
+    const [clip] = await tx
+      .select()
+      .from(clips)
+      .where(eq(clips.id, clipId))
+      .for("update")
+    if (!clip) throw new AppError("NOT_FOUND", "Clip not found")
+    if (clip.status !== "rendered" || !clip.renderAssetId) {
+      throw new AppError("CONFLICT", "Render the latest edit first")
+    }
+    const repo = publishingRepository(tx)
+    const channel = await repo.getChannel(workspace.id)
+    if (!channel) throw new AppError("CONFLICT", "Connect YouTube first")
+    if (channel.status !== "ok") {
+      throw new AppError("CONFLICT", RECONNECT_MESSAGE)
+    }
+    if (await repo.activeForClip(clip.id)) {
+      throw new AppError("CONFLICT", "This clip is already publishing")
+    }
+    const limit = planFor(workspace.plan).publishesPerDay
+    if (
+      limit !== null &&
+      (await repo.countCreatedOnDay(workspace.id, pacificDay(new Date()))) >=
+        limit
+    ) {
+      throw new AppError(
+        "CONFLICT",
+        `Your plan allows ${limit} publishes a day`
+      )
+    }
+    const publication = await repo.createPublication({
+      clipId: clip.id,
+      channelId: channel.id,
+      renderAssetId: clip.renderAssetId,
+      metadata: input,
+      status: "queued",
+    })
+    await jobQueue(tx).enqueue({
+      type: "publish_clip",
+      projectId: clip.projectId,
+      payload: { publicationId: publication.id },
+    })
+    return publication
   })
-  await jobQueue(db).enqueue({
-    type: "publish_clip",
-    projectId: clip.projectId,
-    payload: { publicationId: publication.id },
-  })
-  return publication
 }
