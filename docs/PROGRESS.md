@@ -24,8 +24,6 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 
 ## Blockers
 
-- Flaky e2e "adds a zoom effect in the clip editor" (fails about half the runs, also on master before the sidebar change): after a reload the added "Full game" effect is sometimes gone although the editor showed "Saved". Suspect the server's `normalizeEffects` drops an event the editor's `placeAt` accepted. Not investigated yet.
-
 - ~~B1, libass missing from ffmpeg~~ Resolved 2026-11-22: `ffmpeg-full` 9.0.2 installed (keg-only) and set via `FFMPEG_PATH`/`FFPROBE_PATH` in `.env.local` (ADR-0028).
 - ~~B2, whisper.cpp missing~~ Resolved 2026-11-22: `whisper-cpp` 1.9.5 and `models/ggml-base.en.bin` installed; the heavy test passes.
 - ~~B3, no Anthropic credentials~~ Resolved 2026-11-22: `ANTHROPIC_API_KEY` set in `.env.local`.
@@ -294,6 +292,8 @@ Spec: Claude Design handoff (`~/Downloads/nimbus-redesign-handoff/design/`). Aut
 - [x] Settings under the workspace: General (name, logo, Claude key), Plan & usage, Project defaults, Captions (font, position, preview), Rendering (ADR-0063)
 - [x] Drag captions to a custom height in every preview, keyboard accessible (ADR-0064)
 - [x] Sidebar: no usage card. The plan belongs to the workspace; it shows under the workspace name and in Workspace › Plan & usage
+- [x] Clip editor kept edits made while a save was in flight: the page keyed the editor by `updatedAt`, so each refresh after an autosave remounted it from the server copy. Keyed by clip id now; the save returns the stored effects and the editor adopts them (trims re-plan auto effects)
+- [x] Caption Position sits on its own row so its five options never run under the Size slider
 - [x] Admin plan: accounts on `@nimbus.dev` get a workspace on the Admin plan with no limits (ADR-0061); migration 0010 moves existing ones over
 
 ### Not verified

@@ -131,6 +131,34 @@ export function CaptionStyleFields({
         </ToggleGroup>
       </div>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-[18px]">
+        <div className="col-span-full flex flex-col gap-2">
+          <Label id={`${id}-position`}>Position</Label>
+          <ToggleGroup
+            aria-labelledby={`${id}-position`}
+            variant="outline"
+            size="sm"
+            className="flex-wrap"
+            value={[style.position]}
+            disabled={disabled}
+            onValueChange={(next) => {
+              const position = shape.position.safeParse(next[0])
+              if (position.success) set("position", position.data)
+            }}
+          >
+            {CAPTION_POSITIONS.map((position) => (
+              <ToggleGroupItem
+                key={position.value}
+                value={position.value}
+                className="aria-pressed:bg-lav/15 aria-pressed:text-lav aria-pressed:inset-ring-1 aria-pressed:inset-ring-lav/50"
+              >
+                {position.label}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+          <p className="text-[13px] text-tertiary">
+            Or drag the caption in the preview.
+          </p>
+        </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor={`${id}-font`}>Font</Label>
           <Select
@@ -168,33 +196,6 @@ export function CaptionStyleFields({
               })}
             </SelectContent>
           </Select>
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label id={`${id}-position`}>Position</Label>
-          <ToggleGroup
-            aria-labelledby={`${id}-position`}
-            variant="outline"
-            size="sm"
-            value={[style.position]}
-            disabled={disabled}
-            onValueChange={(next) => {
-              const position = shape.position.safeParse(next[0])
-              if (position.success) set("position", position.data)
-            }}
-          >
-            {CAPTION_POSITIONS.map((position) => (
-              <ToggleGroupItem
-                key={position.value}
-                value={position.value}
-                className="aria-pressed:bg-lav/15 aria-pressed:text-lav aria-pressed:inset-ring-1 aria-pressed:inset-ring-lav/50"
-              >
-                {position.label}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
-          <p className="text-[13px] text-tertiary">
-            Or drag the caption in the preview.
-          </p>
         </div>
         <div className="flex flex-col gap-2">
           <Label id={`${id}-size`}>Size</Label>

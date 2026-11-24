@@ -27,7 +27,7 @@ export default async function ClipEditorPage({
     <>
       <BreadcrumbLabel segment={clip.id} label={clip.title} />
       <ClipEditor
-        key={clip.updatedAt.getTime()}
+        key={clip.id}
         projectId={project.id}
         clip={clip}
         src={mediaUrl(video.storageKey)}

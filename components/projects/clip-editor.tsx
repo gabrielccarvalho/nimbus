@@ -277,7 +277,19 @@ export function ClipEditor({
       return false
     }
     setSaveError(null)
-    setSaved(text)
+    const stored = result.value.effects
+    const untouched =
+      JSON.stringify(latest.current.effects) ===
+      JSON.stringify(snapshot.effects)
+    if (
+      untouched &&
+      JSON.stringify(stored) !== JSON.stringify(snapshot.effects)
+    ) {
+      setEffects(stored)
+      setSaved(JSON.stringify({ ...snapshot, effects: stored }))
+    } else {
+      setSaved(text)
+    }
     return true
   }, [projectId, clip.id])
 
