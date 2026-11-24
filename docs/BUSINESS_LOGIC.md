@@ -156,6 +156,33 @@ Transcripts over ~60k characters are split into parts with a minute of overlap, 
 - Horizontal edit: source resolution, silences longer than 1000 ms removed, 150 ms of padding kept on each side of every cut, subtitles burned in.
 - Disk check: refuse to start a render when free space < 2× the estimated output size (bitrate × duration) + 500 MB.
 
+### Effects
+
+A clip's `effects` is `{ events, edited }` or null. Null renders and previews exactly as before effects existed. Event times are absolute source ms, so a trim keeps them where they are in the recording; saving drops events outside the clip and clips the ones crossing its edges.
+
+| Kind    | What it does                                    | Defaults                                                            |
+| ------- | ----------------------------------------------- | ------------------------------------------------------------------- |
+| `focus` | the webcam fills 9:16                           | ignored (kept, greyed out in the editor) with no webcam             |
+| `zoom`  | punches in on the gameplay region               | `scale` 1.1–2.0 (1.4), `focus` x/y 0–1 (centre), 150 ms ease in/out |
+| `shake` | jitters the frame at ~12 Hz, slightly zoomed in | `intensity` light (1.06×) or strong (1.12×), 300–800 ms             |
+
+Same-kind events never overlap; a shake can overlap anything; a zoom inside a focus range has no effect. `frameAt` (`features/effects/frame.ts`) turns the layout, source size, events and a time into crop rects, and both the canvas preview and the render use it. Captions are drawn on the final frame and never move.
+
+Planner (`features/effects/planner.ts`, constants in `PLANNER`), in priority order:
+
+- **Review beats**: a `reaction` beat → focus from 300 ms before to 1.5 s after (webcam layouts only); a `weird` beat → 1.5 s zoom centred on it, at the beat's x/y converted to the gameplay region. Beats snap to the loudest loudness window within ±2.5 s and inside the clip (unless tied), else to the fastest speech-rate window, else stay put. Beats may start in the lead-in.
+- **Screams**: windows ≥ 8 LU over the clip's median loudness and above −18 LUFS → a 500 ms shake (strong at +14 LU) plus a focus when there's a webcam and no focus already covers it.
+- **Jumps** (only without beats): a window ≥ 10 LU above the 1.5 s before it → a 1.5 s centre zoom.
+
+Caps: at most one effect start per 3 s (shakes included), focus at most 40% of the clip (over budget, a scream keeps only its shake), at most 4 shakes, and nothing starts in the first 500 ms except beats.
+
+When tracks change:
+
+- Selection plans a track for every new clip when the project's `autoEffects` is on (default), Claude, heuristic and pasted clips alike. Beats are stored on the clip so planning again never calls Claude.
+- Turning `autoEffects` on plans every track that isn't `edited`; turning it off sets them to null. Edited tracks are never touched. If clips are rendered, the settings form offers a render re-run.
+- Saving a trim re-plans a track that isn't `edited` over the new range. Any change to the events sets `edited: true`; an edited track only has out-of-range events dropped on trim.
+- "Reset to auto" / "Add effects automatically" in the editor call `planClipEffectsAction`, which returns a fresh plan for the range and layout on screen without saving it. It's saved with the rest of the clip.
+
 ### Captions
 
 | Setting                   | Default                                                                                                                                                      |

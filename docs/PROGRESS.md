@@ -244,6 +244,19 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 - [ ] Check on a real GTA stream: compare picks with and without the review, and the token cost
 - [ ] Tune frame count, pool size and the rubric once posted clips have retention numbers
 
+### Phase 26: Clip effects and clips grid (ADR-0053, ADR-0054)
+
+- [x] Effects per clip (focus, zoom, shake) at absolute source ms, `null` renders as before; pure `frameAt` shared by the canvas preview and the render
+- [x] Planner places effects at selection (Claude, heuristic and pasted clips) from loudness, speech rate and review beats; `autoEffects` project setting (default on)
+- [x] Visual review marks reaction and weird beats, stored on the clip so planning again doesn't call Claude
+- [x] Render burns effects through `sendcmd`-driven scale and crop; clips without effects keep the plain graph and its goldens
+- [x] Editor effects lane: add at playhead, drag, resize, delete, zoom scale and focus point, shake intensity; Tab from a selected block reaches its controls; "Reset to auto" plans locally (`planClipEffectsAction`, not saved until Save)
+- [x] Clips page: grid of 9:16 tiles (rendered tiles play on hover), a dialog player per clip with Approve/Reject, Previous/Next and ←/→, Edit and Download; the source timeline opens a clip
+- [x] e2e: grid → dialog → Approve, reject/show rejected, add a zoom in the editor and keep it after reload
+- [x] Hand check on the 16:9 e2e fixture, by a Playwright script rather than by eye in a browser: tiles render and a rendered tile plays on hover; the dialog plays the clip and its canvas is non-blank and changing (looping at the clip's end wasn't watched); a zoom added on the lane shows in the editor preview; the rendered MP4 (1080×1920, decodes cleanly) shows the same zoom framing as the preview at the same time
+- [ ] Hand check by eye on a real project with `pnpm dev`
+- [ ] Check auto effects on a real GTA stream and tune `PLANNER` constants
+
 ### Not verified
 
 - MediaPipe face detection on a real face (fixtures have none; the code path is unit tested and the model loads in e2e).
