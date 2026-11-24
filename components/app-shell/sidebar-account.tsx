@@ -127,7 +127,13 @@ export function WorkspaceButton({
   )
 }
 
-export function UsageCard({ usage }: { usage: SidebarUsage }) {
+export function UsageCard({
+  usage,
+  planName,
+}: {
+  usage: SidebarUsage
+  planName: string
+}) {
   const limit = usage.renderMinutesLimit
   return (
     <div className="grid gap-2.5 rounded-[14px] bg-graphite p-3.5">
@@ -151,9 +157,9 @@ export function UsageCard({ usage }: { usage: SidebarUsage }) {
         <span>Resets {resets.format(new Date(usage.resetsAt))}</span>
         <Link
           href="/settings/plan"
-          className="text-muted-foreground hover:text-foreground"
+          className="font-medium text-muted-foreground hover:text-foreground"
         >
-          Plan
+          {planName} plan
         </Link>
       </div>
     </div>

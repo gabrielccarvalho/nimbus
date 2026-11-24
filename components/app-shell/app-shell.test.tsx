@@ -33,6 +33,9 @@ describe("buildCrumbs", () => {
       { href: "/settings", label: "Settings" },
       { href: "/settings/channels", label: "Channels" },
     ])
+    expect(buildCrumbs("/channels", {})).toEqual([
+      { href: "/channels", label: "Channels" },
+    ])
   })
 })
 
