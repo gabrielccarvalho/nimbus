@@ -1,13 +1,14 @@
 import "server-only"
 
-import type { Db } from "@/lib/db"
+import { withTransaction, type Db } from "@/lib/db"
 import { toUserMessage, type AppError } from "@/lib/errors"
 
 import { clipRepository } from "../clips/repository"
-import type { Job } from "../jobs/queue"
+import { jobQueue, type Job } from "../jobs/queue"
 import type { JobHandlers } from "../jobs/worker-loop"
 import { projectRepository } from "../projects/repository"
 import { publishingRepository } from "../publishing/repository"
+import { ACTIVE_PUBLICATION_STATUSES } from "../publishing/schema"
 import { releaseRenderAsset } from "../publishing/service"
 import { analyzeStep } from "./steps/analyze"
 import { downloadStep } from "./steps/download"
@@ -94,9 +95,29 @@ export async function onJobFinalFailure(db: Db, job: Job, error: AppError) {
   await projectRepository(db).markFailed(job.projectId, error.message)
 }
 
+// Publish jobs are only cancelled by a worker shutdown or a deleted project,
+// so an active publication goes back to the queue and resumes its session.
+async function requeuePublication(db: Db, job: Job) {
+  const publicationId = job.payload.publicationId
+  if (typeof publicationId !== "string") return
+  await withTransaction(db, async (tx) => {
+    const publishing = publishingRepository(tx)
+    const publication = await publishing.getPublication(publicationId)
+    if (!publication || !ACTIVE_PUBLICATION_STATUSES.has(publication.status)) {
+      return
+    }
+    await publishing.updatePublication(publicationId, { status: "queued" })
+    await jobQueue(tx).enqueue({
+      type: "publish_clip",
+      projectId: job.projectId,
+      payload: { publicationId },
+    })
+  })
+}
+
 export async function onJobCancelled(db: Db, job: Job) {
   if (job.type === "publish_clip") {
-    await failPublication(db, job, "Cancelled")
+    await requeuePublication(db, job)
     return
   }
   if (job.type !== "render_clip") return

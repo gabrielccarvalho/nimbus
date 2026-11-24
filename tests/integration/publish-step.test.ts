@@ -410,17 +410,45 @@ describe("publish_clip", () => {
     expect((await jobQueue(env.db).get(job.id))!.status).toBe("cancelled")
   })
 
-  it("marks the publication failed when its job is cancelled", async () => {
-    const { repo, publication, job, clip, asset } = await seed()
-    const rerendered = await rerender(clip.id, clip.projectId)
+  it("re-queues a cancelled upload and resumes the saved session", async () => {
+    const { repo, publication, job, asset } = await seed()
+    const youtube = getYouTubeClient()
+    const start = vi.spyOn(youtube, "startUpload")
+    const offset = vi
+      .spyOn(youtube, "uploadedBytes")
+      .mockResolvedValueOnce(2048)
+    const upload = vi
+      .spyOn(youtube, "uploadFrom")
+      .mockRejectedValueOnce(new AppError("CANCELLED", "Worker shutting down"))
+
+    await runPublish()
+
+    expect((await jobQueue(env.db).get(job.id))!.status).toBe("cancelled")
+    const rows = await publishJobs()
+    expect(rows).toHaveLength(2)
+    expect(rows.find((row) => row.id !== job.id)!.status).toBe("succeeded")
+    const saved = (await repo.getPublication(publication.id))!
+    expect(saved.status).toBe("published")
+    expect(start).toHaveBeenCalledOnce()
+    expect(offset).toHaveBeenCalledWith("stored-token", saved.uploadUri, BYTES)
+    expect(upload.mock.calls[1]![3]).toBe(2048)
+    expect(await assetRepository(env.db).get(asset.id)).toBeDefined()
+  })
+
+  it("leaves a finished publication alone when its job is cancelled", async () => {
+    const { repo, publication, job } = await seed()
+    await repo.updatePublication(publication.id, {
+      status: "failed",
+      error: "Earlier failure",
+    })
 
     await onJobCancelled(env.db, job)
 
-    const saved = (await repo.getPublication(publication.id))!
-    expect(saved.status).toBe("failed")
-    expect(saved.error).toBe("Cancelled")
-    expect(await assetRepository(env.db).get(asset.id)).toBeUndefined()
-    expect(await assetRepository(env.db).get(rerendered.id)).toBeDefined()
+    expect(await publishJobs()).toHaveLength(1)
+    expect((await repo.getPublication(publication.id))!).toMatchObject({
+      status: "failed",
+      error: "Earlier failure",
+    })
   })
 
   it("deletes the replaced asset when the publish fails for good", async () => {
