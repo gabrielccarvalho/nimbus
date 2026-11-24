@@ -1,6 +1,7 @@
 import { FolderSimpleIcon } from "@phosphor-icons/react/ssr"
 import type { Metadata } from "next"
 
+import { Page } from "@/components/app-shell/page"
 import { ImportPanel } from "@/components/projects/import-panel"
 import { ProjectCard } from "@/components/projects/project-card"
 import {
@@ -23,11 +24,9 @@ export default async function ProjectsPage() {
   ])
 
   return (
-    <>
+    <Page>
       <div className="flex max-w-2xl flex-col gap-2">
-        <h1 className="font-heading text-4xl leading-none font-extrabold sm:text-5xl">
-          Projects
-        </h1>
+        <h1 className="font-heading text-[32px] leading-[1.1]">Projects</h1>
         <p className="text-sm text-muted-foreground sm:text-base">
           Drop in a long recording and Nimbus marks the moments worth a vertical
           clip. Nothing leaves here until you approve it.
@@ -75,6 +74,6 @@ export default async function ProjectsPage() {
           </ul>
         )}
       </section>
-    </>
+    </Page>
   )
 }

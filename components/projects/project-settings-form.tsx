@@ -90,7 +90,13 @@ function trackLabel(track: AudioTrack) {
   return `Track ${track.index + 1}${parts.length ? ` · ${parts.join(" · ")}` : ""} (${channels})`
 }
 
-export function ProjectSettingsForm({ data }: { data: ProjectSettingsData }) {
+export function ProjectSettingsForm({
+  data,
+  onRerun,
+}: {
+  data: ProjectSettingsData
+  onRerun?: () => void
+}) {
   const {
     project,
     audioTracks,
@@ -133,6 +139,7 @@ export function ProjectSettingsForm({ data }: { data: ProjectSettingsData }) {
         return
       }
       setRerun(null)
+      onRerun?.()
       router.push(
         step === "render"
           ? `/projects/${project.id}/clips`

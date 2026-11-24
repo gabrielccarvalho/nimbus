@@ -16,7 +16,7 @@ test("detects the webcam and confirms the layout", async ({ page }) => {
     page.getByRole("listitem").filter({ hasText: "Find highlights, completed" })
   ).toBeVisible({ timeout: 30_000 })
 
-  await page.getByRole("link", { name: "Layout" }).click()
+  await page.getByRole("link", { name: /^Layout & captions/ }).click()
   await expect(page.getByText(/Webcam found/)).toBeVisible({ timeout: 30_000 })
   expect(warnings.filter((w) => w.includes("Face detection"))).toEqual([])
   const region = page.getByRole("group", { name: "Webcam region" })

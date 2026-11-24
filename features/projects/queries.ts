@@ -45,13 +45,57 @@ export async function listRecentProjects(limit = 5) {
     id: p.id,
     name: p.name,
     status: p.status,
+    failedStep: p.failedStep,
+    awaitingManualSelection: p.awaitingManualSelection,
+    reviewCount: p.reviewCount,
   }))
+}
+
+export async function countProjects() {
+  await connection()
+  return projectRepository(getDb()).count()
 }
 
 export async function getProject(id: string) {
   await connection()
   return projectRepository(getDb()).get(id)
 }
+
+export async function getProjectHeader(id: string) {
+  await connection()
+  const db = getDb()
+  const project = await projectRepository(db).get(id)
+  if (!project) return undefined
+  const [source, layout, clips, transcript] = await Promise.all([
+    assetRepository(db).findByKind(id, "source"),
+    layoutRepository(db).get(id),
+    clipRepository(db).listForProject(id),
+    transcriptRepository(db).get(id),
+  ])
+  return {
+    project,
+    source: source
+      ? {
+          url: mediaUrl(source.storageKey),
+          durationMs: source.durationMs,
+          width: source.width,
+          height: source.height,
+          bytes: source.bytes,
+        }
+      : null,
+    aspect: layout?.sourceAspect ?? null,
+    language:
+      transcript?.language ??
+      project.sourceLanguage ??
+      (project.settings.language === "auto" ? null : project.settings.language),
+    clipCount: clips.filter((c) => c.status !== "rejected").length,
+    reviewCount: clips.filter((c) => c.status === "candidate").length,
+  }
+}
+
+export type ProjectHeaderData = NonNullable<
+  Awaited<ReturnType<typeof getProjectHeader>>
+>
 
 export async function getProjectOverview(id: string) {
   await connection()

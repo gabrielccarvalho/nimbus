@@ -11,9 +11,9 @@ test("turns a 4:3 recording into a full-screen short", async ({ page }) => {
   await expect(
     page.getByRole("listitem").filter({ hasText: "Find highlights, completed" })
   ).toBeVisible({ timeout: 30_000 })
-  await expect(page.getByText("4:3")).toBeVisible()
+  await expect(page.getByTestId("stat-aspect")).toHaveText("4:3")
 
-  await page.getByRole("link", { name: "Layout" }).click()
+  await page.getByRole("link", { name: /^Layout & captions/ }).click()
   await expect(page.getByText("Looking for the webcam…")).toBeHidden({
     timeout: 30_000,
   })

@@ -12,6 +12,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
+import { cn } from "@/lib/utils"
 
 type Labels = Record<string, string>
 
@@ -21,12 +22,16 @@ const BreadcrumbLabelsContext = React.createContext<{
 } | null>(null)
 
 const STATIC_LABELS: Labels = {
-  projects: "Projects",
   settings: "Settings",
-  transcript: "Transcript",
-  "layout-editor": "Layout",
-  clips: "Clips",
+  channels: "Channels",
+  account: "Account",
+  workspace: "Workspace",
+  plan: "Plan & billing",
+  defaults: "Defaults",
+  shortcuts: "Keyboard shortcuts",
 }
+
+const PROJECT_TABS = new Set(["transcript", "layout", "clips"])
 
 export function BreadcrumbLabelsProvider({
   children,
@@ -75,9 +80,11 @@ export function BreadcrumbLabel({
 
 export function buildCrumbs(pathname: string, labels: Labels) {
   const segments = pathname.split("/").filter(Boolean)
-  const crumbs = [{ href: "/", label: "Projects" }]
+  const crumbs =
+    segments[0] === "settings" ? [] : [{ href: "/", label: "Projects" }]
   segments.forEach((segment, index) => {
     if (segment === "projects") return
+    if (segments[0] === "projects" && PROJECT_TABS.has(segment)) return
     crumbs.push({
       href: `/${segments.slice(0, index + 1).join("/")}`,
       label: labels[segment] ?? STATIC_LABELS[segment] ?? "…",
@@ -92,22 +99,22 @@ export function AppBreadcrumbs() {
   const crumbs = buildCrumbs(pathname, labels)
 
   return (
-    <Breadcrumb>
-      <BreadcrumbList>
+    <Breadcrumb className="min-w-0 flex-[1_1_280px]">
+      <BreadcrumbList className="flex-nowrap gap-2 text-[13.5px] text-tertiary sm:gap-2">
         {crumbs.map((crumb, index) => {
           const last = index === crumbs.length - 1
           return (
             <React.Fragment key={crumb.href}>
               {index > 0 && <BreadcrumbSeparator />}
-              <BreadcrumbItem className="min-w-0">
+              <BreadcrumbItem className={cn("min-w-0", !last && "shrink-0")}>
                 {last ? (
-                  <BreadcrumbPage className="truncate">
+                  <BreadcrumbPage className="truncate font-medium">
                     {crumb.label}
                   </BreadcrumbPage>
                 ) : (
                   <BreadcrumbLink
                     render={<Link href={crumb.href as "/"} />}
-                    className="truncate"
+                    className="block max-w-[280px] truncate text-muted-foreground"
                   >
                     {crumb.label}
                   </BreadcrumbLink>

@@ -11,7 +11,7 @@ async function uploadAndOpenClips(page: Page, { confirmLayout = false } = {}) {
     page.getByRole("listitem").filter({ hasText: "Find highlights, completed" })
   ).toBeVisible({ timeout: 30_000 })
   if (confirmLayout) {
-    await page.getByRole("link", { name: "Layout" }).click()
+    await page.getByRole("link", { name: /^Layout & captions/ }).click()
     await expect(page.getByText(/Webcam found/)).toBeVisible({
       timeout: 30_000,
     })

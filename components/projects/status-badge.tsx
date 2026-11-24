@@ -26,11 +26,67 @@ const PROJECT_TONES: Record<ProjectStatus, Tone> = {
   analyzing: "lav",
   selecting: "lav",
   awaiting_layout: "amber",
-  ready_for_review: "amber",
+  ready_for_review: "mint",
   rendering: "lav",
-  done: "mint",
+  done: "sky",
   failed: "pink",
   cancelled: "neutral",
+}
+
+export type ProjectSignalInput = {
+  status: ProjectStatus
+  failedStep?: ProjectStatus | null
+  awaitingManualSelection?: boolean
+  reviewCount?: number
+}
+
+export type ProjectSignal = {
+  tone: Tone
+  label: string
+  detail: string | null
+  needsYou: boolean
+}
+
+export function projectSignal({
+  status,
+  failedStep,
+  awaitingManualSelection,
+  reviewCount = 0,
+}: ProjectSignalInput): ProjectSignal {
+  if (status === "awaiting_layout")
+    return {
+      tone: "amber",
+      label: "Needs you",
+      detail: "Confirm layout",
+      needsYou: true,
+    }
+  if (status === "selecting" && awaitingManualSelection)
+    return {
+      tone: "amber",
+      label: "Needs you",
+      detail: "Paste highlights",
+      needsYou: true,
+    }
+  if (status === "ready_for_review")
+    return {
+      tone: "mint",
+      label: reviewCount > 0 ? `${reviewCount} to review` : "Ready",
+      detail: reviewCount > 0 ? null : "Approve clips to render",
+      needsYou: false,
+    }
+  if (status === "failed")
+    return {
+      tone: "pink",
+      label: failedStep ? `${LABELS[failedStep]} failed` : "Failed",
+      detail: null,
+      needsYou: false,
+    }
+  return {
+    tone: PROJECT_TONES[status],
+    label: LABELS[status],
+    detail: null,
+    needsYou: false,
+  }
 }
 
 export function projectStatusLabel(status: ProjectStatus) {

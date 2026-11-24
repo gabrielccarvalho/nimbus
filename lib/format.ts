@@ -59,3 +59,33 @@ export function slugify(text: string, fallback = "clip") {
     .replace(/-+$/, "")
   return slug || fallback
 }
+
+const DAY_MS = 86_400_000
+
+export function formatRelativeDay(date: Date | number, now = new Date()) {
+  const startOf = (d: Date) =>
+    new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  const days = Math.round((startOf(now) - startOf(new Date(date))) / DAY_MS)
+  if (days === 0) return "Today"
+  if (days === 1) return "Yesterday"
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    year:
+      new Date(date).getFullYear() === now.getFullYear()
+        ? undefined
+        : "numeric",
+  }).format(date)
+}
+
+export function sourceLabel(url: string | null | undefined) {
+  if (!url) return "Upload"
+  try {
+    const host = new URL(url).hostname.replace(/^(www|m)\./, "")
+    if (host === "youtu.be" || host.endsWith("youtube.com")) return "YouTube"
+    if (host.endsWith("twitch.tv")) return "Twitch VOD"
+    return host
+  } catch {
+    return "Link"
+  }
+}

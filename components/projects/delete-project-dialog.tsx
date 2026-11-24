@@ -25,14 +25,24 @@ export function DeleteProjectDialog({
   projectName,
   redirectTo,
   trigger,
+  open: controlledOpen,
+  onOpenChange,
 }: {
   projectId: string
   projectName: string
   redirectTo?: "/"
   trigger?: React.ReactElement
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }) {
   const router = useRouter()
-  const [open, setOpen] = React.useState(false)
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false)
+  const controlled = controlledOpen !== undefined
+  const open = controlled ? controlledOpen : uncontrolledOpen
+  const setOpen = (next: boolean) => {
+    if (!controlled) setUncontrolledOpen(next)
+    onOpenChange?.(next)
+  }
   const [pending, startTransition] = React.useTransition()
 
   const confirm = () =>
@@ -49,16 +59,18 @@ export function DeleteProjectDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
-      <AlertDialogTrigger
-        render={
-          trigger ?? (
-            <Button>
-              <TrashIcon data-icon="inline-start" aria-hidden />
-              Delete project
-            </Button>
-          )
-        }
-      />
+      {!controlled && (
+        <AlertDialogTrigger
+          render={
+            trigger ?? (
+              <Button>
+                <TrashIcon data-icon="inline-start" aria-hidden />
+                Delete project
+              </Button>
+            )
+          }
+        />
+      )}
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogMedia className="bg-destructive/10 text-destructive">

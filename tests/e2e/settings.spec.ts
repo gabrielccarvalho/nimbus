@@ -64,7 +64,8 @@ test("each project keeps its own settings and offers to re-run", async ({
     page.getByRole("listitem").filter({ hasText: "Find highlights, completed" })
   ).toBeVisible({ timeout: 30_000 })
 
-  await page.getByRole("link", { name: "Settings" }).last().click()
+  await page.getByRole("button", { name: "Project settings and more" }).click()
+  await page.getByRole("menuitem", { name: "Project settings" }).click()
   await expect(page.getByLabel("Spoken language")).toContainText("Portuguese")
   await expect(
     page.getByText("Transcribed as Portuguese (chosen in settings).")

@@ -19,7 +19,7 @@ Before building any UI element:
 
 Installed with `pnpm exec shadcn add` (style `base-nova`, Base UI). Generated files import `cn` from the `cn` package; custom primitives in `components/ui/` do the same so they read identically.
 
-alert, alert-dialog, badge, breadcrumb, button, card, command, dialog, dropdown-menu, empty, field, input, input-group, item, kbd, label, popover, progress, radio-group, scroll-area, select, separator, sheet, sidebar (+ `hooks/use-mobile.ts`), skeleton, slider, sonner, spinner, stat-card*, switch, table, tabs, textarea, toggle, toggle-group, tooltip.
+alert, alert-dialog, badge, breadcrumb, button, card, command, dialog, dropdown-menu, empty, field, input, input-group, item, kbd, label, popover, progress, radio-group, scroll-area, select, separator, sheet, skeleton, slider, sonner, spinner, stat-card*, switch, table, tabs, textarea, toggle, toggle-group, tooltip.
 
 \* custom, see below.
 
@@ -188,10 +188,21 @@ A movable, resizable rectangle over an image or video, in normalized 0–1 frame
 </CropRegionEditor>
 ```
 
+## App shell (`components/app-shell/`)
+
+App composites, not primitives; they read app data and routes.
+
+- `Logo` / `LogoMark`: lowercase wordmark and the dot-grid cloud (one amber dot).
+- `AppSidebar`: 260 px column, a 68 px icon rail when collapsed (the `sidebar_state` cookie keeps it across reloads), stacked on top under 768 px with a menu button. New project (`N`), sections, the three most recent projects with a `SignalDot` and status line.
+- `CommandPaletteProvider` / `SearchTrigger`: the ⌘K palette over recordings, clips and pages. It loads the index from `getSearchIndexAction` each time it opens. `SearchTrigger` is the search field in the top bar.
+- `AppBreadcrumbs` / `BreadcrumbLabel`: crumbs from the path; project tabs are not crumbs, a clip is. Pages register dynamic labels with `BreadcrumbLabel`.
+- `Page`, `PageHeader`, `PageTitle`, `PageLede`: the 1240 px page column and its heading.
+- `useHotkey(key, handler, { meta })`: single-key shortcuts that ignore fields and open dialogs; `meta` for ⌘/Ctrl chords.
+
+`ProjectHeader` (`components/projects/`) is the project title, `StatusPill` from `projectSignal`, one-line meta, open source, the ⋯ menu (Project settings sheet, Delete) and the tabs: an amber dot on Layout while the layout waits, the clip count on Clips.
+
 ## Modified generated files
 
 - Heycamps restyle (ADR-0057): `button`, `badge`, `tabs`, `input`, `select`, `switch`, `dialog`, `alert-dialog`, `sheet`, `dropdown-menu`, `popover`, `tooltip`, `kbd` and `command` keep their structure and API but swap classes for the heycamps tokens (inset-ring hairlines instead of borders, `surface-menu` for floating surfaces, `focus-ring`). `Button`'s `default` variant is glass and the white pill is `variant="primary"`; `outline` and `secondary` are gone. `Select`'s `size="sm"` is the small glass pill used for inline overrides. `command` was added with `cmdk`; its install did not overwrite `dialog`.
 
-- `hooks/use-mobile.ts`: rewritten with `useSyncExternalStore`. The generated version set state inside an effect, which fails the React Compiler lint rule `react-hooks/set-state-in-effect`. Same API (`useIsMobile(): boolean`).
-- `components/ui/sidebar.tsx`: `SidebarInset` renders a `div` instead of `main`. The app shell puts the header and its own `<main id="main">` (the skip-link target) inside the inset, and a `main` inset made two nested main landmarks.
 - `components/ui/popover.tsx`: `PopoverContent` forwards `anchor` to the positioner, so a controlled popover can open next to an element that isn't its trigger (the clip editor's effects lane anchors it to the selected block).

@@ -15,7 +15,7 @@ test("upload, confirm layout, render, download and edit a clip", async ({
     page.getByRole("listitem").filter({ hasText: "Find highlights, completed" })
   ).toBeVisible({ timeout: 30_000 })
 
-  await page.getByRole("link", { name: "Layout" }).click()
+  await page.getByRole("link", { name: /^Layout & captions/ }).click()
   await expect(page.getByText(/Webcam found/)).toBeVisible({ timeout: 30_000 })
   await page.getByRole("button", { name: "Confirm layout" }).click()
   await expect(page.getByText("Layout confirmed")).toBeVisible()
