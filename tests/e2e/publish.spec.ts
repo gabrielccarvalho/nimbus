@@ -62,7 +62,7 @@ test("publishes a rendered clip to YouTube", async ({ page }) => {
   await expect(stats.getByText("1,234 views")).toBeVisible({ timeout: 60_000 })
   await expectNoSeriousA11yViolations(page)
 
-  await page.goto("/channels")
+  await page.goto("/analytics/shorts")
   await expect(
     page.getByRole("table").getByText("E2E published short")
   ).toBeVisible()

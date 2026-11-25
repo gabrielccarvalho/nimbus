@@ -28,7 +28,7 @@ export function AnalyticsNav() {
           return (
             <li key={tab.href}>
               <Link
-                href={tab.href as "/"}
+                href={tab.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm leading-tight font-medium tracking-[-0.01em] whitespace-nowrap text-muted-foreground transition-colors hover:bg-glass hover:text-foreground",
