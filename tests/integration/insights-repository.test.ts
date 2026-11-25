@@ -1,9 +1,10 @@
+import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { insightsRepository } from "@/features/insights/repository"
 import { INSIGHTS_MAX_REJECTED } from "@/features/insights/schema"
 import { publishingRepository } from "@/features/publishing/repository"
-import { insightSuggestions, workspaces } from "@/lib/db/schema"
+import { insightSuggestions, playbookRules, workspaces } from "@/lib/db/schema"
 
 import { createTestEnv, type TestEnv } from "../utils/test-env"
 
@@ -40,7 +41,7 @@ const suggestion = (text: string) => ({
 describe("insights repository", () => {
   it("round-trips rules, retiring and restoring them", async () => {
     const { channel, repo } = await seed()
-    const a = await repo.insertRule({
+    const inserted = await repo.insertRule({
       channelId: channel.id,
       target: "selection",
       text: "A",
@@ -50,6 +51,14 @@ describe("insights repository", () => {
       target: "review",
       text: "B",
     })
+    const a = {
+      ...inserted,
+      createdAt: new Date(b.createdAt.getTime() - 60_000),
+    }
+    await env.db
+      .update(playbookRules)
+      .set({ createdAt: a.createdAt })
+      .where(eq(playbookRules.id, a.id))
     expect(a).toMatchObject({ status: "active", retiredAt: null })
     expect(await repo.getRule(a.id)).toEqual(a)
     expect(await repo.getRule("missing")).toBeUndefined()
