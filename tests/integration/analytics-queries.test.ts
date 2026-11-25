@@ -269,6 +269,29 @@ describe("getShorts", () => {
     expect(row.relative).toBe(1)
   })
 
+  it("counts missing days a recent daily read vouches for as zero views", async () => {
+    const { channel } = await seed()
+    const publishedAt = daysAgo(20)
+    for (let i = 0; i < 3; i++) {
+      const p = await insertImportedPublication(env.db, channel.id, {
+        publishedAt,
+      })
+      await withNumbers(p.id, publishedAt, Array(18).fill(10))
+    }
+    const quiet = await insertImportedPublication(env.db, channel.id, {
+      publishedAt,
+      dailySyncedAt: new Date(),
+    })
+    await withNumbers(quiet.id, publishedAt, [100, 50])
+
+    const { rows, dataThrough } = await getShorts()
+
+    const row = rows.find((r) => r.publicationId === quiet.id)!
+    expect(dataThrough).toBe(addDays(pacificDay(publishedAt), 17))
+    expect(row.curve).toEqual([100, ...Array(17).fill(150)])
+    expect(row.viewsDay7).toBe(150)
+  })
+
   it("reports the import state from the latest sync_uploads job", async () => {
     const { channel } = await seed()
     const queue = jobQueue(env.db)

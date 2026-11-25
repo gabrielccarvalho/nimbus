@@ -8,9 +8,13 @@ import {
   statsRepository,
   type ChannelPublication,
 } from "../publishing/stats-repository"
-import { cumulativeViews } from "./curves"
+import { addDays, cumulativeViews } from "./curves"
 import { analyticsRepository } from "./repository"
-import { ANALYTICS_SYNC_EVERY_MS, type ChannelJobType } from "./schema"
+import {
+  ANALYTICS_SYNC_EVERY_MS,
+  LATE_DATA_DAYS,
+  type ChannelJobType,
+} from "./schema"
 
 async function enqueueChannelJob(
   db: Db,
@@ -70,15 +74,22 @@ export async function channelCurves(
   if (!dataThrough) return { dataThrough, curves }
   const byPublication = Map.groupBy(daily, (row) => row.publicationId)
   for (const { publication, latest } of rows) {
-    const own = byPublication.get(publication.id)
-    if (!latest || !publication.publishedAt || !own) continue
-    const lastDay = own.at(-1)!.day
+    if (!latest || !publication.publishedAt) continue
+    const own = byPublication.get(publication.id) ?? []
+    // YouTube leaves out zero-view days; a successful daily read vouches for every day up to its lag.
+    const ends = [
+      own.at(-1)?.day,
+      publication.dailySyncedAt &&
+        addDays(pacificDay(publication.dailySyncedAt), -LATE_DATA_DAYS),
+    ].filter((day): day is string => !!day)
+    if (ends.length === 0) continue
+    const end = ends.sort().at(-1)!
     curves.set(
       publication.id,
       cumulativeViews(
         own,
         pacificDay(publication.publishedAt),
-        lastDay < dataThrough ? lastDay : dataThrough
+        end < dataThrough ? end : dataThrough
       )
     )
   }
