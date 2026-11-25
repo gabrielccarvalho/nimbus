@@ -33,6 +33,10 @@ export const TARGET_LABELS: Record<RuleTarget, string> = {
   review: "Editing clips",
 }
 
+export function Subject({ text }: { text: string }) {
+  return <span className="sr-only">: {text}</span>
+}
+
 export function RuleTextField({
   value,
   onChange,
@@ -153,6 +157,7 @@ function ActiveRule({ rule }: { rule: RuleView }) {
       <span className="min-w-0 flex-1">{rule.text}</span>
       <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
         Edit
+        <Subject text={rule.text} />
       </Button>
       <Button
         size="sm"
@@ -161,6 +166,7 @@ function ActiveRule({ rule }: { rule: RuleView }) {
         onClick={() => run(() => retireRuleAction(rule.id))}
       >
         Retire
+        <Subject text={rule.text} />
       </Button>
     </li>
   )
@@ -221,6 +227,7 @@ function RetiredRule({
         onClick={() => restore()}
       >
         Restore
+        <Subject text={rule.text} />
       </Button>
       <RetirePickDialog
         open={picking}

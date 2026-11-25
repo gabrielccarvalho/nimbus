@@ -17,7 +17,12 @@ import type {
 } from "@/features/insights/queries"
 import type { SuggestionKind } from "@/features/insights/schema"
 
-import { RetirePickDialog, RuleTextField, TARGET_LABELS } from "./playbook"
+import {
+  RetirePickDialog,
+  RuleTextField,
+  Subject,
+  TARGET_LABELS,
+} from "./playbook"
 import { useInsightAction } from "./use-insight-action"
 
 const KIND_LABELS: Record<SuggestionKind, string> = {
@@ -72,6 +77,9 @@ export function SuggestionCard({
   const [picking, setPicking] = React.useState(false)
   const { pending, run } = useInsightAction()
 
+  const current = suggestion.kind === "add" ? null : suggestion.currentRule
+  const subject =
+    suggestion.kind === "retire" && current ? current.text : suggestion.text
   const edited = editing && text.trim() !== suggestion.text
   const approve = (retireRuleId?: string) =>
     run(
@@ -98,11 +106,33 @@ export function SuggestionCard({
               {confidenceLabel(suggestion.confidence)}
             </span>
           </div>
-          {editing ? (
-            <RuleTextField value={text} onChange={setText} />
-          ) : (
-            <p className="font-medium">{suggestion.text}</p>
+          {current && (
+            <p
+              className={
+                suggestion.kind === "edit"
+                  ? "text-muted-foreground"
+                  : "font-medium"
+              }
+            >
+              <span className="text-[13px] text-muted-foreground">
+                {suggestion.kind === "edit" ? "Now: " : "Retire: "}
+              </span>
+              {current.text}
+            </p>
           )}
+          {suggestion.kind !== "retire" &&
+            (editing ? (
+              <RuleTextField value={text} onChange={setText} />
+            ) : (
+              <p className="font-medium">
+                {suggestion.kind === "edit" && (
+                  <span className="text-[13px] font-normal text-muted-foreground">
+                    Change to:{" "}
+                  </span>
+                )}
+                {suggestion.text}
+              </p>
+            ))}
           <p className="text-muted-foreground">{suggestion.rationale}</p>
           <Evidence label="Evidence" clips={suggestion.evidenceFor} />
           <Evidence label="Against" clips={suggestion.evidenceAgainst} />
@@ -114,14 +144,12 @@ export function SuggestionCard({
               onClick={() => approve()}
             >
               Approve
+              <Subject text={subject} />
             </Button>
             {suggestion.kind !== "retire" && !editing && (
-              <Button
-                size="sm"
-
-                onClick={() => setEditing(true)}
-              >
+              <Button size="sm" onClick={() => setEditing(true)}>
                 Edit, then approve
+                <Subject text={subject} />
               </Button>
             )}
             <Button
@@ -131,6 +159,7 @@ export function SuggestionCard({
               onClick={() => run(() => rejectSuggestionAction(suggestion.id))}
             >
               Reject
+              <Subject text={subject} />
             </Button>
           </div>
         </CardContent>

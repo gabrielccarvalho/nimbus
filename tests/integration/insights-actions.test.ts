@@ -664,10 +664,6 @@ describe("findPatternsAction", () => {
       "test"
     )
     const clips = await publishClips(channel.id, 8)
-    const s = await suggest(channel.id, {
-      text: "Open on the crash",
-      evidenceFor: [clips[0]!.id, "gone"],
-    })
     await insightsRepository(env.db).insertRule({
       channelId: channel.id,
       target: "review",
@@ -679,6 +675,29 @@ describe("findPatternsAction", () => {
       text: "Old one",
     })
     await insightsRepository(env.db).retireRule(retired.id)
+    const target = await insightsRepository(env.db).insertRule({
+      channelId: channel.id,
+      target: "selection",
+      text: "Keep intros short",
+    })
+    await insightsRepository(env.db).replacePending(channel.id, [
+      {
+        ...base,
+        text: "Open on the crash",
+        evidenceFor: [clips[0]!.id, "gone"],
+      },
+      {
+        ...base,
+        kind: "edit",
+        ruleId: target.id,
+        text: "Keep intros under 3 seconds",
+      },
+    ])
+    const pending = await insightsRepository(env.db).pendingSuggestions(
+      channel.id
+    )
+    const s = pending.find((x) => x.kind === base.kind)!
+    const change = pending.find((x) => x.kind === "edit")!
 
     const idle = await getInsights()
     expect(idle).toMatchObject({
@@ -689,8 +708,13 @@ describe("findPatternsAction", () => {
       running: false,
       lastError: null,
     })
-    expect(idle.suggestions[0]).toMatchObject({ id: s.id })
-    expect(idle.suggestions[0]!.evidenceFor).toEqual([
+    expect(idle.suggestions.find((x) => x.id === s.id)).toMatchObject({
+      currentRule: null,
+    })
+    expect(idle.suggestions.find((x) => x.id === change.id)).toMatchObject({
+      currentRule: { id: target.id, text: "Keep intros short" },
+    })
+    expect(idle.suggestions.find((x) => x.id === s.id)!.evidenceFor).toEqual([
       {
         clipId: clips[0]!.id,
         title: "Clip 0",
@@ -699,7 +723,9 @@ describe("findPatternsAction", () => {
       },
     ])
     expect(idle.rules.review.map((r) => r.text)).toEqual(["Cut slow ends"])
-    expect(idle.rules.selection).toEqual([])
+    expect(idle.rules.selection.map((r) => r.text)).toEqual([
+      "Keep intros short",
+    ])
     expect(idle.rules.retired.map((r) => r.text)).toEqual(["Old one"])
 
     const queue = jobQueue(env.db)

@@ -29,6 +29,7 @@ export type SuggestionView = Omit<
 > & {
   evidenceFor: EvidenceClip[]
   evidenceAgainst: EvidenceClip[]
+  currentRule: { id: string; text: string } | null
 }
 
 export type RuleView = Pick<
@@ -95,6 +96,11 @@ export async function getInsights() {
       } satisfies EvidenceClip,
     ])
   )
+  const ruleTexts = new Map(rules.map((r) => [r.id, r.text]))
+  const currentRule = (ruleId: string | null) => {
+    const text = ruleId ? ruleTexts.get(ruleId) : undefined
+    return ruleId && text !== undefined ? { id: ruleId, text } : null
+  }
   const evidence = (ids: string[]) =>
     ids.flatMap((id) => {
       const clip = clipsById.get(id)
@@ -111,6 +117,7 @@ export async function getInsights() {
       ...s,
       evidenceFor: evidence(s.evidenceFor),
       evidenceAgainst: evidence(s.evidenceAgainst),
+      currentRule: currentRule(s.ruleId),
     })),
     rules: {
       selection: rules

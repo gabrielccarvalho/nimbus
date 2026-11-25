@@ -62,6 +62,7 @@ const suggestion: Data["suggestions"][number] = {
   evidenceAgainst: [
     { clipId: "c2", title: "Slow intro", projectId: "p2", views: 40 },
   ],
+  currentRule: null,
   confidence: 0.8,
   status: "pending",
   createdAt: new Date("2026-11-20T00:00:00Z"),
@@ -227,21 +228,27 @@ describe("Suggestion card", () => {
 
   it("approves", async () => {
     render(<Insights {...withSuggestion()} />)
-    await userEvent.click(screen.getByRole("button", { name: "Approve" }))
+    await userEvent.click(
+      screen.getByRole("button", { name: "Approve: Open on the punchline" })
+    )
     expect(approveSuggestionAction).toHaveBeenCalledWith("s1", {})
     expect(refresh).toHaveBeenCalled()
   })
 
   it("rejects", async () => {
     render(<Insights {...withSuggestion()} />)
-    await userEvent.click(screen.getByRole("button", { name: "Reject" }))
+    await userEvent.click(
+      screen.getByRole("button", { name: "Reject: Open on the punchline" })
+    )
     expect(rejectSuggestionAction).toHaveBeenCalledWith("s1")
   })
 
   it("edits the text before approving", async () => {
     render(<Insights {...withSuggestion()} />)
     await userEvent.click(
-      screen.getByRole("button", { name: "Edit, then approve" })
+      screen.getByRole("button", {
+        name: "Edit, then approve: Open on the punchline",
+      })
     )
     const box = screen.getByRole("textbox", { name: "Rule text" })
     expect(box).toHaveValue("Open on the punchline")
@@ -249,16 +256,90 @@ describe("Suggestion card", () => {
     expect(screen.getByText("21 / 200")).toBeVisible()
     await userEvent.clear(box)
     await userEvent.type(box, "Lead with the joke")
-    await userEvent.click(screen.getByRole("button", { name: "Approve" }))
+    await userEvent.click(
+      screen.getByRole("button", { name: "Approve: Open on the punchline" })
+    )
     expect(approveSuggestionAction).toHaveBeenCalledWith("s1", {
       text: "Lead with the joke",
     })
   })
 
+  it("keeps the edited text when retrying after the cap", async () => {
+    vi.mocked(approveSuggestionAction).mockResolvedValueOnce(capError)
+    render(<Insights {...withSuggestion()} />)
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: "Edit, then approve: Open on the punchline",
+      })
+    )
+    const box = screen.getByRole("textbox", { name: "Rule text" })
+    await userEvent.clear(box)
+    await userEvent.type(box, "Lead with the joke")
+    await userEvent.click(
+      screen.getByRole("button", { name: "Approve: Open on the punchline" })
+    )
+    const dialog = await screen.findByRole("dialog")
+    await userEvent.click(
+      within(dialog).getByRole("radio", { name: "Keep it short" })
+    )
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Retire and approve" })
+    )
+    expect(approveSuggestionAction).toHaveBeenLastCalledWith("s1", {
+      text: "Lead with the joke",
+      retireRuleId: "r1",
+    })
+  })
+
+  it("shows the current and new text for a change", () => {
+    render(
+      <Insights
+        {...withSuggestion({
+          ...suggestion,
+          kind: "edit",
+          ruleId: "r1",
+          text: "Keep it under 30 seconds",
+          currentRule: { id: "r1", text: "Keep it short" },
+        })}
+      />
+    )
+    const card = screen.getByRole("article")
+    expect(within(card).getByText(/Now:/).parentElement).toHaveTextContent(
+      "Now: Keep it short"
+    )
+    expect(
+      within(card).getByText(/Change to:/).parentElement
+    ).toHaveTextContent("Change to: Keep it under 30 seconds")
+  })
+
+  it("shows the rule being retired and not the suggestion text", () => {
+    render(
+      <Insights
+        {...withSuggestion({
+          ...suggestion,
+          kind: "retire",
+          ruleId: "r1",
+          text: "",
+          currentRule: { id: "r1", text: "Keep it short" },
+        })}
+      />
+    )
+    const card = screen.getByRole("article")
+    expect(within(card).getByText(/Retire:/).parentElement).toHaveTextContent(
+      "Retire: Keep it short"
+    )
+    expect(
+      within(card).getByRole("button", { name: "Approve: Keep it short" })
+    ).toBeVisible()
+    expect(within(card).queryByText(/Change to/)).toBeNull()
+  })
+
   it("asks which rule to retire when the list is full", async () => {
     vi.mocked(approveSuggestionAction).mockResolvedValueOnce(capError)
     render(<Insights {...withSuggestion()} />)
-    await userEvent.click(screen.getByRole("button", { name: "Approve" }))
+    await userEvent.click(
+      screen.getByRole("button", { name: "Approve: Open on the punchline" })
+    )
 
     const dialog = await screen.findByRole("dialog")
     expect(
@@ -286,7 +367,9 @@ describe("Suggestion card", () => {
       },
     })
     render(<Insights {...withSuggestion()} />)
-    await userEvent.click(screen.getByRole("button", { name: "Approve" }))
+    await userEvent.click(
+      screen.getByRole("button", { name: "Approve: Open on the punchline" })
+    )
     expect(screen.queryByRole("dialog")).toBeNull()
   })
 })
@@ -326,7 +409,9 @@ describe("Playbook", () => {
   it("edits a rule inline", async () => {
     render(<Insights {...playbook} />)
     const item = screen.getByText("Keep it short").closest("li")!
-    await userEvent.click(within(item).getByRole("button", { name: "Edit" }))
+    await userEvent.click(
+      within(item).getByRole("button", { name: "Edit: Keep it short" })
+    )
     const box = within(item).getByRole("textbox", { name: "Rule text" })
     expect(box).toHaveValue("Keep it short")
     await userEvent.clear(box)
@@ -342,7 +427,9 @@ describe("Playbook", () => {
   it("cancels an inline edit", async () => {
     render(<Insights {...playbook} />)
     const item = screen.getByText("Keep it short").closest("li")!
-    await userEvent.click(within(item).getByRole("button", { name: "Edit" }))
+    await userEvent.click(
+      within(item).getByRole("button", { name: "Edit: Keep it short" })
+    )
     await userEvent.click(within(item).getByRole("button", { name: "Cancel" }))
     expect(within(item).queryByRole("textbox")).toBeNull()
     expect(editRuleAction).not.toHaveBeenCalled()
@@ -351,7 +438,9 @@ describe("Playbook", () => {
   it("retires a rule immediately", async () => {
     render(<Insights {...playbook} />)
     const item = screen.getByText("Keep it short").closest("li")!
-    await userEvent.click(within(item).getByRole("button", { name: "Retire" }))
+    await userEvent.click(
+      within(item).getByRole("button", { name: "Retire: Keep it short" })
+    )
     expect(retireRuleAction).toHaveBeenCalledWith("r1")
     expect(screen.queryByRole("dialog")).toBeNull()
   })
@@ -359,7 +448,7 @@ describe("Playbook", () => {
   it("keeps retired rules collapsed, with Restore", async () => {
     render(<Insights {...playbook} />)
     const restore = screen.getByRole("button", {
-      name: "Restore",
+      name: "Restore: Old habit",
       hidden: true,
     })
     expect(restore).not.toBeVisible()
@@ -373,7 +462,9 @@ describe("Playbook", () => {
     vi.mocked(restoreRuleAction).mockResolvedValueOnce(capError)
     render(<Insights {...playbook} />)
     await userEvent.click(screen.getByText("Retired (1)"))
-    await userEvent.click(screen.getByRole("button", { name: "Restore" }))
+    await userEvent.click(
+      screen.getByRole("button", { name: "Restore: Old habit" })
+    )
     const dialog = await screen.findByRole("dialog")
     await userEvent.click(
       within(dialog).getByRole("radio", { name: "Start on a reaction" })
