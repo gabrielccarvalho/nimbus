@@ -536,18 +536,13 @@ describe("render_clip with music and on-screen text", () => {
     vi.restoreAllMocks()
   })
 
-  async function musicProject() {
-    const { projectId, clipId } = await readyProject(false)
+  async function workspaceWithTrack() {
     const id = crypto.randomUUID()
     const owner = { id, name: "Owner", email: `${id}@example.com` }
     await env.db.insert(user).values(owner)
     const workspace = await accountRepository(env.db).createPersonalWorkspace(
       owner
     )
-    await env.db
-      .update(projects)
-      .set({ workspaceId: workspace.id })
-      .where(eq(projects.id, projectId))
     const trackId = crypto.randomUUID()
     const storageKey = storageKeys.music(workspace.id, trackId, "m4a")
     await getStorage().writeBuffer(storageKey, await readFile(fixtures.tone))
@@ -562,9 +557,27 @@ describe("render_clip with music and on-screen text", () => {
       ),
       peaks: [],
     })
+    return { workspaceId: workspace.id, track }
+  }
+
+  async function musicProject() {
+    const { projectId, clipId } = await readyProject(false)
+    const { workspaceId, track } = await workspaceWithTrack()
+    await env.db
+      .update(projects)
+      .set({ workspaceId })
+      .where(eq(projects.id, projectId))
     const clip = (await clipRepository(env.db).get(clipId))!
     return { projectId, clip, track }
   }
+
+  const failFast = () =>
+    env.db
+      .update(jobs)
+      .set({ maxAttempts: 1 })
+      .where(eq(jobs.type, "render_clip"))
+  const trackGone =
+    "This clip's music track was deleted. Pick another track or remove the music."
 
   async function renderClip(
     projectId: string,
@@ -647,8 +660,12 @@ describe("render_clip with music and on-screen text", () => {
   })
 
   it("ducks the music under speech in clip time", async () => {
-    const { projectId, clip, track } = await musicProject()
-    expect(clip.startMs).toBeGreaterThan(0)
+    const selected = await musicProject()
+    const { projectId, track } = selected
+    const clip = await clipRepository(env.db).update(selected.clip.id, {
+      startMs: selected.clip.startMs + 3000,
+    })
+    expect(clip.startMs).toBeGreaterThan(WINDOW_MS + 2 * MARGIN_MS)
     const durationMs = clip.endMs - clip.startMs
     const intervals = speechIntervals(
       wordsInRange(
@@ -732,21 +749,29 @@ describe("render_clip with music and on-screen text", () => {
 
   it("fails when the clip's music track was deleted", async () => {
     const { projectId, clip, track } = await musicProject()
-    const message =
-      "This clip's music track was deleted. Pick another track or remove the music."
     const { clip: failed, thrown } = await renderClip(
       projectId,
       clip.id,
       { audioMix: { ...DEFAULT_AUDIO_MIX, trackId: track.id } },
       async () => {
         await env.db.delete(musicTracks).where(eq(musicTracks.id, track.id))
-        await env.db
-          .update(jobs)
-          .set({ maxAttempts: 1 })
-          .where(eq(jobs.type, "render_clip"))
+        await failFast()
       }
     )
-    expect(thrown).toMatchObject({ code: "CONFLICT", message })
-    expect(failed).toMatchObject({ status: "failed", error: message })
+    expect(thrown).toMatchObject({ code: "CONFLICT", message: trackGone })
+    expect(failed).toMatchObject({ status: "failed", error: trackGone })
+  })
+
+  it("fails when the clip's music track is in another workspace", async () => {
+    const { projectId, clip } = await musicProject()
+    const { track } = await workspaceWithTrack()
+    const { clip: failed, thrown } = await renderClip(
+      projectId,
+      clip.id,
+      { audioMix: { ...DEFAULT_AUDIO_MIX, trackId: track.id } },
+      failFast
+    )
+    expect(thrown).toMatchObject({ code: "CONFLICT", message: trackGone })
+    expect(failed).toMatchObject({ status: "failed", error: trackGone })
   })
 })
