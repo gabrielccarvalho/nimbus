@@ -32,6 +32,7 @@ import type {
   PublishInput,
   QuotaKind,
 } from "@/features/publishing/schema"
+import type { RetentionPoint } from "@/features/publishing/stats"
 import type {
   AssetKind,
   AudioTrack,
@@ -347,9 +348,31 @@ export const publications = pgTable(
     url: text("url"),
     error: text("error"),
     publishedAt: timestamptz("published_at"),
+    clipStartMs: integer("clip_start_ms"),
+    clipEndMs: integer("clip_end_ms"),
     ...timestamps,
   },
   (t) => [index("publications_clip_idx").on(t.clipId, t.createdAt)]
+)
+
+export const publicationStats = pgTable(
+  "publication_stats",
+  {
+    id: text("id").primaryKey(),
+    publicationId: text("publication_id")
+      .notNull()
+      .references(() => publications.id, { onDelete: "cascade" }),
+    fetchedAt: timestamptz("fetched_at").notNull().defaultNow(),
+    views: integer("views").notNull(),
+    likes: integer("likes").notNull(),
+    comments: integer("comments").notNull(),
+    averageViewDurationS: doublePrecision("average_view_duration_s"),
+    averageViewPercentage: doublePrecision("average_view_percentage"),
+    retention: jsonb("retention").$type<RetentionPoint[]>(),
+  },
+  (t) => [
+    index("publication_stats_publication_idx").on(t.publicationId, t.fetchedAt),
+  ]
 )
 
 export const youtubeQuotaUsage = pgTable(

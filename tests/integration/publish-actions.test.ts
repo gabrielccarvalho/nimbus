@@ -119,6 +119,8 @@ describe("publishClipAction", () => {
       status: "queued",
       renderAssetId: render.id,
       clipId: clip.id,
+      clipStartMs: clip.startMs,
+      clipEndMs: clip.endMs,
     })
     const rows = await publishJobs()
     expect(rows).toHaveLength(1)

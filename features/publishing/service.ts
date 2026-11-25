@@ -172,6 +172,8 @@ export function queuePublication(
       clipId: clip.id,
       channelId: channel.id,
       renderAssetId: clip.renderAssetId,
+      clipStartMs: clip.startMs,
+      clipEndMs: clip.endMs,
       metadata: input,
       status: "queued",
     })

@@ -10,6 +10,7 @@ export const jobTypes = [
   "render_edit",
   "sweep",
   "publish_clip",
+  "sync_stats",
 ] as const
 export const jobTypeSchema = z.enum(jobTypes)
 export type JobType = z.infer<typeof jobTypeSchema>
@@ -34,6 +35,7 @@ export const jobPayloadSchemas = {
   render_edit: z.object({}),
   sweep: z.object({}),
   publish_clip: z.object({ publicationId: z.string().min(1) }),
+  sync_stats: z.object({ publicationId: z.string().min(1) }),
 } satisfies Record<JobType, z.ZodType>
 
 export type JobPayload<T extends JobType> = z.infer<

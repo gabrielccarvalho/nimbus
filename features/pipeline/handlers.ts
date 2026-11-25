@@ -1,7 +1,7 @@
 import "server-only"
 
 import { withTransaction, type Db } from "@/lib/db"
-import { toUserMessage, type AppError } from "@/lib/errors"
+import { AppError, toUserMessage } from "@/lib/errors"
 
 import { clipRepository } from "../clips/repository"
 import { jobQueue, type Job } from "../jobs/queue"
@@ -31,6 +31,9 @@ export const pipelineHandlers: JobHandlers = {
   render_edit: renderEditStep,
   sweep: sweepStep,
   publish_clip: publishClipStep,
+  sync_stats: async () => {
+    throw new AppError("INTERNAL", "not implemented")
+  },
 }
 
 const MINUTE = 60_000
@@ -50,6 +53,8 @@ export function jobStallTimeoutMs(job: Job): number {
       return 15 * MINUTE
     case "sweep":
       return 10 * MINUTE
+    case "sync_stats":
+      return 5 * MINUTE
   }
 }
 
