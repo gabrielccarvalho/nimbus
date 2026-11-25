@@ -54,9 +54,11 @@ function upload(file: File, onProgress: (percent: number) => void) {
 export function MusicUploadButton({
   onUploaded,
   size = "default",
+  disabled = false,
 }: {
   onUploaded?: (track: MusicTrackSummary) => void
   size?: "sm" | "default"
+  disabled?: boolean
 }) {
   const router = useRouter()
   const input = React.useRef<HTMLInputElement>(null)
@@ -97,7 +99,7 @@ export function MusicUploadButton({
       <Button
         type="button"
         size={size}
-        disabled={progress !== null}
+        disabled={disabled || progress !== null}
         onClick={() => input.current?.click()}
       >
         <UploadSimpleIcon data-icon="inline-start" aria-hidden />

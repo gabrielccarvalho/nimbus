@@ -54,6 +54,13 @@ beforeEach(() => {
 })
 
 describe("MusicUploadButton", () => {
+  it("can be disabled", () => {
+    render(<MusicUploadButton disabled />)
+    expect(
+      screen.getByRole("button", { name: "Upload a track" })
+    ).toBeDisabled()
+  })
+
   it("refuses a file over 50 MB without sending", () => {
     render(<MusicUploadButton />)
     const big = new File(["x"], "big.mp3", { type: "audio/mpeg" })

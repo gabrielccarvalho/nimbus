@@ -24,10 +24,16 @@ const uploaded: MusicTrackSummary = {
 vi.mock("@/components/music/music-upload-button", () => ({
   MusicUploadButton: ({
     onUploaded,
+    disabled,
   }: {
     onUploaded?: (track: MusicTrackSummary) => void
+    disabled?: boolean
   }) => (
-    <button type="button" onClick={() => onUploaded?.(uploaded)}>
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={() => onUploaded?.(uploaded)}
+    >
       Upload a track
     </button>
   ),
@@ -203,6 +209,14 @@ describe("AudioTextPanel music", () => {
       ...mix,
       fadeOutMs: 2_500,
     })
+  })
+
+  it("disables the upload with the other controls", () => {
+    renderPanel({ audioMix: mix, disabled: true })
+    expect(screen.getByRole("combobox", { name: "Track" })).toBeDisabled()
+    expect(
+      screen.getByRole("button", { name: "Upload a track" })
+    ).toBeDisabled()
   })
 
   it("says when the browser can't play the preview", () => {

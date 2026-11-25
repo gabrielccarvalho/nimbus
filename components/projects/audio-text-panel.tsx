@@ -176,6 +176,7 @@ export function AudioTextPanel({
             </Select>
             <MusicUploadButton
               size="sm"
+              disabled={disabled}
               onUploaded={(upload) => {
                 setUploads((current) => [...current, upload])
                 selectTrack(upload)
