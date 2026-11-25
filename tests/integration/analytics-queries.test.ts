@@ -269,6 +269,20 @@ describe("getShorts", () => {
       error: "Quota gone",
     })
 
+    const queued = await queue.enqueue({
+      type: "sync_uploads",
+      projectId: null,
+      payload: { channelId: channel.id },
+    })
+    expect((await getShorts()).importing).toEqual({
+      state: "running",
+      progress: 0,
+    })
+    await env.db
+      .update(jobs)
+      .set({ status: "succeeded" })
+      .where(eq(jobs.id, queued.id))
+
     const resumesAt = new Date(Date.now() + 3_600_000)
     const deferred = await queue.enqueue({
       type: "sync_uploads",

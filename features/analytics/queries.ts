@@ -160,11 +160,11 @@ export async function getShorts(): Promise<{
   }
 
   const db = getDb()
-  const [entries, { dataThrough, curves }, job] = await Promise.all([
+  const [entries, job] = await Promise.all([
     statsRepository(db).forChannel(channel.id),
-    channelCurves(db, channel.id),
     analyticsRepository(db).latestChannelJob("sync_uploads", channel.id),
   ])
+  const { dataThrough, curves } = await channelCurves(db, channel.id, entries)
   const now = new Date()
   const peers = [...curves].map(([publicationId, cumulative]) => ({
     publicationId,
@@ -207,8 +207,11 @@ export async function getShorts(): Promise<{
   let importing: ImportState = { state: "idle", error: null }
   if (job?.status === "running") {
     importing = { state: "running", progress: job.progress }
-  } else if (job?.status === "queued" && job.runAfter > now) {
-    importing = { state: "waiting_quota", resumesAt: job.runAfter }
+  } else if (job?.status === "queued") {
+    importing =
+      job.runAfter > now
+        ? { state: "waiting_quota", resumesAt: job.runAfter }
+        : { state: "running", progress: 0 }
   } else if (job?.status === "failed") {
     importing = { state: "idle", error: job.error }
   }

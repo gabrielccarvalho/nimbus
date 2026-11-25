@@ -454,6 +454,15 @@ describe("stats scheduling", () => {
       comments: 0,
       fetchedAt: new Date(Date.now() - 10 * DAY_MS),
     })
+    await analyticsRepository(env.db).upsertPublicationDaily(recent.id, [
+      {
+        day: pacificDay(recent.publishedAt!),
+        views: 1,
+        estimatedMinutesWatched: 0,
+        likes: 0,
+        subscribersGained: 0,
+      },
+    ])
 
     expect(await enqueueDueStatsSyncs(env.db, new Date())).toBe(2)
 
@@ -464,6 +473,37 @@ describe("stats scheduling", () => {
         { publicationId: imported.id },
       ])
     )
+  })
+
+  it("backfills a Short with no daily curve once a day", async () => {
+    const { publication } = await seed({
+      publishedAt: new Date(Date.now() - 20 * DAY_MS),
+    })
+    const stats = statsRepository(env.db)
+    await stats.add({
+      publicationId: publication.id,
+      views: 1,
+      likes: 0,
+      comments: 0,
+      fetchedAt: new Date(Date.now() - 2 * DAY_MS),
+    })
+
+    expect(await enqueueDueStatsSyncs(env.db, new Date())).toBe(1)
+  })
+
+  it("doesn't retry an empty daily curve within a day", async () => {
+    const { publication } = await seed({
+      publishedAt: new Date(Date.now() - 20 * DAY_MS),
+    })
+    await statsRepository(env.db).add({
+      publicationId: publication.id,
+      views: 0,
+      likes: 0,
+      comments: 0,
+      fetchedAt: new Date(Date.now() - 3_600_000),
+    })
+
+    expect(await enqueueDueStatsSyncs(env.db, new Date())).toBe(0)
   })
 
   it("skips publications that aren't due yet", async () => {

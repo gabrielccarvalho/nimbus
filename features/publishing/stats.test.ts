@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  dailyBackfillDue,
   markerRatios,
   retentionMoments,
   statsEarly,
@@ -27,6 +28,13 @@ describe("stats", () => {
     expect(statsSyncDue(imported, null, plus(400 * day))).toBe(true)
     expect(statsSyncDue(imported, plus(400 * day), plus(427 * day))).toBe(false)
     expect(statsSyncDue(imported, plus(400 * day), plus(428 * day))).toBe(true)
+  })
+
+  it("backfills a missing daily curve at most once a day", () => {
+    expect(dailyBackfillDue(at, null, plus(day - 1))).toBe(false)
+    expect(dailyBackfillDue(at, null, plus(day))).toBe(true)
+    expect(dailyBackfillDue(at, plus(40 * day), plus(41 * day - 1))).toBe(false)
+    expect(dailyBackfillDue(at, plus(40 * day), plus(41 * day))).toBe(true)
   })
 
   it("labels the first 72 hours as early", () => {

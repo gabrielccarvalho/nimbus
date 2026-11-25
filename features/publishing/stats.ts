@@ -8,6 +8,7 @@ export const STATS_SYNC_AGES_DAYS = [1, 2, 7, 28] as const
 export const STATS_RESYNC_DAYS = 28
 export const STATS_LAG_MS = 72 * 3_600_000
 export const STATS_SCHEDULE_INTERVAL_MS = 30 * 60_000
+export const DAILY_BACKFILL_RETRY_MS = 24 * 3_600_000
 
 const DAY_MS = 86_400_000
 const MOMENT_THRESHOLD = 0.05
@@ -35,6 +36,18 @@ export function statsSyncDue(
       (lastFetchedAt === null || lastFetchedAt.getTime() < dueAt)
     )
   })
+}
+
+export function dailyBackfillDue(
+  publishedAt: Date,
+  lastFetchedAt: Date | null,
+  now: Date
+): boolean {
+  return (
+    now.getTime() - publishedAt.getTime() >= DAY_MS &&
+    (lastFetchedAt === null ||
+      lastFetchedAt.getTime() <= now.getTime() - DAILY_BACKFILL_RETRY_MS)
+  )
 }
 
 export function statsEarly(publishedAt: Date, now: Date): boolean {

@@ -52,15 +52,20 @@ export async function enqueueDueAnalyticsSyncs(
   return enqueued
 }
 
+type ChannelPublication = Awaited<
+  ReturnType<ReturnType<typeof statsRepository>["forChannel"]>
+>[number]
+
 export async function channelCurves(
   db: Db,
-  channelId: string
+  channelId: string,
+  loaded?: ChannelPublication[]
 ): Promise<{ dataThrough: string | null; curves: Map<string, number[]> }> {
   const analytics = analyticsRepository(db)
   const [dataThrough, daily, rows] = await Promise.all([
     analytics.publicationDataThrough(channelId),
     analytics.earlyDaily(channelId),
-    statsRepository(db).forChannel(channelId),
+    loaded ?? statsRepository(db).forChannel(channelId),
   ])
   const curves = new Map<string, number[]>()
   if (!dataThrough) return { dataThrough, curves }

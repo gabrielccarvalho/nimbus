@@ -70,10 +70,8 @@ export async function eligibleInsightClips(
   db: Db,
   channelId: string
 ): Promise<InsightClip[]> {
-  const [rows, { curves }] = await Promise.all([
-    statsRepository(db).forChannel(channelId),
-    channelCurves(db, channelId),
-  ])
+  const rows = await statsRepository(db).forChannel(channelId)
+  const { curves } = await channelCurves(db, channelId, rows)
   const eligible = rows.filter(isInsightEligible).slice(0, INSIGHTS_MAX_CLIPS)
   const peers = [...curves].map(([publicationId, cumulative]) => ({
     publicationId,

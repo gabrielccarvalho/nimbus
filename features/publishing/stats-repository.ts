@@ -63,7 +63,11 @@ export function statsRepository(db: Db) {
     },
 
     async dueCandidates(): Promise<
-      { publication: Publication; lastFetchedAt: Date | null }[]
+      {
+        publication: Publication
+        lastFetchedAt: Date | null
+        hasDaily: boolean
+      }[]
     > {
       const rows = await db
         .select({
@@ -71,6 +75,7 @@ export function statsRepository(db: Db) {
           lastFetchedAt: sql<
             string | null
           >`(select max(s.fetched_at) from publication_stats s where s.publication_id = publications.id)`,
+          hasDaily: sql<boolean>`exists(select 1 from publication_daily d where d.publication_id = publications.id)`,
         })
         .from(publications)
         .innerJoin(
@@ -88,6 +93,7 @@ export function statsRepository(db: Db) {
       return rows.map((row) => ({
         publication: row.publication,
         lastFetchedAt: row.lastFetchedAt ? new Date(row.lastFetchedAt) : null,
+        hasDaily: row.hasDaily,
       }))
     },
 

@@ -3,7 +3,7 @@ import "server-only"
 import { withTransaction, type Db } from "@/lib/db"
 
 import { jobQueue } from "../jobs/queue"
-import { statsSyncDue } from "./stats"
+import { dailyBackfillDue, statsSyncDue } from "./stats"
 import { statsRepository } from "./stats-repository"
 
 export async function enqueueStatsSync(
@@ -27,14 +27,16 @@ export async function enqueueStatsSync(
 export async function enqueueDueStatsSyncs(db: Db, now: Date): Promise<number> {
   const candidates = await statsRepository(db).dueCandidates()
   let enqueued = 0
-  for (const { publication, lastFetchedAt } of candidates) {
+  for (const { publication, lastFetchedAt, hasDaily } of candidates) {
     if (
       publication.publishedAt &&
-      statsSyncDue(
+      (statsSyncDue(
         { publishedAt: publication.publishedAt, origin: publication.origin },
         lastFetchedAt,
         now
-      ) &&
+      ) ||
+        (!hasDaily &&
+          dailyBackfillDue(publication.publishedAt, lastFetchedAt, now))) &&
       (await enqueueStatsSync(db, publication.id))
     ) {
       enqueued++
