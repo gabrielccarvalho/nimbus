@@ -22,11 +22,13 @@ describe("videoStats", () => {
     server.use(
       http.get(VIDEOS, ({ request }) => {
         const url = new URL(request.url)
-        expect(url.searchParams.get("part")).toBe("statistics")
+        expect(url.searchParams.get("part")).toBe("statistics,snippet,status")
         expect(url.searchParams.get("id")).toBe("abc")
         return HttpResponse.json({
           items: [
             {
+              snippet: { title: "Clip" },
+              status: { privacyStatus: "unlisted" },
               statistics: {
                 viewCount: "1234",
                 likeCount: "56",
@@ -41,6 +43,8 @@ describe("videoStats", () => {
       views: 1234,
       likes: 56,
       comments: 7,
+      title: "Clip",
+      privacy: "unlisted",
     })
   })
 
