@@ -10,8 +10,8 @@ import { jobQueue } from "../../jobs/queue"
 import type { JobHandler } from "../../jobs/worker-loop"
 import { assetRepository, projectRepository } from "../../projects/repository"
 import {
-  googleAccessToken,
   RECONNECT_MESSAGE,
+  withGoogleToken,
 } from "../../publishing/google-token"
 import { storedPublishInput, videoResource } from "../../publishing/metadata"
 import {
@@ -114,22 +114,8 @@ export const publishClipStep: JobHandler = async ({
     error: null,
   })
   const youtube = getYouTubeClient()
-  let token = await googleAccessToken(db, channel)
-  let refreshed = false
-  const authorized = async <T>(call: (t: string) => Promise<T>): Promise<T> => {
-    try {
-      return await call(token)
-    } catch (error) {
-      if (!hasCause(error, "token")) throw error
-      if (refreshed) {
-        await publishing.setChannelStatus(channel.id, "needs_reconnect")
-        throw new AppError("UNAUTHORIZED", RECONNECT_MESSAGE)
-      }
-      refreshed = true
-      token = await googleAccessToken(db, channel, { force: true })
-      return authorized(call)
-    }
-  }
+  const authorized = <T>(call: (token: string) => Promise<T>) =>
+    withGoogleToken(db, channel, call)
 
   const upload = async () => {
     let fresh = false

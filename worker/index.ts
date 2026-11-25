@@ -11,6 +11,8 @@ import {
   onJobSucceeded,
   pipelineHandlers,
 } from "@/features/pipeline/handlers"
+import { enqueueDueStatsSyncs } from "@/features/publishing/stats-service"
+import { STATS_SCHEDULE_INTERVAL_MS } from "@/features/publishing/stats"
 import { SWEEP_INTERVAL_MS } from "@/features/pipeline/sweep-plan"
 import { closeDb, getDb } from "@/lib/db"
 import { getEnv } from "@/lib/env"
@@ -45,10 +47,21 @@ const sweep = () =>
     logger.error({ err: error }, "couldn't schedule the sweep")
   )
 
+const scheduleStats = () =>
+  enqueueDueStatsSyncs(db, new Date()).catch((error: unknown) =>
+    logger.error({ err: error }, "couldn't schedule stats syncs")
+  )
+
 worker.start()
 void sweep()
+void scheduleStats()
 const sweepTimer = setInterval(() => void sweep(), SWEEP_INTERVAL_MS)
 sweepTimer.unref()
+const statsTimer = setInterval(
+  () => void scheduleStats(),
+  STATS_SCHEDULE_INTERVAL_MS
+)
+statsTimer.unref()
 logger.info({ owner, dataDir: env.DATA_DIR }, "worker started")
 if (!process.stdout.isTTY || env.E2E) console.log("worker started")
 
@@ -58,6 +71,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     if (stopping) process.exit(1)
     stopping = true
     clearInterval(sweepTimer)
+    clearInterval(statsTimer)
     logger.info({ signal }, "worker stopping")
     // tsx watch SIGKILLs after 5 s, which would orphan running ffmpeg children;
     // abort early enough for runProcess to terminate them first.

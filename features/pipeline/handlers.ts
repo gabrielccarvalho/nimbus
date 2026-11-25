@@ -19,6 +19,7 @@ import { renderClipStep } from "./steps/render-clip"
 import { renderEditStep } from "./steps/render-edit"
 import { selectStep } from "./steps/select"
 import { sweepStep } from "./steps/sweep"
+import { syncStatsStep } from "./steps/sync-stats"
 import { transcribeStep } from "./steps/transcribe"
 
 export const pipelineHandlers: JobHandlers = {
@@ -31,9 +32,7 @@ export const pipelineHandlers: JobHandlers = {
   render_edit: renderEditStep,
   sweep: sweepStep,
   publish_clip: publishClipStep,
-  sync_stats: async () => {
-    throw new AppError("INTERNAL", "not implemented")
-  },
+  sync_stats: syncStatsStep,
 }
 
 const MINUTE = 60_000

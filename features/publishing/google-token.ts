@@ -30,6 +30,29 @@ export async function googleAccessToken(
   })
 }
 
+export async function withGoogleToken<T>(
+  db: Db,
+  channel: YouTubeChannel,
+  call: (token: string) => Promise<T>
+): Promise<T> {
+  try {
+    return await call(await googleAccessToken(db, channel))
+  } catch (error) {
+    if (!(error instanceof AppError) || error.cause !== "token") throw error
+  }
+  const token = await googleAccessToken(db, channel, { force: true })
+  try {
+    return await call(token)
+  } catch (error) {
+    if (!(error instanceof AppError) || error.cause !== "token") throw error
+    await publishingRepository(db).setChannelStatus(
+      channel.id,
+      "needs_reconnect"
+    )
+    throw new AppError("UNAUTHORIZED", RECONNECT_MESSAGE)
+  }
+}
+
 export async function accessTokenForAccount(
   db: Db,
   accountId: string,
