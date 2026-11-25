@@ -12,6 +12,7 @@ import {
   youtubeQuotaUsage,
 } from "@/lib/db/schema"
 
+import { analyticsRepository } from "../analytics/repository"
 import { jobQueue } from "../jobs/queue"
 import {
   ACTIVE_PUBLICATION_STATUSES,
@@ -163,6 +164,10 @@ export function publishingRepository(db: Db) {
     ): Promise<Publication> {
       return withTransaction(db, async (tx) => {
         if (publication.channelId) {
+          await analyticsRepository(tx).lockChannelJob(
+            "sync_uploads",
+            publication.channelId
+          )
           await tx
             .delete(publications)
             .where(
