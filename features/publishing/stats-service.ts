@@ -75,10 +75,9 @@ export async function enqueueDueStatsSyncs(db: Db, now: Date): Promise<number> {
       continue
     }
     if (publication.origin === "imported") {
-      imported.set(publication.channelId, [
-        ...(imported.get(publication.channelId) ?? []),
-        publication.id,
-      ])
+      const ids = imported.get(publication.channelId) ?? []
+      ids.push(publication.id)
+      imported.set(publication.channelId, ids)
     } else if (await enqueueStatsSync(db, publication.id)) {
       enqueued++
     }

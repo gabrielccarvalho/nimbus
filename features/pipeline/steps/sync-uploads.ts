@@ -11,6 +11,7 @@ import {
 } from "../../analytics/schema"
 import { importableShort, SHORT_MAX_MS } from "../../analytics/shorts"
 import { jobQueue } from "../../jobs/queue"
+import { STATS_BATCH_SIZE } from "../../jobs/schema"
 import { shuttingDown, type JobHandler } from "../../jobs/worker-loop"
 import {
   RECONNECT_MESSAGE,
@@ -18,7 +19,6 @@ import {
 } from "../../publishing/google-token"
 import { LIST_UNITS, nextQuotaReset, pacificDay } from "../../publishing/quota"
 import { publishingRepository } from "../../publishing/repository"
-import { STATS_BATCH_SIZE } from "../../jobs/schema"
 import { enqueueStatsBatches } from "../../publishing/stats-service"
 import { getYouTubeClient } from "../../publishing/youtube"
 
