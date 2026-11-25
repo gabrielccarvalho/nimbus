@@ -21,6 +21,7 @@ const GROUPS = [
       { href: "/settings/workspace/defaults", label: "Project defaults" },
       { href: "/settings/workspace/captions", label: "Captions" },
       { href: "/settings/workspace/rendering", label: "Rendering" },
+      { href: "/settings/workspace/music", label: "Music" },
     ],
   },
 ] as const
