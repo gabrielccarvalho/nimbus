@@ -18,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import type { PublishedClipRow } from "@/features/publishing/queries"
+import type { ShortRow } from "@/features/analytics/queries"
 
 type SortKey = "publishedAt" | "views" | "averageViewPercentage" | "relative"
 type Direction = "asc" | "desc"
@@ -33,11 +33,11 @@ const COLUMNS: { key: SortKey; label: string }[] = [
 const views = new Intl.NumberFormat("en")
 const day = new Intl.DateTimeFormat("en", { dateStyle: "medium" })
 
-function sortValue(row: PublishedClipRow, key: SortKey): number | null {
+function sortValue(row: ShortRow, key: SortKey): number | null {
   return key === "publishedAt" ? row.publishedAt.getTime() : row[key]
 }
 
-function sortRows(rows: PublishedClipRow[], key: SortKey, dir: Direction) {
+function sortRows(rows: ShortRow[], key: SortKey, dir: Direction) {
   const sign = dir === "desc" ? -1 : 1
   return [...rows].sort((a, b) => {
     const x = sortValue(a, key)
@@ -47,7 +47,7 @@ function sortRows(rows: PublishedClipRow[], key: SortKey, dir: Direction) {
   })
 }
 
-export function PublishedClips({ rows }: { rows: PublishedClipRow[] }) {
+export function PublishedClips({ rows }: { rows: ShortRow[] }) {
   const [sort, setSort] = useState<{ key: SortKey; dir: Direction }>({
     key: "publishedAt",
     dir: "desc",
@@ -114,12 +114,21 @@ export function PublishedClips({ rows }: { rows: PublishedClipRow[] }) {
         {sorted.map((row) => (
           <TableRow key={row.publicationId}>
             <TableCell className="max-w-72 truncate">
-              <Link
-                href={`/projects/${row.projectId}/clips/${row.clipId}`}
-                className="font-medium hover:underline"
-              >
-                {row.title}
-              </Link>
+              {row.clipId && row.projectId ? (
+                <Link
+                  href={`/projects/${row.projectId}/clips/${row.clipId}`}
+                  className="font-medium hover:underline"
+                >
+                  {row.title}
+                </Link>
+              ) : (
+                <a
+                  href={row.url ?? undefined}
+                  className="font-medium hover:underline"
+                >
+                  {row.title}
+                </a>
+              )}
             </TableCell>
             <TableCell className="text-muted-foreground">
               {day.format(row.publishedAt)}

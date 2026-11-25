@@ -16,10 +16,8 @@ import { pacificDay } from "./quota"
 import { publishingRepository } from "./repository"
 import type { PublicationStatus, PublishInput } from "./schema"
 import { syncYouTubeChannel } from "./service"
-import { markerRatios, relativePerformance, statsEarly } from "./stats"
+import { markerRatios, statsEarly } from "./stats"
 import { statsRepository } from "./stats-repository"
-
-const DAY_MS = 86_400_000
 
 export async function getYouTubeChannelCard() {
   await connection()
@@ -166,77 +164,4 @@ export async function getPublishing(projectId: string) {
     publications,
     publishesLeftToday,
   }
-}
-
-export type PublishedClipRow = {
-  publicationId: string
-  clipId: string
-  projectId: string
-  title: string
-  url: string | null
-  publishedAt: Date
-  views: number | null
-  averageViewPercentage: number | null
-  likes: number | null
-  relative: number | null
-  early: boolean
-}
-
-export async function getPublishedClips(): Promise<PublishedClipRow[]> {
-  await connection()
-  const { workspace } = await requireViewer()
-  const db = getDb()
-  const channel = await publishingRepository(db).getChannel(workspace.id)
-  if (!channel) return []
-  const entries = await statsRepository(db).forChannel(channel.id)
-  const now = new Date()
-  const published = entries.flatMap(({ clip, projectId, ...entry }) =>
-    clip && projectId && entry.publication.publishedAt
-      ? [
-          {
-            ...entry,
-            clip,
-            projectId,
-            publishedAt: entry.publication.publishedAt,
-          },
-        ]
-      : []
-  )
-  const samples = published.flatMap(({ publication, publishedAt, latest }) =>
-    latest
-      ? [
-          {
-            publicationId: publication.id,
-            ageDays:
-              (latest.fetchedAt.getTime() - publishedAt.getTime()) / DAY_MS,
-            views: latest.views,
-          },
-        ]
-      : []
-  )
-  return published.map(
-    ({ publication, clip, projectId, publishedAt, latest }) => ({
-      publicationId: publication.id,
-      clipId: clip.id,
-      projectId,
-      title: publication.metadata.title || clip.title,
-      url: publication.url,
-      publishedAt,
-      views: latest?.views ?? null,
-      averageViewPercentage: latest?.averageViewPercentage ?? null,
-      likes: latest?.likes ?? null,
-      relative: latest
-        ? relativePerformance(
-            {
-              publicationId: publication.id,
-              ageDays:
-                (latest.fetchedAt.getTime() - publishedAt.getTime()) / DAY_MS,
-              views: latest.views,
-            },
-            samples
-          )
-        : null,
-      early: statsEarly(publishedAt, now),
-    })
-  )
 }

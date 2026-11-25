@@ -3,6 +3,9 @@ import "server-only"
 import { withTransaction, type Db } from "@/lib/db"
 
 import { jobQueue } from "../jobs/queue"
+import { pacificDay } from "../publishing/quota"
+import { statsRepository } from "../publishing/stats-repository"
+import { cumulativeViews } from "./curves"
 import { analyticsRepository } from "./repository"
 import { ANALYTICS_SYNC_EVERY_MS, type ChannelJobType } from "./schema"
 
@@ -47,4 +50,31 @@ export async function enqueueDueAnalyticsSyncs(
     }
   }
   return enqueued
+}
+
+export async function channelCurves(
+  db: Db,
+  channelId: string
+): Promise<{ dataThrough: string | null; curves: Map<string, number[]> }> {
+  const analytics = analyticsRepository(db)
+  const [dataThrough, daily, rows] = await Promise.all([
+    analytics.publicationDataThrough(channelId),
+    analytics.earlyDaily(channelId),
+    statsRepository(db).forChannel(channelId),
+  ])
+  const curves = new Map<string, number[]>()
+  if (!dataThrough) return { dataThrough, curves }
+  const byPublication = Map.groupBy(daily, (row) => row.publicationId)
+  for (const { publication, latest } of rows) {
+    if (!latest || !publication.publishedAt) continue
+    curves.set(
+      publication.id,
+      cumulativeViews(
+        byPublication.get(publication.id) ?? [],
+        pacificDay(publication.publishedAt),
+        dataThrough
+      )
+    )
+  }
+  return { dataThrough, curves }
 }

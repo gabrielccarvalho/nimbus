@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest"
 
 import {
   markerRatios,
-  relativePerformance,
   retentionMoments,
   statsEarly,
   statsSyncDue,
@@ -77,22 +76,6 @@ describe("stats", () => {
         { words: [], beats: [], effects: [] }
       )
     ).toEqual([])
-  })
-
-  it("scores views against the channel's median for the same sync age", () => {
-    const s = (id: string, ageDays: number, views: number) => ({
-      publicationId: id,
-      ageDays,
-      views,
-    })
-    const samples = [
-      s("a", 7, 100),
-      s("b", 7, 200),
-      s("c", 7, 300),
-      s("d", 1, 5000),
-    ]
-    expect(relativePerformance(s("t", 7.5, 400), samples)).toBe(2)
-    expect(relativePerformance(s("t", 1, 400), samples)).toBeNull()
   })
 
   it("places beats as fractions of the uploaded range", () => {

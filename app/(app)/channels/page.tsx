@@ -16,11 +16,9 @@ import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StatusPill } from "@/components/ui/status-pill"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { getShorts } from "@/features/analytics/queries"
 import { getInsights } from "@/features/insights/queries"
-import {
-  getPublishedClips,
-  getYouTubeChannelCard,
-} from "@/features/publishing/queries"
+import { getYouTubeChannelCard } from "@/features/publishing/queries"
 
 export const metadata: Metadata = { title: "Channels" }
 
@@ -83,7 +81,7 @@ async function YouTubeCard() {
 }
 
 async function PublishedClipsList() {
-  return <PublishedClips rows={await getPublishedClips()} />
+  return <PublishedClips rows={(await getShorts()).rows} />
 }
 
 async function InsightsPanel() {

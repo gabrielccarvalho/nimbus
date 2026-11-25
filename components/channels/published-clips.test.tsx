@@ -2,23 +2,28 @@ import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it } from "vitest"
 
-import type { PublishedClipRow } from "@/features/publishing/queries"
+import type { ShortRow } from "@/features/analytics/queries"
 
 import { PublishedClips } from "./published-clips"
 
-function row(over: Partial<PublishedClipRow>): PublishedClipRow {
+function row(over: Partial<ShortRow>): ShortRow {
   return {
     publicationId: "pub",
+    origin: "nimbus",
     clipId: "c",
     projectId: "p",
     title: "Clip",
     url: null,
     publishedAt: new Date("2026-11-01T00:00:00Z"),
+    ageDays: 10,
     views: null,
     averageViewPercentage: null,
-    likes: null,
+    viewsDay1: null,
+    viewsDay7: null,
+    viewsDay28: null,
     relative: null,
     early: false,
+    curve: [],
     ...over,
   }
 }

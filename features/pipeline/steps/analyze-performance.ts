@@ -61,7 +61,7 @@ export const analyzePerformanceStep: JobHandler = async ({
 
   const cleaned = cleanSuggestions(suggestions, {
     rules,
-    clipIds: clips.map((clip) => clip.clipId),
+    clipIds: clips.map((clip) => clip.id),
   })
   await insights.replacePending(channelId, cleaned)
   await recordUsage(

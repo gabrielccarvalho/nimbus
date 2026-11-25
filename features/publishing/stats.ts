@@ -14,7 +14,6 @@ const MOMENT_THRESHOLD = 0.05
 const MAX_DROPS = 3
 const MAX_RISES = 2
 const CONTEXT_WINDOW_MS = 1_000
-const MIN_PEERS = 3
 
 export function statsSyncDue(
   publication: { publishedAt: Date; origin: PublicationOrigin },
@@ -107,38 +106,6 @@ export function retentionMoments(
         ],
       }
     })
-}
-
-export type PerformanceSample = {
-  publicationId: string
-  ageDays: number
-  views: number
-}
-
-function ageBucket(ageDays: number): number | null {
-  const fits = STATS_SYNC_AGES_DAYS.filter((age) => age <= ageDays)
-  return fits.length ? fits[fits.length - 1]! : null
-}
-
-export function relativePerformance(
-  target: PerformanceSample,
-  samples: readonly PerformanceSample[]
-): number | null {
-  const bucket = ageBucket(target.ageDays)
-  if (bucket === null) return null
-  const peers = samples
-    .filter(
-      (s) =>
-        s.publicationId !== target.publicationId &&
-        ageBucket(s.ageDays) === bucket
-    )
-    .map((s) => s.views)
-    .sort((a, b) => a - b)
-  if (peers.length < MIN_PEERS) return null
-  const mid = Math.floor(peers.length / 2)
-  const median =
-    peers.length % 2 ? peers[mid]! : (peers[mid - 1]! + peers[mid]!) / 2
-  return median > 0 ? target.views / median : null
 }
 
 export function markerRatios(range: Range, beats: readonly Beat[]): number[] {

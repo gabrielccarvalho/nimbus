@@ -58,10 +58,32 @@ const suggestion: Data["suggestions"][number] = {
   text: "Open on the punchline",
   rationale: "Short cold opens held viewers longer.",
   evidenceFor: [
-    { clipId: "c1", title: "Cold open", projectId: "p1", views: 1200 },
+    {
+      id: "c1",
+      title: "Cold open",
+      clipId: "c1",
+      projectId: "p1",
+      url: null,
+      views: 1200,
+    },
+    {
+      id: "pub-9",
+      title: "Old banger",
+      clipId: null,
+      projectId: null,
+      url: "https://youtube.com/shorts/v9",
+      views: 5400,
+    },
   ],
   evidenceAgainst: [
-    { clipId: "c2", title: "Slow intro", projectId: "p2", views: 40 },
+    {
+      id: "c2",
+      title: "Slow intro",
+      clipId: "c2",
+      projectId: "p2",
+      url: null,
+      views: 40,
+    },
   ],
   currentRule: null,
   confidence: 0.8,
@@ -195,6 +217,10 @@ describe("Suggestion card", () => {
       within(card).getByRole("link", { name: "Cold open" })
     ).toHaveAttribute("href", "/projects/p1/clips/c1")
     expect(within(card).getByText("1,200 views")).toBeVisible()
+    expect(
+      within(card).getByRole("link", { name: "Old banger" })
+    ).toHaveAttribute("href", "https://youtube.com/shorts/v9")
+    expect(within(card).getByText("(posted outside Nimbus)")).toBeVisible()
     expect(within(card).getByText("Against")).toBeVisible()
     expect(within(card).getByRole("link", { name: "Slow intro" })).toBeVisible()
   })

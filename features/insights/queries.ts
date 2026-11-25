@@ -14,12 +14,14 @@ import {
   type PlaybookRule,
 } from "./repository"
 import { INSIGHTS_MIN_CLIPS } from "./schema"
-import { isInsightEligible, withClip } from "./service"
+import { isInsightEligible } from "./service"
 
 export type EvidenceClip = {
-  clipId: string
+  id: string
   title: string
-  projectId: string
+  clipId: string | null
+  projectId: string | null
+  url: string | null
   views: number | null
 }
 
@@ -82,18 +84,21 @@ export async function getInsights() {
     insights.rules(channel.id),
     statsRepository(db).forChannel(channel.id),
   ])
-  const published = withClip(rows)
-
   const clipsById = new Map(
-    published.map(({ clip, projectId, latest }) => [
-      clip.id,
-      {
-        clipId: clip.id,
-        title: clip.title,
-        projectId,
-        views: latest?.views ?? null,
-      } satisfies EvidenceClip,
-    ])
+    rows.map(({ publication, clip, projectId, latest }) => {
+      const id = clip?.id ?? publication.id
+      return [
+        id,
+        {
+          id,
+          title: clip?.title ?? publication.metadata.title,
+          clipId: clip?.id ?? null,
+          projectId,
+          url: publication.url,
+          views: latest?.views ?? null,
+        } satisfies EvidenceClip,
+      ]
+    })
   )
   const ruleTexts = new Map(rules.map((r) => [r.id, r.text]))
   const currentRule = (ruleId: string | null) => {
@@ -109,7 +114,7 @@ export async function getInsights() {
   return {
     ...empty,
     channel: { title: channel.title },
-    eligible: published.filter(isInsightEligible).length,
+    eligible: rows.filter(isInsightEligible).length,
     running,
     lastError,
     suggestions: pending.map((s): SuggestionView => ({
