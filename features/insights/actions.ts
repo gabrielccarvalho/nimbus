@@ -18,7 +18,7 @@ import {
   retireRule,
 } from "./service"
 
-const INSIGHTS_PATH = "/channels"
+const INSIGHTS_PATH = "/analytics/insights"
 
 const approveInputSchema = z.object({
   text: ruleTextSchema.optional(),

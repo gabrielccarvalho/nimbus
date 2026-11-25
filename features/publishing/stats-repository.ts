@@ -7,12 +7,13 @@ import {
   eq,
   inArray,
   isNotNull,
+  lt,
   lte,
   or,
   sql,
 } from "drizzle-orm"
 
-import { newId, type Db } from "@/lib/db"
+import { newId, now, type Db } from "@/lib/db"
 import {
   clips,
   jobs,
@@ -29,6 +30,13 @@ export type NewSnapshot = Omit<
   typeof publicationStats.$inferInsert,
   "id" | "fetchedAt"
 > & { fetchedAt?: Date }
+
+export type ChannelPublication = {
+  publication: Publication
+  clip: Clip | null
+  projectId: string | null
+  latest: Snapshot | null
+}
 
 export function statsRepository(db: Db) {
   return {
@@ -100,9 +108,12 @@ export function statsRepository(db: Db) {
         .from(jobs)
         .where(
           and(
-            eq(jobs.type, "sync_stats"),
+            inArray(jobs.type, ["sync_stats", "sync_stats_batch"]),
             inArray(jobs.status, ["queued", "running"]),
-            sql`${jobs.payload}->>'publicationId' = ${publicationId}`,
+            or(
+              sql`${jobs.payload}->>'publicationId' = ${publicationId}`,
+              sql`${jobs.payload}->'publicationIds' @> jsonb_build_array(${publicationId}::text)`
+            ),
             options.dueBy
               ? or(
                   eq(jobs.status, "running"),
@@ -115,24 +126,65 @@ export function statsRepository(db: Db) {
       return row !== undefined
     },
 
+    async activeSyncIds(): Promise<Set<string>> {
+      const rows = await db
+        .select({ payload: jobs.payload })
+        .from(jobs)
+        .where(
+          and(
+            inArray(jobs.type, ["sync_stats", "sync_stats_batch"]),
+            inArray(jobs.status, ["queued", "running"])
+          )
+        )
+      return new Set(
+        rows.flatMap(({ payload }) =>
+          Array.isArray(payload.publicationIds)
+            ? (payload.publicationIds as string[])
+            : typeof payload.publicationId === "string"
+              ? [payload.publicationId]
+              : []
+        )
+      )
+    },
+
+    async deleteSnapshotsBefore(cutoff: Date): Promise<number> {
+      const rows = await db
+        .delete(publicationStats)
+        .where(lt(publicationStats.fetchedAt, cutoff))
+        .returning({ id: publicationStats.id })
+      return rows.length
+    },
+
+    async blankStaleImportedTitles(cutoff: Date): Promise<number> {
+      const rows = await db
+        .update(publications)
+        .set({
+          metadata: sql`jsonb_set(${publications.metadata}, '{title}', '""')`,
+          updatedAt: now(),
+        })
+        .where(
+          and(
+            eq(publications.origin, "imported"),
+            lt(publications.createdAt, cutoff),
+            sql`${publications.metadata}->>'title' <> ''`,
+            sql`not exists (select 1 from publication_stats s where s.publication_id = ${publications.id} and s.fetched_at >= ${cutoff.toISOString()}::timestamptz)`
+          )
+        )
+        .returning({ id: publications.id })
+      return rows.length
+    },
+
     async lockSync(publicationId: string): Promise<void> {
       await db.execute(
         sql`select pg_advisory_xact_lock(hashtext(${`sync-stats:${publicationId}`}))`
       )
     },
 
-    async forChannel(channelId: string): Promise<
-      {
-        publication: Publication
-        clip: Clip
-        projectId: string
-        latest: Snapshot | null
-      }[]
-    > {
+    async forChannel(channelId: string): Promise<ChannelPublication[]> {
       const rows = await db
         .select({ publication: publications, clip: clips })
         .from(publications)
-        .innerJoin(clips, eq(clips.id, publications.clipId))
+        .leftJoin(clips, eq(clips.id, publications.clipId))
         .where(
           and(
             eq(publications.channelId, channelId),
@@ -144,7 +196,7 @@ export function statsRepository(db: Db) {
       return rows.map(({ publication, clip }) => ({
         publication,
         clip,
-        projectId: clip.projectId,
+        projectId: clip?.projectId ?? null,
         latest: latest.get(publication.id) ?? null,
       }))
     },

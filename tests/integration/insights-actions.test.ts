@@ -36,6 +36,7 @@ import { jobs, projects, user, workspaces } from "@/lib/db/schema"
 
 import { fixtures } from "../../scripts/make-fixtures"
 import { runJobs, uploadFixture } from "../utils/pipeline"
+import { insertImportedPublication } from "../utils/publications"
 import { createTestEnv, type TestEnv } from "../utils/test-env"
 
 const signedIn: { user: { id: string; name: string } | null } = { user: null }
@@ -668,6 +669,15 @@ describe("findPatternsAction", () => {
       "test"
     )
     const clips = await publishClips(channel.id, 8)
+    const imported = await insertImportedPublication(env.db, channel.id, {
+      publishedAt: new Date(Date.now() - 10 * 86_400_000),
+    })
+    await statsRepository(env.db).add({
+      publicationId: imported.id,
+      views: 900,
+      likes: 1,
+      comments: 0,
+    })
     await insightsRepository(env.db).insertRule({
       channelId: channel.id,
       target: "review",
@@ -688,7 +698,7 @@ describe("findPatternsAction", () => {
       {
         ...base,
         text: "Open on the crash",
-        evidenceFor: [clips[0]!.id, "gone"],
+        evidenceFor: [clips[0]!.id, "gone", imported.id],
       },
       {
         ...base,
@@ -706,7 +716,7 @@ describe("findPatternsAction", () => {
     const idle = await getInsights()
     expect(idle).toMatchObject({
       channel: { title: "My Channel" },
-      eligible: 8,
+      eligible: 9,
       needed: 8,
       claudeAvailable: true,
       running: false,
@@ -720,10 +730,20 @@ describe("findPatternsAction", () => {
     })
     expect(idle.suggestions.find((x) => x.id === s.id)!.evidenceFor).toEqual([
       {
-        clipId: clips[0]!.id,
+        id: clips[0]!.id,
         title: "Clip 0",
+        clipId: clips[0]!.id,
         projectId: clips[0]!.projectId,
+        url: null,
         views: 100,
+      },
+      {
+        id: imported.id,
+        title: "Imported Short",
+        clipId: null,
+        projectId: null,
+        url: imported.url,
+        views: 900,
       },
     ])
     expect(idle.rules.review.map((r) => r.text)).toEqual(["Cut slow ends"])

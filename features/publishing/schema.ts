@@ -20,7 +20,10 @@ export type ChannelStatus = (typeof channelStatuses)[number]
 export const privacyStatuses = ["private", "unlisted", "public"] as const
 export type PrivacyStatus = (typeof privacyStatuses)[number]
 
-export const quotaKinds = ["upload", "list", "stats"] as const
+export const publicationOrigins = ["nimbus", "imported"] as const
+export type PublicationOrigin = (typeof publicationOrigins)[number]
+
+export const quotaKinds = ["upload", "list", "stats", "import"] as const
 export type QuotaKind = (typeof quotaKinds)[number]
 
 export const publishInputSchema = z.object({

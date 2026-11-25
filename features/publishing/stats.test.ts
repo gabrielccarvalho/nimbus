@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  dailyBackfillDue,
   markerRatios,
-  relativePerformance,
   retentionMoments,
   statsEarly,
   statsSyncDue,
@@ -10,16 +10,31 @@ import {
 
 const day = 86_400_000
 const at = new Date("2026-11-01T12:00:00Z")
+const nimbus = { publishedAt: at, origin: "nimbus" as const }
+const imported = { publishedAt: at, origin: "imported" as const }
 const plus = (ms: number) => new Date(at.getTime() + ms)
 
 describe("stats", () => {
-  it("is due once each sync age passes", () => {
-    expect(statsSyncDue(at, null, plus(day - 1))).toBe(false)
-    expect(statsSyncDue(at, null, plus(day))).toBe(true)
-    expect(statsSyncDue(at, plus(day), plus(day + 1))).toBe(false)
-    expect(statsSyncDue(at, plus(day), plus(2 * day))).toBe(true)
-    expect(statsSyncDue(at, plus(28 * day), plus(90 * day))).toBe(false)
-    expect(statsSyncDue(at, plus(3 * day), plus(40 * day))).toBe(true)
+  it("keeps days 1, 2, 7, 28, then re-syncs every 28 days", () => {
+    expect(statsSyncDue(nimbus, null, plus(day - 1))).toBe(false)
+    expect(statsSyncDue(nimbus, null, plus(day))).toBe(true)
+    expect(statsSyncDue(nimbus, plus(day), plus(day + 1))).toBe(false)
+    expect(statsSyncDue(nimbus, plus(day), plus(2 * day))).toBe(true)
+    expect(statsSyncDue(nimbus, plus(28 * day), plus(56 * day - 1))).toBe(false)
+    expect(statsSyncDue(nimbus, plus(28 * day), plus(56 * day))).toBe(true)
+  })
+
+  it("syncs imported Shorts at once, then every 28 days", () => {
+    expect(statsSyncDue(imported, null, plus(400 * day))).toBe(true)
+    expect(statsSyncDue(imported, plus(400 * day), plus(427 * day))).toBe(false)
+    expect(statsSyncDue(imported, plus(400 * day), plus(428 * day))).toBe(true)
+  })
+
+  it("backfills a missing daily curve at most once a day", () => {
+    expect(dailyBackfillDue(at, null, plus(day - 1))).toBe(false)
+    expect(dailyBackfillDue(at, null, plus(day))).toBe(true)
+    expect(dailyBackfillDue(at, plus(40 * day), plus(41 * day - 1))).toBe(false)
+    expect(dailyBackfillDue(at, plus(40 * day), plus(41 * day))).toBe(true)
   })
 
   it("labels the first 72 hours as early", () => {
@@ -69,22 +84,6 @@ describe("stats", () => {
         { words: [], beats: [], effects: [] }
       )
     ).toEqual([])
-  })
-
-  it("scores views against the channel's median for the same sync age", () => {
-    const s = (id: string, ageDays: number, views: number) => ({
-      publicationId: id,
-      ageDays,
-      views,
-    })
-    const samples = [
-      s("a", 7, 100),
-      s("b", 7, 200),
-      s("c", 7, 300),
-      s("d", 1, 5000),
-    ]
-    expect(relativePerformance(s("t", 7.5, 400), samples)).toBe(2)
-    expect(relativePerformance(s("t", 1, 400), samples)).toBeNull()
   })
 
   it("places beats as fractions of the uploaded range", () => {

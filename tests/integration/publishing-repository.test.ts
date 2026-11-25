@@ -12,8 +12,19 @@ import {
   publishingRepository,
   type NewPublication,
 } from "@/features/publishing/repository"
-import { account, clips, user, workspaces } from "@/lib/db/schema"
+import type { QuotaKind } from "@/features/publishing/schema"
+import { analyticsRepository } from "@/features/analytics/repository"
+import { jobQueue } from "@/features/jobs/queue"
+import {
+  account,
+  channelDaily,
+  channelTopVideos,
+  clips,
+  user,
+  workspaces,
+} from "@/lib/db/schema"
 
+import { insertImportedPublication } from "../utils/publications"
 import { createTestEnv, type TestEnv } from "../utils/test-env"
 
 let env: TestEnv
@@ -78,9 +89,9 @@ async function seed() {
 }
 
 describe("publishingRepository", () => {
-  it("keeps uploads in their own quota bucket and shares list with stats", async () => {
+  it("keeps uploads in their own quota bucket and shares list, stats and import", async () => {
     const { repo } = await seed()
-    const spend = (kind: "upload" | "list" | "stats", budget: number) =>
+    const spend = (kind: QuotaKind, budget: number) =>
       repo.spendQuota({
         day: "2026-11-24",
         workspaceId: null,
@@ -95,6 +106,8 @@ describe("publishingRepository", () => {
     expect(await spend("stats", 10_000)).toBe(true)
     expect(await spend("list", 2)).toBe(true)
     expect(await spend("stats", 2)).toBe(false)
+    expect(await spend("import", 2)).toBe(false)
+    expect(await spend("import", 3)).toBe(true)
   })
 
   it("ignores finished publications when looking for an active one", async () => {
@@ -138,6 +151,108 @@ describe("publishingRepository", () => {
     await publish({ status: "failed" })
     await publish({ status: "published" })
     expect(await repo.countCreatedOnDay(workspaceId, day)).toBe(1)
+  })
+
+  it("leaves imported Shorts out of the daily and published counts", async () => {
+    const { repo, channel, workspaceId, publish } = await seed()
+    await publish({ status: "published" })
+    await insertImportedPublication(env.db, channel.id)
+    expect(
+      await repo.countCreatedOnDay(workspaceId, pacificDay(new Date()))
+    ).toBe(1)
+    expect(await repo.countPublished(channel.id)).toBe(1)
+  })
+
+  it("doesn't let an imported Short with the same video block a clip", async () => {
+    const { repo, channel, clip } = await seed()
+    await insertImportedPublication(env.db, channel.id, { videoId: "v1" })
+    expect(await repo.activeForClip(clip.id)).toBeUndefined()
+    expect((await repo.latestForClips([clip.id])).size).toBe(0)
+  })
+
+  it("drops imported Shorts and channel days when the workspace switches YouTube channel", async () => {
+    const { repo, channel, workspaceId, publish } = await seed()
+    const nimbus = await publish({ status: "published", videoId: "n1" })
+    const imported = await insertImportedPublication(env.db, channel.id)
+    const analytics = analyticsRepository(env.db)
+    await analytics.replaceChannelDays(channel.id, "2026-11-01", "2026-11-01", [
+      {
+        day: "2026-11-01",
+        contentType: "shorts",
+        views: 1,
+        estimatedMinutesWatched: 1,
+        averageViewDurationS: null,
+        likes: 0,
+        comments: 0,
+        shares: 0,
+        subscribersGained: 0,
+        subscribersLost: 0,
+      },
+    ])
+    await analytics.replaceTopVideos(channel.id, 28, "2026-11-01", [
+      { videoId: "n1", views: 5 },
+    ])
+    const at = new Date("2026-11-20T00:00:00Z")
+    await analytics.markSynced(channel.id, "uploadsSyncedAt", at)
+    await analytics.markSynced(channel.id, "analyticsSyncedAt", at)
+    const input = {
+      workspaceId,
+      accountId: channel.accountId,
+      title: "Channel",
+    }
+
+    const same = await repo.upsertChannel({ ...input, channelId: "UC1" })
+    expect(same.uploadsSyncedAt).toEqual(at)
+    expect(await repo.getPublication(imported.id)).toBeDefined()
+    expect(await env.db.select().from(channelDaily)).toHaveLength(1)
+
+    const switched = await repo.upsertChannel({ ...input, channelId: "UC2" })
+    expect(switched.id).toBe(channel.id)
+    expect(switched.uploadsSyncedAt).toBeNull()
+    expect(switched.analyticsSyncedAt).toBeNull()
+    expect(await repo.getPublication(imported.id)).toBeUndefined()
+    expect(await repo.getPublication(nimbus.id)).toBeDefined()
+    expect(await env.db.select().from(channelDaily)).toEqual([])
+    expect(await env.db.select().from(channelTopVideos)).toEqual([])
+  })
+
+  it("cancels the queued channel jobs when the workspace switches YouTube channel", async () => {
+    const { repo, channel, workspaceId } = await seed()
+    const queue = jobQueue(env.db)
+    const queued = await Promise.all(
+      (["sync_uploads", "sync_channel"] as const).map((type) =>
+        queue.enqueue({
+          type,
+          projectId: null,
+          payload: { channelId: channel.id },
+        })
+      )
+    )
+    const batch = await queue.enqueue({
+      type: "sync_stats_batch",
+      projectId: null,
+      payload: { channelId: channel.id, publicationIds: ["p1"] },
+    })
+    const elsewhere = await queue.enqueue({
+      type: "sync_channel",
+      projectId: null,
+      payload: { channelId: "other" },
+    })
+    const input = {
+      workspaceId,
+      accountId: channel.accountId,
+      title: "Channel",
+    }
+
+    await repo.upsertChannel({ ...input, channelId: "UC1" })
+    expect((await queue.get(batch.id))!.status).toBe("queued")
+
+    await repo.upsertChannel({ ...input, channelId: "UC2" })
+
+    for (const job of [...queued, batch]) {
+      expect((await queue.get(job.id))!.status).toBe("cancelled")
+    }
+    expect((await queue.get(elsewhere.id))!.status).toBe("queued")
   })
 
   it("deletes publications with their clip", async () => {

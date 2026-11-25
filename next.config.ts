@@ -16,6 +16,18 @@ const nextConfig: NextConfig = {
         destination: "/projects/:id",
         permanent: false,
       },
+      {
+        source: "/channels",
+        has: [{ type: "query", key: "tab", value: "clips" }],
+        destination: "/analytics/shorts",
+        permanent: false,
+      },
+      {
+        source: "/channels",
+        has: [{ type: "query", key: "tab", value: "insights" }],
+        destination: "/analytics/insights",
+        permanent: false,
+      },
     ]
   },
 }

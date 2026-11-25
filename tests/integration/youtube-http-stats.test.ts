@@ -22,11 +22,13 @@ describe("videoStats", () => {
     server.use(
       http.get(VIDEOS, ({ request }) => {
         const url = new URL(request.url)
-        expect(url.searchParams.get("part")).toBe("statistics")
+        expect(url.searchParams.get("part")).toBe("statistics,snippet,status")
         expect(url.searchParams.get("id")).toBe("abc")
         return HttpResponse.json({
           items: [
             {
+              snippet: { title: "Clip" },
+              status: { privacyStatus: "unlisted" },
               statistics: {
                 viewCount: "1234",
                 likeCount: "56",
@@ -41,6 +43,19 @@ describe("videoStats", () => {
       views: 1234,
       likes: 56,
       comments: 7,
+      title: "Clip",
+      privacy: "unlisted",
+    })
+  })
+
+  it("throws when the response has no status", async () => {
+    server.use(
+      http.get(VIDEOS, () =>
+        HttpResponse.json({ items: [{ snippet: { title: "Clip" } }] })
+      )
+    )
+    await expect(client.videoStats("t", "abc")).rejects.toMatchObject({
+      code: "EXTERNAL",
     })
   })
 
@@ -67,6 +82,61 @@ describe("videoStats", () => {
     await expect(client.videoStats("t", "abc")).rejects.toMatchObject({
       cause: "quota",
     })
+  })
+})
+
+describe("videoStatsBatch", () => {
+  it("reads every id in one request and leaves out the missing ones", async () => {
+    let requests = 0
+    server.use(
+      http.get(VIDEOS, ({ request }) => {
+        requests++
+        const url = new URL(request.url)
+        expect(url.searchParams.get("part")).toBe("statistics,snippet,status")
+        expect(url.searchParams.get("id")).toBe("a,b,c")
+        return HttpResponse.json({
+          items: [
+            {
+              id: "a",
+              snippet: { title: "A" },
+              status: { privacyStatus: "public" },
+              statistics: {
+                viewCount: "10",
+                likeCount: "2",
+                commentCount: "1",
+              },
+            },
+            {
+              id: "c",
+              snippet: { title: "C" },
+              status: { privacyStatus: "private" },
+              statistics: { viewCount: "3" },
+            },
+          ],
+        })
+      })
+    )
+    const stats = await client.videoStatsBatch("t", ["a", "b", "c"])
+    expect(requests).toBe(1)
+    expect([...stats]).toEqual([
+      [
+        "a",
+        { views: 10, likes: 2, comments: 1, title: "A", privacy: "public" },
+      ],
+      [
+        "c",
+        { views: 3, likes: 0, comments: 0, title: "C", privacy: "private" },
+      ],
+    ])
+  })
+
+  it("rejects more than 50 ids before any request", async () => {
+    await expect(
+      client.videoStatsBatch(
+        "t",
+        Array.from({ length: 51 }, (_, i) => `v${i}`)
+      )
+    ).rejects.toMatchObject({ code: "INTERNAL" })
   })
 })
 

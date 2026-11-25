@@ -341,6 +341,25 @@ Spec: `docs/superpowers/specs/2026-11-24-youtube-publishing-and-insights-design.
 
 Not verified: insights from a real channel (e2e seeds a suggestion; the analysis is tested against a mocked Claude).
 
+### Phase 33: Analytics (ADR-0067)
+
+Spec: `docs/superpowers/specs/2026-11-24-analytics-and-music-design.md`. Plan: `docs/superpowers/plans/2026-11-24-analytics.md`.
+
+- [x] 1. Pure analytics logic: periods, summaries, same-age ratio
+- [x] 2. Clip-less publications (`origin`), nullable `clip_id`, cascading `channel_id`
+- [x] 3. Repositories and services for imported Shorts
+- [x] 4. YouTube client: uploads, details, content type probe, daily reads; fake uploads
+- [x] 5. The `sync_uploads` job
+- [x] 6. The `sync_channel` job and daily curves in `sync_stats`
+- [x] 7. Scheduling: due imports, 28-day re-sync, daily backfill
+- [x] 8. Analytics queries: overview, Shorts, Insights evidence
+- [x] 9. `/analytics` overview with the views chart
+- [x] 10. Shorts table, growth chart, import button, Insights tab; `/channels` keeps the connection
+- [x] 11. End to end and phase close
+- [x] 12. Final review fixes: content type fallback only on a dimension rejection and replaced day ranges, young Shorts' curves refreshed by the channel sync, Top Shorts from YouTube's top videos (`channel_top_videos`, migration 0017), `sync_stats_batch` for imported Shorts, a daily 30-day retention sweep, full manual rescans, shutdown hand-off, probe fallback, 6 h backoff for failed channel jobs, overview polling, channel-switch job cancel, and the publish/import lock
+
+Not verified: import and daily analytics from a real channel (the fake returns fixed uploads and daily numbers), the top-videos report and a 50-id `videos.list` batch against the real APIs.
+
 ### Not verified
 
 - MediaPipe face detection on a real face (fixtures have none; the code path is unit tested and the model loads in e2e).

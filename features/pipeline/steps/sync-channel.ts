@@ -1,0 +1,80 @@
+import "server-only"
+
+import { now } from "@/lib/db"
+import { AppError } from "@/lib/errors"
+
+import { addDays, periodWindow } from "../../analytics/curves"
+import { analyticsRepository } from "../../analytics/repository"
+import {
+  ANALYTICS_PERIODS,
+  CHANNEL_BACKFILL_DAYS,
+  CHANNEL_CURVE_DAYS,
+  LATE_DATA_DAYS,
+} from "../../analytics/schema"
+import type { JobHandler } from "../../jobs/worker-loop"
+import {
+  RECONNECT_MESSAGE,
+  withGoogleToken,
+} from "../../publishing/google-token"
+import { pacificDay } from "../../publishing/quota"
+import { publishingRepository } from "../../publishing/repository"
+import { getYouTubeClient } from "../../publishing/youtube"
+import { refreshDailyCurve } from "./sync-publication"
+
+const DAY_MS = 86_400_000
+const TOP_VIDEOS = 50
+
+export const syncChannelStep: JobHandler = async ({ job, db, logger }) => {
+  const channelId = job.payload.channelId
+  if (typeof channelId !== "string") {
+    throw new AppError("VALIDATION", "Channel sync is missing its channel")
+  }
+  const channel = await publishingRepository(db).getChannelById(channelId)
+  if (!channel) {
+    throw new AppError("NOT_FOUND", "The YouTube channel was disconnected")
+  }
+  if (channel.status === "needs_reconnect" || !channel.accountId) {
+    throw new AppError("UNAUTHORIZED", RECONNECT_MESSAGE)
+  }
+
+  const analytics = analyticsRepository(db)
+  const startedAt = job.startedAt ?? now()
+  const today = pacificDay(startedAt)
+  const last = await analytics.lastChannelDay(channelId)
+  const from = last
+    ? addDays(last, -LATE_DATA_DAYS)
+    : addDays(today, -CHANNEL_BACKFILL_DAYS)
+
+  const { split, rows } = await withGoogleToken(db, channel, (token) =>
+    getYouTubeClient().channelDaily(token, from, today)
+  )
+  await analytics.replaceChannelDays(channelId, from, today, rows)
+  const through = await analytics.lastChannelDay(channelId)
+  if (through) {
+    for (const period of ANALYTICS_PERIODS) {
+      const top = await withGoogleToken(db, channel, (token) =>
+        getYouTubeClient().topVideos(
+          token,
+          periodWindow(period, through).from,
+          through,
+          TOP_VIDEOS
+        )
+      )
+      await analytics.replaceTopVideos(channelId, period, through, top)
+    }
+  }
+  await analytics.markSynced(channelId, "analyticsSyncedAt", startedAt)
+  logger.info(
+    { channelId, from, to: today, rows: rows.length, split },
+    "synced channel analytics"
+  )
+
+  const young = await analytics.publishedSince(
+    channelId,
+    new Date(startedAt.getTime() - CHANNEL_CURVE_DAYS * DAY_MS)
+  )
+  for (const { id, videoId, publishedAt } of young) {
+    if (!videoId || !publishedAt) continue
+    await refreshDailyCurve(db, channel, { id, videoId, publishedAt }, logger)
+  }
+}

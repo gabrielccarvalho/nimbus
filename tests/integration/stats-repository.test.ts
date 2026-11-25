@@ -15,6 +15,7 @@ import {
 import { statsRepository } from "@/features/publishing/stats-repository"
 import { account, user, workspaces, youtubeChannels } from "@/lib/db/schema"
 
+import { insertImportedPublication } from "../utils/publications"
 import { createTestEnv, type TestEnv } from "../utils/test-env"
 
 let env: TestEnv
@@ -203,8 +204,32 @@ describe("statsRepository", () => {
     const rows = await stats.forChannel(channel.id)
     expect(rows.map((r) => r.publication.id)).toEqual([newer.id, older.id])
     expect(rows[0]).toMatchObject({ projectId: project.id })
-    expect(rows[0]!.clip.id).toBe(clip.id)
+    expect(rows[0]!.clip?.id).toBe(clip.id)
     expect(rows[0]!.latest?.views).toBe(7)
     expect(rows[1]!.latest).toBeNull()
+  })
+
+  it("lists an imported Short without a clip next to Nimbus publications", async () => {
+    const { publish, channel, clip } = await seed()
+    const nimbus = await publish({
+      status: "published",
+      videoId: "v1",
+      publishedAt: new Date("2026-11-01T00:00:00Z"),
+    })
+    const imported = await insertImportedPublication(env.db, channel.id, {
+      publishedAt: new Date("2026-11-05T00:00:00Z"),
+    })
+
+    const rows = await statsRepository(env.db).forChannel(channel.id)
+    expect(rows.map((r) => r.publication.id)).toEqual([imported.id, nimbus.id])
+    expect(rows[0]).toMatchObject({ clip: null, projectId: null })
+    expect(rows[1]!.clip?.id).toBe(clip.id)
+  })
+
+  it("lists imported Shorts as due candidates with their origin", async () => {
+    const { channel } = await seed()
+    await insertImportedPublication(env.db, channel.id)
+    const [due] = await statsRepository(env.db).dueCandidates()
+    expect(due?.publication.origin).toBe("imported")
   })
 })

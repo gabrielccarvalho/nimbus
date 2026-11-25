@@ -17,9 +17,11 @@ import { INSIGHTS_MIN_CLIPS } from "./schema"
 import { isInsightEligible } from "./service"
 
 export type EvidenceClip = {
-  clipId: string
+  id: string
   title: string
-  projectId: string
+  clipId: string | null
+  projectId: string | null
+  url: string | null
   views: number | null
 }
 
@@ -75,24 +77,28 @@ export async function getInsights() {
   if (!channel) return empty
 
   const insights = insightsRepository(db)
-  const [running, lastError, pending, rules, published] = await Promise.all([
+  const [running, lastError, pending, rules, rows] = await Promise.all([
     insights.analysisActive(channel.id),
     insights.lastAnalysisError(channel.id),
     insights.pendingSuggestions(channel.id),
     insights.rules(channel.id),
     statsRepository(db).forChannel(channel.id),
   ])
-
   const clipsById = new Map(
-    published.map(({ clip, projectId, latest }) => [
-      clip.id,
-      {
-        clipId: clip.id,
-        title: clip.title,
-        projectId,
-        views: latest?.views ?? null,
-      } satisfies EvidenceClip,
-    ])
+    rows.map(({ publication, clip, projectId, latest }) => {
+      const id = clip?.id ?? publication.id
+      return [
+        id,
+        {
+          id,
+          title: clip?.title ?? publication.metadata.title,
+          clipId: clip?.id ?? null,
+          projectId,
+          url: publication.url,
+          views: latest?.views ?? null,
+        } satisfies EvidenceClip,
+      ]
+    })
   )
   const ruleTexts = new Map(rules.map((r) => [r.id, r.text]))
   const currentRule = (ruleId: string | null) => {
@@ -108,7 +114,7 @@ export async function getInsights() {
   return {
     ...empty,
     channel: { title: channel.title },
-    eligible: published.filter(isInsightEligible).length,
+    eligible: rows.filter(isInsightEligible).length,
     running,
     lastError,
     suggestions: pending.map((s): SuggestionView => ({

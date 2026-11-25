@@ -46,13 +46,33 @@ function Evidence({ label, clips }: { label: string; clips: EvidenceClip[] }) {
       <span className="text-[13px] text-muted-foreground">{label}</span>
       <ul className="grid gap-0.5">
         {clips.map((clip) => (
-          <li key={clip.clipId} className="flex items-baseline gap-2">
-            <Link
-              href={`/projects/${clip.projectId}/clips/${clip.clipId}`}
-              className="min-w-0 truncate hover:underline"
-            >
-              {clip.title}
-            </Link>
+          <li key={clip.id} className="flex items-baseline gap-2">
+            {clip.clipId && clip.projectId ? (
+              <Link
+                href={`/projects/${clip.projectId}/clips/${clip.clipId}`}
+                className="min-w-0 truncate hover:underline"
+              >
+                {clip.title}
+              </Link>
+            ) : (
+              <>
+                {clip.url ? (
+                  <a
+                    href={clip.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="min-w-0 truncate hover:underline"
+                  >
+                    {clip.title}
+                  </a>
+                ) : (
+                  <span className="min-w-0 truncate">{clip.title}</span>
+                )}
+                <span className="shrink-0 text-[13px] text-muted-foreground">
+                  (posted outside Nimbus)
+                </span>
+              </>
+            )}
             {clip.views !== null && (
               <span className="shrink-0 text-[13px] text-muted-foreground tabular-nums">
                 {views.format(clip.views)} views

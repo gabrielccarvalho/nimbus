@@ -12,9 +12,14 @@ export const jobTypes = [
   "publish_clip",
   "sync_stats",
   "analyze_performance",
+  "sync_uploads",
+  "sync_channel",
+  "sync_stats_batch",
 ] as const
 export const jobTypeSchema = z.enum(jobTypes)
 export type JobType = z.infer<typeof jobTypeSchema>
+
+export const STATS_BATCH_SIZE = 50
 
 export const jobStatuses = [
   "queued",
@@ -38,6 +43,17 @@ export const jobPayloadSchemas = {
   publish_clip: z.object({ publicationId: z.string().min(1) }),
   sync_stats: z.object({ publicationId: z.string().min(1) }),
   analyze_performance: z.object({ channelId: z.string().min(1) }),
+  sync_uploads: z.object({
+    channelId: z.string().min(1),
+    pageToken: z.string().min(1).optional(),
+    passStartedAt: z.iso.datetime().optional(),
+    full: z.literal(true).optional(),
+  }),
+  sync_channel: z.object({ channelId: z.string().min(1) }),
+  sync_stats_batch: z.object({
+    channelId: z.string().min(1),
+    publicationIds: z.array(z.string().min(1)).min(1).max(STATS_BATCH_SIZE),
+  }),
 } satisfies Record<JobType, z.ZodType>
 
 export type JobPayload<T extends JobType> = z.infer<

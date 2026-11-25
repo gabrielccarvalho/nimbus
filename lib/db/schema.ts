@@ -1,11 +1,14 @@
+import { sql } from "drizzle-orm"
 import {
   bigint,
   boolean,
+  date,
   doublePrecision,
   index,
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -16,6 +19,10 @@ import type {
   DensityWindow,
   TimeRange,
 } from "@/features/analysis/schema"
+import type {
+  AnalyticsPeriod,
+  ChannelContentType,
+} from "@/features/analytics/schema"
 import type { CaptionOverrides, ClipStatus } from "@/features/clips/schema"
 import type { Beat, ClipEffects } from "@/features/effects/schema"
 import type { JobStatus, JobType } from "@/features/jobs/schema"
@@ -28,6 +35,7 @@ import type {
 import type { PlanId, UsageKind } from "@/features/accounts/schema"
 import type {
   ChannelStatus,
+  PublicationOrigin,
   PublicationStatus,
   PublishInput,
   QuotaKind,
@@ -332,6 +340,8 @@ export const youtubeChannels = pgTable("youtube_channels", {
   title: text("title").notNull(),
   thumbnailUrl: text("thumbnail_url"),
   status: text("status").$type<ChannelStatus>().notNull().default("ok"),
+  uploadsSyncedAt: timestamptz("uploads_synced_at"),
+  analyticsSyncedAt: timestamptz("analytics_synced_at"),
   ...timestamps,
 })
 
@@ -384,12 +394,16 @@ export const publications = pgTable(
   "publications",
   {
     id: text("id").primaryKey(),
-    clipId: text("clip_id")
-      .notNull()
-      .references(() => clips.id, { onDelete: "cascade" }),
-    channelId: text("channel_id").references(() => youtubeChannels.id, {
-      onDelete: "set null",
+    clipId: text("clip_id").references(() => clips.id, {
+      onDelete: "cascade",
     }),
+    channelId: text("channel_id").references(() => youtubeChannels.id, {
+      onDelete: "cascade",
+    }),
+    origin: text("origin")
+      .$type<PublicationOrigin>()
+      .notNull()
+      .default("nimbus"),
     renderAssetId: text("render_asset_id").references(() => assets.id, {
       onDelete: "set null",
     }),
@@ -402,9 +416,16 @@ export const publications = pgTable(
     publishedAt: timestamptz("published_at"),
     clipStartMs: integer("clip_start_ms"),
     clipEndMs: integer("clip_end_ms"),
+    durationMs: integer("duration_ms"),
+    dailySyncedAt: timestamptz("daily_synced_at"),
     ...timestamps,
   },
-  (t) => [index("publications_clip_idx").on(t.clipId, t.createdAt)]
+  (t) => [
+    index("publications_clip_idx").on(t.clipId, t.createdAt),
+    uniqueIndex("publications_imported_video_idx")
+      .on(t.channelId, t.videoId)
+      .where(sql`${t.origin} = 'imported'`),
+  ]
 )
 
 export const publicationStats = pgTable(
@@ -425,6 +446,59 @@ export const publicationStats = pgTable(
   (t) => [
     index("publication_stats_publication_idx").on(t.publicationId, t.fetchedAt),
   ]
+)
+
+export const publicationDaily = pgTable(
+  "publication_daily",
+  {
+    publicationId: text("publication_id")
+      .notNull()
+      .references(() => publications.id, { onDelete: "cascade" }),
+    day: date("day", { mode: "string" }).notNull(),
+    views: integer("views").notNull(),
+    estimatedMinutesWatched: doublePrecision(
+      "estimated_minutes_watched"
+    ).notNull(),
+    likes: integer("likes").notNull(),
+    subscribersGained: integer("subscribers_gained").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.publicationId, t.day] })]
+)
+
+export const channelDaily = pgTable(
+  "channel_daily",
+  {
+    channelId: text("channel_id")
+      .notNull()
+      .references(() => youtubeChannels.id, { onDelete: "cascade" }),
+    day: date("day", { mode: "string" }).notNull(),
+    contentType: text("content_type").$type<ChannelContentType>().notNull(),
+    views: integer("views").notNull(),
+    likes: integer("likes").notNull(),
+    comments: integer("comments").notNull(),
+    shares: integer("shares").notNull(),
+    subscribersGained: integer("subscribers_gained").notNull(),
+    subscribersLost: integer("subscribers_lost").notNull(),
+    estimatedMinutesWatched: doublePrecision(
+      "estimated_minutes_watched"
+    ).notNull(),
+    averageViewDurationS: doublePrecision("average_view_duration_s"),
+  },
+  (t) => [primaryKey({ columns: [t.channelId, t.day, t.contentType] })]
+)
+
+export const channelTopVideos = pgTable(
+  "channel_top_videos",
+  {
+    channelId: text("channel_id")
+      .notNull()
+      .references(() => youtubeChannels.id, { onDelete: "cascade" }),
+    period: integer("period").$type<AnalyticsPeriod>().notNull(),
+    videoId: text("video_id").notNull(),
+    views: integer("views").notNull(),
+    through: date("through", { mode: "string" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.channelId, t.period, t.videoId] })]
 )
 
 export const youtubeQuotaUsage = pgTable(

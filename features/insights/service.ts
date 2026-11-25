@@ -8,10 +8,15 @@ import { transcriptLines } from "../highlights/prompt"
 import type { Workspace } from "../accounts/repository"
 import { CLAUDE_KEY_MISSING_MESSAGE } from "../accounts/schema"
 import { claudeAvailable } from "../accounts/usage"
+import { relativePerformance } from "../analytics/curves"
+import { channelCurves } from "../analytics/service"
 import { jobQueue } from "../jobs/queue"
 import { projectRepository } from "../projects/repository"
-import { relativePerformance, retentionMoments } from "../publishing/stats"
-import { statsRepository } from "../publishing/stats-repository"
+import { retentionMoments } from "../publishing/stats"
+import {
+  statsRepository,
+  type ChannelPublication,
+} from "../publishing/stats-repository"
 import { transcriptRepository } from "../transcription/repository"
 import type { InsightClip } from "./prompt"
 import {
@@ -37,10 +42,6 @@ type Transcript = NonNullable<
 type ProjectContext = Pick<Transcript, "language" | "words" | "segments"> & {
   niche: string
 }
-
-type ChannelPublication = Awaited<
-  ReturnType<ReturnType<typeof statsRepository>["forChannel"]>
->[number]
 
 function insightAgeDays({
   publication,
@@ -69,20 +70,21 @@ export async function eligibleInsightClips(
   channelId: string
 ): Promise<InsightClip[]> {
   const rows = await statsRepository(db).forChannel(channelId)
-  const eligible = rows
-    .flatMap((row) => {
-      const ageDays = insightAgeDays(row)
-      return ageDays === null
-        ? []
-        : [{ ...row, snapshot: row.latest!, ageDays }]
-    })
-    .slice(0, INSIGHTS_MAX_CLIPS)
-
-  const samples = eligible.map((e) => ({
-    publicationId: e.publication.id,
-    ageDays: e.ageDays,
-    views: e.snapshot.views,
+  const { curves } = await channelCurves(db, channelId, rows)
+  const candidates = rows.filter(isInsightEligible)
+  const eligible = [
+    ...candidates.filter((row) => row.clip),
+    ...candidates.filter((row) => !row.clip),
+  ].slice(0, INSIGHTS_MAX_CLIPS)
+  const peers = [...curves].map(([publicationId, cumulative]) => ({
+    publicationId,
+    cumulative,
   }))
+  const relativeFor = (publicationId: string) =>
+    relativePerformance(
+      { publicationId, cumulative: curves.get(publicationId) ?? [] },
+      peers
+    )
   const projects = projectRepository(db)
   const projectContext = new Map<string, Promise<ProjectContext>>()
   const contextFor = (projectId: string) => {
@@ -107,9 +109,25 @@ export async function eligibleInsightClips(
   }
 
   return Promise.all(
-    eligible.map(async (e, index) => {
-      const { clip, publication, snapshot } = e
-      const context = await contextFor(e.projectId)
+    eligible.map(async ({ publication, clip, projectId, latest }) => {
+      const snapshot = latest!
+      if (!clip || !projectId) {
+        return {
+          origin: "imported" as const,
+          id: publication.id,
+          title: publication.metadata.title,
+          durationMs: publication.durationMs,
+          moments: retentionMoments(
+            snapshot.retention ?? [],
+            { startMs: 0, endMs: publication.durationMs ?? 0 },
+            { words: [], beats: [], effects: [] }
+          ),
+          views: snapshot.views,
+          averageViewPercentage: snapshot.averageViewPercentage,
+          relative: relativeFor(publication.id),
+        }
+      }
+      const context = await contextFor(projectId)
       const range = {
         startMs: publication.clipStartMs ?? clip.startMs,
         endMs: publication.clipEndMs ?? clip.endMs,
@@ -117,7 +135,8 @@ export async function eligibleInsightClips(
       const effects = clip.effects?.events ?? []
       const beats = clip.beats ?? []
       return {
-        clipId: clip.id,
+        origin: "nimbus" as const,
+        id: clip.id,
         title: clip.title,
         hook: clip.hook,
         reason: clip.reason,
@@ -141,7 +160,7 @@ export async function eligibleInsightClips(
         }),
         views: snapshot.views,
         averageViewPercentage: snapshot.averageViewPercentage,
-        relative: relativePerformance(samples[index]!, samples),
+        relative: relativeFor(publication.id),
         ruleIds: clip.playbookRuleIds ?? [],
       }
     })

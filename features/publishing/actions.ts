@@ -51,7 +51,9 @@ export async function retryPublicationAction(publicationId: unknown) {
     async () => {
       const { workspace } = await requireActor()
       const previous = await publishingRepository(getDb()).getPublication(id)
-      if (!previous) throw new AppError("NOT_FOUND", "Publication not found")
+      if (!previous?.clipId) {
+        throw new AppError("NOT_FOUND", "Publication not found")
+      }
       const clip = await clipRepository(getDb()).getOrThrow(previous.clipId)
       await assertProjectAccess(clip.projectId)
       if (previous.status !== "failed") {
@@ -86,8 +88,10 @@ export async function refreshStatsAction(publicationId: unknown) {
       const repo = publishingRepository(getDb())
       const publication = await repo.getPublication(id)
       if (!publication) throw new AppError("NOT_FOUND", "Publication not found")
-      const clip = await clipRepository(getDb()).getOrThrow(publication.clipId)
-      await assertProjectAccess(clip.projectId)
+      const clip = publication.clipId
+        ? await clipRepository(getDb()).getOrThrow(publication.clipId)
+        : null
+      if (clip) await assertProjectAccess(clip.projectId)
       const channel = await repo.getChannel(workspace.id)
       if (
         !channel ||
@@ -108,7 +112,7 @@ export async function refreshStatsAction(publicationId: unknown) {
             : "Stats will refresh after YouTube's daily quota resets."
         )
       }
-      revalidatePath(`/projects/${clip.projectId}`, "layout")
+      if (clip) revalidatePath(`/projects/${clip.projectId}`, "layout")
       return { publicationId: publication.id }
     },
     []

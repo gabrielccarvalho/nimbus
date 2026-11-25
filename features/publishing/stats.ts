@@ -1,31 +1,55 @@
+import type { PublicationOrigin } from "./schema"
 import type { Beat, Effect } from "@/features/effects/schema"
 import type { Word } from "@/features/transcription/schema"
 
 export type RetentionPoint = { ratio: number; watch: number }
 
 export const STATS_SYNC_AGES_DAYS = [1, 2, 7, 28] as const
+export const STATS_RESYNC_DAYS = 28
 export const STATS_LAG_MS = 72 * 3_600_000
 export const STATS_SCHEDULE_INTERVAL_MS = 30 * 60_000
+export const DAILY_BACKFILL_RETRY_MS = 24 * 3_600_000
+export const YOUTUBE_DATA_TTL_MS = 30 * 86_400_000
+export const RETENTION_SWEEP_EVERY_MS = 24 * 3_600_000
 
 const DAY_MS = 86_400_000
 const MOMENT_THRESHOLD = 0.05
 const MAX_DROPS = 3
 const MAX_RISES = 2
 const CONTEXT_WINDOW_MS = 1_000
-const MIN_PEERS = 3
 
 export function statsSyncDue(
-  publishedAt: Date,
+  publication: { publishedAt: Date; origin: PublicationOrigin },
   lastFetchedAt: Date | null,
   now: Date
 ): boolean {
+  const resyncDue =
+    lastFetchedAt === null ||
+    lastFetchedAt.getTime() <= now.getTime() - STATS_RESYNC_DAYS * DAY_MS
+  if (publication.origin === "imported") return resyncDue
+  const publishedMs = publication.publishedAt.getTime()
+  if (now.getTime() - publishedMs >= STATS_RESYNC_DAYS * DAY_MS && resyncDue) {
+    return true
+  }
   return STATS_SYNC_AGES_DAYS.some((age) => {
-    const dueAt = publishedAt.getTime() + age * DAY_MS
+    const dueAt = publishedMs + age * DAY_MS
     return (
       dueAt <= now.getTime() &&
       (lastFetchedAt === null || lastFetchedAt.getTime() < dueAt)
     )
   })
+}
+
+export function dailyBackfillDue(
+  publishedAt: Date,
+  lastFetchedAt: Date | null,
+  now: Date
+): boolean {
+  return (
+    now.getTime() - publishedAt.getTime() >= DAY_MS &&
+    (lastFetchedAt === null ||
+      lastFetchedAt.getTime() <= now.getTime() - DAILY_BACKFILL_RETRY_MS)
+  )
 }
 
 export function statsEarly(publishedAt: Date, now: Date): boolean {
@@ -97,38 +121,6 @@ export function retentionMoments(
         ],
       }
     })
-}
-
-export type PerformanceSample = {
-  publicationId: string
-  ageDays: number
-  views: number
-}
-
-function ageBucket(ageDays: number): number | null {
-  const fits = STATS_SYNC_AGES_DAYS.filter((age) => age <= ageDays)
-  return fits.length ? fits[fits.length - 1]! : null
-}
-
-export function relativePerformance(
-  target: PerformanceSample,
-  samples: readonly PerformanceSample[]
-): number | null {
-  const bucket = ageBucket(target.ageDays)
-  if (bucket === null) return null
-  const peers = samples
-    .filter(
-      (s) =>
-        s.publicationId !== target.publicationId &&
-        ageBucket(s.ageDays) === bucket
-    )
-    .map((s) => s.views)
-    .sort((a, b) => a - b)
-  if (peers.length < MIN_PEERS) return null
-  const mid = Math.floor(peers.length / 2)
-  const median =
-    peers.length % 2 ? peers[mid]! : (peers[mid - 1]! + peers[mid]!) / 2
-  return median > 0 ? target.views / median : null
 }
 
 export function markerRatios(range: Range, beats: readonly Beat[]): number[] {

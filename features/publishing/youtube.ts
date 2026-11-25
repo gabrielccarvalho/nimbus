@@ -2,9 +2,24 @@ import "server-only"
 
 import { getEnv } from "@/lib/env"
 
+import type {
+  ChannelDay,
+  DailyViews,
+  VideoDetails,
+} from "@/features/analytics/schema"
+
+import type { PrivacyStatus } from "./schema"
 import type { RetentionPoint } from "./stats"
 import { YouTubeFake } from "./youtube-fake"
 import { YouTubeHttp } from "./youtube-http"
+
+export type VideoStats = {
+  views: number
+  likes: number
+  comments: number
+  title: string
+  privacy: PrivacyStatus
+}
 
 export interface YouTubeClient {
   myChannel(
@@ -25,10 +40,11 @@ export interface YouTubeClient {
     signal: AbortSignal,
     onProgress: (sent: number) => void
   ): Promise<{ videoId: string }>
-  videoStats(
+  videoStats(token: string, videoId: string): Promise<VideoStats | null>
+  videoStatsBatch(
     token: string,
-    videoId: string
-  ): Promise<{ views: number; likes: number; comments: number } | null>
+    videoIds: string[]
+  ): Promise<Map<string, VideoStats>>
   videoAnalytics(
     token: string,
     videoId: string,
@@ -39,6 +55,40 @@ export interface YouTubeClient {
     averageViewPercentage: number | null
     retention: RetentionPoint[]
   }>
+  uploadsPlaylist(token: string): Promise<string>
+  playlistPage(
+    token: string,
+    playlistId: string,
+    pageToken: string | null
+  ): Promise<{
+    items: { videoId: string; publishedAt: Date | null }[]
+    nextPageToken: string | null
+    total: number
+  }>
+  videoDetails(token: string, videoIds: string[]): Promise<VideoDetails[]>
+  videoContentType(
+    token: string,
+    videoId: string,
+    startDate: string,
+    endDate: string
+  ): Promise<string | null>
+  videoDaily(
+    token: string,
+    videoId: string,
+    startDate: string,
+    endDate: string
+  ): Promise<DailyViews[]>
+  channelDaily(
+    token: string,
+    startDate: string,
+    endDate: string
+  ): Promise<{ split: boolean; rows: ChannelDay[] }>
+  topVideos(
+    token: string,
+    startDate: string,
+    endDate: string,
+    maxResults: number
+  ): Promise<{ videoId: string; views: number }[]>
 }
 
 let fake: YouTubeFake | undefined

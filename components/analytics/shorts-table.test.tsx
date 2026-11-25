@@ -1,24 +1,29 @@
 import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
-import type { PublishedClipRow } from "@/features/publishing/queries"
+import type { ShortRow } from "@/features/analytics/queries"
 
-import { PublishedClips } from "./published-clips"
+import { ShortsTable } from "./shorts-table"
 
-function row(over: Partial<PublishedClipRow>): PublishedClipRow {
+function row(over: Partial<ShortRow>): ShortRow {
   return {
     publicationId: "pub",
+    origin: "nimbus",
     clipId: "c",
     projectId: "p",
     title: "Clip",
     url: null,
     publishedAt: new Date("2026-11-01T00:00:00Z"),
+    ageDays: 10,
     views: null,
     averageViewPercentage: null,
-    likes: null,
+    viewsDay1: null,
+    viewsDay7: null,
+    viewsDay28: null,
     relative: null,
     early: false,
+    curve: [],
     ...over,
   }
 }
@@ -30,10 +35,12 @@ function titles() {
     .map((r) => within(r).getAllByRole("cell")[0]!.textContent)
 }
 
-describe("PublishedClips", () => {
+describe("ShortsTable", () => {
   it("links the title to the clip and shows views and watched percentage", () => {
     render(
-      <PublishedClips
+      <ShortsTable
+        highlightedId={null}
+        onHighlight={() => {}}
         rows={[
           row({
             title: "Big jump",
@@ -55,7 +62,9 @@ describe("PublishedClips", () => {
 
   it("formats relative performance and shows a dash when unknown", () => {
     render(
-      <PublishedClips
+      <ShortsTable
+        highlightedId={null}
+        onHighlight={() => {}}
         rows={[
           row({ publicationId: "a", title: "A", relative: 2 }),
           row({ publicationId: "b", title: "B", relative: null }),
@@ -68,7 +77,9 @@ describe("PublishedClips", () => {
 
   it("sorts newest first by default", () => {
     render(
-      <PublishedClips
+      <ShortsTable
+        highlightedId={null}
+        onHighlight={() => {}}
         rows={[
           row({
             publicationId: "a",
@@ -88,7 +99,9 @@ describe("PublishedClips", () => {
 
   it("sorts by views descending then ascending", async () => {
     render(
-      <PublishedClips
+      <ShortsTable
+        highlightedId={null}
+        onHighlight={() => {}}
         rows={[
           row({ publicationId: "a", title: "Low", views: 10 }),
           row({ publicationId: "b", title: "High", views: 900 }),
@@ -105,10 +118,56 @@ describe("PublishedClips", () => {
     expect(button.closest("th")).toHaveAttribute("aria-sort", "ascending")
   })
 
-  it("shows an empty state", () => {
-    render(<PublishedClips rows={[]} />)
-    expect(
-      screen.getByText("Published clips show up here with their numbers.")
-    ).toBeInTheDocument()
+  it("marks imported Shorts and links them to YouTube", () => {
+    render(
+      <ShortsTable
+        highlightedId={null}
+        onHighlight={() => {}}
+        rows={[
+          row({
+            origin: "imported",
+            clipId: null,
+            projectId: null,
+            title: "Old one",
+            url: "https://youtube.com/shorts/abc",
+          }),
+        ]}
+      />
+    )
+    expect(screen.getByText("Posted outside Nimbus")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Old one" })).toHaveAttribute(
+      "href",
+      "https://youtube.com/shorts/abc"
+    )
+  })
+
+  it("shows a dash for a missing day 7 and sorts by it", async () => {
+    render(
+      <ShortsTable
+        highlightedId={null}
+        onHighlight={() => {}}
+        rows={[
+          row({ publicationId: "a", title: "None", viewsDay7: null }),
+          row({ publicationId: "b", title: "Low", viewsDay7: 5 }),
+          row({ publicationId: "c", title: "High", viewsDay7: 50 }),
+        ]}
+      />
+    )
+    expect(screen.getAllByText("—").length).toBeGreaterThan(0)
+    await userEvent.click(screen.getByRole("button", { name: "Day 7" }))
+    expect(titles()).toEqual(["High", "Low", "None"])
+  })
+
+  it("reports the focused row", async () => {
+    const onHighlight = vi.fn()
+    render(
+      <ShortsTable
+        highlightedId={null}
+        onHighlight={onHighlight}
+        rows={[row({ publicationId: "a", title: "A" })]}
+      />
+    )
+    screen.getAllByRole("row")[1]!.focus()
+    expect(onHighlight).toHaveBeenCalledWith("a")
   })
 })

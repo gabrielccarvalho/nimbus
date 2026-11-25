@@ -27,6 +27,7 @@ import {
 } from "@/lib/db/schema"
 
 import { server } from "../utils/msw"
+import { insertImportedPublication } from "../utils/publications"
 import { runJobs } from "../utils/pipeline"
 import { createTestEnv, type TestEnv } from "../utils/test-env"
 
@@ -244,7 +245,120 @@ describe("analyze_performance", () => {
   })
 })
 
+describe("imported Shorts", () => {
+  async function seedImported(channelId: string) {
+    const publishedAt = new Date(Date.now() - 10 * DAY_MS)
+    const publication = await insertImportedPublication(env.db, channelId, {
+      publishedAt,
+      durationMs: 45_000,
+      metadata: { ...metadata, title: "Old banger" },
+    })
+    await statsRepository(env.db).add({
+      publicationId: publication.id,
+      fetchedAt: new Date(publishedAt.getTime() + 8 * DAY_MS),
+      views: 5400,
+      likes: 1,
+      comments: 0,
+      averageViewDurationS: 30,
+      averageViewPercentage: 70,
+      retention: [
+        { ratio: 0, watch: 1 },
+        { ratio: 0.2, watch: 0.7 },
+      ],
+    })
+    return publication
+  }
+
+  it("count towards eligibility, reach Claude and stay as evidence", async () => {
+    const { channel, clips } = await seed(7)
+    const imported = await seedImported(channel.id)
+    expect(await eligibleInsightCount(env.db, channel.id)).toBe(8)
+
+    const eligible = await eligibleInsightClips(env.db, channel.id)
+    expect(eligible.find((c) => c.id === imported.id)).toEqual({
+      origin: "imported",
+      id: imported.id,
+      title: "Old banger",
+      durationMs: 45_000,
+      moments: [
+        {
+          atMs: 9000,
+          kind: "drop",
+          change: expect.closeTo(-0.3),
+          words: "",
+          beats: [],
+          effects: [],
+        },
+      ],
+      views: 5400,
+      averageViewPercentage: 70,
+      relative: null,
+    })
+
+    let sent = ""
+    server.use(
+      http.post(`${BASE}/v1/messages`, async ({ request }) => {
+        sent = JSON.stringify(await request.json())
+        return HttpResponse.json(
+          message(
+            JSON.stringify({
+              suggestions: [
+                {
+                  target: "selection",
+                  kind: "add",
+                  ruleId: null,
+                  text: "Open on the crash",
+                  rationale: "r",
+                  evidenceFor: [imported.id],
+                  evidenceAgainst: [clips[0]!.id],
+                  confidence: 0.6,
+                },
+              ],
+            })
+          )
+        )
+      })
+    )
+
+    expect((await run(channel.id)).status).toBe("succeeded")
+    expect(sent).toContain(`Short ${imported.id}`)
+    expect(sent).toContain("posted outside Nimbus, no transcript")
+    const [pending] = await insightsRepository(env.db).pendingSuggestions(
+      channel.id
+    )
+    expect(pending).toMatchObject({
+      evidenceFor: [imported.id],
+      evidenceAgainst: [clips[0]!.id],
+    })
+  })
+})
+
 describe("eligible insight clips", () => {
+  it("takes Nimbus clips first and fills the rest with imported Shorts", async () => {
+    const { channel, clips } = await seed(INSIGHTS_MAX_CLIPS - 1)
+    const imported = []
+    for (let i = 0; i < 2; i++) {
+      const p = await insertImportedPublication(env.db, channel.id, {
+        publishedAt: new Date(Date.now() - (9 - i) * DAY_MS),
+      })
+      await statsRepository(env.db).add({
+        publicationId: p.id,
+        views: 10,
+        likes: 0,
+        comments: 0,
+      })
+      imported.push(p)
+    }
+
+    const eligible = await eligibleInsightClips(env.db, channel.id)
+
+    expect(eligible).toHaveLength(INSIGHTS_MAX_CLIPS)
+    expect(eligible.filter((c) => c.origin === "nimbus")).toHaveLength(
+      clips.length
+    )
+    expect(eligible.at(-1)!.id).toBe(imported[1]!.id)
+  })
+
   it("counts the same clips the builder returns", async () => {
     const { channel, publicationIds } = await seed(10)
     const [noStats, young, removed, mixed] = publicationIds
@@ -294,7 +408,7 @@ describe("eligible insight clips", () => {
     const eligible = await eligibleInsightClips(env.db, channel.id)
 
     expect(eligible).toHaveLength(INSIGHTS_MAX_CLIPS)
-    const ids = eligible.map((clip) => clip.clipId)
+    const ids = eligible.map((clip) => clip.id)
     expect(ids).not.toContain(clips[0]!.id)
     expect(ids).not.toContain(clips[1]!.id)
     expect(await eligibleInsightCount(env.db, channel.id)).toBe(count)

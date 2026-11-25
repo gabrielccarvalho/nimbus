@@ -1,15 +1,10 @@
 "use client"
 
-import { ArrowDownIcon, ArrowUpIcon, VideoIcon } from "@phosphor-icons/react"
+import { ArrowDownIcon, ArrowUpIcon } from "@phosphor-icons/react"
 import Link from "next/link"
 import { useMemo, useState } from "react"
 
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-} from "@/components/ui/empty"
+import { Badge } from "@/components/ui/badge"
 import {
   Table,
   TableBody,
@@ -18,26 +13,42 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import type { PublishedClipRow } from "@/features/publishing/queries"
+import type { ShortRow } from "@/features/analytics/queries"
 
-type SortKey = "publishedAt" | "views" | "averageViewPercentage" | "relative"
+type SortKey =
+  | "publishedAt"
+  | "ageDays"
+  | "views"
+  | "averageViewPercentage"
+  | "viewsDay1"
+  | "viewsDay7"
+  | "viewsDay28"
+  | "relative"
 type Direction = "asc" | "desc"
 
 const COLUMNS: { key: SortKey; label: string }[] = [
   { key: "publishedAt", label: "Published" },
+  { key: "ageDays", label: "Age" },
   { key: "views", label: "Views" },
   { key: "averageViewPercentage", label: "Watched" },
-  { key: "relative", label: "Relative" },
+  { key: "viewsDay1", label: "Day 1" },
+  { key: "viewsDay7", label: "Day 7" },
+  { key: "viewsDay28", label: "Day 28" },
+  { key: "relative", label: "Same age" },
 ]
 
 const views = new Intl.NumberFormat("en")
+function count(value: number | null) {
+  return value === null ? "—" : views.format(value)
+}
+
 const day = new Intl.DateTimeFormat("en", { dateStyle: "medium" })
 
-function sortValue(row: PublishedClipRow, key: SortKey): number | null {
+function sortValue(row: ShortRow, key: SortKey): number | null {
   return key === "publishedAt" ? row.publishedAt.getTime() : row[key]
 }
 
-function sortRows(rows: PublishedClipRow[], key: SortKey, dir: Direction) {
+function sortRows(rows: ShortRow[], key: SortKey, dir: Direction) {
   const sign = dir === "desc" ? -1 : 1
   return [...rows].sort((a, b) => {
     const x = sortValue(a, key)
@@ -47,33 +58,26 @@ function sortRows(rows: PublishedClipRow[], key: SortKey, dir: Direction) {
   })
 }
 
-export function PublishedClips({ rows }: { rows: PublishedClipRow[] }) {
+export function ShortsTable({
+  rows,
+  highlightedId,
+  onHighlight,
+}: {
+  rows: ShortRow[]
+  highlightedId: string | null
+  onHighlight: (id: string | null) => void
+}) {
   const [sort, setSort] = useState<{ key: SortKey; dir: Direction }>({
     key: "publishedAt",
     dir: "desc",
   })
   const sorted = useMemo(() => sortRows(rows, sort.key, sort.dir), [rows, sort])
 
-  if (rows.length === 0) {
-    return (
-      <Empty className="rounded-[18px] bg-graphite">
-        <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <VideoIcon />
-          </EmptyMedia>
-          <EmptyDescription>
-            Published clips show up here with their numbers.
-          </EmptyDescription>
-        </EmptyHeader>
-      </Empty>
-    )
-  }
-
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Clip</TableHead>
+          <TableHead>Title</TableHead>
           {COLUMNS.map(({ key, label }) => {
             const active = sort.key === key
             return (
@@ -112,20 +116,51 @@ export function PublishedClips({ rows }: { rows: PublishedClipRow[] }) {
       </TableHeader>
       <TableBody>
         {sorted.map((row) => (
-          <TableRow key={row.publicationId}>
-            <TableCell className="max-w-72 truncate">
-              <Link
-                href={`/projects/${row.projectId}/clips/${row.clipId}`}
-                className="font-medium hover:underline"
-              >
-                {row.title}
-              </Link>
+          <TableRow
+            key={row.publicationId}
+            tabIndex={0}
+            data-state={
+              row.publicationId === highlightedId ? "selected" : undefined
+            }
+            onMouseEnter={() => onHighlight(row.publicationId)}
+            onMouseLeave={() => onHighlight(null)}
+            onFocus={() => onHighlight(row.publicationId)}
+            onBlur={() => onHighlight(null)}
+          >
+            <TableCell className="max-w-72">
+              <div className="flex items-center gap-2">
+                {row.origin === "imported" && row.url ? (
+                  <a
+                    href={row.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="truncate font-medium hover:underline"
+                  >
+                    {row.title}
+                  </a>
+                ) : row.clipId && row.projectId ? (
+                  <Link
+                    href={`/projects/${row.projectId}/clips/${row.clipId}`}
+                    className="truncate font-medium hover:underline"
+                  >
+                    {row.title}
+                  </Link>
+                ) : (
+                  <span className="truncate font-medium">{row.title}</span>
+                )}
+                {row.origin === "imported" && (
+                  <Badge variant="secondary">Posted outside Nimbus</Badge>
+                )}
+              </div>
             </TableCell>
             <TableCell className="text-muted-foreground">
               {day.format(row.publishedAt)}
             </TableCell>
+            <TableCell className="text-muted-foreground">
+              {row.ageDays}d
+            </TableCell>
             <TableCell>
-              {row.views === null ? "—" : views.format(row.views)}
+              {count(row.views)}
               {row.early && (
                 <span className="ms-1.5 text-[13px] text-muted-foreground">
                   still coming in
@@ -137,6 +172,9 @@ export function PublishedClips({ rows }: { rows: PublishedClipRow[] }) {
                 ? "—"
                 : `${Math.round(row.averageViewPercentage)}%`}
             </TableCell>
+            <TableCell>{count(row.viewsDay1)}</TableCell>
+            <TableCell>{count(row.viewsDay7)}</TableCell>
+            <TableCell>{count(row.viewsDay28)}</TableCell>
             <TableCell>
               {row.relative === null
                 ? "—"

@@ -18,8 +18,7 @@ test.afterAll(removeYouTubeChannel)
 test("approves an insight into the playbook, then retires it", async ({
   page,
 }) => {
-  await page.goto("/channels")
-  await page.getByRole("tab", { name: "Insights" }).click()
+  await page.goto("/analytics/insights")
   await expect(page.getByText(RULE, { exact: true }).first()).toBeVisible()
   await expectNoSeriousA11yViolations(page)
 

@@ -9,18 +9,11 @@ import {
   PageTitle,
 } from "@/components/app-shell/page"
 import { ChannelIcon } from "@/components/channels/channel-icon"
-import { Insights } from "@/components/channels/insights"
-import { PublishedClips } from "@/components/channels/published-clips"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StatusPill } from "@/components/ui/status-pill"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { getInsights } from "@/features/insights/queries"
-import {
-  getPublishedClips,
-  getYouTubeChannelCard,
-} from "@/features/publishing/queries"
+import { getYouTubeChannelCard } from "@/features/publishing/queries"
 
 export const metadata: Metadata = { title: "Channels" }
 
@@ -82,14 +75,6 @@ async function YouTubeCard() {
   )
 }
 
-async function PublishedClipsList() {
-  return <PublishedClips rows={await getPublishedClips()} />
-}
-
-async function InsightsPanel() {
-  return <Insights {...await getInsights()} />
-}
-
 function YouTubeCardSkeleton() {
   return (
     <div className="flex items-center gap-4 rounded-[18px] bg-graphite-2 p-5 inset-ring-1 inset-ring-white/6">
@@ -114,22 +99,6 @@ export default function ChannelsPage() {
       <Suspense fallback={<YouTubeCardSkeleton />}>
         <YouTubeCard />
       </Suspense>
-      <Tabs defaultValue="clips">
-        <TabsList aria-label="Channel performance">
-          <TabsTrigger value="clips">Published clips</TabsTrigger>
-          <TabsTrigger value="insights">Insights</TabsTrigger>
-        </TabsList>
-        <TabsContent value="clips">
-          <Suspense fallback={<Skeleton className="h-40 rounded-[18px]" />}>
-            <PublishedClipsList />
-          </Suspense>
-        </TabsContent>
-        <TabsContent value="insights">
-          <Suspense fallback={<Skeleton className="h-40 rounded-[18px]" />}>
-            <InsightsPanel />
-          </Suspense>
-        </TabsContent>
-      </Tabs>
       <ul className="grid gap-2 sm:grid-cols-3">
         {COMING_SOON.map(({ provider, name }) => (
           <li

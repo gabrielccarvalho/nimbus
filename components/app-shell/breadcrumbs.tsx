@@ -24,6 +24,9 @@ const BreadcrumbLabelsContext = React.createContext<{
 const STATIC_LABELS: Labels = {
   settings: "Settings",
   channels: "Channels",
+  analytics: "Analytics",
+  shorts: "Shorts",
+  insights: "Insights",
   profile: "Profile",
   workspace: "Workspace",
   plan: "Plan & usage",
@@ -83,7 +86,9 @@ export function BreadcrumbLabel({
 export function buildCrumbs(pathname: string, labels: Labels) {
   const segments = pathname.split("/").filter(Boolean)
   const crumbs =
-    segments[0] === "settings" || segments[0] === "channels"
+    segments[0] === "settings" ||
+    segments[0] === "channels" ||
+    segments[0] === "analytics"
       ? []
       : [{ href: "/", label: "Projects" }]
   segments.forEach((segment, index) => {

@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest"
 
-import { buildInsightsPrompt, type InsightClip } from "./prompt"
+import {
+  buildInsightsPrompt,
+  type ImportedInsightClip,
+  type NimbusInsightClip,
+} from "./prompt"
 
-function clip(overrides: Partial<InsightClip> = {}): InsightClip {
+function clip(overrides: Partial<NimbusInsightClip> = {}): NimbusInsightClip {
   return {
-    clipId: "clip-aaa",
+    origin: "nimbus",
+    id: "clip-aaa",
     title: "Clutch",
     hook: "Watch this",
     reason: "Peak",
@@ -33,7 +38,7 @@ function clip(overrides: Partial<InsightClip> = {}): InsightClip {
 
 describe("buildInsightsPrompt", () => {
   const prompt = buildInsightsPrompt(
-    [clip(), clip({ clipId: "clip-bbb", relative: null })],
+    [clip(), clip({ id: "clip-bbb", relative: null })],
     [{ id: "rule-1", target: "review", text: "Cut dead air" }],
     [{ target: "selection", text: "Always open on a kill" }]
   )
@@ -63,5 +68,52 @@ describe("buildInsightsPrompt", () => {
     expect(buildInsightsPrompt([clip()], [], [])).not.toContain(
       "Already rejected"
     )
+  })
+})
+
+describe("buildInsightsPrompt with imported Shorts", () => {
+  const imported: ImportedInsightClip = {
+    origin: "imported",
+    id: "pub-zzz",
+    title: "Old banger",
+    durationMs: 45_000,
+    moments: [
+      {
+        atMs: 9000,
+        kind: "drop",
+        change: -0.2,
+        words: "",
+        beats: [],
+        effects: [],
+      },
+    ],
+    views: 5400,
+    averageViewPercentage: 71.2,
+    relative: 2.5,
+  }
+  const prompt = buildInsightsPrompt([clip(), imported], [], [])
+  const section = prompt.slice(prompt.indexOf("Short pub-zzz"))
+
+  it("describes the Short by its numbers only", () => {
+    expect(section).toContain(
+      'Short pub-zzz — "Old banger" (posted outside Nimbus, no transcript)'
+    )
+    expect(section).toContain("Duration: 45.0s")
+    expect(section).toContain(
+      "Views: 5400, 2.50x the channel's median at this age"
+    )
+    expect(section).toContain("Average viewed: 71%")
+    expect(section).toContain("- 9.0s drop 20 points")
+    expect(section).not.toContain('""')
+    expect(section).not.toContain("Hook:")
+    expect(section).not.toContain("Transcript:")
+  })
+
+  it("warns once before the clip list", () => {
+    const note =
+      "Shorts posted outside Nimbus have no transcript or edit data; use their numbers, but don't base a rule on what happens in them."
+    expect(prompt.split(note)).toHaveLength(2)
+    expect(prompt.indexOf(note)).toBeLessThan(prompt.indexOf("Published clips"))
+    expect(buildInsightsPrompt([clip()], [], [])).not.toContain(note)
   })
 })

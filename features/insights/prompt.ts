@@ -1,8 +1,9 @@
 import type { RetentionMoment } from "../publishing/stats"
 import { PLAYBOOK_RULE_CAP, RULE_MAX_CHARS, type RuleTarget } from "./schema"
 
-export type InsightClip = {
-  clipId: string
+export type NimbusInsightClip = {
+  origin: "nimbus"
+  id: string
   title: string
   hook: string
   reason: string
@@ -18,6 +19,22 @@ export type InsightClip = {
   ruleIds: string[]
 }
 
+export type ImportedInsightClip = {
+  origin: "imported"
+  id: string
+  title: string
+  durationMs: number | null
+  moments: RetentionMoment[]
+  views: number
+  averageViewPercentage: number | null
+  relative: number | null
+}
+
+export type InsightClip = NimbusInsightClip | ImportedInsightClip
+
+const IMPORTED_NOTE =
+  "Shorts posted outside Nimbus have no transcript or edit data; use their numbers, but don't base a rule on what happens in them."
+
 export const INSIGHTS_SYSTEM_PROMPT = `You study how a channel's published short-form clips performed and turn the patterns into short rules that steer how future clips are made.
 
 Find what separates the clips that held viewers from the ones that didn't. Look at views against the channel's other clips of the same age, the average percentage viewed, and the retention moments: where viewers dropped off or came back, with the words, beats and effects at that point.
@@ -31,36 +48,49 @@ Each rule is one instruction of at most ${RULE_MAX_CHARS} characters, written so
 - edit: a better wording for an existing rule, giving its id in ruleId.
 - retire: drop an existing rule that the evidence contradicts or that never mattered, giving its id in ruleId.
 
-For every suggestion cite the clip ids that support it in evidenceFor and the ones that argue against it in evidenceAgainst. Use only clip ids from the list. Prefer editing or retiring a rule over adding a near-duplicate of one that exists. Don't repeat anything listed as already rejected.
+For every suggestion cite the clip ids that support it in evidenceFor and the ones that argue against it in evidenceAgainst. Use only clip or Short ids from the list. Prefer editing or retiring a rule over adding a near-duplicate of one that exists. Don't repeat anything listed as already rejected.
 
 A handful of clips is a weak sample, and views depend on luck as much as on the edit. Suggest nothing when the evidence is weak; an empty list is a good answer.`
 
 const seconds = (ms: number) => (ms / 1000).toFixed(1)
 
+const numbers = (clip: InsightClip) => [
+  `Views: ${clip.views}${clip.relative === null ? "" : `, ${clip.relative.toFixed(2)}x the channel's median at this age`}`,
+  `Average viewed: ${clip.averageViewPercentage === null ? "unknown" : `${clip.averageViewPercentage.toFixed(0)}%`}`,
+]
+
+function momentLines(moments: RetentionMoment[], withWords: boolean) {
+  if (moments.length === 0) return ["Retention moments: none recorded"]
+  return [
+    "Retention moments:",
+    ...moments.map(
+      (moment) =>
+        `- ${seconds(moment.atMs)}s ${moment.kind} ${Math.round(Math.abs(moment.change) * 100)} points${withWords ? `: "${moment.words}"` : ""}${moment.beats.length ? ` beats: ${moment.beats.join(", ")}` : ""}${moment.effects.length ? ` effects: ${moment.effects.join(", ")}` : ""}`
+    ),
+  ]
+}
+
 function describeClip(clip: InsightClip) {
-  const lines = [
-    `Clip ${clip.clipId} — "${clip.title}" (${clip.niche})`,
+  if (clip.origin === "imported") {
+    return [
+      `Short ${clip.id} — "${clip.title}" (posted outside Nimbus, no transcript)`,
+      `Duration: ${clip.durationMs === null ? "unknown" : `${seconds(clip.durationMs)}s`}`,
+      ...numbers(clip),
+      ...momentLines(clip.moments, false),
+    ].join("\n")
+  }
+  return [
+    `Clip ${clip.id} — "${clip.title}" (${clip.niche})`,
     `Hook: ${clip.hook || "none"}`,
     `Picked because: ${clip.reason || "n/a"} (score ${clip.score.toFixed(2)})`,
-    `Views: ${clip.views}${clip.relative === null ? "" : `, ${clip.relative.toFixed(2)}x the channel's median at this age`}`,
-    `Average viewed: ${clip.averageViewPercentage === null ? "unknown" : `${clip.averageViewPercentage.toFixed(0)}%`}`,
+    ...numbers(clip),
     `Effects: ${clip.effects.join(", ") || "none"}`,
     `Beats: ${clip.beats.join(", ") || "none"}`,
     `Rules applied: ${clip.ruleIds.join(", ") || "none"}`,
-  ]
-  if (clip.moments.length > 0) {
-    lines.push(
-      "Retention moments:",
-      ...clip.moments.map(
-        (moment) =>
-          `- ${seconds(moment.atMs)}s ${moment.kind} ${Math.round(Math.abs(moment.change) * 100)} points: "${moment.words}"${moment.beats.length ? ` beats: ${moment.beats.join(", ")}` : ""}${moment.effects.length ? ` effects: ${moment.effects.join(", ")}` : ""}`
-      )
-    )
-  } else {
-    lines.push("Retention moments: none recorded")
-  }
-  lines.push("Transcript:", clip.transcript)
-  return lines.join("\n")
+    ...momentLines(clip.moments, true),
+    "Transcript:",
+    clip.transcript,
+  ].join("\n")
 }
 
 export function buildInsightsPrompt(
@@ -79,6 +109,9 @@ export function buildInsightsPrompt(
       "Already rejected, don't suggest again:",
       rejected.map((r) => `- [${r.target}] ${r.text}`).join("\n")
     )
+  }
+  if (clips.some((clip) => clip.origin === "imported")) {
+    sections.push(IMPORTED_NOTE)
   }
   sections.push(
     `Published clips (${clips.length}):`,

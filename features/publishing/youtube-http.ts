@@ -3,16 +3,22 @@ import "server-only"
 import { createReadStream } from "node:fs"
 import { pipeline, Readable, Transform } from "node:stream"
 
+import type { ChannelDay } from "@/features/analytics/schema"
+import { contentTypeOf, parseIsoDuration } from "@/features/analytics/shorts"
 import { AppError } from "@/lib/errors"
 
-import type { YouTubeClient } from "./youtube"
+import type { PrivacyStatus } from "./schema"
+import type { VideoStats, YouTubeClient } from "./youtube"
 import type { RetentionPoint } from "./stats"
 
 const API = "https://www.googleapis.com"
 const ANALYTICS = "https://youtubeanalytics.googleapis.com/v2/reports"
 
 type GoogleError = {
-  error?: { message?: string; errors?: { reason?: string }[] }
+  error?: {
+    message?: string
+    errors?: { reason?: string; message?: string }[]
+  }
 }
 
 async function failure(response: Response): Promise<AppError> {
@@ -36,9 +42,26 @@ async function failure(response: Response): Promise<AppError> {
     )
   }
   if (response.status >= 400 && response.status < 500) {
-    return new AppError("VALIDATION", message)
+    return new AppError("VALIDATION", message, {
+      details: {
+        status: response.status,
+        said: [
+          message,
+          ...(body.error?.errors ?? []).flatMap((e) => [e.reason, e.message]),
+        ].filter((text): text is string => typeof text === "string"),
+      },
+    })
   }
   return new AppError("EXTERNAL", message)
+}
+
+function rejectsDimension(error: unknown, dimension: string): boolean {
+  if (!(error instanceof AppError) || error.details?.status !== 400) {
+    return false
+  }
+  return (error.details.said as string[]).some((text) =>
+    text.includes(dimension)
+  )
 }
 
 async function send(
@@ -57,7 +80,7 @@ async function send(
 
 type AnalyticsReport = {
   columnHeaders?: { name: string }[]
-  rows?: number[][]
+  rows?: (number | string)[][]
 }
 
 function column(report: AnalyticsReport, name: string): number | null {
@@ -65,8 +88,61 @@ function column(report: AnalyticsReport, name: string): number | null {
     (header) => header.name === name
   )
   if (index === undefined || index < 0) return null
-  return report.rows?.[0]?.[index] ?? null
+  const value = report.rows?.[0]?.[index]
+  return value === undefined ? null : Number(value)
 }
+
+function dayColumn(at: (name: string) => number): number {
+  const index = at("day")
+  if (index < 0) {
+    throw new AppError("EXTERNAL", "YouTube analytics returned no day column")
+  }
+  return index
+}
+
+function columnIndexes(report: AnalyticsReport) {
+  const indexes = new Map<string, number>()
+  report.columnHeaders?.forEach((header, index) => {
+    indexes.set(header.name, index)
+  })
+  return (name: string) => indexes.get(name) ?? -1
+}
+
+type StatsItem = {
+  id?: string
+  snippet?: { title?: string }
+  status?: { privacyStatus?: PrivacyStatus }
+  statistics?: {
+    viewCount?: string
+    likeCount?: string
+    commentCount?: string
+  }
+}
+
+function statsOf(item: StatsItem): VideoStats {
+  const privacy = item.status?.privacyStatus
+  if (!privacy) {
+    throw new AppError("EXTERNAL", "YouTube didn't return the video's status")
+  }
+  return {
+    views: Number(item.statistics?.viewCount ?? 0),
+    likes: Number(item.statistics?.likeCount ?? 0),
+    comments: Number(item.statistics?.commentCount ?? 0),
+    title: item.snippet?.title ?? "",
+    privacy,
+  }
+}
+
+const CHANNEL_METRICS = [
+  "views",
+  "estimatedMinutesWatched",
+  "averageViewDuration",
+  "likes",
+  "comments",
+  "shares",
+  "subscribersGained",
+  "subscribersLost",
+]
 
 export class YouTubeHttp implements YouTubeClient {
   async myChannel(token: string) {
@@ -191,7 +267,7 @@ export class YouTubeHttp implements YouTubeClient {
 
   async videoStats(token: string, videoId: string) {
     const response = await send(
-      `${API}/youtube/v3/videos?${new URLSearchParams({ part: "statistics", id: videoId })}`,
+      `${API}/youtube/v3/videos?${new URLSearchParams({ part: "statistics,snippet,status", id: videoId })}`,
       { headers: { authorization: `Bearer ${token}` } }
     )
     if (response.status === 404) {
@@ -202,22 +278,264 @@ export class YouTubeHttp implements YouTubeClient {
       if (body.error?.errors?.[0]?.reason === "videoNotFound") return null
     }
     if (!response.ok) throw await failure(response)
+    const body = (await response.json()) as { items?: StatsItem[] }
+    const item = body.items?.[0]
+    return item ? statsOf(item) : null
+  }
+
+  async videoStatsBatch(token: string, videoIds: string[]) {
+    if (videoIds.length > 50) {
+      throw new AppError("INTERNAL", "videos.list takes at most 50 ids")
+    }
+    const response = await send(
+      `${API}/youtube/v3/videos?${new URLSearchParams({ part: "statistics,snippet,status", id: videoIds.join(",") })}`,
+      { headers: { authorization: `Bearer ${token}` } }
+    )
+    if (!response.ok) throw await failure(response)
+    const body = (await response.json()) as { items?: StatsItem[] }
+    return new Map(
+      (body.items ?? []).flatMap((item) =>
+        item.id ? [[item.id, statsOf(item)] as const] : []
+      )
+    )
+  }
+
+  async uploadsPlaylist(token: string) {
+    const response = await send(
+      `${API}/youtube/v3/channels?part=contentDetails&mine=true`,
+      { headers: { authorization: `Bearer ${token}` } }
+    )
+    if (!response.ok) throw await failure(response)
     const body = (await response.json()) as {
       items?: {
-        statistics?: {
-          viewCount?: string
-          likeCount?: string
-          commentCount?: string
-        }
+        contentDetails?: { relatedPlaylists?: { uploads?: string } }
       }[]
     }
-    const item = body.items?.[0]
-    if (!item) return null
-    return {
-      views: Number(item.statistics?.viewCount ?? 0),
-      likes: Number(item.statistics?.likeCount ?? 0),
-      comments: Number(item.statistics?.commentCount ?? 0),
+    const uploads = body.items?.[0]?.contentDetails?.relatedPlaylists?.uploads
+    if (!uploads) {
+      throw new AppError(
+        "NOT_FOUND",
+        "This Google account has no YouTube channel"
+      )
     }
+    return uploads
+  }
+
+  async playlistPage(
+    token: string,
+    playlistId: string,
+    pageToken: string | null
+  ) {
+    const query = new URLSearchParams({
+      part: "contentDetails",
+      playlistId,
+      maxResults: "50",
+    })
+    if (pageToken) query.set("pageToken", pageToken)
+    const response = await send(`${API}/youtube/v3/playlistItems?${query}`, {
+      headers: { authorization: `Bearer ${token}` },
+    })
+    if (!response.ok) throw await failure(response)
+    const body = (await response.json()) as {
+      items?: {
+        contentDetails: { videoId: string; videoPublishedAt?: string }
+      }[]
+      nextPageToken?: string
+      pageInfo?: { totalResults?: number }
+    }
+    const items = (body.items ?? []).map((item) => ({
+      videoId: item.contentDetails.videoId,
+      publishedAt: item.contentDetails.videoPublishedAt
+        ? new Date(item.contentDetails.videoPublishedAt)
+        : null,
+    }))
+    return {
+      items,
+      nextPageToken: body.nextPageToken ?? null,
+      total: body.pageInfo?.totalResults ?? items.length,
+    }
+  }
+
+  async videoDetails(token: string, videoIds: string[]) {
+    if (videoIds.length > 50) {
+      throw new AppError("INTERNAL", "videos.list takes at most 50 ids")
+    }
+    const query = new URLSearchParams({
+      part: "snippet,contentDetails,status",
+      id: videoIds.join(","),
+    })
+    const response = await send(`${API}/youtube/v3/videos?${query}`, {
+      headers: { authorization: `Bearer ${token}` },
+    })
+    if (!response.ok) throw await failure(response)
+    const body = (await response.json()) as {
+      items?: {
+        id: string
+        snippet: { title: string; publishedAt: string }
+        contentDetails?: { duration?: string }
+        status?: { privacyStatus?: PrivacyStatus; uploadStatus?: string }
+      }[]
+    }
+    return (body.items ?? []).flatMap((item) => {
+      const privacy = item.status?.privacyStatus
+      const uploadStatus = item.status?.uploadStatus
+      if (!privacy || !uploadStatus) return []
+      return [
+        {
+          videoId: item.id,
+          title: item.snippet.title,
+          publishedAt: new Date(item.snippet.publishedAt),
+          durationMs: item.contentDetails?.duration
+            ? parseIsoDuration(item.contentDetails.duration)
+            : null,
+          privacy,
+          uploadStatus,
+        },
+      ]
+    })
+  }
+
+  private async report(
+    token: string,
+    startDate: string,
+    endDate: string,
+    params: Record<string, string>
+  ) {
+    const query = new URLSearchParams({
+      ids: "channel==MINE",
+      startDate,
+      endDate,
+      ...params,
+    })
+    const response = await send(`${ANALYTICS}?${query}`, {
+      headers: { authorization: `Bearer ${token}` },
+    })
+    if (!response.ok) throw await failure(response)
+    return (await response.json()) as AnalyticsReport
+  }
+
+  async videoContentType(
+    token: string,
+    videoId: string,
+    startDate: string,
+    endDate: string
+  ) {
+    const report = await this.report(token, startDate, endDate, {
+      dimensions: "creatorContentType",
+      metrics: "views",
+      filters: `video==${videoId}`,
+    })
+    const at = columnIndexes(report)("creatorContentType")
+    const value = at < 0 ? undefined : report.rows?.[0]?.[at]
+    return typeof value === "string" ? value : null
+  }
+
+  async videoDaily(
+    token: string,
+    videoId: string,
+    startDate: string,
+    endDate: string
+  ) {
+    const report = await this.report(token, startDate, endDate, {
+      dimensions: "day",
+      metrics: "views,estimatedMinutesWatched,likes,subscribersGained",
+      filters: `video==${videoId}`,
+      sort: "day",
+    })
+    const at = columnIndexes(report)
+    const dayAt = dayColumn(at)
+    const value = (row: (string | number)[], name: string) =>
+      Number(row[at(name)] ?? 0)
+    return (report.rows ?? []).map((row) => ({
+      day: String(row[dayAt]),
+      views: value(row, "views"),
+      estimatedMinutesWatched: value(row, "estimatedMinutesWatched"),
+      likes: value(row, "likes"),
+      subscribersGained: value(row, "subscribersGained"),
+    }))
+  }
+
+  async channelDaily(token: string, startDate: string, endDate: string) {
+    const metrics = CHANNEL_METRICS.join(",")
+    let split = true
+    let report: AnalyticsReport
+    try {
+      report = await this.report(token, startDate, endDate, {
+        dimensions: "day,creatorContentType",
+        metrics,
+        sort: "day",
+      })
+    } catch (error) {
+      if (!rejectsDimension(error, "creatorContentType")) throw error
+      split = false
+      report = await this.report(token, startDate, endDate, {
+        dimensions: "day",
+        metrics,
+        sort: "day",
+      })
+    }
+    const at = columnIndexes(report)
+    const dayAt = dayColumn(at)
+    const merged = new Map<string, ChannelDay>()
+    for (const row of report.rows ?? []) {
+      const day = String(row[dayAt])
+      const contentType = split
+        ? contentTypeOf(String(row[at("creatorContentType")]))
+        : "other"
+      const key = `${day}|${contentType}`
+      const number = (name: string) => Number(row[at(name)] ?? 0)
+      const views = number("views")
+      const existing = merged.get(key)
+      if (!existing) {
+        merged.set(key, {
+          day,
+          contentType,
+          views,
+          estimatedMinutesWatched: number("estimatedMinutesWatched"),
+          averageViewDurationS: number("averageViewDuration"),
+          likes: number("likes"),
+          comments: number("comments"),
+          shares: number("shares"),
+          subscribersGained: number("subscribersGained"),
+          subscribersLost: number("subscribersLost"),
+        })
+        continue
+      }
+      const total = existing.views + views
+      existing.averageViewDurationS =
+        total > 0
+          ? ((existing.averageViewDurationS ?? 0) * existing.views +
+              number("averageViewDuration") * views) /
+            total
+          : existing.averageViewDurationS
+      existing.views = total
+      existing.estimatedMinutesWatched += number("estimatedMinutesWatched")
+      existing.likes += number("likes")
+      existing.comments += number("comments")
+      existing.shares += number("shares")
+      existing.subscribersGained += number("subscribersGained")
+      existing.subscribersLost += number("subscribersLost")
+    }
+    return { split, rows: [...merged.values()] }
+  }
+
+  async topVideos(
+    token: string,
+    startDate: string,
+    endDate: string,
+    maxResults: number
+  ) {
+    const report = await this.report(token, startDate, endDate, {
+      dimensions: "video",
+      metrics: "views",
+      sort: "-views",
+      maxResults: String(maxResults),
+    })
+    const at = columnIndexes(report)
+    return (report.rows ?? []).map((row) => ({
+      videoId: String(row[at("video")]),
+      views: Number(row[at("views")] ?? 0),
+    }))
   }
 
   async videoAnalytics(
@@ -264,7 +582,7 @@ export class YouTubeHttp implements YouTubeClient {
         const ratio = row[ratioAt]
         const watch = row[watchAt]
         if (ratio !== undefined && watch !== undefined) {
-          retention.push({ ratio, watch })
+          retention.push({ ratio: Number(ratio), watch: Number(watch) })
         }
       }
     }
