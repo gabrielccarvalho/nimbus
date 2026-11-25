@@ -1,7 +1,5 @@
 import "server-only"
 
-import { mkdir, readFile } from "node:fs/promises"
-import path from "node:path"
 import { Transform } from "node:stream"
 
 import { getDb, newId, withTransaction, type Db } from "@/lib/db"
@@ -17,16 +15,17 @@ import { UPLOAD_FILENAME_HEADER } from "../projects/upload"
 import { runFfmpeg, runFfprobe } from "../render/ffmpeg-runner"
 import {
   AUDIO_MAGIC_BYTES,
+  peakFold,
   sniffAudio,
   trackInUseMessage,
   trackTitleFromFile,
-  waveformPeaks,
 } from "./media"
-import { musicRepository, type MusicTrack } from "./repository"
+import { musicRepository } from "./repository"
 import {
   MUSIC_FORMATS,
   MUSIC_MAX_BYTES,
   MUSIC_PEAK_BUCKETS,
+  toSummary,
   trackTitleSchema,
   type MusicFormat,
   type MusicTrackSummary,
@@ -42,20 +41,6 @@ const notAudio = () =>
     "UNSUPPORTED_MEDIA",
     "Upload an MP3, M4A, AAC, WAV, OGG or FLAC file"
   )
-
-export function toSummary(
-  track: MusicTrack,
-  usedBy: number
-): MusicTrackSummary {
-  return {
-    id: track.id,
-    title: track.title,
-    durationMs: track.durationMs,
-    peaks: track.peaks,
-    url: `/api/music/${track.id}`,
-    usedBy,
-  }
-}
 
 function audioSniffer(onFormat: (format: MusicFormat) => void) {
   let head = Buffer.alloc(0)
@@ -83,6 +68,9 @@ function audioSniffer(onFormat: (format: MusicFormat) => void) {
     },
     flush(callback) {
       try {
+        if (head.length === 0) {
+          throw new AppError("VALIDATION", "The upload was empty")
+        }
         if (!sniffed) sniff()
         callback()
       } catch (error) {
@@ -92,16 +80,33 @@ function audioSniffer(onFormat: (format: MusicFormat) => void) {
   })
 }
 
-async function readPeaks(file: string, workFile: string) {
-  await mkdir(path.dirname(workFile), { recursive: true })
-  await runFfmpeg(
-    ["-i", file, "-vn", "-ac", "1", "-ar", "8000", "-f", "s16le", workFile],
-    { timeoutMs: 120_000 }
+const PEAK_SAMPLE_RATE = 8000
+
+async function readPeaks(
+  file: string,
+  durationMs: number,
+  signal: AbortSignal
+) {
+  const fold = peakFold(
+    Math.round((durationMs * PEAK_SAMPLE_RATE) / 1000),
+    MUSIC_PEAK_BUCKETS
   )
-  const pcm = await readFile(workFile)
-  const samples = new Int16Array(pcm.length >> 1)
-  Buffer.from(samples.buffer).set(pcm.subarray(0, samples.length * 2))
-  return waveformPeaks(samples, MUSIC_PEAK_BUCKETS)
+  await runFfmpeg(
+    [
+      "-i",
+      file,
+      "-vn",
+      "-ac",
+      "1",
+      "-ar",
+      String(PEAK_SAMPLE_RATE),
+      "-f",
+      "s16le",
+      "pipe:1",
+    ],
+    { signal, timeoutMs: 120_000, onStdoutData: (chunk) => fold.push(chunk) }
+  )
+  return fold.peaks()
 }
 
 export async function handleMusicUpload(
@@ -125,7 +130,6 @@ export async function handleMusicUpload(
   const storage = getStorage()
   const id = newId()
   const tempKey = storageKeys.uploadTemp(id)
-  const workKey = storageKeys.musicWork(id)
   let format: MusicFormat | undefined
   let storedKey: string | undefined
   try {
@@ -139,15 +143,13 @@ export async function handleMusicUpload(
           ? tooLarge()
           : error
       })
-    if (bytes === 0 || !format) {
-      throw new AppError("VALIDATION", "The upload was empty")
-    }
+    if (!format) throw notAudio()
 
     const file = storage.resolve(tempKey)
     const { durationMs } = parseAudioProbe(
-      await runFfprobe(file, undefined, "audio")
+      await runFfprobe(file, request.signal, "audio")
     )
-    const peaks = await readPeaks(file, storage.resolve(workKey))
+    const peaks = await readPeaks(file, durationMs, request.signal)
 
     storedKey = storageKeys.music(actor.workspaceId, id, format)
     await storage.move(tempKey, storedKey)
@@ -168,8 +170,6 @@ export async function handleMusicUpload(
     await storage.remove(tempKey)
     if (storedKey) await storage.remove(storedKey)
     throw error
-  } finally {
-    await storage.remove(workKey)
   }
 }
 

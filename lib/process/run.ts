@@ -9,6 +9,7 @@ export type RunOptions = {
   signal?: AbortSignal
   cwd?: string
   onStdoutLine?: (line: string) => void
+  onStdoutData?: (chunk: Buffer) => void
   onStderrLine?: (line: string) => void
   collectStdout?: boolean
   stderrTailBytes?: number
@@ -53,6 +54,7 @@ export function runProcess(
     signal,
     cwd,
     onStdoutLine,
+    onStdoutData,
     onStderrLine,
     collectStdout = true,
     stderrTailBytes = 4096,
@@ -79,12 +81,16 @@ export function runProcess(
     const stdoutLines = onStdoutLine ? lineSplitter(onStdoutLine) : undefined
     const stderrLines = onStderrLine ? lineSplitter(onStderrLine) : undefined
 
-    child.stdout.setEncoding("utf8")
+    if (onStdoutData) {
+      child.stdout.on("data", onStdoutData)
+    } else {
+      child.stdout.setEncoding("utf8")
+      child.stdout.on("data", (chunk: string) => {
+        if (collectStdout) stdout += chunk
+        stdoutLines?.push(chunk)
+      })
+    }
     child.stderr.setEncoding("utf8")
-    child.stdout.on("data", (chunk: string) => {
-      if (collectStdout) stdout += chunk
-      stdoutLines?.push(chunk)
-    })
     child.stderr.on("data", (chunk: string) => {
       stderrTail = (stderrTail + chunk).slice(-stderrTailBytes)
       stderrLines?.push(chunk)

@@ -123,7 +123,7 @@ describe("music uploads", () => {
     })
     expect(Math.abs(track!.durationMs - 30_000)).toBeLessThanOrEqual(50)
     expect(track!.peaks).toHaveLength(240)
-    expect(track!.peaks.every((p) => p >= 0 && p <= 1)).toBe(true)
+    expect(track!.peaks.every((p) => p > 0.05 && p <= 1)).toBe(true)
     expect((await getStorage().stat(track!.storageKey))?.bytes).toBe(
       track!.bytes
     )
@@ -155,11 +155,41 @@ describe("music uploads", () => {
   it("rejects files that aren't audio", async () => {
     const { owner } = await account("Owner")
     signedIn.user = owner
-    const { body } = await upload("song.mp3", fixtures.notVideo)
-    expect(body.error?.message).toBe(
-      "Upload an MP3, M4A, AAC, WAV, OGG or FLAC file"
-    )
+    const { status, body } = await upload("song.mp3", fixtures.notVideo)
+    expect(status).toBe(415)
+    expect(body.error).toEqual({
+      code: "UNSUPPORTED_MEDIA",
+      message: "Upload an MP3, M4A, AAC, WAV, OGG or FLAC file",
+    })
     expect(await getStorage().list("tmp")).toEqual([])
+  })
+
+  it("rejects an empty upload", async () => {
+    const { actor } = await account("Owner")
+    await expect(
+      handleMusicUpload(uploadRequest(new Uint8Array(0), "empty.mp3"), actor)
+    ).rejects.toMatchObject({
+      code: "VALIDATION",
+      message: "The upload was empty",
+    })
+    expect(await getStorage().list("tmp")).toEqual([])
+  })
+
+  it("stops when the client goes away", async () => {
+    const { actor } = await account("Owner")
+    const controller = new AbortController()
+    const request = new Request(
+      uploadRequest(await readFile(fixtures.tone), "gone.m4a"),
+      {
+        signal: controller.signal,
+      }
+    )
+    controller.abort()
+    await expect(handleMusicUpload(request, actor)).rejects.toMatchObject({
+      code: "CANCELLED",
+    })
+    expect(await getStorage().list("tmp")).toEqual([])
+    expect(await getStorage().list("music")).toEqual([])
   })
 
   it("rejects files over 50 MB, declared or streamed", async () => {

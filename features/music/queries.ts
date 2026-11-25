@@ -4,8 +4,7 @@ import { getDb, type Db } from "@/lib/db"
 
 import { requireActor } from "../accounts/session"
 import { musicRepository } from "./repository"
-import type { MusicTrackSummary } from "./schema"
-import { toSummary } from "./service"
+import { toSummary, type MusicTrackSummary } from "./schema"
 
 export async function musicTracksFor(
   db: Db,

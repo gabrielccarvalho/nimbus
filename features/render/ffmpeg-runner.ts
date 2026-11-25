@@ -12,6 +12,7 @@ export type FfmpegRunOptions = {
   expectedDurationMs?: number
   onProgress?: (percent: number) => void
   onStderrLine?: (line: string) => void
+  onStdoutData?: (chunk: Buffer) => void
 }
 
 export async function runFfmpeg(
@@ -33,7 +34,8 @@ export async function runFfmpeg(
     {
       signal: options.signal,
       timeoutMs: options.timeoutMs,
-      collectStdout: !withProgress,
+      collectStdout: !withProgress && !options.onStdoutData,
+      onStdoutData: options.onStdoutData,
       onStderrLine: options.onStderrLine,
       onStdoutLine: withProgress
         ? (line) => {

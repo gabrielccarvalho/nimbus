@@ -65,3 +65,17 @@ export type MusicTrackSummary = {
   url: string
   usedBy: number
 }
+
+export function toSummary(
+  track: Pick<MusicTrackSummary, "id" | "title" | "durationMs" | "peaks">,
+  usedBy: number
+): MusicTrackSummary {
+  return {
+    id: track.id,
+    title: track.title,
+    durationMs: track.durationMs,
+    peaks: track.peaks,
+    url: `/api/music/${track.id}`,
+    usedBy,
+  }
+}

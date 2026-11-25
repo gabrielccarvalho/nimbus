@@ -17,21 +17,52 @@ export function sniffAudio(head: Uint8Array): MusicFormat | null {
   return null
 }
 
+export function peakFold(totalSamples: number, buckets = MUSIC_PEAK_BUCKETS) {
+  const count = Math.min(buckets, Math.max(0, Math.floor(totalSamples)))
+  const maxes = new Array<number>(count).fill(0)
+  let index = 0
+  let bucket = 0
+  let end = count > 0 ? Math.floor(totalSamples / count) : 0
+  let carry: number | null = null
+
+  const sample = (value: number) => {
+    if (count === 0) return
+    while (bucket < count - 1 && index >= end) {
+      bucket += 1
+      end = Math.floor(((bucket + 1) * totalSamples) / count)
+    }
+    maxes[bucket] = Math.max(maxes[bucket]!, Math.abs(value))
+    index += 1
+  }
+  const fromBytes = (lo: number, hi: number) => ((hi << 24) >> 16) | lo
+
+  return {
+    sample,
+    push(chunk: Uint8Array) {
+      let i = 0
+      if (carry !== null && chunk.length > 0) {
+        sample(fromBytes(carry, chunk[0]!))
+        carry = null
+        i = 1
+      }
+      for (; i + 1 < chunk.length; i += 2) {
+        sample(fromBytes(chunk[i]!, chunk[i + 1]!))
+      }
+      if (i < chunk.length) carry = chunk[i]!
+    },
+    peaks() {
+      return maxes.map((max) => Math.round((max / 32768) * 1000) / 1000)
+    },
+  }
+}
+
 export function waveformPeaks(
   samples: Int16Array,
   buckets = MUSIC_PEAK_BUCKETS
 ) {
-  const count = Math.min(buckets, samples.length)
-  const peaks: number[] = []
-  for (let i = 0; i < count; i++) {
-    const from = Math.floor((i * samples.length) / count)
-    const to = Math.floor(((i + 1) * samples.length) / count)
-    let max = 0
-    for (let j = from; j < to; j++)
-      max = Math.max(max, Math.abs(samples[j] ?? 0))
-    peaks.push(Math.round((max / 32768) * 1000) / 1000)
-  }
-  return peaks
+  const fold = peakFold(samples.length, buckets)
+  for (const value of samples) fold.sample(value)
+  return fold.peaks()
 }
 
 export function trackTitleFromFile(name: string) {

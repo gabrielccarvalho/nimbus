@@ -39,7 +39,6 @@ export const storageKeys = {
   music: (workspaceId: string, trackId: string, ext: string) =>
     `music/${workspaceId}/${trackId}.${ext}`,
   musicPrefix: (workspaceId: string) => `music/${workspaceId}`,
-  musicWork: (id: string) => `tmp/music/${id}.pcm`,
   uploadTemp: (id: string) => `tmp/uploads/${id}.part`,
   downloadDir: (id: string) => `tmp/downloads/${id}`,
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
+  peakFold,
   sniffAudio,
   trackInUseMessage,
   trackTitleFromFile,
@@ -37,6 +38,39 @@ describe("waveformPeaks", () => {
     ])
     expect(waveformPeaks(new Int16Array(0), 240)).toEqual([])
     expect(waveformPeaks(Int16Array.from([100, -200]), 240)).toHaveLength(2)
+  })
+})
+
+describe("peakFold", () => {
+  it("folds PCM chunks split mid-sample into the same peaks", () => {
+    const samples = Int16Array.from({ length: 1001 }, (_, i) =>
+      Math.round(Math.sin(i / 7) * (i * 30))
+    )
+    const bytes = new Uint8Array(samples.buffer)
+    const whole = peakFold(samples.length, 240)
+    whole.push(bytes)
+    const split = peakFold(samples.length, 240)
+    for (const [from, to] of [
+      [0, 1],
+      [1, 2],
+      [2, 501],
+      [501, 501],
+      [501, 1338],
+      [1338, bytes.length],
+    ]) {
+      split.push(bytes.subarray(from, to))
+    }
+    expect(split.peaks()).toEqual(whole.peaks())
+    expect(whole.peaks()).toEqual(waveformPeaks(samples, 240))
+  })
+
+  it("keeps the bucket count when the decode runs long or short", () => {
+    const long = peakFold(4, 2)
+    long.push(new Uint8Array(Int16Array.from([0, 0, 0, 0, 16384]).buffer))
+    expect(long.peaks()).toEqual([0, 0.5])
+    const short = peakFold(4, 2)
+    short.push(new Uint8Array(Int16Array.from([16384]).buffer))
+    expect(short.peaks()).toEqual([0.5, 0])
   })
 })
 
