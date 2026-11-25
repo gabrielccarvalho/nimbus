@@ -287,14 +287,23 @@ describe("channelDaily", () => {
     })
   })
 
-  it("retries once without the content type on a 400", async () => {
+  it("retries once without the content type when YouTube rejects that dimension", async () => {
     const dimensions: (string | null)[] = []
     server.use(
       http.get(REPORTS, ({ request }) => {
         const value = new URL(request.url).searchParams.get("dimensions")
         dimensions.push(value)
         if (value === "day,creatorContentType") {
-          return googleError(400, "badRequest")
+          return HttpResponse.json(
+            {
+              error: {
+                message:
+                  "Unknown identifier (creatorContentType) given in field parameters.dimensions.",
+                errors: [{ reason: "badRequest" }],
+              },
+            },
+            { status: 400 }
+          )
         }
         return HttpResponse.json({
           columnHeaders: headers.filter(
@@ -321,6 +330,24 @@ describe("channelDaily", () => {
         subscribersLost: 1,
       },
     ])
+  })
+
+  it.each([
+    [403, "forbidden"],
+    [429, "rateLimitExceeded"],
+    [400, "badRequest"],
+  ])("does not retry unsplit on a %i %s", async (status, reason) => {
+    const dimensions: (string | null)[] = []
+    server.use(
+      http.get(REPORTS, ({ request }) => {
+        dimensions.push(new URL(request.url).searchParams.get("dimensions"))
+        return googleError(status, reason)
+      })
+    )
+    await expect(
+      client.channelDaily("t", "2026-11-01", "2026-11-08")
+    ).rejects.toMatchObject({ code: "VALIDATION" })
+    expect(dimensions).toEqual(["day,creatorContentType"])
   })
 
   it("does not retry on a token failure", async () => {

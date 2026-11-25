@@ -129,27 +129,30 @@ describe("analyticsRepository", () => {
     )
   })
 
-  it("keeps one channel_daily row per day and content type with the latest values", async () => {
+  it("replaces a channel's days in the given range only", async () => {
     const { channel } = await seedChannel()
     const analytics = analyticsRepository(env.db)
 
-    await analytics.upsertChannelDaily(channel.id, [
-      channelDay("2026-10-01", 10),
-      { ...channelDay("2026-10-01", 4), contentType: "long" },
+    await analytics.replaceChannelDays(channel.id, "2026-10-01", "2026-10-02", [
+      { ...channelDay("2026-10-01", 10), contentType: "other" },
+      channelDay("2026-10-02", 4),
     ])
-    await analytics.upsertChannelDaily(channel.id, [
-      channelDay("2026-10-01", 20),
+    await analytics.replaceChannelDays(channel.id, "2026-10-02", "2026-10-03", [
+      channelDay("2026-10-02", 20),
+      { ...channelDay("2026-10-02", 6), contentType: "long" },
     ])
 
     const days = await analytics.channelDays(
       channel.id,
       "2026-10-01",
-      "2026-10-01"
+      "2026-10-03"
     )
-    expect(days).toHaveLength(2)
-    expect(days.find((d) => d.contentType === "shorts")?.views).toBe(20)
-    expect(days.find((d) => d.contentType === "long")?.views).toBe(4)
-    expect(await analytics.lastChannelDay(channel.id)).toBe("2026-10-01")
+    expect(days.map((d) => [d.day, d.contentType, d.views])).toEqual([
+      ["2026-10-01", "other", 10],
+      ["2026-10-02", "long", 6],
+      ["2026-10-02", "shorts", 20],
+    ])
+    expect(await analytics.lastChannelDay(channel.id)).toBe("2026-10-02")
   })
 
   it("returns the first 28 days after the Pacific publish day of the channel's published Shorts", async () => {

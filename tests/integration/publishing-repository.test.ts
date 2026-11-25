@@ -167,7 +167,7 @@ describe("publishingRepository", () => {
     const nimbus = await publish({ status: "published", videoId: "n1" })
     const imported = await insertImportedPublication(env.db, channel.id)
     const analytics = analyticsRepository(env.db)
-    await analytics.upsertChannelDaily(channel.id, [
+    await analytics.replaceChannelDays(channel.id, "2026-11-01", "2026-11-01", [
       {
         day: "2026-11-01",
         contentType: "shorts",

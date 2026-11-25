@@ -404,8 +404,10 @@ describe("getAnalyticsOverview", () => {
   it("sums the period up to the last day with data", async () => {
     const { channel } = await seed()
     const through = addDays(today(), -2)
-    await analyticsRepository(env.db).upsertChannelDaily(
+    await analyticsRepository(env.db).replaceChannelDays(
       channel.id,
+      addDays(through, -89),
+      through,
       fakeDays(addDays(through, -89), through)
     )
     const publishedAt = daysAgo(40)

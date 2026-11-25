@@ -15,7 +15,10 @@ const API = "https://www.googleapis.com"
 const ANALYTICS = "https://youtubeanalytics.googleapis.com/v2/reports"
 
 type GoogleError = {
-  error?: { message?: string; errors?: { reason?: string }[] }
+  error?: {
+    message?: string
+    errors?: { reason?: string; message?: string }[]
+  }
 }
 
 async function failure(response: Response): Promise<AppError> {
@@ -39,9 +42,26 @@ async function failure(response: Response): Promise<AppError> {
     )
   }
   if (response.status >= 400 && response.status < 500) {
-    return new AppError("VALIDATION", message)
+    return new AppError("VALIDATION", message, {
+      details: {
+        status: response.status,
+        said: [
+          message,
+          ...(body.error?.errors ?? []).flatMap((e) => [e.reason, e.message]),
+        ].filter((text): text is string => typeof text === "string"),
+      },
+    })
   }
   return new AppError("EXTERNAL", message)
+}
+
+function rejectsDimension(error: unknown, dimension: string): boolean {
+  if (!(error instanceof AppError) || error.details?.status !== 400) {
+    return false
+  }
+  return (error.details.said as string[]).some((text) =>
+    text.includes(dimension)
+  )
 }
 
 async function send(
@@ -425,9 +445,7 @@ export class YouTubeHttp implements YouTubeClient {
         sort: "day",
       })
     } catch (error) {
-      if (!(error instanceof AppError) || error.code !== "VALIDATION") {
-        throw error
-      }
+      if (!rejectsDimension(error, "creatorContentType")) throw error
       split = false
       report = await this.report(token, startDate, endDate, {
         dimensions: "day",

@@ -39,7 +39,7 @@ export const syncChannelStep: JobHandler = async ({ job, db, logger }) => {
   const { split, rows } = await withGoogleToken(db, channel, (token) =>
     getYouTubeClient().channelDaily(token, from, today)
   )
-  await analytics.upsertChannelDaily(channelId, rows)
+  await analytics.replaceChannelDays(channelId, from, today, rows)
   await analytics.markSynced(channelId, "analyticsSyncedAt", startedAt)
   logger.info(
     { channelId, from, to: today, rows: rows.length, split },

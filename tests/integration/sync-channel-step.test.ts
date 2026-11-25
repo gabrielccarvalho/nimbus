@@ -125,20 +125,25 @@ describe("sync_channel", () => {
     const { channel } = await seed()
     const today = pacificDay(new Date())
     const last = addDays(today, -2)
-    await analyticsRepository(env.db).upsertChannelDaily(channel.id, [
-      {
-        day: last,
-        contentType: "shorts",
-        views: 1,
-        estimatedMinutesWatched: 0,
-        averageViewDurationS: null,
-        likes: 0,
-        comments: 0,
-        shares: 0,
-        subscribersGained: 0,
-        subscribersLost: 0,
-      },
-    ])
+    await analyticsRepository(env.db).replaceChannelDays(
+      channel.id,
+      last,
+      last,
+      [
+        {
+          day: last,
+          contentType: "shorts",
+          views: 1,
+          estimatedMinutesWatched: 0,
+          averageViewDurationS: null,
+          likes: 0,
+          comments: 0,
+          shares: 0,
+          subscribersGained: 0,
+          subscribersLost: 0,
+        },
+      ]
+    )
     const spy = vi.spyOn(fake, "channelDaily")
 
     await runChannel(channel.id)
@@ -185,6 +190,38 @@ describe("sync_channel", () => {
 
     const rows = await stored(channel.id)
     expect(rows.map((row) => row.contentType)).toEqual(["other"])
+  })
+
+  it("replaces the unsplit rows of the range it reads again with split ones", async () => {
+    const { channel } = await seed()
+    const today = pacificDay(new Date())
+    const day = addDays(today, -5)
+    vi.spyOn(fake, "channelDaily").mockResolvedValueOnce({
+      split: false,
+      rows: [
+        {
+          day,
+          contentType: "other",
+          views: 400,
+          estimatedMinutesWatched: 460,
+          averageViewDurationS: 60,
+          likes: 25,
+          comments: 4,
+          shares: 2,
+          subscribersGained: 7,
+          subscribersLost: 1,
+        },
+      ],
+    })
+    await runChannel(channel.id)
+
+    await runChannel(channel.id)
+
+    const rows = await stored(channel.id)
+    expect(rows.filter((row) => row.contentType === "other")).toEqual([])
+    expect(
+      rows.filter((row) => row.day === day).map((row) => row.contentType)
+    ).toEqual(expect.arrayContaining(["shorts", "long"]))
   })
 
   it("fails with the reconnect message and makes no call when the channel needs reconnecting", async () => {

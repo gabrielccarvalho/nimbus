@@ -11,7 +11,7 @@ import {
   sql,
 } from "drizzle-orm"
 
-import { newId, type Db } from "@/lib/db"
+import { newId, withTransaction, type Db } from "@/lib/db"
 import {
   channelDaily,
   jobs,
@@ -119,31 +119,26 @@ export function analyticsRepository(db: Db) {
       return new Map(rows.map((row) => [row.publicationId, row.views]))
     },
 
-    async upsertChannelDaily(
+    replaceChannelDays(
       channelId: string,
+      from: string,
+      to: string,
       rows: ChannelDay[]
     ): Promise<void> {
-      if (rows.length === 0) return
-      await db
-        .insert(channelDaily)
-        .values(rows.map((row) => ({ ...row, channelId })))
-        .onConflictDoUpdate({
-          target: [
-            channelDaily.channelId,
-            channelDaily.day,
-            channelDaily.contentType,
-          ],
-          set: {
-            views: sql`excluded.views`,
-            likes: sql`excluded.likes`,
-            comments: sql`excluded.comments`,
-            shares: sql`excluded.shares`,
-            subscribersGained: sql`excluded.subscribers_gained`,
-            subscribersLost: sql`excluded.subscribers_lost`,
-            estimatedMinutesWatched: sql`excluded.estimated_minutes_watched`,
-            averageViewDurationS: sql`excluded.average_view_duration_s`,
-          },
-        })
+      return withTransaction(db, async (tx) => {
+        await tx
+          .delete(channelDaily)
+          .where(
+            and(
+              eq(channelDaily.channelId, channelId),
+              between(channelDaily.day, from, to)
+            )
+          )
+        if (rows.length === 0) return
+        await tx
+          .insert(channelDaily)
+          .values(rows.map((row) => ({ ...row, channelId })))
+      })
     },
 
     async lastChannelDay(channelId: string): Promise<string | null> {
