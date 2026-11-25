@@ -7,6 +7,7 @@ import { signalsRepository } from "../../analysis/repository"
 import { clipRepository } from "../../clips/repository"
 import { loadAudienceHeatmap } from "../../downloads/service"
 import { autoEffectsFor } from "../../effects/service"
+import { loadPlaybook } from "../../insights/repository"
 import { selectHighlights } from "../../highlights"
 import { proxyFrameSource } from "../../highlights/frames"
 import { NICHE_PROFILES, resolveNiche } from "../../highlights/niches"
@@ -49,6 +50,7 @@ export const selectStep: JobHandler = async ({
   const durationMs = (await sourceAsset(db, project)).durationMs ?? 0
   const audience = await loadAudienceHeatmap(db, project, { signal, logger })
   const niche = resolveNiche(settings.niche, project.name)
+  const playbook = await loadPlaybook(db, project.workspaceId)
   const proxy = await assetRepository(db).findByKind(project.id, "proxy")
   const frames = proxy
     ? proxyFrameSource(getStorage().resolve(proxy.storageKey))
@@ -95,6 +97,10 @@ export const selectStep: JobHandler = async ({
       audience,
       exclude: existing,
       niche: NICHE_PROFILES[niche],
+      playbook: playbook && {
+        selection: playbook.selection,
+        review: playbook.review,
+      },
       frames,
       apiKey: await resolveAnthropicKey(db, project.workspaceId),
       onPart: (candidates, parts) => {
@@ -120,9 +126,13 @@ export const selectStep: JobHandler = async ({
   )
   throwIfAborted(signal)
   showCandidates(candidates, null)
-  if (settings.selectorMode === "anthropic" && !fallbackReason) {
-    await recordUsage(db, project, "claude_run", 1)
-  }
+  const usedClaude = settings.selectorMode === "anthropic" && !fallbackReason
+  if (usedClaude) await recordUsage(db, project, "claude_run", 1)
+  const reviewed = reviewing && !fallbackReason && !reviewFailure
+  const appliedRuleIds = [
+    ...(usedClaude ? (playbook?.ruleIds.selection ?? []) : []),
+    ...(reviewed ? (playbook?.ruleIds.review ?? []) : []),
+  ]
 
   const clips = clipRepository(db)
   const inserted = await (more ? clips.addCandidates : clips.replaceCandidates)(
@@ -140,6 +150,7 @@ export const selectStep: JobHandler = async ({
           : c.reason,
       score: c.score,
       beats: c.beats ?? null,
+      playbookRuleIds: appliedRuleIds.length > 0 ? appliedRuleIds : null,
     }))
   )
   if (settings.autoEffects) {
@@ -153,7 +164,7 @@ export const selectStep: JobHandler = async ({
       more,
       niche,
       fallback: Boolean(fallbackReason),
-      reviewed: reviewing && !fallbackReason && !reviewFailure,
+      reviewed,
     },
     "selected"
   )

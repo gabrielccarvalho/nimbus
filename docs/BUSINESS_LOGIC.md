@@ -202,6 +202,14 @@ When tracks change:
 | who is captioned          | only the streamer's language: segments whose function words belong to another language are dropped, and repeats of a line said 3+ times in a row are dropped |
 | page text edits           | replace the page's words; the new words share the page's time evenly                                                                                         |
 
+### Channel playbook
+
+- A rule is a short instruction (max 200 characters) for one target: `selection` (picking clips) or `review` (editing clips). A channel holds at most 12 active rules per target.
+- Rules are immutable. Editing creates a new rule that supersedes the old one; retiring sets its status to `retired`. A retired rule can be restored, which flips its status back and still has to fit the cap, otherwise a rule must be retired in its place.
+- Claude only suggests. A suggestion to add, edit or retire stays pending until a person approves or rejects it. A new analysis replaces pending suggestions and keeps rejected ones.
+- Rule changes on a channel run one at a time, and a suggestion can be decided once.
+- Active rules reach the prompts only when the channel has any, and each clip stores the rule ids it was picked under.
+
 ### Originality guardrail
 
 - No "auto-render all" without approval. "Render approved" renders only clips with status `approved`.

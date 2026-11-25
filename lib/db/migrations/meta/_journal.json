@@ -92,6 +92,20 @@
       "when": 1795550055225,
       "tag": "0012_youtube_publishing",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1795565675949,
+      "tag": "0013_youtube_stats",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1795567494808,
+      "tag": "0014_playbook_rules",
+      "breakpoints": true
     }
   ]
 }

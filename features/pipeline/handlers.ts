@@ -1,7 +1,7 @@
 import "server-only"
 
 import { withTransaction, type Db } from "@/lib/db"
-import { toUserMessage, type AppError } from "@/lib/errors"
+import { AppError, toUserMessage } from "@/lib/errors"
 
 import { clipRepository } from "../clips/repository"
 import { jobQueue, type Job } from "../jobs/queue"
@@ -11,6 +11,7 @@ import { publishingRepository } from "../publishing/repository"
 import { ACTIVE_PUBLICATION_STATUSES } from "../publishing/schema"
 import { releaseRenderAsset } from "../publishing/service"
 import { analyzeStep } from "./steps/analyze"
+import { analyzePerformanceStep } from "./steps/analyze-performance"
 import { downloadStep } from "./steps/download"
 import { settleRendering } from "../render/service"
 import { probeStep } from "./steps/probe"
@@ -19,6 +20,7 @@ import { renderClipStep } from "./steps/render-clip"
 import { renderEditStep } from "./steps/render-edit"
 import { selectStep } from "./steps/select"
 import { sweepStep } from "./steps/sweep"
+import { syncStatsStep } from "./steps/sync-stats"
 import { transcribeStep } from "./steps/transcribe"
 
 export const pipelineHandlers: JobHandlers = {
@@ -31,6 +33,8 @@ export const pipelineHandlers: JobHandlers = {
   render_edit: renderEditStep,
   sweep: sweepStep,
   publish_clip: publishClipStep,
+  sync_stats: syncStatsStep,
+  analyze_performance: analyzePerformanceStep,
 }
 
 const MINUTE = 60_000
@@ -47,9 +51,12 @@ export function jobStallTimeoutMs(job: Job): number {
     case "probe":
     case "analyze":
     case "render_clip":
+    case "analyze_performance":
       return 15 * MINUTE
     case "sweep":
       return 10 * MINUTE
+    case "sync_stats":
+      return 5 * MINUTE
   }
 }
 

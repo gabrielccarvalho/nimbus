@@ -6,6 +6,7 @@ import { cutClusters } from "../analysis/cuts"
 import type { AudiencePoint, SignalsData, TimeRange } from "../analysis/schema"
 import { isForeignSegment } from "../captions/speaker"
 import type { Segment, Word } from "../transcription/schema"
+import { playbookSection } from "../insights/playbook"
 import { gameDialogueStretches } from "./game-dialogue"
 import type { NicheProfile } from "./niches"
 import {
@@ -54,6 +55,7 @@ export type PromptInput = {
   audience?: readonly AudiencePoint[]
   exclude?: readonly TimeRange[]
   niche?: NicheProfile
+  playbook?: readonly string[]
   part?: { index: number; count: number; startMs: number; endMs: number }
 }
 
@@ -99,6 +101,7 @@ export function buildSelectionPrompt({
   audience = [],
   exclude = [],
   niche,
+  playbook,
   part,
 }: PromptInput) {
   const from = part?.startMs ?? 0
@@ -143,7 +146,7 @@ export function buildSelectionPrompt({
   return `Recording length: ${seconds(durationMs)} s.${part ? ` This is part ${part.index + 1} of ${part.count}, from ${seconds(from)} s to ${seconds(to)} s; only pick clips inside it.` : ""}
 
 ${spoken}
-${niche ? `\nThe game is ${niche.label}. For this niche, look hardest for:\n${niche.lookFor.map((item) => `- ${item}`).join("\n")}\n` : ""}
+${niche ? `\nThe game is ${niche.label}. For this niche, look hardest for:\n${niche.lookFor.map((item) => `- ${item}`).join("\n")}\n` : ""}${playbook?.length ? `\n${playbookSection(playbook)}` : ""}
 Pick up to ${limits.maxCount} clips, each between ${seconds(limits.minMs)} and ${seconds(limits.maxMs)} seconds long, that don't overlap. Times are in milliseconds from the start of the recording; start on the payoff and end on a sentence boundary from the transcript.
 
 ${exclude.length ? `Already clipped, don't pick these again or anything overlapping them: ${exclude.map((r) => `${seconds(r.startMs)}–${seconds(r.endMs)}s`).join(", ")}\n\n` : ""}Loudest moments: ${loudest.join(", ") || "none"}

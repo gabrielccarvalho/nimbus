@@ -15,6 +15,7 @@ import { speakerTranscriptWords } from "../captions/speaker"
 import { resolveCaptionStyle } from "../captions/styles"
 import { clipRepository } from "../clips/repository"
 import { NICHE_PROFILES, resolveNiche } from "../highlights/niches"
+import { loadPlaybook } from "../insights/repository"
 import { buildManualPrompt } from "../highlights/prompt"
 import { jobQueue } from "../jobs/queue"
 import { layoutRepository } from "../layout/repository"
@@ -204,12 +205,14 @@ export async function getProjectClips(id: string) {
   let manualPrompt: string | undefined
   if (project.awaitingManualSelection) {
     const signals = await signalsRepository(db).get(id)
+    const playbook = await loadPlaybook(db, project.workspaceId)
     manualPrompt = buildManualPrompt({
       durationMs,
       words: transcript?.words ?? [],
       language: transcript?.language ?? project.settings.language,
       audience: project.audienceHeatmap ?? [],
       niche: NICHE_PROFILES[resolveNiche(project.settings.niche, project.name)],
+      playbook: playbook?.selection,
       segments: transcript?.segments ?? [],
       signals: signals ?? {
         silences: [],

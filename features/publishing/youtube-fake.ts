@@ -43,4 +43,21 @@ export class YouTubeFake implements YouTubeClient {
     onProgress(bytes)
     return { videoId }
   }
+
+  async videoStats(_token: string, videoId: string) {
+    return videoId.startsWith("fake-")
+      ? { views: 1234, likes: 56, comments: 7 }
+      : null
+  }
+
+  async videoAnalytics() {
+    return {
+      averageViewDurationS: 11.5,
+      averageViewPercentage: 64.2,
+      retention: Array.from({ length: 100 }, (_, i) => ({
+        ratio: (i + 1) / 100,
+        watch: 1 - (0.6 * i) / 99,
+      })),
+    }
+  }
 }

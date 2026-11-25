@@ -10,11 +10,13 @@ import {
 import { defaultProjectSettings } from "@/features/projects/schema"
 import {
   publishClipAction,
+  refreshStatsAction,
   retryPublicationAction,
 } from "@/features/publishing/actions"
 import { RECONNECT_MESSAGE } from "@/features/publishing/google-token"
 import { getPublishing } from "@/features/publishing/queries"
 import { publishingRepository } from "@/features/publishing/repository"
+import { statsRepository } from "@/features/publishing/stats-repository"
 import {
   account,
   jobs,
@@ -105,6 +107,8 @@ async function seed(opts: { plan?: "free" | "admin" } = {}) {
 
 const publishJobs = () =>
   env.db.select().from(jobs).where(eq(jobs.type, "publish_clip"))
+const syncJobs = () =>
+  env.db.select().from(jobs).where(eq(jobs.type, "sync_stats"))
 
 describe("publishClipAction", () => {
   it("creates a queued publication and enqueues one job", async () => {
@@ -119,6 +123,8 @@ describe("publishClipAction", () => {
       status: "queued",
       renderAssetId: render.id,
       clipId: clip.id,
+      clipStartMs: clip.startMs,
+      clipEndMs: clip.endMs,
     })
     const rows = await publishJobs()
     expect(rows).toHaveLength(1)
@@ -370,5 +376,153 @@ describe("getPublishing", () => {
     const state = await getPublishing(project.id)
     expect(state.channel).toBeNull()
     expect(state.publishesLeftToday).toBeNull()
+  })
+
+  it("adds the latest stats snapshot, retention values and early flag", async () => {
+    const { clip, project } = await seed()
+    const published = await publishClipAction(clip.id, input)
+    if (!published.ok) throw new Error("setup")
+    const id = published.value.publicationId
+    await publishingRepository(env.db).updatePublication(id, {
+      status: "published",
+      publishedAt: new Date(),
+    })
+    await statsRepository(env.db).add({
+      publicationId: id,
+      views: 10,
+      likes: 2,
+      comments: 1,
+      averageViewDurationS: 8,
+      averageViewPercentage: 40,
+      retention: [
+        { ratio: 0.5, watch: 0.9 },
+        { ratio: 1, watch: 0.4 },
+      ],
+    })
+
+    const state = await getPublishing(project.id)
+    expect(state.publications[clip.id]).toMatchObject({
+      early: true,
+      refreshing: false,
+      stats: { views: 10, retention: [0.9, 0.4], markers: [] },
+    })
+  })
+
+  it("isn't refreshing while the only sync waits for the quota reset", async () => {
+    const { clip, project } = await seed()
+    const published = await publishClipAction(clip.id, input)
+    if (!published.ok) throw new Error("setup")
+    const id = published.value.publicationId
+    await jobQueueModule.jobQueue(env.db).enqueue({
+      type: "sync_stats",
+      projectId: null,
+      payload: { publicationId: id },
+      runAfter: new Date(Date.now() + 3_600_000),
+    })
+
+    const state = await getPublishing(project.id)
+    expect(state.publications[clip.id]).toMatchObject({ refreshing: false })
+    expect(await refreshStatsAction(id)).toMatchObject({
+      ok: false,
+      error: {
+        code: "CONFLICT",
+        message: "Stats will refresh after YouTube's daily quota resets.",
+      },
+    })
+    expect(await syncJobs()).toHaveLength(1)
+  })
+})
+
+describe("refreshStatsAction", () => {
+  it("enqueues a sync and refuses a second one while it is active", async () => {
+    const { clip } = await seed()
+    const published = await publishClipAction(clip.id, input)
+    if (!published.ok) throw new Error("setup")
+    const id = published.value.publicationId
+    expect((await refreshStatsAction(id)).ok).toBe(true)
+    const again = await refreshStatsAction(id)
+    expect(again).toMatchObject({
+      ok: false,
+      error: { code: "CONFLICT", message: "Stats are already refreshing" },
+    })
+    expect(await syncJobs()).toHaveLength(1)
+  })
+
+  it("rejects with the reconnect message when the channel can't sync", async () => {
+    const { clip, channel } = await seed()
+    const published = await publishClipAction(clip.id, input)
+    if (!published.ok) throw new Error("setup")
+    const id = published.value.publicationId
+    const reconnect = {
+      ok: false,
+      error: { code: "CONFLICT", message: RECONNECT_MESSAGE },
+    }
+
+    await publishingRepository(env.db).setChannelStatus(
+      channel.id,
+      "needs_reconnect"
+    )
+    expect(await refreshStatsAction(id)).toMatchObject(reconnect)
+
+    await publishingRepository(env.db).setChannelStatus(channel.id, "ok")
+    await env.db
+      .update(youtubeChannels)
+      .set({ accountId: null })
+      .where(eq(youtubeChannels.id, channel.id))
+    expect(await refreshStatsAction(id)).toMatchObject(reconnect)
+
+    await env.db
+      .delete(youtubeChannels)
+      .where(eq(youtubeChannels.id, channel.id))
+    expect(await refreshStatsAction(id)).toMatchObject(reconnect)
+
+    expect(await syncJobs()).toHaveLength(0)
+  })
+
+  it("rejects with the reconnect message when the workspace connected another channel", async () => {
+    const { clip, channel, workspace } = await seed()
+    const published = await publishClipAction(clip.id, input)
+    if (!published.ok) throw new Error("setup")
+    await env.db
+      .delete(youtubeChannels)
+      .where(eq(youtubeChannels.id, channel.id))
+    await publishingRepository(env.db).upsertChannel({
+      workspaceId: workspace.id,
+      accountId: channel.accountId,
+      channelId: "UC2",
+      title: "New Channel",
+    })
+
+    expect(
+      await refreshStatsAction(published.value.publicationId)
+    ).toMatchObject({
+      ok: false,
+      error: { code: "CONFLICT", message: RECONNECT_MESSAGE },
+    })
+    expect(await syncJobs()).toHaveLength(0)
+  })
+
+  it("returns NOT_FOUND for another workspace's publication", async () => {
+    const { clip } = await seed()
+    const published = await publishClipAction(clip.id, input)
+    if (!published.ok) throw new Error("setup")
+    const id = crypto.randomUUID()
+    const other = { id, name: "Other", email: `${id}@example.com` }
+    await env.db.insert(user).values(other)
+    await accountRepository(env.db).createPersonalWorkspace(other)
+    signedIn.user = other
+
+    expect(
+      await refreshStatsAction(published.value.publicationId)
+    ).toMatchObject({ ok: false, error: { code: "NOT_FOUND" } })
+    expect(await syncJobs()).toHaveLength(0)
+  })
+
+  it("rejects an unknown publication", async () => {
+    await seed()
+    expect(await refreshStatsAction("missing")).toMatchObject({
+      ok: false,
+      error: { code: "NOT_FOUND" },
+    })
   })
 })

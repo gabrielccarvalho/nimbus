@@ -82,6 +82,9 @@ export const anthropicKeySchema = z
   .trim()
   .regex(/^sk-ant-[\w-]{20,}$/, "That doesn't look like a Claude API key")
 
+export const CLAUDE_KEY_MISSING_MESSAGE =
+  "Add a Claude API key in Workspace settings to use Claude."
+
 export function keyHint(key: string) {
   return `${key.slice(0, 7)}…${key.slice(-4)}`
 }

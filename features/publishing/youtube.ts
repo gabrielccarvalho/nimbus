@@ -2,6 +2,7 @@ import "server-only"
 
 import { getEnv } from "@/lib/env"
 
+import type { RetentionPoint } from "./stats"
 import { YouTubeFake } from "./youtube-fake"
 import { YouTubeHttp } from "./youtube-http"
 
@@ -24,6 +25,20 @@ export interface YouTubeClient {
     signal: AbortSignal,
     onProgress: (sent: number) => void
   ): Promise<{ videoId: string }>
+  videoStats(
+    token: string,
+    videoId: string
+  ): Promise<{ views: number; likes: number; comments: number } | null>
+  videoAnalytics(
+    token: string,
+    videoId: string,
+    startDate: string,
+    endDate: string
+  ): Promise<{
+    averageViewDurationS: number | null
+    averageViewPercentage: number | null
+    retention: RetentionPoint[]
+  }>
 }
 
 let fake: YouTubeFake | undefined

@@ -6,8 +6,10 @@ import { pipeline, Readable, Transform } from "node:stream"
 import { AppError } from "@/lib/errors"
 
 import type { YouTubeClient } from "./youtube"
+import type { RetentionPoint } from "./stats"
 
 const API = "https://www.googleapis.com"
+const ANALYTICS = "https://youtubeanalytics.googleapis.com/v2/reports"
 
 type GoogleError = {
   error?: { message?: string; errors?: { reason?: string }[] }
@@ -51,6 +53,19 @@ async function send(
     throw new AppError("EXTERNAL", "Could not reach YouTube", { cause: error })
   }
   return response
+}
+
+type AnalyticsReport = {
+  columnHeaders?: { name: string }[]
+  rows?: number[][]
+}
+
+function column(report: AnalyticsReport, name: string): number | null {
+  const index = report.columnHeaders?.findIndex(
+    (header) => header.name === name
+  )
+  if (index === undefined || index < 0) return null
+  return report.rows?.[0]?.[index] ?? null
 }
 
 export class YouTubeHttp implements YouTubeClient {
@@ -172,5 +187,91 @@ export class YouTubeHttp implements YouTubeClient {
     if (!response.ok) throw await failure(response)
     const body = (await response.json()) as { id: string }
     return { videoId: body.id }
+  }
+
+  async videoStats(token: string, videoId: string) {
+    const response = await send(
+      `${API}/youtube/v3/videos?${new URLSearchParams({ part: "statistics", id: videoId })}`,
+      { headers: { authorization: `Bearer ${token}` } }
+    )
+    if (response.status === 404) {
+      const body = (await response
+        .clone()
+        .json()
+        .catch(() => ({}))) as GoogleError
+      if (body.error?.errors?.[0]?.reason === "videoNotFound") return null
+    }
+    if (!response.ok) throw await failure(response)
+    const body = (await response.json()) as {
+      items?: {
+        statistics?: {
+          viewCount?: string
+          likeCount?: string
+          commentCount?: string
+        }
+      }[]
+    }
+    const item = body.items?.[0]
+    if (!item) return null
+    return {
+      views: Number(item.statistics?.viewCount ?? 0),
+      likes: Number(item.statistics?.likeCount ?? 0),
+      comments: Number(item.statistics?.commentCount ?? 0),
+    }
+  }
+
+  async videoAnalytics(
+    token: string,
+    videoId: string,
+    startDate: string,
+    endDate: string
+  ) {
+    const report = async (params: Record<string, string>) => {
+      const query = new URLSearchParams({
+        ids: "channel==MINE",
+        startDate,
+        endDate,
+        filters: `video==${videoId}`,
+        ...params,
+      })
+      const response = await send(`${ANALYTICS}?${query}`, {
+        headers: { authorization: `Bearer ${token}` },
+      })
+      if (!response.ok) throw await failure(response)
+      return (await response.json()) as AnalyticsReport
+    }
+    const totals = await report({
+      metrics: "views,averageViewDuration,averageViewPercentage",
+    })
+    const curve = await report({
+      dimensions: "elapsedVideoTimeRatio",
+      metrics: "audienceWatchRatio",
+    })
+    const ratioAt = curve.columnHeaders?.findIndex(
+      (header) => header.name === "elapsedVideoTimeRatio"
+    )
+    const watchAt = curve.columnHeaders?.findIndex(
+      (header) => header.name === "audienceWatchRatio"
+    )
+    const retention: RetentionPoint[] = []
+    if (
+      ratioAt !== undefined &&
+      ratioAt >= 0 &&
+      watchAt !== undefined &&
+      watchAt >= 0
+    ) {
+      for (const row of curve.rows ?? []) {
+        const ratio = row[ratioAt]
+        const watch = row[watchAt]
+        if (ratio !== undefined && watch !== undefined) {
+          retention.push({ ratio, watch })
+        }
+      }
+    }
+    return {
+      averageViewDurationS: column(totals, "averageViewDuration"),
+      averageViewPercentage: column(totals, "averageViewPercentage"),
+      retention,
+    }
   }
 }

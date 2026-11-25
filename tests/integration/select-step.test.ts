@@ -1,3 +1,4 @@
+import { and, eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { clipRepository } from "@/features/clips/repository"
@@ -7,7 +8,11 @@ import {
 } from "@/features/clips/service"
 import { HeuristicSelector } from "@/features/highlights/heuristic"
 import { layoutRepository } from "@/features/layout/repository"
+import { insightsRepository } from "@/features/insights/repository"
 import { projectRepository } from "@/features/projects/repository"
+import { publishingRepository } from "@/features/publishing/repository"
+
+import { assets, projects, workspaces } from "@/lib/db/schema"
 
 import { fixtures } from "../../scripts/make-fixtures"
 import { runJobs, uploadFixture } from "../utils/pipeline"
@@ -15,7 +20,9 @@ import { createTestEnv, type TestEnv } from "../utils/test-env"
 
 const review = vi.hoisted(() => ({
   on: false,
+  selectorFails: false,
   description: undefined as string | undefined,
+  playbooks: [] as unknown[],
 }))
 
 vi.mock("@/features/highlights", async (importOriginal) => {
@@ -25,13 +32,22 @@ vi.mock("@/features/highlights", async (importOriginal) => {
     selectHighlights: (
       ...args: Parameters<typeof actual.selectHighlights>
     ): ReturnType<typeof actual.selectHighlights> => {
+      review.playbooks.push(args[1].playbook)
       if (!review.on) return actual.selectHighlights(...args)
       const [, input, logger] = args
       return actual.selectHighlights(
         "anthropic",
-        { ...input, frames: async (at) => at.map(() => "") },
+        { ...input, frames: input.frames && (async (at) => at.map(() => "")) },
         logger,
-        () => new HeuristicSelector(),
+        () =>
+          review.selectorFails
+            ? {
+                id: "anthropic" as const,
+                select: async () => {
+                  throw new Error("Claude is down")
+                },
+              }
+            : new HeuristicSelector(),
         () => ({
           review: async (candidates) =>
             candidates.map((c) => ({
@@ -54,7 +70,9 @@ let env: TestEnv
 
 beforeEach(async () => {
   review.on = false
+  review.selectorFails = false
   review.description = undefined
+  review.playbooks = []
   env = await createTestEnv()
 })
 afterEach(() => env.cleanup())
@@ -141,6 +159,109 @@ describe("select step", () => {
       effects: { edited: false },
     })
     expect(clip!.endMs - clip!.startMs).toBeGreaterThanOrEqual(15_000)
+  })
+})
+
+describe("playbook at selection", () => {
+  async function withRules(
+    rules: { target: "selection" | "review"; text: string }[],
+    options: { selectorMode?: "anthropic"; dropProxy?: boolean } = {}
+  ) {
+    const { projectId } = await uploadFixture(fixtures.wide)
+    if (options.selectorMode) {
+      review.on = true
+      const projects = projectRepository(env.db)
+      await projects.updateSettings(projectId, {
+        ...(await projects.getOrThrow(projectId)).settings,
+        selectorMode: options.selectorMode,
+      })
+    }
+    const workspaceId = crypto.randomUUID()
+    await env.db.insert(workspaces).values({ id: workspaceId, name: "Studio" })
+    await env.db
+      .update(projects)
+      .set({ workspaceId })
+      .where(eq(projects.id, projectId))
+    const channel = await publishingRepository(env.db).upsertChannel({
+      workspaceId,
+      accountId: null,
+      channelId: "UC1",
+      title: "Channel",
+    })
+    const insights = insightsRepository(env.db)
+    const ids: string[] = []
+    for (const rule of rules) {
+      ids.push(
+        (await insights.insertRule({ channelId: channel.id, ...rule })).id
+      )
+    }
+    await runJobs(env.db, ["probe", "transcribe", "analyze"])
+    if (options.dropProxy) {
+      await env.db
+        .delete(assets)
+        .where(and(eq(assets.projectId, projectId), eq(assets.kind, "proxy")))
+    }
+    await runJobs(env.db, ["select"])
+    return { projectId, ids }
+  }
+
+  const rules = [
+    { target: "selection" as const, text: "Open on the crash" },
+    { target: "review" as const, text: "Cut slow ends" },
+  ]
+
+  const ruleIdsOnClips = async (projectId: string) => {
+    const clips = await clipRepository(env.db).listForProject(projectId)
+    expect(clips.length).toBeGreaterThan(0)
+    return clips.map(
+      (clip) => clip.playbookRuleIds && [...clip.playbookRuleIds]
+    )
+  }
+
+  it("passes the active rules on and records their ids when Claude selected and reviewed", async () => {
+    const { projectId, ids } = await withRules(rules, {
+      selectorMode: "anthropic",
+    })
+    expect(review.playbooks.at(-1)).toEqual({
+      selection: ["Open on the crash"],
+      review: ["Cut slow ends"],
+    })
+    for (const recorded of await ruleIdsOnClips(projectId)) {
+      expect(recorded?.sort()).toEqual([...ids].sort())
+    }
+  })
+
+  it("records only the selection rule ids when the video review didn't run", async () => {
+    const { projectId, ids } = await withRules(rules, {
+      selectorMode: "anthropic",
+      dropProxy: true,
+    })
+    for (const recorded of await ruleIdsOnClips(projectId)) {
+      expect(recorded).toEqual([ids[0]])
+    }
+  })
+
+  it("records no rule ids when the heuristic selector picked the clips", async () => {
+    const { projectId } = await withRules(rules)
+    for (const recorded of await ruleIdsOnClips(projectId)) {
+      expect(recorded).toBeNull()
+    }
+  })
+
+  it("records no rule ids when Claude failed and the heuristic took over", async () => {
+    review.selectorFails = true
+    const { projectId } = await withRules(rules, { selectorMode: "anthropic" })
+    for (const recorded of await ruleIdsOnClips(projectId)) {
+      expect(recorded).toBeNull()
+    }
+  })
+
+  it("leaves the rule ids null without a channel or rules", async () => {
+    const projectId = await analyzed()
+    expect(review.playbooks.at(-1)).toBeUndefined()
+    const clips = await clipRepository(env.db).listForProject(projectId)
+    expect(clips.length).toBeGreaterThan(0)
+    for (const clip of clips) expect(clip.playbookRuleIds).toBeNull()
   })
 })
 

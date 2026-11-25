@@ -33,6 +33,13 @@ import type {
   QuotaKind,
 } from "@/features/publishing/schema"
 import type {
+  RuleStatus,
+  RuleTarget,
+  SuggestionKind,
+  SuggestionStatus,
+} from "@/features/insights/schema"
+import type { RetentionPoint } from "@/features/publishing/stats"
+import type {
   AssetKind,
   AudioTrack,
   ProjectSettings,
@@ -302,6 +309,7 @@ export const clips = pgTable(
     layoutOverride: jsonb("layout_override").$type<LayoutInput>(),
     effects: jsonb("effects").$type<ClipEffects | null>(),
     beats: jsonb("beats").$type<Beat[] | null>(),
+    playbookRuleIds: jsonb("playbook_rule_ids").$type<string[] | null>(),
     renderAssetId: text("render_asset_id").references(() => assets.id, {
       onDelete: "set null",
     }),
@@ -327,6 +335,51 @@ export const youtubeChannels = pgTable("youtube_channels", {
   ...timestamps,
 })
 
+export const playbookRules = pgTable(
+  "playbook_rules",
+  {
+    id: text("id").primaryKey(),
+    channelId: text("channel_id")
+      .notNull()
+      .references(() => youtubeChannels.id, { onDelete: "cascade" }),
+    target: text("target").$type<RuleTarget>().notNull(),
+    text: text("text").notNull(),
+    status: text("status").$type<RuleStatus>().notNull().default("active"),
+    sourceSuggestionId: text("source_suggestion_id"),
+    supersedesId: text("supersedes_id"),
+    createdAt: timestamptz("created_at").notNull().defaultNow(),
+    retiredAt: timestamptz("retired_at"),
+  },
+  (t) => [index("playbook_rules_channel_idx").on(t.channelId, t.status)]
+)
+
+export const insightSuggestions = pgTable(
+  "insight_suggestions",
+  {
+    id: text("id").primaryKey(),
+    channelId: text("channel_id")
+      .notNull()
+      .references(() => youtubeChannels.id, { onDelete: "cascade" }),
+    target: text("target").$type<RuleTarget>().notNull(),
+    kind: text("kind").$type<SuggestionKind>().notNull(),
+    ruleId: text("rule_id").references(() => playbookRules.id, {
+      onDelete: "set null",
+    }),
+    text: text("text").notNull(),
+    rationale: text("rationale").notNull(),
+    evidenceFor: jsonb("evidence_for").$type<string[]>().notNull(),
+    evidenceAgainst: jsonb("evidence_against").$type<string[]>().notNull(),
+    confidence: doublePrecision("confidence").notNull(),
+    status: text("status")
+      .$type<SuggestionStatus>()
+      .notNull()
+      .default("pending"),
+    createdAt: timestamptz("created_at").notNull().defaultNow(),
+    decidedAt: timestamptz("decided_at"),
+  },
+  (t) => [index("insight_suggestions_channel_idx").on(t.channelId, t.status)]
+)
+
 export const publications = pgTable(
   "publications",
   {
@@ -347,9 +400,31 @@ export const publications = pgTable(
     url: text("url"),
     error: text("error"),
     publishedAt: timestamptz("published_at"),
+    clipStartMs: integer("clip_start_ms"),
+    clipEndMs: integer("clip_end_ms"),
     ...timestamps,
   },
   (t) => [index("publications_clip_idx").on(t.clipId, t.createdAt)]
+)
+
+export const publicationStats = pgTable(
+  "publication_stats",
+  {
+    id: text("id").primaryKey(),
+    publicationId: text("publication_id")
+      .notNull()
+      .references(() => publications.id, { onDelete: "cascade" }),
+    fetchedAt: timestamptz("fetched_at").notNull().defaultNow(),
+    views: integer("views").notNull(),
+    likes: integer("likes").notNull(),
+    comments: integer("comments").notNull(),
+    averageViewDurationS: doublePrecision("average_view_duration_s"),
+    averageViewPercentage: doublePrecision("average_view_percentage"),
+    retention: jsonb("retention").$type<RetentionPoint[]>(),
+  },
+  (t) => [
+    index("publication_stats_publication_idx").on(t.publicationId, t.fetchedAt),
+  ]
 )
 
 export const youtubeQuotaUsage = pgTable(

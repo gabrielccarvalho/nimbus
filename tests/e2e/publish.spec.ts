@@ -55,6 +55,18 @@ test("publishes a rendered clip to YouTube", async ({ page }) => {
     /^https:\/\/youtube\.com\/shorts\/fake-\d+$/,
     { timeout: 60_000 }
   )
+
+  await tile.click()
+  const stats = page.getByRole("dialog").getByLabel("YouTube stats")
+  await stats.getByRole("button", { name: "Refresh stats" }).click()
+  await expect(stats.getByText("1,234 views")).toBeVisible({ timeout: 60_000 })
+  await expectNoSeriousA11yViolations(page)
+
+  await page.goto("/channels")
+  await expect(
+    page.getByRole("table").getByText("E2E published short")
+  ).toBeVisible()
+  await expectNoSeriousA11yViolations(page)
 })
 
 test("an edited clip can't be published until it is rendered again", async ({

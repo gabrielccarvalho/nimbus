@@ -38,7 +38,7 @@ export function createClient(apiKey = getEnv().ANTHROPIC_API_KEY) {
   })
 }
 
-async function requestJson<T extends z.ZodType>({
+export async function requestJson<T extends z.ZodType>({
   client,
   model,
   effort,
@@ -47,6 +47,7 @@ async function requestJson<T extends z.ZodType>({
   schema,
   retryHint,
   signal,
+  subject = "highlight",
 }: {
   client: Anthropic
   model: string
@@ -56,6 +57,7 @@ async function requestJson<T extends z.ZodType>({
   schema: T
   retryHint: string
   signal: AbortSignal | undefined
+  subject?: string
 }): Promise<z.infer<T>> {
   const format = betaZodOutputFormat(schema)
   const messages: Anthropic.Beta.BetaMessageParam[] = [
@@ -68,7 +70,7 @@ async function requestJson<T extends z.ZodType>({
       signal
     )
     if (response.stop_reason === "refusal") {
-      throw new AppError("EXTERNAL", "Claude declined to pick highlights")
+      throw new AppError("EXTERNAL", `Claude declined to pick ${subject}s`)
     }
     const text = response.content.find((block) => block.type === "text")?.text
     if (text && response.stop_reason !== "max_tokens") {
@@ -84,7 +86,10 @@ async function requestJson<T extends z.ZodType>({
       }
     )
   }
-  throw new AppError("EXTERNAL", "Claude returned invalid highlight JSON twice")
+  throw new AppError(
+    "EXTERNAL",
+    `Claude returned invalid ${subject} JSON twice`
+  )
 }
 
 async function request<T extends z.ZodType>(
@@ -166,13 +171,19 @@ export class AnthropicSelector implements HighlightSelector {
     return results.flat()
   }
 
-  private async selectPart(prompt: PromptInput, input: SelectorInput) {
+  private async selectPart(
+    prompt: Omit<PromptInput, "playbook">,
+    input: SelectorInput
+  ) {
     const { clips } = await requestJson({
       client: this.client,
       model: this.model,
       effort: "high",
       system: SELECTION_SYSTEM_PROMPT,
-      content: buildSelectionPrompt(prompt),
+      content: buildSelectionPrompt({
+        ...prompt,
+        playbook: input.playbook?.selection,
+      }),
       schema: candidatesResponseSchema,
       retryHint: `Reply again with only the JSON, at most ${prompt.limits.maxCount} clips.`,
       signal: input.signal,

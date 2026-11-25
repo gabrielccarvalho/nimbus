@@ -243,7 +243,7 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 - [x] Both Claude prompts list what hooks viewers in the niche; bugs and glitches rank first; clips start on the payoff
 - [x] Visual review: the transcript pass over-fetches, Claude re-scores each candidate from 12 proxy frames and moves its start to the payoff; `ANTHROPIC_REVIEW_MODEL` overrides the model
 - [ ] Check on a real GTA stream: compare picks with and without the review, and the token cost
-- [ ] Tune frame count, pool size and the rubric once posted clips have retention numbers
+- [ ] Tune frame count, pool size and the rubric once posted clips have retention numbers (unblocked by Phase 31 stats and Phase 32 insights)
 
 ### Phase 26: Clip effects and clips grid (ADR-0053, ADR-0054)
 
@@ -313,6 +313,33 @@ Spec: `docs/superpowers/specs/2026-11-24-youtube-publishing-and-insights-design.
 - [x] 10. Publishing defaults and plan usage
 - [x] 11. Publish dialog and status on clips
 - [x] 12. End to end and phase close
+
+### Phase 31: Published clip stats (ADR-0066)
+
+Spec: `docs/superpowers/specs/2026-11-24-youtube-publishing-and-insights-design.md`. Plan: `docs/superpowers/plans/2026-11-24-youtube-stats-and-insights.md`.
+
+- [x] 1. Pure stats logic (sync ages, early flag, retention markers, relative performance)
+- [x] 2. Schema, migration 0013 (`publication_stats`, uploaded clip range) and repository
+- [x] 3. YouTube client: video statistics and analytics
+- [x] 4. The `sync_stats` job, scheduler and `withGoogleToken`
+- [x] 5. Stats in the clip dialog and the refresh action
+- [x] 6. Published clips table on `/channels`
+- [x] 7. End to end and phase close; the clip dialog re-polls every 5 s while a refresh runs
+
+Not verified: stats from a real channel (the fake returns fixed numbers), retention for Shorts, and how long YouTube's developer policies allow analytics to be stored (an audit item under B4).
+
+### Phase 32: Insights and the channel playbook (ADR-0066)
+
+Spec: `docs/superpowers/specs/2026-11-24-youtube-publishing-and-insights-design.md`. Plan: `docs/superpowers/plans/2026-11-24-youtube-stats-and-insights.md`.
+
+- [x] 8. Playbook schema, migration 0014 and pure rule logic
+- [x] 9. Playbook in the selection and review prompts; clips record `playbookRuleIds`
+- [x] 10. The `analyze_performance` job and its prompt
+- [x] 11. Service, actions and queries: approve, reject, edit, retire, restore
+- [x] 12. Insights tab: suggestion cards and the playbook
+- [x] 13. End to end and phase close
+
+Not verified: insights from a real channel (e2e seeds a suggestion; the analysis is tested against a mocked Claude).
 
 ### Not verified
 

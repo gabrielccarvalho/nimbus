@@ -43,6 +43,29 @@ describe("selection prompt", () => {
     expect(buildSelectionPrompt(base)).not.toContain("The game is")
   })
 
+  it("is unchanged without playbook rules", () => {
+    const plain = buildSelectionPrompt({ ...base, niche: NICHE_PROFILES.gta })
+    expect(
+      buildSelectionPrompt({ ...base, niche: NICHE_PROFILES.gta, playbook: [] })
+    ).toBe(plain)
+    expect(buildSelectionPrompt({ ...base, playbook: [] })).toBe(
+      buildSelectionPrompt(base)
+    )
+  })
+
+  it("adds the playbook once, right after the niche block", () => {
+    const prompt = buildSelectionPrompt({
+      ...base,
+      niche: NICHE_PROFILES.gta,
+      playbook: ["Start on the crash", "Skip menus"],
+    })
+    const section =
+      "What has worked on this channel, learned from how its published clips did:\n- Start on the crash\n- Skip menus\n"
+    expect(prompt.split(section)).toHaveLength(2)
+    const niche = NICHE_PROFILES.gta.lookFor.at(-1)!
+    expect(prompt).toContain(`- ${niche}\n\n${section}\nPick up to`)
+  })
+
   it("names the spoken language and marks game and unclear speech", () => {
     const prompt = buildSelectionPrompt(base)
     expect(languageName("pt")).toBe("Portuguese")
@@ -149,6 +172,12 @@ describe("manual prompt", () => {
     expect(prompt).toContain("Most rewatched on YouTube")
     expect(prompt).toContain("6.0–12.0s (1.00)")
     expect(prompt).toContain("Reply with only JSON in this shape")
+  })
+
+  it("carries the playbook", () => {
+    expect(buildManualPrompt({ ...base, playbook: ["Skip menus"] })).toContain(
+      "- Skip menus"
+    )
   })
 })
 

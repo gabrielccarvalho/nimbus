@@ -79,6 +79,42 @@ describe("visual review", () => {
     ])
   })
 
+  it("prefixes the first block with the review playbook only when there are rules", () => {
+    const batch = [
+      {
+        candidate: candidate(20_000, 40_000),
+        times: [17_000],
+        frames: ["AAA"],
+      },
+    ]
+    const input = {
+      words,
+      segments: buildSegments(words),
+      language: "pt",
+      limits: { minMs: 15_000, maxMs: 60_000, maxCount: 3 },
+      niche: NICHE_PROFILES.gta,
+    }
+    const plain = buildReviewContent(batch, 0, input)
+    expect(
+      buildReviewContent(batch, 0, { ...input, playbook: undefined })
+    ).toEqual(plain)
+    expect(
+      buildReviewContent(batch, 0, {
+        ...input,
+        playbook: { selection: ["ignored"], review: [] },
+      })
+    ).toEqual(plain)
+    const [first] = buildReviewContent(batch, 0, {
+      ...input,
+      playbook: { selection: ["ignored"], review: ["Reward clean reactions"] },
+    })
+    const text = first!.type === "text" ? first!.text : ""
+    expect(text).toBe(
+      `What has worked on this channel, learned from how its published clips did:\n- Reward clean reactions\n\n${plain[0]!.type === "text" ? plain[0]!.text : ""}`
+    )
+    expect(text).not.toContain("ignored")
+  })
+
   it("takes the reviewer's score, payoff start and copy", () => {
     const [moved, kept, unreviewed] = applyReviews(
       [
