@@ -1,9 +1,20 @@
 import { render, screen, within } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import type { ReactNode } from "react"
+import { describe, expect, it, vi } from "vitest"
 
 import type { ShortRow } from "@/features/analytics/queries"
 
 import { GrowthChart } from "./growth-chart"
+
+vi.mock("recharts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("recharts")>()),
+  ResponsiveContainer: ({ children }: { children: ReactNode }) => children,
+  LineChart: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  Line: ({ name }: { name: string }) => <span data-testid="line">{name}</span>,
+  CartesianGrid: () => null,
+  XAxis: () => null,
+  YAxis: () => null,
+}))
 
 function row(id: string, title: string, publishedAt?: Date): ShortRow {
   return {
@@ -61,6 +72,31 @@ describe("GrowthChart", () => {
       .getByRole("rowheader", { name: "Past short one" })
       .closest("tr")!
     expect(within(rowOne).getByText("70")).toBeInTheDocument()
+  })
+
+  it("says how many Shorts are drawn when it caps them", () => {
+    const many = Array.from({ length: 35 }, (_, i) =>
+      row(`m${i}`, `Short ${i}`, new Date(Date.UTC(2026, 0, 1 + i)))
+    )
+    render(<GrowthChart rows={many} median={[]} highlightedId={null} />)
+    expect(
+      screen.getByText(
+        "Growth since upload for 35 Shorts (the 30 most recent are drawn)."
+      )
+    ).toBeInTheDocument()
+  })
+
+  it("draws the 30 most recent Shorts plus the highlighted one", () => {
+    const many = Array.from({ length: 35 }, (_, i) =>
+      row(`m${i}`, `Short ${i}`, new Date(Date.UTC(2026, 0, 1 + i)))
+    )
+    render(<GrowthChart rows={many} median={median} highlightedId="m0" />)
+    const lines = screen.getAllByTestId("line").map((line) => line.textContent)
+    expect(lines).toHaveLength(32)
+    expect(lines.filter((name) => name === "Channel median")).toHaveLength(1)
+    expect(lines.at(-1)).toBe("Short 0")
+    expect(lines).not.toContain("Short 4")
+    expect(lines).toContain("Short 5")
   })
 
   it("tables every Short even when the chart draws only the recent ones", () => {

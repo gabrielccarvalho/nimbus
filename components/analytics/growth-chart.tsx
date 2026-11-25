@@ -32,7 +32,9 @@ const config = {
 const number = new Intl.NumberFormat("en-US")
 
 function summarize(count: number, median: (number | null)[]) {
-  const lead = `Growth since upload for ${count} ${count === 1 ? "Short" : "Shorts"}.`
+  const capped =
+    count > DRAWN_SHORTS ? ` (the ${DRAWN_SHORTS} most recent are drawn)` : ""
+  const lead = `Growth since upload for ${count} ${count === 1 ? "Short" : "Shorts"}${capped}.`
   const last = median.findLastIndex((value) => value !== null)
   return last < 0
     ? lead
