@@ -29,7 +29,7 @@ export type NewInsightSuggestion = Pick<
 export type Playbook = {
   selection: string[]
   review: string[]
-  ruleIds: string[]
+  ruleIds: Record<RuleTarget, string[]>
 }
 
 export function insightsRepository(db: Db) {
@@ -218,11 +218,13 @@ export async function loadPlaybook(
   if (!channel) return undefined
   const rules = await insightsRepository(db).activeRules(channel.id)
   if (rules.length === 0) return undefined
-  const texts = (target: RuleTarget) =>
-    rules.filter((r) => r.target === target).map((r) => r.text)
+  const of = (target: RuleTarget) => rules.filter((r) => r.target === target)
   return {
-    selection: texts("selection"),
-    review: texts("review"),
-    ruleIds: rules.map((r) => r.id),
+    selection: of("selection").map((r) => r.text),
+    review: of("review").map((r) => r.text),
+    ruleIds: {
+      selection: of("selection").map((r) => r.id),
+      review: of("review").map((r) => r.id),
+    },
   }
 }

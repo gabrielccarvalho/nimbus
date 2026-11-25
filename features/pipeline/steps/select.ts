@@ -126,9 +126,13 @@ export const selectStep: JobHandler = async ({
   )
   throwIfAborted(signal)
   showCandidates(candidates, null)
-  if (settings.selectorMode === "anthropic" && !fallbackReason) {
-    await recordUsage(db, project, "claude_run", 1)
-  }
+  const usedClaude = settings.selectorMode === "anthropic" && !fallbackReason
+  if (usedClaude) await recordUsage(db, project, "claude_run", 1)
+  const reviewed = reviewing && !fallbackReason && !reviewFailure
+  const appliedRuleIds = [
+    ...(usedClaude ? (playbook?.ruleIds.selection ?? []) : []),
+    ...(reviewed ? (playbook?.ruleIds.review ?? []) : []),
+  ]
 
   const clips = clipRepository(db)
   const inserted = await (more ? clips.addCandidates : clips.replaceCandidates)(
@@ -146,7 +150,7 @@ export const selectStep: JobHandler = async ({
           : c.reason,
       score: c.score,
       beats: c.beats ?? null,
-      playbookRuleIds: playbook?.ruleIds ?? null,
+      playbookRuleIds: appliedRuleIds.length > 0 ? appliedRuleIds : null,
     }))
   )
   if (settings.autoEffects) {
@@ -160,7 +164,7 @@ export const selectStep: JobHandler = async ({
       more,
       niche,
       fallback: Boolean(fallbackReason),
-      reviewed: reviewing && !fallbackReason && !reviewFailure,
+      reviewed,
     },
     "selected"
   )
