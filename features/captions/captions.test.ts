@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { defaultProjectSettings } from "../projects/schema"
 import { assTime, buildAss, escapeAssText } from "./ass"
+import { defaultOverlayText, overlayEndMs, overlayFontSize } from "./overlay"
 import {
   activeWordIndex,
   applyPageOverrides,
@@ -334,6 +335,70 @@ describe("ASS", () => {
     expect(events).toHaveLength(pages.length)
     expect(ass).toContain(",3,16,0,2,")
     expect(events[0]).toContain("\\pos(540,1536)")
+  })
+})
+
+describe("text overlay", () => {
+  const punch = resolveCaptionStyle({ presetId: "punch" })
+  const overlay = { text: "Wait for it", position: "top" as const, endMs: 3000 }
+  const events = (ass: string) =>
+    ass.split("\n").filter((line) => line.startsWith("Dialogue:"))
+
+  it("defaults to the hook, then the title, cut at a word boundary", () => {
+    expect(defaultOverlayText("Wait for it", "Clip")).toBe("Wait for it")
+    expect(defaultOverlayText("  ", "Clip")).toBe("Clip")
+    const long = defaultOverlayText("word ".repeat(30), "Clip")
+    expect(long.length).toBeLessThanOrEqual(80)
+    expect(long.endsWith("word…")).toBe(true)
+  })
+
+  it("sizes the title and ends it within the clip", () => {
+    expect(overlayFontSize({ fontSize: 92 })).toBe(110)
+    expect(overlayFontSize({ fontSize: 160 })).toBe(192)
+    expect(overlayEndMs({ untilMs: 3000 }, 20_000)).toBe(3000)
+    expect(overlayEndMs({ untilMs: 30_000 }, 20_000)).toBe(20_000)
+    expect(overlayEndMs({ untilMs: null }, 20_000)).toBe(20_000)
+  })
+
+  it("matches the golden file and leaves captions untouched", async () => {
+    const pages = buildCaptionPages(sample, 5000, {
+      maxWordsPerPage: 3,
+      maxCharsPerLine: 16,
+    })
+    const ass = buildAss({ pages, style: punch, baseline: 0.72, overlay })
+    await expect(ass).toMatchFileSnapshot("./__golden__/overlay.ass")
+    expect(ass).toContain(
+      "Style: Title,Oxanium ExtraBold,110,&H00FFFFFF,&H00FFFFFF,&H00231415,&H66231415,-1,0,0,0,100,100,0,0,1,8,0,8,90,90,240,1"
+    )
+    expect(events(ass).at(-1)).toBe(
+      "Dialogue: 1,0:00:00.00,0:00:03.00,Title,,0,0,0,,{\\q0}Wait for it"
+    )
+  })
+
+  it("centers with \\an5", () => {
+    const ass = buildAss({
+      pages: [],
+      style: punch,
+      baseline: 0.72,
+      overlay: { ...overlay, position: "center" },
+    })
+    expect(events(ass).at(-1)).toContain("Title,,0,0,0,,{\\an5\\q0}Wait for it")
+  })
+
+  it("escapes override codes and keeps emoji", () => {
+    const ass = buildAss({
+      pages: [],
+      style: punch,
+      baseline: 0.72,
+      overlay: { ...overlay, text: "{\\fs200}big\\Nline\ntwo 🔥" },
+    })
+    expect(events(ass).at(-1)).toContain("{\\q0}｛＼fs200｝big＼Nline two 🔥")
+  })
+
+  it("emits only the title event without caption pages", () => {
+    const ass = buildAss({ pages: [], style: punch, baseline: 0.72, overlay })
+    expect(events(ass)).toHaveLength(1)
+    expect(ass).not.toContain(",Caption,,")
   })
 })
 
