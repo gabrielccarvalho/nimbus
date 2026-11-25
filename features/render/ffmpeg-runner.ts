@@ -51,7 +51,11 @@ export async function runFfmpeg(
   return result
 }
 
-export async function runFfprobe(file: string, signal?: AbortSignal) {
+export async function runFfprobe(
+  file: string,
+  signal?: AbortSignal,
+  kind: "video" | "audio" = "video"
+) {
   const env = getEnv()
   const result = await runProcess(
     env.FFPROBE_PATH,
@@ -69,7 +73,9 @@ export async function runFfprobe(file: string, signal?: AbortSignal) {
   if (result.code !== 0) {
     throw new AppError(
       "UNSUPPORTED_MEDIA",
-      "This file couldn't be read as a video",
+      kind === "audio"
+        ? "This file couldn't be read as audio"
+        : "This file couldn't be read as a video",
       { details: { stderrTail: result.stderrTail } }
     )
   }
