@@ -212,11 +212,13 @@ When tracks change:
 
 ### Analytics
 
-- A publication is `nimbus` (published from a clip) or `imported` (found on the channel). Imported Shorts have no clip, transcript or moments.
+- A publication is `nimbus` (published from a clip) or `imported` (found on the channel). Imported Shorts have no clip or transcript, so their retention moments come without words, beats or effects.
 - A video is a Short when `0 < duration <= 180 s`, unless a per-video `creatorContentType` probe answered, in which case `SHORTS` decides (`VIDEO_ON_DEMAND` is long, anything else other). Only Shorts are imported.
 - Same-age ratio: a Short's cumulative views at age N (its age capped at 28 days) over the median of the other Shorts' cumulative views at the same age. Under 2 days of age, or with fewer than 3 peers, there is no ratio.
 - Data lags 48 to 72 hours, so ages and periods end at the last day with data. A Short's data ends at `min(dataThrough, max(lastStoredDay, pacificDay(dailySyncedAt) - 3))`; days a successful read omits inside that range count as 0 views.
-- Refresh cadence: Nimbus Shorts sync at days 1, 2, 7 and 28. After 28 days, and for every imported Short, a sync is due every 28 days, which keeps `videos.list` data inside the 30-day rule. Uploads and channel totals sync daily.
+- Refresh cadence: Nimbus Shorts sync at days 1, 2, 7 and 28. After 28 days, and for every imported Short, a sync is due every 28 days, which keeps `videos.list` data inside the 30-day rule; imported Shorts sync 50 to a `videos.list` call. Uploads and channel totals sync daily, and each channel sync also refreshes the daily curves of Shorts up to 31 days old. A channel job that failed waits 6 hours before the next try.
+- 30-day rule on failure paths: once a day, snapshots older than 30 days are deleted (the Short shows "—" until it refreshes) and an imported Short not refreshed in 30 days loses its title ("Untitled Short"). Daily and channel Analytics rows are kept.
+- Top Shorts this period come from YouTube's 50 most viewed videos of the period, keeping the channel's published Shorts, five at most.
 - Periods are 7, 28 or 90 days. Each total is compared with the previous period of the same length; the change is empty when the previous period has no data.
 - A private or deleted imported Short is `removed`. A Nimbus upload that turns private stays `published`.
 

@@ -356,8 +356,9 @@ Spec: `docs/superpowers/specs/2026-11-24-analytics-and-music-design.md`. Plan: `
 - [x] 9. `/analytics` overview with the views chart
 - [x] 10. Shorts table, growth chart, import button, Insights tab; `/channels` keeps the connection
 - [x] 11. End to end and phase close
+- [x] 12. Final review fixes: content type fallback only on a dimension rejection and replaced day ranges, young Shorts' curves refreshed by the channel sync, Top Shorts from YouTube's top videos (`channel_top_videos`, migration 0017), `sync_stats_batch` for imported Shorts, a daily 30-day retention sweep, full manual rescans, shutdown hand-off, probe fallback, 6 h backoff for failed channel jobs, overview polling, channel-switch job cancel, and the publish/import lock
 
-Not verified: import and daily analytics from a real channel (the fake returns fixed uploads and daily numbers).
+Not verified: import and daily analytics from a real channel (the fake returns fixed uploads and daily numbers), the top-videos report and a 50-id `videos.list` batch against the real APIs.
 
 ### Not verified
 
