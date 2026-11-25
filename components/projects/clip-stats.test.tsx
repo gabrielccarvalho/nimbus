@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { act } from "react"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { refreshStatsAction } from "@/features/publishing/actions"
 
@@ -48,6 +49,10 @@ const publication: PublicationState = {
 beforeEach(() => {
   refresh.mockClear()
   vi.mocked(refreshStatsAction).mockReset()
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })
 
 describe("ClipStats", () => {
@@ -116,6 +121,34 @@ describe("ClipStats", () => {
   it("disables the button while a refresh is running", () => {
     render(<ClipStats publication={{ ...publication, refreshing: true }} />)
     expect(screen.getByRole("button", { name: "Refreshing…" })).toBeDisabled()
+  })
+
+  it("re-polls every 5 s while refreshing and stops once it is done", () => {
+    vi.useFakeTimers()
+    const { rerender, unmount } = render(
+      <ClipStats publication={{ ...publication, refreshing: true }} />
+    )
+    act(() => {
+      vi.advanceTimersByTime(5000)
+    })
+    expect(refresh).toHaveBeenCalledTimes(1)
+    act(() => {
+      vi.advanceTimersByTime(10_000)
+    })
+    expect(refresh).toHaveBeenCalledTimes(3)
+
+    rerender(<ClipStats publication={{ ...publication, refreshing: false }} />)
+    act(() => {
+      vi.advanceTimersByTime(20_000)
+    })
+    expect(refresh).toHaveBeenCalledTimes(3)
+
+    rerender(<ClipStats publication={{ ...publication, refreshing: true }} />)
+    unmount()
+    act(() => {
+      vi.advanceTimersByTime(20_000)
+    })
+    expect(refresh).toHaveBeenCalledTimes(3)
   })
 
   it("reports a failed refresh", async () => {

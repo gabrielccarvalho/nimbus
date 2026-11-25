@@ -314,6 +314,20 @@ Spec: `docs/superpowers/specs/2026-11-24-youtube-publishing-and-insights-design.
 - [x] 11. Publish dialog and status on clips
 - [x] 12. End to end and phase close
 
+### Phase 31: Published clip stats (ADR-0066)
+
+Spec: `docs/superpowers/specs/2026-11-24-youtube-publishing-and-insights-design.md`. Plan: `docs/superpowers/plans/2026-11-24-youtube-stats-and-insights.md`.
+
+- [x] 1. Pure stats logic (sync ages, early flag, retention markers, relative performance)
+- [x] 2. Schema, migration 0013 (`publication_stats`, uploaded clip range) and repository
+- [x] 3. YouTube client: video statistics and analytics
+- [x] 4. The `sync_stats` job, scheduler and `withGoogleToken`
+- [x] 5. Stats in the clip dialog and the refresh action
+- [x] 6. Published clips table on `/channels`
+- [x] 7. End to end and phase close; the clip dialog re-polls every 5 s while a refresh runs
+
+Not verified: stats from a real channel (the fake returns fixed numbers), retention for Shorts, and how long YouTube's developer policies allow analytics to be stored (an audit item under B4).
+
 ### Not verified
 
 - MediaPipe face detection on a real face (fixtures have none; the code path is unit tested and the model loads in e2e).

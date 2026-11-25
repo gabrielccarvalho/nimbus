@@ -12,6 +12,7 @@ import { refreshStatsAction } from "@/features/publishing/actions"
 import type { PublicationState } from "./publish-dialog"
 
 const counts = new Intl.NumberFormat("en")
+const POLL_MS = 5000
 
 function useRefreshStats(publicationId: string) {
   const router = useRouter()
@@ -33,6 +34,13 @@ export function ClipStats({ publication }: { publication: PublicationState }) {
   const { pending, refresh } = useRefreshStats(publication.id)
   const removed = status === "removed"
   const busy = refreshing || pending
+  const router = useRouter()
+
+  React.useEffect(() => {
+    if (!refreshing) return
+    const timer = setInterval(() => router.refresh(), POLL_MS)
+    return () => clearInterval(timer)
+  }, [refreshing, router])
 
   return (
     <section aria-label="YouTube stats" className="flex flex-col gap-2 text-sm">
