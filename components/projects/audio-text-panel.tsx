@@ -3,6 +3,7 @@
 import * as React from "react"
 
 import { MusicUploadButton } from "@/components/music/music-upload-button"
+import { FieldError } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
@@ -24,6 +25,7 @@ import {
   DEFAULT_OVERLAY_UNTIL_MS,
   defaultOverlayText,
   TEXT_OVERLAY_MAX_CHARS,
+  textOverlaySchema,
   type TextOverlay,
 } from "@/features/captions/overlay"
 import {
@@ -142,6 +144,10 @@ export function AudioTextPanel({
   const shortByMs = clipDurationMs - remainingMs
   const editOverlay = (patch: Partial<TextOverlay>) =>
     textOverlay && onTextOverlayChange({ ...textOverlay, ...patch })
+  const overlayTextError =
+    textOverlay &&
+    textOverlaySchema.shape.text.safeParse(textOverlay.text).error?.issues[0]
+      ?.message
 
   return (
     <div className="grid gap-6">
@@ -349,9 +355,18 @@ export function AudioTextPanel({
                 value={textOverlay.text}
                 maxLength={TEXT_OVERLAY_MAX_CHARS}
                 required
+                aria-invalid={Boolean(overlayTextError)}
+                aria-describedby={
+                  overlayTextError ? `${id}-overlay-text-error` : undefined
+                }
                 disabled={disabled}
                 onChange={(event) => editOverlay({ text: event.target.value })}
               />
+              {overlayTextError && (
+                <FieldError id={`${id}-overlay-text-error`}>
+                  {overlayTextError}
+                </FieldError>
+              )}
             </div>
             <div className="flex flex-col gap-2">
               <Label id={`${id}-position`}>Position</Label>

@@ -8,7 +8,11 @@ export const OVERLAY_TOP_Y = 240
 export const OVERLAY_MARGIN_X = 90
 
 export const textOverlaySchema = z.object({
-  text: z.string().trim().min(1).max(TEXT_OVERLAY_MAX_CHARS),
+  text: z
+    .string()
+    .trim()
+    .min(1, "Add the on-screen text or turn it off")
+    .max(TEXT_OVERLAY_MAX_CHARS),
   position: z.enum(["top", "center"]).default("top"),
   untilMs: z
     .number()
@@ -21,7 +25,7 @@ export const textOverlaySchema = z.object({
 export type TextOverlay = z.infer<typeof textOverlaySchema>
 
 export function defaultOverlayText(hook: string, title: string) {
-  const text = hook.trim() || title.trim()
+  const text = hook.trim() || title.trim() || "Title"
   if (text.length <= TEXT_OVERLAY_MAX_CHARS) return text
   const head = text.slice(0, TEXT_OVERLAY_MAX_CHARS - 1)
   const space = head.lastIndexOf(" ")

@@ -369,11 +369,15 @@ describe("text overlay", () => {
     expect(ok({ untilMs: 180_000 })).toBe(true)
     expect(ok({ untilMs: 180_001 })).toBe(false)
     expect(ok({ untilMs: 1500.5 })).toBe(false)
+    expect(
+      textOverlaySchema.safeParse({ text: " " }).error?.issues[0]?.message
+    ).toBe("Add the on-screen text or turn it off")
   })
 
   it("defaults to the hook, then the title, cut at a word boundary", () => {
     expect(defaultOverlayText("Wait for it", "Clip")).toBe("Wait for it")
     expect(defaultOverlayText("  ", "Clip")).toBe("Clip")
+    expect(defaultOverlayText(" ", "")).toBe("Title")
     const long = defaultOverlayText("word ".repeat(30), "Clip")
     expect(long.length).toBeLessThanOrEqual(80)
     expect(long.endsWith("word…")).toBe(true)

@@ -248,6 +248,26 @@ describe("AudioTextPanel text", () => {
     })
   })
 
+  it("starts from Title when the clip has no hook or title", async () => {
+    const { onTextOverlayChange } = renderPanel({ hook: " ", title: "" })
+    await userEvent.click(
+      screen.getByRole("switch", { name: "Show text on the video" })
+    )
+    expect(onTextOverlayChange).toHaveBeenLastCalledWith({
+      text: "Title",
+      position: "top",
+      untilMs: 3000,
+    })
+  })
+
+  it("asks for the text when it is cleared", () => {
+    renderPanel({ textOverlay: { ...overlay, text: " " } })
+    expect(screen.getByLabelText("Text")).toHaveAccessibleDescription(
+      "Add the on-screen text or turn it off"
+    )
+    expect(screen.getByLabelText("Text")).toBeInvalid()
+  })
+
   it("turns it off", async () => {
     const { onTextOverlayChange } = renderPanel({ textOverlay: overlay })
     await userEvent.click(
