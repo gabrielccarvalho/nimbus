@@ -4,7 +4,7 @@ import { readdir } from "node:fs/promises"
 import path from "node:path"
 
 import { AppError } from "@/lib/errors"
-import { runProcess } from "@/lib/process/run"
+import { runProcess, type RunOptions } from "@/lib/process/run"
 
 import type { ExportedCookies } from "./browser-cookies"
 import type { DownloadInput, Downloader, VideoInfo } from "./downloader"
@@ -24,6 +24,9 @@ const FORMAT = [
 
 const INFO_TIMEOUT_MS = 60_000
 
+// Signed-in requests can get no playable formats from YouTube while anonymous ones do.
+const NO_FORMATS = /Requested format is not available/i
+
 export class YtDlpDownloader implements Downloader {
   readonly id = "yt-dlp"
 
@@ -37,20 +40,49 @@ export class YtDlpDownloader implements Downloader {
     }
   ) {}
 
-  private async withArgs<T>(run: (args: string[]) => Promise<T>): Promise<T> {
+  private hasCookies() {
+    return Boolean(
+      this.options.cookiesFromBrowser ||
+      this.options.cookiesFile ||
+      this.options.exportCookies
+    )
+  }
+
+  private async run(args: string[], options: RunOptions) {
     const exported = await this.options.exportCookies?.()
+    let result
     try {
-      return await run(this.baseArgs(exported?.file))
+      result = await runProcess(
+        this.options.binary,
+        [...this.baseArgs(exported?.file ?? this.options.cookiesFile), ...args],
+        options
+      )
     } finally {
       await exported?.cleanup()
     }
+    if (
+      result.code !== 0 &&
+      this.hasCookies() &&
+      NO_FORMATS.test(result.stderrTail)
+    ) {
+      return runProcess(
+        this.options.binary,
+        [...this.baseArgs(undefined, { anonymous: true }), ...args],
+        options
+      )
+    }
+    return result
   }
 
-  private baseArgs(cookiesFile = this.options.cookiesFile) {
+  private baseArgs(
+    cookiesFile: string | undefined,
+    { anonymous = false }: { anonymous?: boolean } = {}
+  ) {
     const args = ["--no-playlist", "--no-warnings", "--ignore-config"]
     if (this.options.ffmpeg.includes("/")) {
       args.push("--ffmpeg-location", this.options.ffmpeg)
     }
+    if (anonymous) return args
     if (this.options.cookiesFromBrowser) {
       args.push("--cookies-from-browser", this.options.cookiesFromBrowser)
     }
@@ -61,28 +93,13 @@ export class YtDlpDownloader implements Downloader {
   }
 
   private describeError(stderr: string) {
-    return describeYtDlpError(stderr, {
-      withCookies: Boolean(
-        this.options.cookiesFromBrowser ||
-        this.options.cookiesFile ||
-        this.options.exportCookies
-      ),
-    })
+    return describeYtDlpError(stderr, { withCookies: this.hasCookies() })
   }
 
   async info(url: string, signal?: AbortSignal): Promise<VideoInfo> {
-    const result = await this.withArgs((args) =>
-      runProcess(
-        this.options.binary,
-        [
-          ...args,
-          "--flat-playlist",
-          "--dump-single-json",
-          "--skip-download",
-          url,
-        ],
-        { signal, timeoutMs: INFO_TIMEOUT_MS, stderrTailBytes: 8192 }
-      )
+    const result = await this.run(
+      ["--flat-playlist", "--dump-single-json", "--skip-download", url],
+      { signal, timeoutMs: INFO_TIMEOUT_MS, stderrTailBytes: 8192 }
     )
     if (result.code !== 0) throw this.describeError(result.stderrTail)
     return parseInfo(result.stdout)
@@ -96,33 +113,29 @@ export class YtDlpDownloader implements Downloader {
     onProgress,
   }: DownloadInput): Promise<string> {
     const onLine = onProgress ? downloadProgress(onProgress) : undefined
-    const result = await this.withArgs((args) =>
-      runProcess(
-        this.options.binary,
-        [
-          ...args,
-          "--format",
-          FORMAT,
-          "--merge-output-format",
-          "mp4/mkv",
-          "--max-filesize",
-          String(maxBytes),
-          "--newline",
-          "--progress-template",
-          PROGRESS_TEMPLATE,
-          "--paths",
-          dir,
-          "--output",
-          "source.%(ext)s",
-          url,
-        ],
-        {
-          signal,
-          collectStdout: false,
-          stderrTailBytes: 8192,
-          onStdoutLine: onLine,
-        }
-      )
+    const result = await this.run(
+      [
+        "--format",
+        FORMAT,
+        "--merge-output-format",
+        "mp4/mkv",
+        "--max-filesize",
+        String(maxBytes),
+        "--newline",
+        "--progress-template",
+        PROGRESS_TEMPLATE,
+        "--paths",
+        dir,
+        "--output",
+        "source.%(ext)s",
+        url,
+      ],
+      {
+        signal,
+        collectStdout: false,
+        stderrTailBytes: 8192,
+        onStdoutLine: onLine,
+      }
     )
     if (result.code !== 0) throw this.describeError(result.stderrTail)
     const file = (await readdir(dir)).find((name) =>
