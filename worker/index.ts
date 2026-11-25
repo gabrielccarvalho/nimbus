@@ -11,6 +11,7 @@ import {
   onJobSucceeded,
   pipelineHandlers,
 } from "@/features/pipeline/handlers"
+import { enqueueDueAnalyticsSyncs } from "@/features/analytics/service"
 import { enqueueDueStatsSyncs } from "@/features/publishing/stats-service"
 import { STATS_SCHEDULE_INTERVAL_MS } from "@/features/publishing/stats"
 import { SWEEP_INTERVAL_MS } from "@/features/pipeline/sweep-plan"
@@ -48,9 +49,14 @@ const sweep = () =>
   )
 
 const scheduleStats = () =>
-  enqueueDueStatsSyncs(db, new Date()).catch((error: unknown) =>
-    logger.error({ err: error }, "couldn't schedule stats syncs")
-  )
+  Promise.all([
+    enqueueDueStatsSyncs(db, new Date()).catch((error: unknown) =>
+      logger.error({ err: error }, "couldn't schedule stats syncs")
+    ),
+    enqueueDueAnalyticsSyncs(db, new Date()).catch((error: unknown) =>
+      logger.error({ err: error }, "couldn't schedule analytics syncs")
+    ),
+  ])
 
 worker.start()
 void sweep()
