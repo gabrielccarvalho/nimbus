@@ -48,6 +48,9 @@ export const publishClipStep: JobHandler = async ({
   const publishing = publishingRepository(db)
   const publication = await publishing.getPublication(publicationId)
   if (!publication) throw new AppError("CANCELLED", "Publication was deleted")
+  if (!publication.clipId) {
+    throw new AppError("CANCELLED", "Imported Shorts can't be published")
+  }
   if (!RUNNABLE.has(publication.status)) {
     logger.warn(
       { publicationId, status: publication.status },

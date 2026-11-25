@@ -124,15 +124,15 @@ export function statsRepository(db: Db) {
     async forChannel(channelId: string): Promise<
       {
         publication: Publication
-        clip: Clip
-        projectId: string
+        clip: Clip | null
+        projectId: string | null
         latest: Snapshot | null
       }[]
     > {
       const rows = await db
         .select({ publication: publications, clip: clips })
         .from(publications)
-        .innerJoin(clips, eq(clips.id, publications.clipId))
+        .leftJoin(clips, eq(clips.id, publications.clipId))
         .where(
           and(
             eq(publications.channelId, channelId),
@@ -144,7 +144,7 @@ export function statsRepository(db: Db) {
       return rows.map(({ publication, clip }) => ({
         publication,
         clip,
-        projectId: clip.projectId,
+        projectId: clip?.projectId ?? null,
         latest: latest.get(publication.id) ?? null,
       }))
     },

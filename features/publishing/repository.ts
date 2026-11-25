@@ -4,6 +4,7 @@ import { and, desc, eq, inArray, ne, sql } from "drizzle-orm"
 
 import { newId, now, withTransaction, type Db } from "@/lib/db"
 import {
+  channelDaily,
   publications,
   youtubeChannels,
   youtubeQuotaUsage,
@@ -51,23 +52,48 @@ export function publishingRepository(db: Db) {
       return row
     },
 
-    async upsertChannel(input: NewYouTubeChannel): Promise<YouTubeChannel> {
-      const [row] = await db
-        .insert(youtubeChannels)
-        .values({ ...input, id: newId() })
-        .onConflictDoUpdate({
-          target: youtubeChannels.workspaceId,
-          set: {
-            accountId: input.accountId,
-            channelId: input.channelId,
-            title: input.title,
-            thumbnailUrl: input.thumbnailUrl ?? null,
-            status: input.status ?? "ok",
-            updatedAt: now(),
-          },
-        })
-        .returning()
-      return row!
+    upsertChannel(input: NewYouTubeChannel): Promise<YouTubeChannel> {
+      return withTransaction(db, async (tx) => {
+        const [previous] = await tx
+          .select()
+          .from(youtubeChannels)
+          .where(eq(youtubeChannels.workspaceId, input.workspaceId))
+          .for("update")
+        const switched = previous && previous.channelId !== input.channelId
+        if (switched) {
+          await tx
+            .delete(publications)
+            .where(
+              and(
+                eq(publications.channelId, previous.id),
+                eq(publications.origin, "imported")
+              )
+            )
+          await tx
+            .delete(channelDaily)
+            .where(eq(channelDaily.channelId, previous.id))
+        }
+        const [row] = await tx
+          .insert(youtubeChannels)
+          .values({ ...input, id: newId() })
+          .onConflictDoUpdate({
+            target: youtubeChannels.workspaceId,
+            set: {
+              accountId: input.accountId,
+              channelId: input.channelId,
+              title: input.title,
+              thumbnailUrl: input.thumbnailUrl ?? null,
+              status: input.status ?? "ok",
+              ...(switched && {
+                uploadsSyncedAt: null,
+                analyticsSyncedAt: null,
+              }),
+              updatedAt: now(),
+            },
+          })
+          .returning()
+        return row!
+      })
     },
 
     async setChannelStatus(id: string, status: ChannelStatus) {
@@ -114,7 +140,7 @@ export function publishingRepository(db: Db) {
         .orderBy(desc(publications.createdAt))
       const latest = new Map<string, Publication>()
       for (const row of rows) {
-        if (!latest.has(row.clipId)) latest.set(row.clipId, row)
+        if (row.clipId && !latest.has(row.clipId)) latest.set(row.clipId, row)
       }
       return latest
     },
@@ -155,6 +181,7 @@ export function publishingRepository(db: Db) {
         .where(
           and(
             eq(publications.channelId, channelId),
+            eq(publications.origin, "nimbus"),
             eq(publications.status, "published")
           )
         )
@@ -172,6 +199,7 @@ export function publishingRepository(db: Db) {
         .where(
           and(
             eq(youtubeChannels.workspaceId, workspaceId),
+            eq(publications.origin, "nimbus"),
             ne(publications.status, "failed"),
             sql`(${publications.createdAt} at time zone 'America/Los_Angeles')::date = ${day}::date`
           )
@@ -187,7 +215,7 @@ export function publishingRepository(db: Db) {
       budget: number
     }): Promise<boolean> {
       const bucket: QuotaKind[] =
-        input.kind === "upload" ? ["upload"] : ["list", "stats"]
+        input.kind === "upload" ? ["upload"] : ["list", "stats", "import"]
       return withTransaction(db, async (tx) => {
         await tx.execute(
           sql`select pg_advisory_xact_lock(hashtext(${`youtube-quota:${input.day}:${bucket[0]}`}))`

@@ -17,10 +17,18 @@ import {
 } from "@/features/publishing/stats-service"
 import { statsRepository } from "@/features/publishing/stats-repository"
 import { getYouTubeClient } from "@/features/publishing/youtube"
-import { account, jobs, user, workspaces } from "@/lib/db/schema"
+import {
+  account,
+  jobs,
+  user,
+  workspaces,
+  youtubeChannels,
+  youtubeQuotaUsage,
+} from "@/lib/db/schema"
 import { AppError } from "@/lib/errors"
 
 import { runJobs } from "../utils/pipeline"
+import { insertImportedPublication } from "../utils/publications"
 import { createTestEnv, type TestEnv } from "../utils/test-env"
 
 let env: TestEnv
@@ -123,6 +131,23 @@ describe("sync_stats", () => {
     expect(snapshot!.retention).toHaveLength(100)
   })
 
+  it("syncs an imported Short and books the quota to its channel's workspace", async () => {
+    const { channel, workspaceId } = await seed()
+    const imported = await insertImportedPublication(env.db, channel.id, {
+      videoId: "fake-imported",
+      publishedAt: new Date(Date.now() - DAY_MS),
+    })
+
+    const job = await runSync(imported.id)
+
+    expect(job.status).toBe("succeeded")
+    const [snapshot] = await statsRepository(env.db).history(imported.id)
+    expect(snapshot).toMatchObject({ views: 1234 })
+    expect(await env.db.select().from(youtubeQuotaUsage)).toEqual([
+      expect.objectContaining({ workspaceId, kind: "stats", units: 1 }),
+    ])
+  })
+
   it("asks analytics for publish day through today in Pacific time", async () => {
     const { publication } = await seed()
     const analytics = vi.spyOn(getYouTubeClient(), "videoAnalytics")
@@ -201,6 +226,19 @@ describe("sync_stats", () => {
     expect(job.status).toBe("failed")
     expect(job.error).toContain(RECONNECT_MESSAGE)
     expect(stats).not.toHaveBeenCalled()
+  })
+
+  it("fails with the reconnect message when the channel lost its Google account", async () => {
+    const { channel, publication } = await seed()
+    await env.db
+      .update(youtubeChannels)
+      .set({ accountId: null })
+      .where(eq(youtubeChannels.id, channel.id))
+
+    const job = await runSync(publication.id)
+
+    expect(job.status).toBe("failed")
+    expect(job.error).toContain(RECONNECT_MESSAGE)
   })
 
   it("still stores the snapshot when analytics is forbidden", async () => {

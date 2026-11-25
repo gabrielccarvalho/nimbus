@@ -31,7 +31,7 @@ export async function enqueueDueStatsSyncs(db: Db, now: Date): Promise<number> {
     if (
       publication.publishedAt &&
       statsSyncDue(
-        { publishedAt: publication.publishedAt, origin: "nimbus" },
+        { publishedAt: publication.publishedAt, origin: publication.origin },
         lastFetchedAt,
         now
       ) &&

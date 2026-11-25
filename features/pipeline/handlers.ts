@@ -5,7 +5,7 @@ import { AppError, toUserMessage } from "@/lib/errors"
 
 import { clipRepository } from "../clips/repository"
 import { jobQueue, type Job } from "../jobs/queue"
-import type { JobHandlers } from "../jobs/worker-loop"
+import type { JobHandler, JobHandlers } from "../jobs/worker-loop"
 import { projectRepository } from "../projects/repository"
 import { publishingRepository } from "../publishing/repository"
 import { ACTIVE_PUBLICATION_STATUSES } from "../publishing/schema"
@@ -23,6 +23,10 @@ import { sweepStep } from "./steps/sweep"
 import { syncStatsStep } from "./steps/sync-stats"
 import { transcribeStep } from "./steps/transcribe"
 
+const notImplemented: JobHandler = async () => {
+  throw new AppError("INTERNAL", "not implemented")
+}
+
 export const pipelineHandlers: JobHandlers = {
   download: downloadStep,
   probe: probeStep,
@@ -35,6 +39,8 @@ export const pipelineHandlers: JobHandlers = {
   publish_clip: publishClipStep,
   sync_stats: syncStatsStep,
   analyze_performance: analyzePerformanceStep,
+  sync_uploads: notImplemented,
+  sync_channel: notImplemented,
 }
 
 const MINUTE = 60_000
@@ -52,10 +58,12 @@ export function jobStallTimeoutMs(job: Job): number {
     case "analyze":
     case "render_clip":
     case "analyze_performance":
+    case "sync_uploads":
       return 15 * MINUTE
     case "sweep":
       return 10 * MINUTE
     case "sync_stats":
+    case "sync_channel":
       return 5 * MINUTE
   }
 }

@@ -27,6 +27,7 @@ import {
 } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 
+import { insertImportedPublication } from "../utils/publications"
 import { createTestEnv, type TestEnv } from "../utils/test-env"
 
 const signedIn: { user: { id: string; name: string } | null } = { user: null }
@@ -275,6 +276,18 @@ describe("retryPublicationAction", () => {
     expect(await publishJobs()).toHaveLength(2)
   })
 
+  it("returns NOT_FOUND for an imported Short", async () => {
+    const { channel } = await seed({ plan: "admin" })
+    const imported = await insertImportedPublication(env.db, channel.id, {
+      status: "failed",
+    })
+    expect(await retryPublicationAction(imported.id)).toMatchObject({
+      ok: false,
+      error: { code: "NOT_FOUND", message: "Publication not found" },
+    })
+    expect(await publishJobs()).toHaveLength(0)
+  })
+
   it("rejects retry unless the publication failed", async () => {
     const { clip } = await seed({ plan: "admin" })
     const first = await publishClipAction(clip.id, input)
@@ -448,6 +461,33 @@ describe("refreshStatsAction", () => {
     expect(await syncJobs()).toHaveLength(1)
   })
 
+  it("enqueues a sync for an imported Short of the workspace's channel", async () => {
+    const { channel } = await seed()
+    const imported = await insertImportedPublication(env.db, channel.id)
+    expect(await refreshStatsAction(imported.id)).toMatchObject({
+      ok: true,
+      value: { publicationId: imported.id },
+    })
+    const [job] = await syncJobs()
+    expect(job?.payload).toEqual({ publicationId: imported.id })
+  })
+
+  it("refuses an imported Short of another workspace's channel", async () => {
+    const { channel } = await seed()
+    const imported = await insertImportedPublication(env.db, channel.id)
+    const id = crypto.randomUUID()
+    const other = { id, name: "Other", email: `${id}@example.com` }
+    await env.db.insert(user).values(other)
+    await accountRepository(env.db).createPersonalWorkspace(other)
+    signedIn.user = other
+
+    expect(await refreshStatsAction(imported.id)).toMatchObject({
+      ok: false,
+      error: { code: "CONFLICT", message: RECONNECT_MESSAGE },
+    })
+    expect(await syncJobs()).toHaveLength(0)
+  })
+
   it("rejects with the reconnect message when the channel can't sync", async () => {
     const { clip, channel } = await seed()
     const published = await publishClipAction(clip.id, input)
@@ -471,34 +511,6 @@ describe("refreshStatsAction", () => {
       .where(eq(youtubeChannels.id, channel.id))
     expect(await refreshStatsAction(id)).toMatchObject(reconnect)
 
-    await env.db
-      .delete(youtubeChannels)
-      .where(eq(youtubeChannels.id, channel.id))
-    expect(await refreshStatsAction(id)).toMatchObject(reconnect)
-
-    expect(await syncJobs()).toHaveLength(0)
-  })
-
-  it("rejects with the reconnect message when the workspace connected another channel", async () => {
-    const { clip, channel, workspace } = await seed()
-    const published = await publishClipAction(clip.id, input)
-    if (!published.ok) throw new Error("setup")
-    await env.db
-      .delete(youtubeChannels)
-      .where(eq(youtubeChannels.id, channel.id))
-    await publishingRepository(env.db).upsertChannel({
-      workspaceId: workspace.id,
-      accountId: channel.accountId,
-      channelId: "UC2",
-      title: "New Channel",
-    })
-
-    expect(
-      await refreshStatsAction(published.value.publicationId)
-    ).toMatchObject({
-      ok: false,
-      error: { code: "CONFLICT", message: RECONNECT_MESSAGE },
-    })
     expect(await syncJobs()).toHaveLength(0)
   })
 

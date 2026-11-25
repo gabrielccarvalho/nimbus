@@ -35,6 +35,7 @@ import { getStorage, storageKeys } from "@/lib/storage"
 import { fixtures } from "../../scripts/make-fixtures"
 import { server } from "../utils/msw"
 import { runJobs, uploadFixture } from "../utils/pipeline"
+import { insertImportedPublication } from "../utils/publications"
 import { createTestEnv, type TestEnv } from "../utils/test-env"
 
 let env: TestEnv
@@ -123,7 +124,7 @@ async function seed(meta: PublishInput = metadata) {
   return { repo, channel, project, clip: clip!, asset, publication, job }
 }
 
-function enqueuePublish(projectId: string, publicationId: string) {
+function enqueuePublish(projectId: string | null, publicationId: string) {
   return jobQueue(env.db).enqueue({
     type: "publish_clip",
     projectId,
@@ -180,6 +181,41 @@ const tokenRejected = () =>
   })
 
 describe("publish_clip", () => {
+  it("publishes a clip next to an imported Short with the same video id", async () => {
+    const { repo, channel, publication } = await seed()
+    const imported = await insertImportedPublication(env.db, channel.id, {
+      videoId: "dup-1",
+    })
+    vi.spyOn(getYouTubeClient(), "uploadFrom").mockResolvedValue({
+      videoId: "dup-1",
+    })
+
+    await runPublish()
+
+    expect(await repo.getPublication(publication.id)).toMatchObject({
+      status: "published",
+      videoId: "dup-1",
+    })
+    expect(await repo.getPublication(imported.id)).toMatchObject({
+      origin: "imported",
+      videoId: "dup-1",
+    })
+  })
+
+  it("cancels a publish job for an imported Short", async () => {
+    const { channel } = await seedChannel()
+    const imported = await insertImportedPublication(env.db, channel.id)
+    const job = await enqueuePublish(null, imported.id)
+
+    await runPublish()
+
+    expect((await jobQueue(env.db).get(job.id))!.status).toBe("cancelled")
+    expect(await publishJobs()).toHaveLength(1)
+    expect(
+      await publishingRepository(env.db).getPublication(imported.id)
+    ).toMatchObject({ status: "published", videoId: imported.videoId })
+  })
+
   it("uploads the render and ends published with the video id", async () => {
     const { repo, project, publication, job, asset } = await seed()
     const youtube = getYouTubeClient()

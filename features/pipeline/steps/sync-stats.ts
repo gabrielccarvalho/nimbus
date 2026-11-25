@@ -4,10 +4,8 @@ import { now } from "@/lib/db"
 import { getEnv } from "@/lib/env"
 import { AppError } from "@/lib/errors"
 
-import { clipRepository } from "../../clips/repository"
 import { jobQueue } from "../../jobs/queue"
 import type { JobHandler } from "../../jobs/worker-loop"
-import { projectRepository } from "../../projects/repository"
 import {
   RECONNECT_MESSAGE,
   withGoogleToken,
@@ -37,23 +35,19 @@ export const syncStatsStep: JobHandler = async ({ job, db, logger }) => {
     return
   }
   const { videoId, publishedAt } = publication
-  const clip = await clipRepository(db).get(publication.clipId)
-  if (!clip) throw new AppError("CANCELLED", "Clip was deleted")
-  const project = await projectRepository(db).get(clip.projectId)
-  if (!project) throw new AppError("CANCELLED", "Project was deleted")
-  const channel = project.workspaceId
-    ? await publishing.getChannel(project.workspaceId)
+  const channel = publication.channelId
+    ? await publishing.getChannelById(publication.channelId)
     : undefined
-  if (!channel || channel.id !== publication.channelId) {
+  if (!channel) {
     throw new AppError("NOT_FOUND", "The YouTube channel was disconnected")
   }
-  if (channel.status === "needs_reconnect") {
+  if (channel.status === "needs_reconnect" || !channel.accountId) {
     throw new AppError("UNAUTHORIZED", RECONNECT_MESSAGE)
   }
 
   const spent = await publishing.spendQuota({
     day: pacificDay(now()),
-    workspaceId: project.workspaceId,
+    workspaceId: channel.workspaceId,
     kind: "stats",
     units: LIST_UNITS,
     budget: getEnv().YOUTUBE_DAILY_QUOTA,

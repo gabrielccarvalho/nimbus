@@ -122,7 +122,9 @@ export async function syncYouTubeChannel(
 export async function releaseRenderAsset(db: Db, publication: Publication) {
   const assetId = publication.renderAssetId
   if (!assetId) return
-  const clip = await clipRepository(db).get(publication.clipId)
+  const clip = publication.clipId
+    ? await clipRepository(db).get(publication.clipId)
+    : undefined
   if (clip?.renderAssetId === assetId) return
   if (await publishingRepository(db).assetInActiveUse(assetId)) return
   const assets = assetRepository(db)

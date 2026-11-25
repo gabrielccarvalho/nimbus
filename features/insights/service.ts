@@ -41,6 +41,16 @@ type ProjectContext = Pick<Transcript, "language" | "words" | "segments"> & {
 type ChannelPublication = Awaited<
   ReturnType<ReturnType<typeof statsRepository>["forChannel"]>
 >[number]
+type ClipPublication = ChannelPublication & {
+  clip: NonNullable<ChannelPublication["clip"]>
+  projectId: string
+}
+
+export function withClip(rows: ChannelPublication[]): ClipPublication[] {
+  return rows.flatMap(({ clip, projectId, ...row }) =>
+    clip && projectId ? [{ ...row, clip, projectId }] : []
+  )
+}
 
 function insightAgeDays({
   publication,
@@ -61,7 +71,7 @@ export async function eligibleInsightCount(
   channelId: string
 ): Promise<number> {
   const rows = await statsRepository(db).forChannel(channelId)
-  return rows.filter(isInsightEligible).length
+  return withClip(rows).filter(isInsightEligible).length
 }
 
 export async function eligibleInsightClips(
@@ -69,7 +79,7 @@ export async function eligibleInsightClips(
   channelId: string
 ): Promise<InsightClip[]> {
   const rows = await statsRepository(db).forChannel(channelId)
-  const eligible = rows
+  const eligible = withClip(rows)
     .flatMap((row) => {
       const ageDays = insightAgeDays(row)
       return ageDays === null

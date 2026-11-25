@@ -38,6 +38,16 @@ export type ChannelDay = {
   subscribersLost: number
 }
 
+export type ImportedShort = {
+  videoId: string
+  title: string
+  publishedAt: Date
+  durationMs: number
+  privacy: PrivacyStatus
+}
+
+export type ChannelJobType = "sync_uploads" | "sync_channel"
+
 export type VideoDetails = {
   videoId: string
   title: string

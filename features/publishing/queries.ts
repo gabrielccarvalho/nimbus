@@ -190,9 +190,16 @@ export async function getPublishedClips(): Promise<PublishedClipRow[]> {
   if (!channel) return []
   const entries = await statsRepository(db).forChannel(channel.id)
   const now = new Date()
-  const published = entries.flatMap((entry) =>
-    entry.publication.publishedAt
-      ? [{ ...entry, publishedAt: entry.publication.publishedAt }]
+  const published = entries.flatMap(({ clip, projectId, ...entry }) =>
+    clip && projectId && entry.publication.publishedAt
+      ? [
+          {
+            ...entry,
+            clip,
+            projectId,
+            publishedAt: entry.publication.publishedAt,
+          },
+        ]
       : []
   )
   const samples = published.flatMap(({ publication, publishedAt, latest }) =>
