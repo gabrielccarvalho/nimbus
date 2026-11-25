@@ -21,6 +21,7 @@ import { renderEditStep } from "./steps/render-edit"
 import { selectStep } from "./steps/select"
 import { sweepStep } from "./steps/sweep"
 import { syncStatsStep } from "./steps/sync-stats"
+import { syncUploadsStep } from "./steps/sync-uploads"
 import { transcribeStep } from "./steps/transcribe"
 
 const notImplemented: JobHandler = async () => {
@@ -39,7 +40,7 @@ export const pipelineHandlers: JobHandlers = {
   publish_clip: publishClipStep,
   sync_stats: syncStatsStep,
   analyze_performance: analyzePerformanceStep,
-  sync_uploads: notImplemented,
+  sync_uploads: syncUploadsStep,
   sync_channel: notImplemented,
 }
 
