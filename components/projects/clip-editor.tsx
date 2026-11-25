@@ -630,7 +630,7 @@ export function ClipEditor({
                 )}
                 {render && !rendering && (
                   <PublishControl
-                    clip={{ ...clip, status: clipStatus }}
+                    clip={{ ...clip, status: clipStatus, audioMix }}
                     publishing={publishing}
                     live
                   />

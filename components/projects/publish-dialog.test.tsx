@@ -51,6 +51,17 @@ const clip = {
   description: "A 1v4 on Ascent",
   status: "rendered" as const,
   renderAssetId: "r1",
+  audioMix: null,
+}
+
+const mix = {
+  trackId: "t1",
+  trackStartMs: 0,
+  musicDb: -16,
+  sourceDb: 0,
+  duck: true,
+  fadeInMs: 0,
+  fadeOutMs: 1500,
 }
 
 const publishing: PublishingState = {
@@ -91,6 +102,34 @@ describe("PublishDialog", () => {
     expect(
       screen.getByText("Scheduled videos stay private until they go live.")
     ).toBeVisible()
+  })
+
+  it("warns about music rights when the clip has a track", async () => {
+    render(
+      <PublishDialog
+        clip={{ ...clip, audioMix: mix }}
+        publishing={publishing}
+      />
+    )
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }))
+    expect(await screen.findByText("Check the music rights")).toBeVisible()
+    expect(
+      screen.getByText(
+        "Music you don't own can get this Short claimed or muted by YouTube's Content ID. Nimbus doesn't check tracks."
+      )
+    ).toBeVisible()
+  })
+
+  it.each([
+    ["no mix", null],
+    ["source volume only", { ...mix, trackId: null }],
+  ])("shows no music warning with %s", async (_, audioMix) => {
+    render(
+      <PublishDialog clip={{ ...clip, audioMix }} publishing={publishing} />
+    )
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }))
+    await screen.findByLabelText("Title")
+    expect(screen.queryByText("Check the music rights")).not.toBeInTheDocument()
   })
 
   it("submits the parsed input", async () => {

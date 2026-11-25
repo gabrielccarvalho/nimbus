@@ -4,11 +4,13 @@ import {
   ArrowSquareOutIcon,
   ArrowsClockwiseIcon,
   UploadSimpleIcon,
+  WarningIcon,
 } from "@phosphor-icons/react"
 import { useRouter } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -31,6 +33,7 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import type { ClipStatus } from "@/features/clips/schema"
+import type { AudioMix } from "@/features/music/schema"
 import {
   publishClipAction,
   retryPublicationAction,
@@ -53,6 +56,7 @@ type PublishClip = {
   description: string
   status: ClipStatus
   renderAssetId: string | null
+  audioMix: AudioMix | null
 }
 
 const PRIVACY_ITEMS: Array<{ value: PrivacyStatus; label: string }> = [
@@ -200,6 +204,16 @@ function PublishForm({
           </p>
         )}
       </div>
+      {clip.audioMix?.trackId && (
+        <Alert>
+          <WarningIcon aria-hidden />
+          <AlertTitle>Check the music rights</AlertTitle>
+          <AlertDescription>
+            Music you don&apos;t own can get this Short claimed or muted by
+            YouTube&apos;s Content ID. Nimbus doesn&apos;t check tracks.
+          </AlertDescription>
+        </Alert>
+      )}
       <div className="flex items-center gap-3">
         <Switch
           id={`${id}-schedule`}
