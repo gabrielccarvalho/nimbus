@@ -7,6 +7,21 @@ const VISION_BASE = "/vendor/mediapipe"
 
 type FaceFinder = (canvas: HTMLCanvasElement) => Rect[]
 
+// The MediaPipe wasm build hardwires stderr to console.error, so TFLite's
+// "INFO: Created ... delegate" log surfaces as an error in the dev overlay.
+function withoutWasmInfoLogs<T>(run: () => T): T {
+  const error = console.error
+  console.error = (...args: unknown[]) => {
+    if (typeof args[0] === "string" && args[0].startsWith("INFO:")) return
+    error(...args)
+  }
+  try {
+    return run()
+  } finally {
+    console.error = error
+  }
+}
+
 async function loadFaceFinder(): Promise<FaceFinder | null> {
   try {
     const { FaceDetector, FilesetResolver } =
@@ -21,17 +36,18 @@ async function loadFaceFinder(): Promise<FaceFinder | null> {
       minDetectionConfidence: 0.5,
     })
     return (canvas) =>
-      detector.detect(canvas).detections.flatMap(({ boundingBox: box }) =>
-        box
-          ? [
-              {
-                x: box.originX / canvas.width,
-                y: box.originY / canvas.height,
-                w: box.width / canvas.width,
-                h: box.height / canvas.height,
-              },
-            ]
-          : []
+      withoutWasmInfoLogs(() => detector.detect(canvas)).detections.flatMap(
+        ({ boundingBox: box }) =>
+          box
+            ? [
+                {
+                  x: box.originX / canvas.width,
+                  y: box.originY / canvas.height,
+                  w: box.width / canvas.width,
+                  h: box.height / canvas.height,
+                },
+              ]
+            : []
       )
   } catch (error) {
     console.warn("Face detection unavailable", error)
