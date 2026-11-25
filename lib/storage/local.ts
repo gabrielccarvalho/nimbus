@@ -1,14 +1,23 @@
 import "server-only"
 
 import { createReadStream, createWriteStream } from "node:fs"
-import { mkdir, readdir, rename, rm, stat, writeFile } from "node:fs/promises"
+import {
+  copyFile,
+  mkdir,
+  readdir,
+  rename,
+  rm,
+  stat,
+  unlink,
+  writeFile,
+} from "node:fs/promises"
 import path from "node:path"
 import { Transform, type Readable } from "node:stream"
 import { pipeline } from "node:stream/promises"
 
 import { AppError } from "@/lib/errors"
 
-import type { ByteRange, StorageAdapter } from "./types"
+import type { ByteRange, StorageAdapter, UploadTarget } from "./types"
 
 const KEY_PATTERN = /^[A-Za-z0-9._\-/]+$/
 
@@ -36,6 +45,10 @@ export class LocalStorage implements StorageAdapter {
   }
 
   resolve(key: string): string {
+    return this.path(key)
+  }
+
+  path(key: string): string {
     if (!key || !KEY_PATTERN.test(key) || key.startsWith("/")) {
       throw new AppError("STORAGE", "Invalid storage key", {
         details: { key },
@@ -142,6 +155,45 @@ export class LocalStorage implements StorageAdapter {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return []
       throw error
     }
+  }
+
+  async localCopy(key: string): Promise<string> {
+    const file = this.path(key)
+    if (!(await this.stat(key))) {
+      throw new AppError("NOT_FOUND", "Stored file not found", {
+        details: { key },
+      })
+    }
+    return file
+  }
+
+  async putFile(file: string, key: string) {
+    const target = this.path(key)
+    const { size } = await stat(file)
+    await mkdir(path.dirname(target), { recursive: true })
+    try {
+      await rename(file, target)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EXDEV") throw error
+      const temp = `${target}.${process.pid}.${Date.now()}.part`
+      try {
+        await copyFile(file, temp)
+        await rename(temp, target)
+      } catch (copyError) {
+        await rm(temp, { force: true })
+        throw copyError
+      }
+      await unlink(file)
+    }
+    return { bytes: size }
+  }
+
+  async readUrl(): Promise<string | null> {
+    return null
+  }
+
+  async uploadTarget(): Promise<UploadTarget> {
+    return { url: null }
   }
 
   async usage(prefix?: string) {
