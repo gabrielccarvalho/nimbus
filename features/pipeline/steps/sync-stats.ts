@@ -4,6 +4,9 @@ import { now } from "@/lib/db"
 import { getEnv } from "@/lib/env"
 import { AppError } from "@/lib/errors"
 
+import { analyticsRepository } from "../../analytics/repository"
+import { addDays } from "../../analytics/curves"
+import { LATE_DATA_DAYS } from "../../analytics/schema"
 import { jobQueue } from "../../jobs/queue"
 import type { JobHandler } from "../../jobs/worker-loop"
 import {
@@ -79,6 +82,20 @@ export const syncStatsStep: JobHandler = async ({ job, db, logger }) => {
     logger.info({ publicationId, videoId }, "video is gone from YouTube")
     return
   }
+  if (publication.origin === "imported") {
+    if (counts.privacy === "private") {
+      await publishing.updatePublication(publication.id, { status: "removed" })
+      logger.info({ publicationId, videoId }, "video is private on YouTube")
+      return
+    }
+    await publishing.updatePublication(publication.id, {
+      metadata: {
+        ...publication.metadata,
+        title: counts.title,
+        privacy: counts.privacy,
+      },
+    })
+  }
 
   let analytics: Awaited<ReturnType<typeof youtube.videoAnalytics>> = {
     averageViewDurationS: null,
@@ -98,6 +115,24 @@ export const syncStatsStep: JobHandler = async ({ job, db, logger }) => {
     if (error instanceof AppError && error.code === "UNAUTHORIZED") throw error
     logger.warn({ err: error, publicationId }, "couldn't read video analytics")
   }
+
+  const analyticsRepo = analyticsRepository(db)
+  const lastDay = await analyticsRepo.lastPublicationDay(publication.id)
+  let daily: Awaited<ReturnType<typeof youtube.videoDaily>> = []
+  try {
+    daily = await withGoogleToken(db, channel, (token) =>
+      youtube.videoDaily(
+        token,
+        videoId,
+        lastDay ? addDays(lastDay, -LATE_DATA_DAYS) : pacificDay(publishedAt),
+        pacificDay(now())
+      )
+    )
+  } catch (error) {
+    if (error instanceof AppError && error.code === "UNAUTHORIZED") throw error
+    logger.warn({ err: error, publicationId }, "couldn't read daily views")
+  }
+  await analyticsRepo.upsertPublicationDaily(publication.id, daily)
 
   await statsRepository(db).add({ publicationId, ...counts, ...analytics })
   logger.info({ publicationId, videoId, views: counts.views }, "stats synced")

@@ -181,10 +181,13 @@ const tokenRejected = () =>
   })
 
 describe("publish_clip", () => {
-  it("publishes a clip next to an imported Short with the same video id", async () => {
+  it("replaces an imported Short that a sync listed under the new video id", async () => {
     const { repo, channel, publication } = await seed()
     const imported = await insertImportedPublication(env.db, channel.id, {
       videoId: "dup-1",
+    })
+    const other = await insertImportedPublication(env.db, channel.id, {
+      videoId: "other-1",
     })
     vi.spyOn(getYouTubeClient(), "uploadFrom").mockResolvedValue({
       videoId: "dup-1",
@@ -196,10 +199,8 @@ describe("publish_clip", () => {
       status: "published",
       videoId: "dup-1",
     })
-    expect(await repo.getPublication(imported.id)).toMatchObject({
-      origin: "imported",
-      videoId: "dup-1",
-    })
+    expect(await repo.getPublication(imported.id)).toBeUndefined()
+    expect(await repo.getPublication(other.id)).toBeDefined()
   })
 
   it("cancels a publish job for an imported Short", async () => {

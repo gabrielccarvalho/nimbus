@@ -65,11 +65,19 @@ export const syncUploadsStep: JobHandler = async ({
       throw error
     }
   }
+  const passStartedAt =
+    typeof job.payload.passStartedAt === "string"
+      ? new Date(job.payload.passStartedAt)
+      : (job.startedAt ?? now())
   const defer = async (pageToken: string | null) => {
     await jobQueue(db).enqueue({
       type: "sync_uploads",
       projectId: null,
-      payload: pageToken ? { channelId, pageToken } : { channelId },
+      payload: {
+        channelId,
+        ...(pageToken && { pageToken }),
+        passStartedAt: passStartedAt.toISOString(),
+      },
       runAfter: nextQuotaReset(now()),
       maxAttempts: 3,
     })
@@ -173,5 +181,5 @@ export const syncUploadsStep: JobHandler = async ({
     if (detection) logger.info({ channelId, detection }, "Short detection path")
   }
 
-  await analytics.markSynced(channelId, "uploadsSyncedAt", now())
+  await analytics.markSynced(channelId, "uploadsSyncedAt", passStartedAt)
 }

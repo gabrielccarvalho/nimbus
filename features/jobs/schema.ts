@@ -43,6 +43,7 @@ export const jobPayloadSchemas = {
   sync_uploads: z.object({
     channelId: z.string().min(1),
     pageToken: z.string().min(1).optional(),
+    passStartedAt: z.iso.datetime().optional(),
   }),
   sync_channel: z.object({ channelId: z.string().min(1) }),
 } satisfies Record<JobType, z.ZodType>

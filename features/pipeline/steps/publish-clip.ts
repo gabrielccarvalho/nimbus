@@ -164,7 +164,7 @@ export const publishClipStep: JobHandler = async ({
   }
   const { videoId } = video
 
-  const published = await publishing.updatePublication(publication.id, {
+  const published = await publishing.publishUploaded(publication, {
     status: "published",
     videoId,
     url: `https://youtube.com/shorts/${videoId}`,

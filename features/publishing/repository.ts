@@ -131,6 +131,31 @@ export function publishingRepository(db: Db) {
       return row!
     },
 
+    publishUploaded(
+      publication: Pick<Publication, "id" | "channelId">,
+      patch: PublicationPatch & { videoId: string }
+    ): Promise<Publication> {
+      return withTransaction(db, async (tx) => {
+        if (publication.channelId) {
+          await tx
+            .delete(publications)
+            .where(
+              and(
+                eq(publications.channelId, publication.channelId),
+                eq(publications.origin, "imported"),
+                eq(publications.videoId, patch.videoId)
+              )
+            )
+        }
+        const [row] = await tx
+          .update(publications)
+          .set({ ...patch, updatedAt: now() })
+          .where(eq(publications.id, publication.id))
+          .returning()
+        return row!
+      })
+    },
+
     async latestForClips(clipIds: string[]): Promise<Map<string, Publication>> {
       if (clipIds.length === 0) return new Map()
       const rows = await db

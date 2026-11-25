@@ -222,7 +222,11 @@ describe("sync_uploads", () => {
     ])
     const next = (await uploadJobs()).find((row) => row.id !== job.id)!
     expect(next.status).toBe("queued")
-    expect(next.payload).toEqual({ channelId: channel.id, pageToken: "2" })
+    expect(next.payload).toEqual({
+      channelId: channel.id,
+      pageToken: "2",
+      passStartedAt: job.startedAt!.toISOString(),
+    })
     expect(next.runAfter).toEqual(nextQuotaReset(new Date()))
     expect((await repo.getChannelById(channel.id))!.uploadsSyncedAt).toBeNull()
   })
@@ -245,7 +249,11 @@ describe("sync_uploads", () => {
 
     expect(job.status).toBe("succeeded")
     const next = (await uploadJobs()).find((row) => row.id !== job.id)!
-    expect(next.payload).toEqual({ channelId: channel.id, pageToken: "2" })
+    expect(next.payload).toEqual({
+      channelId: channel.id,
+      pageToken: "2",
+      passStartedAt: job.startedAt!.toISOString(),
+    })
     expect(next.runAfter).toEqual(nextQuotaReset(new Date()))
   })
 
@@ -265,6 +273,27 @@ describe("sync_uploads", () => {
     expect((await imported()).map((row) => row.videoId)).toEqual([
       "fake-past-3",
     ])
+  })
+
+  it("marks the channel synced at the pass start carried in the payload", async () => {
+    const { repo, channel } = await seed()
+    const passStartedAt = new Date(Date.now() - 2 * DAY_MS)
+    await jobQueue(env.db).enqueue({
+      type: "sync_uploads",
+      projectId: null,
+      payload: {
+        channelId: channel.id,
+        pageToken: "2",
+        passStartedAt: passStartedAt.toISOString(),
+      },
+      maxAttempts: 1,
+    })
+
+    await runJobs(env.db, ["sync_uploads"])
+
+    expect((await repo.getChannelById(channel.id))!.uploadsSyncedAt).toEqual(
+      passStartedAt
+    )
   })
 
   it("falls back to duration when the content type probe is rejected", async () => {

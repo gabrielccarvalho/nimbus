@@ -1,11 +1,13 @@
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { analyticsRepository } from "@/features/analytics/repository"
 import { clipRepository } from "@/features/clips/repository"
 import { jobQueue } from "@/features/jobs/queue"
 import { projectRepository } from "@/features/projects/repository"
 import { defaultProjectSettings } from "@/features/projects/schema"
 import { RECONNECT_MESSAGE } from "@/features/publishing/google-token"
+import { addDays } from "@/features/analytics/curves"
 import { nextQuotaReset, pacificDay } from "@/features/publishing/quota"
 import {
   publishingRepository,
@@ -20,6 +22,7 @@ import { getYouTubeClient } from "@/features/publishing/youtube"
 import {
   account,
   jobs,
+  publicationDaily,
   user,
   workspaces,
   youtubeChannels,
@@ -258,6 +261,124 @@ describe("sync_stats", () => {
     })
   })
 
+  it("stores the daily curve of an imported Short through two days ago", async () => {
+    const { channel } = await seed()
+    const publishedAt = new Date(Date.now() - 10 * DAY_MS)
+    const imported = await insertImportedPublication(env.db, channel.id, {
+      videoId: "fake-past-1",
+      publishedAt,
+    })
+
+    await runSync(imported.id)
+
+    const rows = await env.db
+      .select()
+      .from(publicationDaily)
+      .where(eq(publicationDaily.publicationId, imported.id))
+      .orderBy(publicationDaily.day)
+    expect(rows[0]!.day).toBe(pacificDay(publishedAt))
+    expect(rows.at(-1)!.day).toBe(pacificDay(new Date(Date.now() - 2 * DAY_MS)))
+    expect(rows[0]!.views).toBeGreaterThan(0)
+  })
+
+  it("resumes the daily curve three days before the last stored day", async () => {
+    const { channel } = await seed()
+    const imported = await insertImportedPublication(env.db, channel.id, {
+      videoId: "fake-past-1",
+      publishedAt: new Date(Date.now() - 10 * DAY_MS),
+    })
+    await runSync(imported.id)
+    const last = (await analyticsRepository(env.db).lastPublicationDay(
+      imported.id
+    ))!
+    const daily = vi.spyOn(getYouTubeClient(), "videoDaily")
+
+    await runSync(imported.id)
+
+    expect(daily).toHaveBeenCalledWith(
+      expect.any(String),
+      "fake-past-1",
+      addDays(last, -3),
+      pacificDay(new Date())
+    )
+  })
+
+  it("still stores the snapshot when the daily report is forbidden", async () => {
+    const { publication } = await seed()
+    vi.spyOn(getYouTubeClient(), "videoDaily").mockRejectedValue(
+      new AppError("EXTERNAL", "Forbidden", { cause: "forbidden" })
+    )
+
+    const job = await runSync(publication.id)
+
+    expect(job.status).toBe("succeeded")
+    expect(await statsRepository(env.db).history(publication.id)).toHaveLength(
+      1
+    )
+    expect(await env.db.select().from(publicationDaily)).toEqual([])
+  })
+
+  it("updates an imported Short's title from YouTube", async () => {
+    const { repo, channel } = await seed()
+    const imported = await insertImportedPublication(env.db, channel.id, {
+      videoId: "fake-imported",
+    })
+    vi.spyOn(getYouTubeClient(), "videoStats").mockResolvedValue({
+      views: 10,
+      likes: 1,
+      comments: 0,
+      title: "Renamed",
+      privacy: "unlisted",
+    })
+
+    await runSync(imported.id)
+
+    expect((await repo.getPublication(imported.id))!).toMatchObject({
+      status: "published",
+      metadata: { title: "Renamed", privacy: "unlisted" },
+    })
+  })
+
+  it("marks an imported Short removed once it turns private", async () => {
+    const { repo, channel } = await seed()
+    const imported = await insertImportedPublication(env.db, channel.id, {
+      videoId: "fake-imported",
+    })
+    vi.spyOn(getYouTubeClient(), "videoStats").mockResolvedValue({
+      views: 10,
+      likes: 1,
+      comments: 0,
+      title: "Hidden",
+      privacy: "private",
+    })
+
+    await runSync(imported.id)
+
+    expect((await repo.getPublication(imported.id))!.status).toBe("removed")
+    expect(await statsRepository(env.db).history(imported.id)).toEqual([])
+  })
+
+  it("keeps a private Nimbus publication published", async () => {
+    const { repo, publication } = await seed()
+    vi.spyOn(getYouTubeClient(), "videoStats").mockResolvedValue({
+      views: 10,
+      likes: 1,
+      comments: 0,
+      title: "Other title",
+      privacy: "private",
+    })
+
+    await runSync(publication.id)
+
+    expect((await repo.getPublication(publication.id))!).toMatchObject({
+      status: "published",
+      metadata: { title: "Clutch" },
+    })
+    expect(await statsRepository(env.db).history(publication.id)).toHaveLength(
+      1
+    )
+  })
+
   it("does nothing for a publication that isn't published", async () => {
     const { publication } = await seed({ status: "failed" })
     const stats = vi.spyOn(getYouTubeClient(), "videoStats")
@@ -301,6 +422,48 @@ describe("stats scheduling", () => {
     const { repo, channel } = await seed()
     await repo.setChannelStatus(channel.id, "needs_reconnect")
     expect(await enqueueDueStatsSyncs(env.db, new Date())).toBe(0)
+  })
+
+  it("enqueues never-synced imported Shorts and Nimbus Shorts past 28 days only when 28 days have passed", async () => {
+    const { repo, channel, publication } = await seed({
+      publishedAt: new Date(Date.now() - 60 * DAY_MS),
+    })
+    const imported = await insertImportedPublication(env.db, channel.id, {
+      videoId: "fake-past-1",
+    })
+    const recent = await repo.createPublication({
+      clipId: null,
+      channelId: channel.id,
+      metadata,
+      status: "published",
+      videoId: "fake-recent",
+      publishedAt: new Date(Date.now() - 60 * DAY_MS),
+    })
+    const stats = statsRepository(env.db)
+    await stats.add({
+      publicationId: publication.id,
+      views: 1,
+      likes: 0,
+      comments: 0,
+      fetchedAt: new Date(Date.now() - 30 * DAY_MS),
+    })
+    await stats.add({
+      publicationId: recent.id,
+      views: 1,
+      likes: 0,
+      comments: 0,
+      fetchedAt: new Date(Date.now() - 10 * DAY_MS),
+    })
+
+    expect(await enqueueDueStatsSyncs(env.db, new Date())).toBe(2)
+
+    const queued = (await syncJobs()).map((row) => row.payload)
+    expect(queued).toEqual(
+      expect.arrayContaining([
+        { publicationId: publication.id },
+        { publicationId: imported.id },
+      ])
+    )
   })
 
   it("skips publications that aren't due yet", async () => {
