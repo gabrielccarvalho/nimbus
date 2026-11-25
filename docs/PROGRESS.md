@@ -385,6 +385,21 @@ Not verified: how YouTube's Content ID treats the mixed audio, and the music pre
 
 Not verified: the real chart through the Data API (tested against MSW and the fake), and the YouTube app's Add sound flow for a downloaded clip.
 
+### Phase 36: Ready for Vercel, still self-hostable (ADR-0070)
+
+Plan: `docs/superpowers/plans/2026-11-25-vercel-ready.md`.
+
+- [ ] 1. Storage contract without file paths: `localCopy`, `putFile`, `readUrl`, `uploadTarget`; contract suite on `LocalStorage`
+- [ ] 2. Per-job scratch directories; pipeline steps, downloads and the export zip stop using `resolve`
+- [ ] 3. `S3Storage`, `STORAGE_DRIVER`, MinIO in compose, contract suite on MinIO (`pnpm test:s3`)
+- [ ] 4. Direct uploads: signed upload targets, the local PUT route, completion actions for videos and music
+- [ ] 5. `probe_music` job: tracks are `processing` until the worker has probed them
+- [ ] 6. Media served through signed URLs when the driver has them
+- [ ] 7. Worker heartbeat and capabilities in Postgres; settings reads them
+- [ ] 8. Hosted config: `YTDLP_COOKIES_TEXT`, pool size, auth origins, doctor checks
+- [ ] 9. Containers: `Dockerfile.worker`, `Dockerfile.web`, compose `selfhost` profile, worker health endpoint, `vercel.json` daemon
+- [ ] 10. `pnpm storage:push`, docs and phase close
+
 ### Not verified
 
 - MediaPipe face detection on a real face (fixtures have none; the code path is unit tested and the model loads in e2e).
