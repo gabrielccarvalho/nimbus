@@ -374,6 +374,7 @@ Spec: `docs/superpowers/specs/2026-11-24-analytics-and-music-design.md`. Plan: `
 - [x] 8. The "Audio & text" tab, the Web Audio preview and the overlay preview
 - [x] 9. Content ID warning in the publish dialog
 - [x] 10. End to end and phase close
+- [x] 11. Final review fixes: the selected effect survives a save that reorders effects, preview hardening (resume, buffering, disconnect), empty overlay text, the Ctrl+K e2e race, fixtures version bump reverted
 
 Not verified: how YouTube's Content ID treats the mixed audio, and the music preview by ear in a real browser (Chrome, Safari, Firefox). The tests fake `AudioContext`, and e2e Chromium plays no sound.
 
