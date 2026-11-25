@@ -360,6 +360,23 @@ Spec: `docs/superpowers/specs/2026-11-24-analytics-and-music-design.md`. Plan: `
 
 Not verified: import and daily analytics from a real channel (the fake returns fixed uploads and daily numbers), the top-videos report and a 50-id `videos.list` batch against the real APIs.
 
+### Phase 34: Music and on-screen text (ADR-0068)
+
+Spec: `docs/superpowers/specs/2026-11-24-analytics-and-music-design.md`. Plan: `docs/superpowers/plans/2026-11-24-music-and-text.md`.
+
+- [x] 1. Pure music logic: speech intervals, ducking envelope, audio plans, track media helpers
+- [x] 2. The audio filtergraph: music input, envelope, fades, `amix` and `alimiter`
+- [x] 3. The text overlay as its own ASS event
+- [x] 4. Music library: `music_tracks` (migration 0018), streamed upload with probe and waveform peaks, file route, rename and delete
+- [x] 5. Saving a clip's `audioMix` and `textOverlay`
+- [x] 6. `render_clip` renders the music and the overlay
+- [x] 7. Settings › Music
+- [x] 8. The "Audio & text" tab, the Web Audio preview and the overlay preview
+- [x] 9. Content ID warning in the publish dialog
+- [x] 10. End to end and phase close
+
+Not verified: how YouTube's Content ID treats the mixed audio, and the music preview by ear in a real browser (Chrome, Safari, Firefox). The tests fake `AudioContext`, and e2e Chromium plays no sound.
+
 ### Not verified
 
 - MediaPipe face detection on a real face (fixtures have none; the code path is unit tested and the model loads in e2e).

@@ -87,7 +87,7 @@ function TrackRow({ track }: { track: MusicTrackSummary }) {
     })
 
   return (
-    <Item variant="outline">
+    <Item variant="outline" role="listitem">
       <ItemContent>
         <Input
           ref={input}

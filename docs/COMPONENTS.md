@@ -276,6 +276,10 @@ A 9:16 mock frame (webcam band over gameplay) with a sample caption page in the 
 
 Uploads one audio file to `/api/uploads/music` with progress in the label, then calls `onUploaded(track)` and refreshes the route. Rejects files over 50 MB before sending. Used in the workspace music library and the clip editor.
 
+### MusicLibrary (`components/settings/music-library.tsx`)
+
+The Settings › Music page: a `SettingsSection` with the `MusicUploadButton` in its header and the workspace's tracks as a registry `ItemGroup` list (each `Item` is a `role="listitem"`, since `ItemGroup` is a `role="list"`), or an `Empty` state. Each row renames on blur or Enter (read-only while the rename runs, focus kept), shows the duration and how many clips use the track, and deletes through an `AlertDialog`. A refused delete toasts the server's message naming the clips and leaves the row.
+
 ### AudioTextPanel (`components/projects/audio-text-panel.tsx`)
 
 The clip editor's "Audio & text" tab, controlled through `audioMix`/`onAudioMixChange` and `textOverlay`/`onTextOverlayChange`. Music: a track `Select` with an upload button (an upload is selected at once), a `Timeline` scrubber for the start in the track over the track's waveform with the clip's span as a range, music and original audio volume sliders, ducking and fades. Text: an on/off switch that starts from the hook, the text with a counter, position and how long it stays. `captionsNearTop` warns about top text over top captions and `previewUnavailable` says the preview can't play music.
