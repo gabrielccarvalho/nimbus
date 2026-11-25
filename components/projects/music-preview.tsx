@@ -13,15 +13,19 @@ const MAX_DRIFT_S = 0.15
 const GAIN_TIME_CONSTANT_S = 0.015
 
 let context: AudioContext | null = null
-const routes = new WeakMap<HTMLMediaElement, GainNode>()
+const videoRoutes = new WeakMap<HTMLMediaElement, GainNode>()
+const musicSources = new WeakMap<
+  HTMLMediaElement,
+  MediaElementAudioSourceNode
+>()
 
-function route(ctx: AudioContext, element: HTMLMediaElement, gain: number) {
-  let node = routes.get(element)
+function routeVideo(ctx: AudioContext, video: HTMLMediaElement, gain: number) {
+  let node = videoRoutes.get(video)
   if (!node) {
     node = ctx.createGain()
     node.gain.value = gain
-    ctx.createMediaElementSource(element).connect(node).connect(ctx.destination)
-    routes.set(element, node)
+    ctx.createMediaElementSource(video).connect(node).connect(ctx.destination)
+    videoRoutes.set(video, node)
   }
   return node
 }
@@ -43,10 +47,8 @@ export function MusicPreview({
 }) {
   const { videoRef, paused, muted } = useVideoPlayer()
   const audioRef = React.useRef<HTMLAudioElement>(null)
-  const [nodes, setNodes] = React.useState<{
-    source: GainNode
-    music: GainNode
-  } | null>(null)
+  const [source, setSource] = React.useState<GainNode | null>(null)
+  const [music, setMusic] = React.useState<GainNode | null>(null)
   const needed = src !== null || sourceDb !== 0
   const latest = React.useRef({
     src,
@@ -62,7 +64,7 @@ export function MusicPreview({
   })
 
   React.useEffect(() => {
-    if (!needed || nodes) return
+    if (!needed || source) return
     if (typeof window.AudioContext !== "function") {
       onUnavailableRef.current()
       return
@@ -76,10 +78,7 @@ export function MusicPreview({
     const connect = (ctx: AudioContext) => {
       if (cancelled || ctx.state !== "running") return
       try {
-        setNodes({
-          source: route(ctx, video, dbToGain(latest.current.sourceDb)),
-          music: route(ctx, audio, 0),
-        })
+        setSource(routeVideo(ctx, video, dbToGain(latest.current.sourceDb)))
       } catch {
         onUnavailableRef.current()
       }
@@ -100,31 +99,75 @@ export function MusicPreview({
       cancelled = true
       video.removeEventListener("play", start)
     }
-  }, [needed, nodes, videoRef])
+  }, [needed, source, videoRef])
 
   React.useEffect(() => {
-    if (nodes && context) {
-      nodes.source.gain.setValueAtTime(dbToGain(sourceDb), context.currentTime)
+    const video = videoRef.current
+    if (!source || !video) return
+    const resume = () => {
+      if (context && context.state !== "running")
+        context.resume().catch(() => {})
     }
-  }, [nodes, sourceDb])
+    video.addEventListener("play", resume)
+    return () => video.removeEventListener("play", resume)
+  }, [source, videoRef])
+
+  React.useEffect(() => {
+    const audio = audioRef.current
+    if (!source || !context || !audio || src === null) return
+    const ctx = context
+    // An element takes one source node for life, so a re-run effect reuses it.
+    let input = musicSources.get(audio)
+    if (!input) {
+      try {
+        input = ctx.createMediaElementSource(audio)
+      } catch {
+        onUnavailableRef.current()
+        return
+      }
+      musicSources.set(audio, input)
+    }
+    const gain = ctx.createGain()
+    gain.gain.value = 0
+    input.connect(gain).connect(ctx.destination)
+    setMusic(gain)
+    return () => {
+      input.disconnect()
+      gain.disconnect()
+      setMusic(null)
+    }
+  }, [source, src])
+
+  React.useEffect(() => {
+    if (source && context) {
+      source.gain.setValueAtTime(dbToGain(sourceDb), context.currentTime)
+    }
+  }, [source, sourceDb])
 
   React.useEffect(() => {
     if (audioRef.current) audioRef.current.muted = muted
-  }, [muted])
+  }, [muted, src])
 
   React.useEffect(() => {
     const video = videoRef.current
     const audio = audioRef.current
     if (!video || !audio) return
-    if (paused || !nodes || !context) {
+    if (paused || !music || !context) {
       audio.pause()
       return
     }
     const ctx = context
-    let frame = requestAnimationFrame(function tick() {
+    const sync = () => {
       const { src, plan, trackStartMs, clipStartMs } = latest.current
       const t = video.currentTime * 1000 - clipStartMs
-      if (!src || !plan || video.paused || t < 0 || t >= plan.lengthMs) {
+      if (
+        !src ||
+        !plan ||
+        video.paused ||
+        video.readyState < video.HAVE_FUTURE_DATA ||
+        t < 0 ||
+        t >= plan.lengthMs
+      ) {
         if (!audio.paused) audio.pause()
       } else {
         const target = (trackStartMs + t) / 1000
@@ -135,16 +178,33 @@ export function MusicPreview({
           audio.currentTime = target
         }
         if (audio.paused) void audio.play().catch(() => {})
-        nodes.music.gain.setTargetAtTime(
+        music.gain.setTargetAtTime(
           musicGainAt(plan, t),
           ctx.currentTime,
           GAIN_TIME_CONSTANT_S
         )
       }
+    }
+    let frame = requestAnimationFrame(function tick() {
+      sync()
       frame = requestAnimationFrame(tick)
     })
-    return () => cancelAnimationFrame(frame)
-  }, [paused, nodes, videoRef])
+    video.addEventListener("waiting", sync)
+    video.addEventListener("playing", sync)
+    return () => {
+      cancelAnimationFrame(frame)
+      video.removeEventListener("waiting", sync)
+      video.removeEventListener("playing", sync)
+    }
+  }, [paused, music, videoRef])
 
-  return <audio ref={audioRef} src={src ?? undefined} preload="auto" hidden />
+  return (
+    <audio
+      key={src}
+      ref={audioRef}
+      src={src ?? undefined}
+      preload="auto"
+      hidden
+    />
+  )
 }

@@ -4,12 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { dbToGain, type MusicPlan } from "@/features/music/envelope"
 
-type Media = { paused: boolean; time: number }
+type Media = { paused: boolean; time: number; readyState: number }
 const media = new WeakMap<HTMLMediaElement, Media>()
 const stateOf = (element: HTMLMediaElement) => {
   let state = media.get(element)
   if (!state) {
-    state = { paused: true, time: 0 }
+    state = { paused: true, time: 0, readyState: 4 }
     media.set(element, state)
   }
   return state
@@ -26,6 +26,7 @@ class FakeGain {
     }),
   }
   connect = vi.fn((node: unknown) => node)
+  disconnect = vi.fn()
 }
 
 class FakeAudioContext {
@@ -33,8 +34,11 @@ class FakeAudioContext {
   state: AudioContextState = "suspended"
   currentTime = 0
   destination = {}
-  sources: { element: HTMLMediaElement; connect: ReturnType<typeof vi.fn> }[] =
-    []
+  sources: {
+    element: HTMLMediaElement
+    connect: ReturnType<typeof vi.fn>
+    disconnect: ReturnType<typeof vi.fn>
+  }[] = []
   constructor() {
     FakeAudioContext.instances.push(this)
   }
@@ -43,13 +47,20 @@ class FakeAudioContext {
   })
   createGain = vi.fn(() => new FakeGain())
   createMediaElementSource = vi.fn((element: HTMLMediaElement) => {
-    const node = { element, connect: vi.fn((next: unknown) => next) }
+    const node = {
+      element,
+      connect: vi.fn((next: unknown) => next),
+      disconnect: vi.fn(),
+    }
     this.sources.push(node)
     return node
   })
+  sourceFor(element: HTMLMediaElement) {
+    return this.sources.find((s) => s.element === element)
+  }
   gainFor(element: HTMLMediaElement) {
-    const source = this.sources.find((s) => s.element === element)
-    return source?.connect.mock.calls[0]?.[0] as FakeGain | undefined
+    return this.sourceFor(element)?.connect.mock.calls[0]?.[0] as
+      FakeGain | undefined
   }
 }
 
@@ -89,6 +100,12 @@ beforeEach(async () => {
     },
     set(this: HTMLMediaElement, value: number) {
       stateOf(this).time = value
+    },
+  })
+  Object.defineProperty(proto, "readyState", {
+    configurable: true,
+    get(this: HTMLMediaElement) {
+      return stateOf(this).readyState
     },
   })
   Object.defineProperty(proto, "duration", { configurable: true, value: 600 })
@@ -144,9 +161,12 @@ function renderPreview(
   return {
     ...all,
     video: view.container.querySelector("video")!,
-    audio: view.container.querySelector("audio")!,
+    get audio() {
+      return view.container.querySelector("audio")!
+    },
     rerender: (next: Partial<typeof all>) =>
       view.rerender(tree({ ...all, ...next })),
+    unmount: view.unmount,
   }
 }
 
@@ -248,6 +268,65 @@ describe("MusicPreview", () => {
     stateOf(video).time = 18.5
     frame()
     expect(audio.paused).toBe(true)
+  })
+
+  it("resumes a context the browser suspended after routing", async () => {
+    const { video } = renderPreview()
+    await play(video)
+    const [ctx] = FakeAudioContext.instances
+    act(() => video.pause())
+    ctx!.state = "suspended"
+    ctx!.resume.mockClear()
+    await play(video)
+    expect(ctx!.resume).toHaveBeenCalledTimes(1)
+    expect(ctx!.state).toBe("running")
+  })
+
+  it("holds the music while the video buffers", async () => {
+    const { video, audio } = renderPreview()
+    await play(video)
+    stateOf(video).time = 12
+    frame()
+    expect(audio.paused).toBe(false)
+
+    stateOf(video).readyState = 2
+    act(() => {
+      video.dispatchEvent(new Event("waiting"))
+    })
+    expect(audio.paused).toBe(true)
+    stateOf(video).time = 12.5
+    frame()
+    expect(audio.paused).toBe(true)
+
+    stateOf(video).readyState = 4
+    act(() => {
+      video.dispatchEvent(new Event("playing"))
+    })
+    expect(audio.paused).toBe(false)
+    expect(audio.currentTime).toBeCloseTo(47.5)
+  })
+
+  it("disconnects the music on a track change and on unmount but keeps the video routed", async () => {
+    const view = renderPreview()
+    const { video } = view
+    await play(video)
+    const [ctx] = FakeAudioContext.instances
+    const first = view.audio
+    const firstSource = ctx!.sourceFor(first)!
+    const firstGain = ctx!.gainFor(first)!
+
+    view.rerender({ src: "/api/music/t2" })
+    expect(firstSource.disconnect).toHaveBeenCalled()
+    expect(firstGain.disconnect).toHaveBeenCalled()
+    const second = view.audio
+    expect(second).not.toBe(first)
+    expect(ctx!.sourceFor(second)).toBeDefined()
+
+    view.unmount()
+    expect(ctx!.sourceFor(second)!.disconnect).toHaveBeenCalled()
+    expect(ctx!.gainFor(second)!.disconnect).toHaveBeenCalled()
+    expect(ctx!.sourceFor(video)!.disconnect).not.toHaveBeenCalled()
+    expect(ctx!.gainFor(video)!.disconnect).not.toHaveBeenCalled()
   })
 
   it("reports a browser without Web Audio and leaves the video alone", async () => {
