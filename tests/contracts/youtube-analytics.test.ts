@@ -358,6 +358,38 @@ describe("channelDaily", () => {
   })
 })
 
+describe("topVideos", () => {
+  it("asks for the most viewed videos of the window", async () => {
+    server.use(
+      http.get(REPORTS, ({ request }) => {
+        const params = new URL(request.url).searchParams
+        expect(Object.fromEntries(params)).toMatchObject({
+          ids: "channel==MINE",
+          startDate: "2026-10-12",
+          endDate: "2026-11-08",
+          dimensions: "video",
+          metrics: "views",
+          sort: "-views",
+          maxResults: "50",
+        })
+        return HttpResponse.json({
+          columnHeaders: [{ name: "views" }, { name: "video" }],
+          rows: [
+            [90, "v1"],
+            [40, "v2"],
+          ],
+        })
+      })
+    )
+    expect(await client.topVideos("t", "2026-10-12", "2026-11-08", 50)).toEqual(
+      [
+        { videoId: "v1", views: 90 },
+        { videoId: "v2", views: 40 },
+      ]
+    )
+  })
+})
+
 describe("fake", () => {
   it("pages its uploads two at a time", async () => {
     const fake = new YouTubeFake()
@@ -383,5 +415,21 @@ describe("fake", () => {
       likes: 36,
       subscribersGained: 3,
     })
+  })
+
+  it("ranks its past Shorts by their trailing digit", async () => {
+    const top = await new YouTubeFake().topVideos(
+      "t",
+      "2026-10-12",
+      "2026-11-08",
+      50
+    )
+    expect(top.map((video) => video.videoId).slice(0, 4)).toEqual([
+      "fake-past-4",
+      "fake-past-3",
+      "fake-past-2",
+      "fake-past-1",
+    ])
+    expect(top[1]!.views).toBeGreaterThan(top[2]!.views)
   })
 })

@@ -118,12 +118,9 @@ describe("analyticsRepository", () => {
     expect(await analytics.lastPublicationDay(publication.id)).toBe(
       "2026-10-02"
     )
-    const views = await analytics.viewsBetween(
-      channel.id,
-      "2026-10-01",
-      "2026-10-31"
-    )
-    expect(views.get(publication.id)).toBe(13)
+    expect(
+      (await analytics.earlyDaily(channel.id)).map((row) => row.views)
+    ).toEqual([5, 8])
     expect(await analytics.publicationDataThrough(channel.id)).toBe(
       "2026-10-02"
     )

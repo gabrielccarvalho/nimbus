@@ -5,6 +5,7 @@ import { and, desc, eq, inArray, ne, sql } from "drizzle-orm"
 import { newId, now, withTransaction, type Db } from "@/lib/db"
 import {
   channelDaily,
+  channelTopVideos,
   publications,
   youtubeChannels,
   youtubeQuotaUsage,
@@ -72,6 +73,9 @@ export function publishingRepository(db: Db) {
           await tx
             .delete(channelDaily)
             .where(eq(channelDaily.channelId, previous.id))
+          await tx
+            .delete(channelTopVideos)
+            .where(eq(channelTopVideos.channelId, previous.id))
         }
         const [row] = await tx
           .insert(youtubeChannels)

@@ -19,7 +19,10 @@ import type {
   DensityWindow,
   TimeRange,
 } from "@/features/analysis/schema"
-import type { ChannelContentType } from "@/features/analytics/schema"
+import type {
+  AnalyticsPeriod,
+  ChannelContentType,
+} from "@/features/analytics/schema"
 import type { CaptionOverrides, ClipStatus } from "@/features/clips/schema"
 import type { Beat, ClipEffects } from "@/features/effects/schema"
 import type { JobStatus, JobType } from "@/features/jobs/schema"
@@ -482,6 +485,20 @@ export const channelDaily = pgTable(
     averageViewDurationS: doublePrecision("average_view_duration_s"),
   },
   (t) => [primaryKey({ columns: [t.channelId, t.day, t.contentType] })]
+)
+
+export const channelTopVideos = pgTable(
+  "channel_top_videos",
+  {
+    channelId: text("channel_id")
+      .notNull()
+      .references(() => youtubeChannels.id, { onDelete: "cascade" }),
+    period: integer("period").$type<AnalyticsPeriod>().notNull(),
+    videoId: text("video_id").notNull(),
+    views: integer("views").notNull(),
+    through: date("through", { mode: "string" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.channelId, t.period, t.videoId] })]
 )
 
 export const youtubeQuotaUsage = pgTable(

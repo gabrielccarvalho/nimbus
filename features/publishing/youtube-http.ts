@@ -498,6 +498,25 @@ export class YouTubeHttp implements YouTubeClient {
     return { split, rows: [...merged.values()] }
   }
 
+  async topVideos(
+    token: string,
+    startDate: string,
+    endDate: string,
+    maxResults: number
+  ) {
+    const report = await this.report(token, startDate, endDate, {
+      dimensions: "video",
+      metrics: "views",
+      sort: "-views",
+      maxResults: String(maxResults),
+    })
+    const at = columnIndexes(report)
+    return (report.rows ?? []).map((row) => ({
+      videoId: String(row[at("video")]),
+      views: Number(row[at("views")] ?? 0),
+    }))
+  }
+
   async videoAnalytics(
     token: string,
     videoId: string,

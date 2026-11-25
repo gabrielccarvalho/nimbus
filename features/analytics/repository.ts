@@ -15,15 +15,19 @@ import {
 import { newId, withTransaction, type Db } from "@/lib/db"
 import {
   channelDaily,
+  channelTopVideos,
+  clips,
   jobs,
   publicationDaily,
   publications,
   youtubeChannels,
 } from "@/lib/db/schema"
 
+import type { Clip } from "../clips/repository"
 import type { Job } from "../jobs/queue"
 import type { Publication, YouTubeChannel } from "../publishing/repository"
 import type {
+  AnalyticsPeriod,
   ChannelDay,
   ChannelJobType,
   DailyViews,
@@ -93,31 +97,6 @@ export function analyticsRepository(db: Db) {
         )
         .where(eq(publications.channelId, channelId))
       return row?.day ?? null
-    },
-
-    async viewsBetween(
-      channelId: string,
-      from: string,
-      to: string
-    ): Promise<Map<string, number>> {
-      const rows = await db
-        .select({
-          publicationId: publicationDaily.publicationId,
-          views: sql<number>`sum(${publicationDaily.views})::int`,
-        })
-        .from(publicationDaily)
-        .innerJoin(
-          publications,
-          eq(publications.id, publicationDaily.publicationId)
-        )
-        .where(
-          and(
-            eq(publications.channelId, channelId),
-            between(publicationDaily.day, from, to)
-          )
-        )
-        .groupBy(publicationDaily.publicationId)
-      return new Map(rows.map((row) => [row.publicationId, row.views]))
     },
 
     replaceChannelDays(
@@ -190,6 +169,62 @@ export function analyticsRepository(db: Db) {
             gte(publications.publishedAt, since)
           )
         )
+    },
+
+    replaceTopVideos(
+      channelId: string,
+      period: AnalyticsPeriod,
+      through: string,
+      rows: { videoId: string; views: number }[]
+    ): Promise<void> {
+      return withTransaction(db, async (tx) => {
+        await tx
+          .delete(channelTopVideos)
+          .where(
+            and(
+              eq(channelTopVideos.channelId, channelId),
+              eq(channelTopVideos.period, period)
+            )
+          )
+        if (rows.length === 0) return
+        await tx
+          .insert(channelTopVideos)
+          .values(rows.map((row) => ({ ...row, channelId, period, through })))
+          .onConflictDoNothing()
+      })
+    },
+
+    topPublications(
+      channelId: string,
+      period: AnalyticsPeriod,
+      limit: number
+    ): Promise<
+      { publication: Publication; clip: Clip | null; views: number }[]
+    > {
+      return db
+        .select({
+          publication: publications,
+          clip: clips,
+          views: channelTopVideos.views,
+        })
+        .from(channelTopVideos)
+        .innerJoin(
+          publications,
+          and(
+            eq(publications.channelId, channelTopVideos.channelId),
+            eq(publications.videoId, channelTopVideos.videoId)
+          )
+        )
+        .leftJoin(clips, eq(clips.id, publications.clipId))
+        .where(
+          and(
+            eq(channelTopVideos.channelId, channelId),
+            eq(channelTopVideos.period, period),
+            eq(publications.status, "published")
+          )
+        )
+        .orderBy(desc(channelTopVideos.views), asc(channelTopVideos.videoId))
+        .limit(limit)
     },
 
     async knownVideoIds(channelId: string): Promise<Set<string>> {

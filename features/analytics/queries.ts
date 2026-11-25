@@ -110,23 +110,18 @@ export async function getAnalyticsOverview(period: AnalyticsPeriod): Promise<{
   if (!through) return { ...empty, syncing }
 
   const window = periodWindow(period, through)
-  const [days, gained, rows] = await Promise.all([
+  const [days, top] = await Promise.all([
     analytics.channelDays(channel.id, window.previousFrom, window.to),
-    analytics.viewsBetween(channel.id, window.from, window.to),
-    statsRepository(db).forChannel(channel.id),
+    analytics.topPublications(channel.id, period, TOP_SHORTS),
   ])
-  const topShorts = rows
-    .map(({ publication, clip, projectId }) => ({
-      publicationId: publication.id,
-      title: publication.metadata.title || (clip?.title ?? ""),
-      clipId: clip?.id ?? null,
-      projectId,
-      url: publication.url,
-      views: gained.get(publication.id) ?? 0,
-    }))
-    .filter((short) => short.views > 0)
-    .sort((a, b) => b.views - a.views)
-    .slice(0, TOP_SHORTS)
+  const topShorts = top.map(({ publication, clip, views }) => ({
+    publicationId: publication.id,
+    title: publication.metadata.title || (clip?.title ?? ""),
+    clipId: clip?.id ?? null,
+    projectId: clip?.projectId ?? null,
+    url: publication.url,
+    views,
+  }))
 
   return {
     dataThrough: through,

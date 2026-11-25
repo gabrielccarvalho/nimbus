@@ -20,6 +20,7 @@ import { YouTubeFake } from "@/features/publishing/youtube-fake"
 import {
   account,
   channelDaily,
+  channelTopVideos,
   jobs,
   publicationDaily,
   publicationStats,
@@ -196,6 +197,35 @@ describe("sync_channel", () => {
 
     const rows = await stored(channel.id)
     expect(rows.map((row) => row.contentType)).toEqual(["other"])
+  })
+
+  it("stores the top videos of each period ending at the last day with data", async () => {
+    const { channel } = await seed()
+    const top = vi.spyOn(fake, "topVideos")
+    const through = addDays(pacificDay(new Date()), -2)
+
+    await runChannel(channel.id)
+
+    expect(top.mock.calls.map((call) => call.slice(1))).toEqual([
+      [addDays(through, -6), through, 50],
+      [addDays(through, -27), through, 50],
+      [addDays(through, -89), through, 50],
+    ])
+    const rows = await env.db
+      .select()
+      .from(channelTopVideos)
+      .where(eq(channelTopVideos.channelId, channel.id))
+    expect(new Set(rows.map((row) => row.period))).toEqual(new Set([7, 28, 90]))
+    expect(rows.every((row) => row.through === through)).toBe(true)
+
+    top.mockResolvedValue([{ videoId: "fake-past-3", views: 5 }])
+    await runChannel(channel.id)
+
+    const replaced = await env.db
+      .select()
+      .from(channelTopVideos)
+      .where(eq(channelTopVideos.channelId, channel.id))
+    expect(replaced).toHaveLength(3)
   })
 
   it("replaces the unsplit rows of the range it reads again with split ones", async () => {

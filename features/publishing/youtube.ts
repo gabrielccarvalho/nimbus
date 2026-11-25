@@ -80,6 +80,12 @@ export interface YouTubeClient {
     startDate: string,
     endDate: string
   ): Promise<{ split: boolean; rows: ChannelDay[] }>
+  topVideos(
+    token: string,
+    startDate: string,
+    endDate: string,
+    maxResults: number
+  ): Promise<{ videoId: string; views: number }[]>
 }
 
 let fake: YouTubeFake | undefined

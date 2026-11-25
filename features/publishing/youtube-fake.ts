@@ -251,4 +251,27 @@ export class YouTubeFake implements YouTubeClient {
     }
     return { split: true, rows }
   }
+
+  async topVideos(
+    _token: string,
+    startDate: string,
+    endDate: string,
+    maxResults: number
+  ) {
+    const days =
+      (Date.parse(`${endDate}T00:00:00Z`) -
+        Date.parse(`${startDate}T00:00:00Z`)) /
+        DAY_MS +
+      1
+    return [
+      ...this.uploads.map((upload) => upload.id),
+      ...FAKE_PAST_UPLOADS.map((upload) => upload.id),
+    ]
+      .map((videoId) => ({
+        videoId,
+        views: Number(/(\d)$/.exec(videoId)?.[1] ?? 1) * 10 * days,
+      }))
+      .sort((a, b) => b.views - a.views || a.videoId.localeCompare(b.videoId))
+      .slice(0, maxResults)
+  }
 }

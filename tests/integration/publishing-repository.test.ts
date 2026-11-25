@@ -14,7 +14,14 @@ import {
 } from "@/features/publishing/repository"
 import type { QuotaKind } from "@/features/publishing/schema"
 import { analyticsRepository } from "@/features/analytics/repository"
-import { account, channelDaily, clips, user, workspaces } from "@/lib/db/schema"
+import {
+  account,
+  channelDaily,
+  channelTopVideos,
+  clips,
+  user,
+  workspaces,
+} from "@/lib/db/schema"
 
 import { insertImportedPublication } from "../utils/publications"
 import { createTestEnv, type TestEnv } from "../utils/test-env"
@@ -181,6 +188,9 @@ describe("publishingRepository", () => {
         subscribersLost: 0,
       },
     ])
+    await analytics.replaceTopVideos(channel.id, 28, "2026-11-01", [
+      { videoId: "n1", views: 5 },
+    ])
     const at = new Date("2026-11-20T00:00:00Z")
     await analytics.markSynced(channel.id, "uploadsSyncedAt", at)
     await analytics.markSynced(channel.id, "analyticsSyncedAt", at)
@@ -202,6 +212,7 @@ describe("publishingRepository", () => {
     expect(await repo.getPublication(imported.id)).toBeUndefined()
     expect(await repo.getPublication(nimbus.id)).toBeDefined()
     expect(await env.db.select().from(channelDaily)).toEqual([])
+    expect(await env.db.select().from(channelTopVideos)).toEqual([])
   })
 
   it("deletes publications with their clip", async () => {

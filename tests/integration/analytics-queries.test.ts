@@ -17,7 +17,13 @@ import { defaultProjectSettings } from "@/features/projects/schema"
 import { pacificDay } from "@/features/publishing/quota"
 import { publishingRepository } from "@/features/publishing/repository"
 import { statsRepository } from "@/features/publishing/stats-repository"
-import { account, jobs, user, youtubeChannels } from "@/lib/db/schema"
+import {
+  account,
+  jobs,
+  publications,
+  user,
+  youtubeChannels,
+} from "@/lib/db/schema"
 
 import { insertImportedPublication } from "../utils/publications"
 import { createTestEnv, type TestEnv } from "../utils/test-env"
@@ -411,13 +417,12 @@ describe("getAnalyticsOverview", () => {
       fakeDays(addDays(through, -89), through)
     )
     const publishedAt = daysAgo(40)
-    const gains = [
-      ["Past short one", 5],
-      ["Past short two", 1],
-      ["Past short three", 9],
-    ] as const
     const ids: string[] = []
-    for (const [title, perDay] of gains) {
+    for (const title of [
+      "Past short one",
+      "Past short two",
+      "Past short three",
+    ]) {
       const p = await insertImportedPublication(env.db, channel.id, {
         publishedAt,
         metadata: {
@@ -428,9 +433,32 @@ describe("getAnalyticsOverview", () => {
           publishAt: null,
         },
       })
-      await withNumbers(p.id, publishedAt, Array(39).fill(perDay))
       ids.push(p.id)
     }
+    const removed = await insertImportedPublication(env.db, channel.id, {
+      status: "removed",
+    })
+    const video = (id: string) =>
+      env.db
+        .select({ videoId: publications.videoId })
+        .from(publications)
+        .where(eq(publications.id, id))
+        .then(([row]) => row!.videoId!)
+    await analyticsRepository(env.db).replaceTopVideos(
+      channel.id,
+      28,
+      through,
+      [
+        { videoId: "long-form", views: 900 },
+        { videoId: await video(removed.id), views: 800 },
+        { videoId: await video(ids[2]!), views: 252 },
+        { videoId: await video(ids[0]!), views: 140 },
+        { videoId: await video(ids[1]!), views: 28 },
+      ]
+    )
+    await analyticsRepository(env.db).replaceTopVideos(channel.id, 7, through, [
+      { videoId: await video(ids[1]!), views: 7_000 },
+    ])
 
     const overview = await getAnalyticsOverview(28)
 
@@ -453,7 +481,7 @@ describe("getAnalyticsOverview", () => {
       publicationId: ids[2],
       clipId: null,
       projectId: null,
-      views: 9 * 28,
+      views: 252,
     })
     expect(overview.syncing).toBe(false)
     expect(await env.db.select().from(jobs)).toHaveLength(0)

@@ -3,9 +3,10 @@ import "server-only"
 import { now } from "@/lib/db"
 import { AppError } from "@/lib/errors"
 
-import { addDays } from "../../analytics/curves"
+import { addDays, periodWindow } from "../../analytics/curves"
 import { analyticsRepository } from "../../analytics/repository"
 import {
+  ANALYTICS_PERIODS,
   CHANNEL_BACKFILL_DAYS,
   CHANNEL_CURVE_DAYS,
   LATE_DATA_DAYS,
@@ -21,6 +22,7 @@ import { getYouTubeClient } from "../../publishing/youtube"
 import { refreshDailyCurve } from "./sync-publication"
 
 const DAY_MS = 86_400_000
+const TOP_VIDEOS = 50
 
 export const syncChannelStep: JobHandler = async ({ job, db, logger }) => {
   const channelId = job.payload.channelId
@@ -47,6 +49,20 @@ export const syncChannelStep: JobHandler = async ({ job, db, logger }) => {
     getYouTubeClient().channelDaily(token, from, today)
   )
   await analytics.replaceChannelDays(channelId, from, today, rows)
+  const through = await analytics.lastChannelDay(channelId)
+  if (through) {
+    for (const period of ANALYTICS_PERIODS) {
+      const top = await withGoogleToken(db, channel, (token) =>
+        getYouTubeClient().topVideos(
+          token,
+          periodWindow(period, through).from,
+          through,
+          TOP_VIDEOS
+        )
+      )
+      await analytics.replaceTopVideos(channelId, period, through, top)
+    }
+  }
   await analytics.markSynced(channelId, "analyticsSyncedAt", startedAt)
   logger.info(
     { channelId, from, to: today, rows: rows.length, split },
