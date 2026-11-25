@@ -13,6 +13,7 @@ import { storedPublishInput } from "./metadata"
 import { publishingRepository } from "./repository"
 import { publishInputSchema } from "./schema"
 import { queuePublication } from "./service"
+import { statsRepository } from "./stats-repository"
 import { enqueueStatsSync } from "./stats-service"
 
 export async function publishClipAction(clipId: unknown, input: unknown) {
@@ -96,7 +97,16 @@ export async function refreshStatsAction(publicationId: unknown) {
         throw new AppError("CONFLICT", RECONNECT_MESSAGE)
       }
       if (!(await enqueueStatsSync(getDb(), publication.id))) {
-        throw new AppError("CONFLICT", "Stats are already refreshing")
+        const refreshing = await statsRepository(getDb()).syncActive(
+          publication.id,
+          { dueBy: new Date() }
+        )
+        throw new AppError(
+          "CONFLICT",
+          refreshing
+            ? "Stats are already refreshing"
+            : "Stats will refresh after YouTube's daily quota resets."
+        )
       }
       revalidatePath(`/projects/${clip.projectId}`, "layout")
       return { publicationId: publication.id }

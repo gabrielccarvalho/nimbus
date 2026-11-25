@@ -424,8 +424,12 @@ describe("getPublishing", () => {
     expect(state.publications[clip.id]).toMatchObject({ refreshing: false })
     expect(await refreshStatsAction(id)).toMatchObject({
       ok: false,
-      error: { code: "CONFLICT", message: "Stats are already refreshing" },
+      error: {
+        code: "CONFLICT",
+        message: "Stats will refresh after YouTube's daily quota resets.",
+      },
     })
+    expect(await syncJobs()).toHaveLength(1)
   })
 })
 
