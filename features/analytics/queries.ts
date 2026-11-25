@@ -23,6 +23,7 @@ import { channelCurves, enqueueChannelSync } from "./service"
 
 const DAY_MS = 86_400_000
 const TOP_SHORTS = 5
+const UNTITLED_SHORT = "Untitled Short"
 
 export type TopShort = {
   publicationId: string
@@ -176,7 +177,7 @@ export async function getShorts(): Promise<{
           origin: publication.origin,
           clipId: clip?.id ?? null,
           projectId,
-          title: publication.metadata.title || (clip?.title ?? ""),
+          title: publication.metadata.title || clip?.title || UNTITLED_SHORT,
           url: publication.url,
           publishedAt,
           ageDays: Math.floor((now.getTime() - publishedAt.getTime()) / DAY_MS),

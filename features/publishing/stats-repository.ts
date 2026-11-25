@@ -7,12 +7,13 @@ import {
   eq,
   inArray,
   isNotNull,
+  lt,
   lte,
   or,
   sql,
 } from "drizzle-orm"
 
-import { newId, type Db } from "@/lib/db"
+import { newId, now, type Db } from "@/lib/db"
 import {
   clips,
   jobs,
@@ -144,6 +145,33 @@ export function statsRepository(db: Db) {
               : []
         )
       )
+    },
+
+    async deleteSnapshotsBefore(cutoff: Date): Promise<number> {
+      const rows = await db
+        .delete(publicationStats)
+        .where(lt(publicationStats.fetchedAt, cutoff))
+        .returning({ id: publicationStats.id })
+      return rows.length
+    },
+
+    async blankStaleImportedTitles(cutoff: Date): Promise<number> {
+      const rows = await db
+        .update(publications)
+        .set({
+          metadata: sql`jsonb_set(${publications.metadata}, '{title}', '""')`,
+          updatedAt: now(),
+        })
+        .where(
+          and(
+            eq(publications.origin, "imported"),
+            lt(publications.createdAt, cutoff),
+            sql`${publications.metadata}->>'title' <> ''`,
+            sql`not exists (select 1 from publication_stats s where s.publication_id = ${publications.id} and s.fetched_at >= ${cutoff.toISOString()}::timestamptz)`
+          )
+        )
+        .returning({ id: publications.id })
+      return rows.length
     },
 
     async lockSync(publicationId: string): Promise<void> {

@@ -9,6 +9,8 @@ export const STATS_RESYNC_DAYS = 28
 export const STATS_LAG_MS = 72 * 3_600_000
 export const STATS_SCHEDULE_INTERVAL_MS = 30 * 60_000
 export const DAILY_BACKFILL_RETRY_MS = 24 * 3_600_000
+export const YOUTUBE_DATA_TTL_MS = 30 * 86_400_000
+export const RETENTION_SWEEP_EVERY_MS = 24 * 3_600_000
 
 const DAY_MS = 86_400_000
 const MOMENT_THRESHOLD = 0.05

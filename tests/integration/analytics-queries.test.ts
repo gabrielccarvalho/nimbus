@@ -199,6 +199,23 @@ describe("getShorts", () => {
     expect(shorts.dataThrough).toBe(addDays(pacificDay(nimbusAt), 8))
   })
 
+  it("names an imported Short whose title was blanked Untitled Short", async () => {
+    const { channel } = await seed()
+    await insertImportedPublication(env.db, channel.id, {
+      metadata: {
+        title: "",
+        description: "",
+        tags: [],
+        privacy: "public",
+        publishAt: null,
+      },
+    })
+
+    const shorts = await getShorts()
+
+    expect(shorts.rows.map((r) => r.title)).toEqual(["Untitled Short"])
+  })
+
   it("scores each Short against the others at the same age", async () => {
     const { channel } = await seed()
     const publishedAt = daysAgo(10)

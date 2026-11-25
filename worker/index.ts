@@ -12,8 +12,14 @@ import {
   pipelineHandlers,
 } from "@/features/pipeline/handlers"
 import { enqueueDueAnalyticsSyncs } from "@/features/analytics/service"
-import { enqueueDueStatsSyncs } from "@/features/publishing/stats-service"
-import { STATS_SCHEDULE_INTERVAL_MS } from "@/features/publishing/stats"
+import {
+  enqueueDueStatsSyncs,
+  sweepStaleYouTubeData,
+} from "@/features/publishing/stats-service"
+import {
+  RETENTION_SWEEP_EVERY_MS,
+  STATS_SCHEDULE_INTERVAL_MS,
+} from "@/features/publishing/stats"
 import { SWEEP_INTERVAL_MS } from "@/features/pipeline/sweep-plan"
 import { closeDb, getDb } from "@/lib/db"
 import { getEnv } from "@/lib/env"
@@ -48,6 +54,14 @@ const sweep = () =>
     logger.error({ err: error }, "couldn't schedule the sweep")
   )
 
+let retentionSweptAt = 0
+const sweepYouTubeData = async () => {
+  if (Date.now() - retentionSweptAt < RETENTION_SWEEP_EVERY_MS) return
+  retentionSweptAt = Date.now()
+  const swept = await sweepStaleYouTubeData(db, new Date())
+  logger.info(swept, "swept stale YouTube data")
+}
+
 const scheduleStats = () =>
   Promise.all([
     enqueueDueStatsSyncs(db, new Date()).catch((error: unknown) =>
@@ -55,6 +69,9 @@ const scheduleStats = () =>
     ),
     enqueueDueAnalyticsSyncs(db, new Date()).catch((error: unknown) =>
       logger.error({ err: error }, "couldn't schedule analytics syncs")
+    ),
+    sweepYouTubeData().catch((error: unknown) =>
+      logger.error({ err: error }, "couldn't sweep stale YouTube data")
     ),
   ])
 

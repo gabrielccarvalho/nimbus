@@ -4,7 +4,7 @@ import { withTransaction, type Db } from "@/lib/db"
 
 import { jobQueue } from "../jobs/queue"
 import { STATS_BATCH_SIZE } from "../jobs/schema"
-import { dailyBackfillDue, statsSyncDue } from "./stats"
+import { dailyBackfillDue, statsSyncDue, YOUTUBE_DATA_TTL_MS } from "./stats"
 import { statsRepository } from "./stats-repository"
 
 export async function enqueueStatsSync(
@@ -87,4 +87,15 @@ export async function enqueueDueStatsSyncs(db: Db, now: Date): Promise<number> {
     enqueued += await enqueueStatsBatches(db, channelId, ids)
   }
   return enqueued
+}
+
+export async function sweepStaleYouTubeData(
+  db: Db,
+  now: Date
+): Promise<{ snapshots: number; titles: number }> {
+  const cutoff = new Date(now.getTime() - YOUTUBE_DATA_TTL_MS)
+  const stats = statsRepository(db)
+  const titles = await stats.blankStaleImportedTitles(cutoff)
+  const snapshots = await stats.deleteSnapshotsBefore(cutoff)
+  return { snapshots, titles }
 }
