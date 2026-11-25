@@ -2,6 +2,7 @@
 
 import {
   BroadcastIcon,
+  ChartLineUpIcon,
   FolderSimpleIcon,
   SidebarSimpleIcon,
 } from "@phosphor-icons/react"
@@ -35,7 +36,7 @@ import { useHotkey } from "./use-hotkey"
 export type RecentProject = ProjectSignalInput & { id: string; name: string }
 
 type NavItem = {
-  href: "/" | "/channels"
+  href: "/" | "/analytics" | "/channels"
   label: string
   icon: React.ElementType
   count?: number
@@ -129,6 +130,12 @@ export function AppSidebar({
       icon: FolderSimpleIcon,
       count: projectCount,
       active: pathname === "/",
+    },
+    {
+      href: "/analytics",
+      label: "Analytics",
+      icon: ChartLineUpIcon,
+      active: pathname.startsWith("/analytics"),
     },
     {
       href: "/channels",

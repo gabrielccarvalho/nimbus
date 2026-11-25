@@ -19,7 +19,7 @@ Before building any UI element:
 
 Installed with `pnpm exec shadcn add` (style `base-nova`, Base UI). Generated files import `cn` from the `cn` package; custom primitives in `components/ui/` do the same so they read identically.
 
-alert, alert-dialog, badge, breadcrumb, button, card, command, dialog, dropdown-menu, empty, field, input, input-group, item, kbd, label, popover, progress, radio-group, scroll-area, select, separator, sheet, skeleton, slider, sonner, spinner, stat-card*, switch, table, tabs, textarea, toggle, toggle-group, tooltip.
+alert, alert-dialog, badge, breadcrumb, button, card, chart, command, dialog, dropdown-menu, empty, field, input, input-group, item, kbd, label, popover, progress, radio-group, scroll-area, select, separator, sheet, skeleton, slider, sonner, spinner, stat-card*, switch, table, tabs, textarea, toggle, toggle-group, tooltip.
 
 \* custom, see below.
 
@@ -200,6 +200,10 @@ A movable, resizable rectangle over an image or video, in normalized 0–1 frame
   <CropRegion aria-label="Webcam region" />
 </CropRegionEditor>
 ```
+
+### Chart (`components/ui/chart.tsx`)
+
+Added with `pnpm dlx shadcn@latest add chart` and left unedited (`base-nova`, Recharts 3.8.0). Use `ChartContainer` with a `ChartConfig` whose colours are `--chart-1…5` tokens, plus `ChartTooltip`/`ChartTooltipContent`. Every chart gets a visible text summary and a "Show as table" `<details>`; `ViewsChart` (`components/analytics/views-chart.tsx`) is the example.
 
 ## App shell (`components/app-shell/`)
 

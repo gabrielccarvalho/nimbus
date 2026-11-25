@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
@@ -35,6 +35,15 @@ describe("buildCrumbs", () => {
     ])
     expect(buildCrumbs("/channels", {})).toEqual([
       { href: "/channels", label: "Channels" },
+    ])
+  })
+})
+
+describe("buildCrumbs analytics", () => {
+  it("roots analytics at Analytics", () => {
+    expect(buildCrumbs("/analytics/shorts", {})).toEqual([
+      { href: "/analytics", label: "Analytics" },
+      { href: "/analytics/shorts", label: "Shorts" },
     ])
   })
 })
@@ -96,6 +105,20 @@ describe("AppSidebar", () => {
     expect(screen.getByRole("link", { name: /Projects/ })).toHaveTextContent(
       "4"
     )
+  })
+
+  it("lists Projects, Analytics and Channels in that order", () => {
+    render(
+      <TooltipProvider>
+        <AppSidebar {...shell} />
+      </TooltipProvider>
+    )
+    const nav = screen.getByRole("navigation", { name: "Sections" })
+    expect(
+      within(nav)
+        .getAllByRole("link")
+        .map((link) => link.textContent)
+    ).toEqual(["Projects4", "Analytics", "Channels"])
   })
 
   it("collapses to a rail and remembers it in a cookie", async () => {
