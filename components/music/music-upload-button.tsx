@@ -105,6 +105,11 @@ export function MusicUploadButton({
           ? "Upload a track"
           : `Uploading… ${Math.round(progress)}%`}
       </Button>
+      <span role="status" className="sr-only">
+        {progress === null
+          ? ""
+          : `Uploading… ${Math.min(100, Math.floor(progress / 10) * 10)}%`}
+      </span>
     </>
   )
 }

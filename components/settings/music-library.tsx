@@ -51,11 +51,17 @@ function usage(count: number) {
 function TrackRow({ track }: { track: MusicTrackSummary }) {
   const router = useRouter()
   const [title, setTitle] = React.useState(track.title)
+  const [saved, setSaved] = React.useState(track.title)
+  const input = React.useRef<HTMLInputElement>(null)
+  if (saved !== track.title) {
+    setSaved(track.title)
+    setTitle(track.title)
+  }
   const [open, setOpen] = React.useState(false)
   const [pending, startTransition] = React.useTransition()
 
-  const rename = () => {
-    if (title === track.title) return
+  const rename = (refocus = false) => {
+    if (pending || title === track.title) return
     startTransition(async () => {
       const result = await renameMusicTrackAction(track.id, title)
       if (!result.ok) {
@@ -64,6 +70,7 @@ function TrackRow({ track }: { track: MusicTrackSummary }) {
         return
       }
       router.refresh()
+      if (refocus) input.current?.focus()
     })
   }
 
@@ -83,14 +90,15 @@ function TrackRow({ track }: { track: MusicTrackSummary }) {
     <Item variant="outline">
       <ItemContent>
         <Input
+          ref={input}
           aria-label="Track title"
           value={title}
           maxLength={100}
-          disabled={pending}
+          readOnly={pending}
           onChange={(event) => setTitle(event.target.value)}
-          onBlur={rename}
+          onBlur={() => rename()}
           onKeyDown={(event) => {
-            if (event.key === "Enter") event.currentTarget.blur()
+            if (event.key === "Enter") rename(true)
           }}
         />
         <ItemDescription>
@@ -163,7 +171,7 @@ export function MusicLibrary({ tracks }: { tracks: MusicTrackSummary[] }) {
       ) : (
         <ItemGroup className="gap-2">
           {tracks.map((track) => (
-            <TrackRow key={`${track.id}:${track.title}`} track={track} />
+            <TrackRow key={track.id} track={track} />
           ))}
         </ItemGroup>
       )}

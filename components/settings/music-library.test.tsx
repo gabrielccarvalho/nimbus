@@ -129,4 +129,30 @@ describe("MusicLibrary", () => {
     )
     expect(toastSuccess).not.toHaveBeenCalled()
   })
+
+  it("keeps focus on the same control when a rename lands", async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<MusicLibrary tracks={[track()]} />)
+    const input = screen.getByRole("textbox", { name: "Track title" })
+    await user.clear(input)
+    await user.type(input, "New name")
+    await user.tab()
+    const del = screen.getByRole("button", { name: "Delete Summer loop" })
+    expect(del).toHaveFocus()
+    rerender(<MusicLibrary tracks={[track({ title: "New name" })]} />)
+    expect(screen.getByDisplayValue("New name")).toBeVisible()
+    expect(
+      screen.getByRole("button", { name: "Delete New name" })
+    ).toHaveFocus()
+  })
+
+  it("returns focus to the input after committing with Enter", async () => {
+    const user = userEvent.setup()
+    render(<MusicLibrary tracks={[track()]} />)
+    const input = screen.getByRole("textbox", { name: "Track title" })
+    await user.clear(input)
+    await user.type(input, "New name{Enter}")
+    await waitFor(() => expect(rename).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(input).toHaveFocus())
+  })
 })

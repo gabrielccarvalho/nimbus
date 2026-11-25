@@ -94,4 +94,27 @@ describe("MusicUploadButton", () => {
       expect(toastError).toHaveBeenCalledWith("No audio found")
     )
   })
+
+  it("announces progress in coarse steps", async () => {
+    render(<MusicUploadButton />)
+    pick(new File(["x"], "a.mp3", { type: "audio/mpeg" }))
+    FakeXhr.last.upload.onprogress?.({
+      lengthComputable: true,
+      loaded: 47,
+      total: 100,
+    })
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Uploading… 40%"
+    )
+  })
+
+  it("toasts and re-enables the button when the upload is interrupted", async () => {
+    render(<MusicUploadButton />)
+    pick(new File(["x"], "a.mp3", { type: "audio/mpeg" }))
+    FakeXhr.last.onerror?.()
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith("The upload was interrupted")
+    )
+    expect(screen.getByRole("button", { name: "Upload a track" })).toBeEnabled()
+  })
 })
