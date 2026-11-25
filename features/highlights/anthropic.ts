@@ -166,13 +166,19 @@ export class AnthropicSelector implements HighlightSelector {
     return results.flat()
   }
 
-  private async selectPart(prompt: PromptInput, input: SelectorInput) {
+  private async selectPart(
+    prompt: Omit<PromptInput, "playbook">,
+    input: SelectorInput
+  ) {
     const { clips } = await requestJson({
       client: this.client,
       model: this.model,
       effort: "high",
       system: SELECTION_SYSTEM_PROMPT,
-      content: buildSelectionPrompt(prompt),
+      content: buildSelectionPrompt({
+        ...prompt,
+        playbook: input.playbook?.selection,
+      }),
       schema: candidatesResponseSchema,
       retryHint: `Reply again with only the JSON, at most ${prompt.limits.maxCount} clips.`,
       signal: input.signal,

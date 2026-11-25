@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { clipRepository } from "@/features/clips/repository"
@@ -7,7 +8,11 @@ import {
 } from "@/features/clips/service"
 import { HeuristicSelector } from "@/features/highlights/heuristic"
 import { layoutRepository } from "@/features/layout/repository"
+import { insightsRepository } from "@/features/insights/repository"
 import { projectRepository } from "@/features/projects/repository"
+import { publishingRepository } from "@/features/publishing/repository"
+
+import { projects, workspaces } from "@/lib/db/schema"
 
 import { fixtures } from "../../scripts/make-fixtures"
 import { runJobs, uploadFixture } from "../utils/pipeline"
@@ -16,6 +21,7 @@ import { createTestEnv, type TestEnv } from "../utils/test-env"
 const review = vi.hoisted(() => ({
   on: false,
   description: undefined as string | undefined,
+  playbooks: [] as unknown[],
 }))
 
 vi.mock("@/features/highlights", async (importOriginal) => {
@@ -25,6 +31,7 @@ vi.mock("@/features/highlights", async (importOriginal) => {
     selectHighlights: (
       ...args: Parameters<typeof actual.selectHighlights>
     ): ReturnType<typeof actual.selectHighlights> => {
+      review.playbooks.push(args[1].playbook)
       if (!review.on) return actual.selectHighlights(...args)
       const [, input, logger] = args
       return actual.selectHighlights(
@@ -55,6 +62,7 @@ let env: TestEnv
 beforeEach(async () => {
   review.on = false
   review.description = undefined
+  review.playbooks = []
   env = await createTestEnv()
 })
 afterEach(() => env.cleanup())
@@ -141,6 +149,59 @@ describe("select step", () => {
       effects: { edited: false },
     })
     expect(clip!.endMs - clip!.startMs).toBeGreaterThanOrEqual(15_000)
+  })
+})
+
+describe("playbook at selection", () => {
+  async function withRules(
+    rules: { target: "selection" | "review"; text: string }[]
+  ) {
+    const { projectId } = await uploadFixture(fixtures.wide)
+    const workspaceId = crypto.randomUUID()
+    await env.db.insert(workspaces).values({ id: workspaceId, name: "Studio" })
+    await env.db
+      .update(projects)
+      .set({ workspaceId })
+      .where(eq(projects.id, projectId))
+    const channel = await publishingRepository(env.db).upsertChannel({
+      workspaceId,
+      accountId: null,
+      channelId: "UC1",
+      title: "Channel",
+    })
+    const insights = insightsRepository(env.db)
+    const ids: string[] = []
+    for (const rule of rules) {
+      ids.push(
+        (await insights.insertRule({ channelId: channel.id, ...rule })).id
+      )
+    }
+    await runJobs(env.db, ["probe", "transcribe", "analyze", "select"])
+    return { projectId, ids }
+  }
+
+  it("passes the active rules on and records their ids on every clip", async () => {
+    const { projectId, ids } = await withRules([
+      { target: "selection", text: "Open on the crash" },
+      { target: "review", text: "Cut slow ends" },
+    ])
+    expect(review.playbooks.at(-1)).toEqual({
+      selection: ["Open on the crash"],
+      review: ["Cut slow ends"],
+    })
+    const clips = await clipRepository(env.db).listForProject(projectId)
+    expect(clips.length).toBeGreaterThan(0)
+    for (const clip of clips) {
+      expect([...clip.playbookRuleIds!].sort()).toEqual([...ids].sort())
+    }
+  })
+
+  it("leaves the rule ids null without a channel or rules", async () => {
+    const projectId = await analyzed()
+    expect(review.playbooks.at(-1)).toBeUndefined()
+    const clips = await clipRepository(env.db).listForProject(projectId)
+    expect(clips.length).toBeGreaterThan(0)
+    for (const clip of clips) expect(clip.playbookRuleIds).toBeNull()
   })
 })
 

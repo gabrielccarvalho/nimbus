@@ -110,6 +110,34 @@ describe("AnthropicSelector", () => {
     )
   })
 
+  it("sends the selection rules in every part and the review rules to the reviewer", async () => {
+    const texts: string[] = []
+    server.use(
+      http.post(`${BASE}/v1/messages`, async ({ request }) => {
+        texts.push(JSON.stringify(await request.json()))
+        return HttpResponse.json(message(clipsJson))
+      })
+    )
+    await selectHighlights(
+      "anthropic",
+      {
+        ...input,
+        frames,
+        playbook: {
+          selection: ["Open on the crash"],
+          review: ["Cut slow ends"],
+        },
+      },
+      logger,
+      create,
+      reviewer
+    )
+    expect(texts[0]).toContain("Open on the crash")
+    expect(texts[0]).not.toContain("Cut slow ends")
+    expect(texts[1]).toContain("Cut slow ends")
+    expect(texts[1]).not.toContain("Open on the crash")
+  })
+
   it("splits very long transcripts into parts", async () => {
     const prompts: string[] = []
     server.use(

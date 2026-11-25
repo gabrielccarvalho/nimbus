@@ -3,6 +3,9 @@ import { z } from "zod"
 export const ruleTargets = ["selection", "review"] as const
 export type RuleTarget = (typeof ruleTargets)[number]
 
+export const ruleStatuses = ["active", "retired"] as const
+export type RuleStatus = (typeof ruleStatuses)[number]
+
 export const suggestionKinds = ["add", "edit", "retire"] as const
 export type SuggestionKind = (typeof suggestionKinds)[number]
 

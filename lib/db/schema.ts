@@ -32,6 +32,12 @@ import type {
   PublishInput,
   QuotaKind,
 } from "@/features/publishing/schema"
+import type {
+  RuleStatus,
+  RuleTarget,
+  SuggestionKind,
+  SuggestionStatus,
+} from "@/features/insights/schema"
 import type { RetentionPoint } from "@/features/publishing/stats"
 import type {
   AssetKind,
@@ -303,6 +309,7 @@ export const clips = pgTable(
     layoutOverride: jsonb("layout_override").$type<LayoutInput>(),
     effects: jsonb("effects").$type<ClipEffects | null>(),
     beats: jsonb("beats").$type<Beat[] | null>(),
+    playbookRuleIds: jsonb("playbook_rule_ids").$type<string[] | null>(),
     renderAssetId: text("render_asset_id").references(() => assets.id, {
       onDelete: "set null",
     }),
@@ -327,6 +334,51 @@ export const youtubeChannels = pgTable("youtube_channels", {
   status: text("status").$type<ChannelStatus>().notNull().default("ok"),
   ...timestamps,
 })
+
+export const playbookRules = pgTable(
+  "playbook_rules",
+  {
+    id: text("id").primaryKey(),
+    channelId: text("channel_id")
+      .notNull()
+      .references(() => youtubeChannels.id, { onDelete: "cascade" }),
+    target: text("target").$type<RuleTarget>().notNull(),
+    text: text("text").notNull(),
+    status: text("status").$type<RuleStatus>().notNull().default("active"),
+    sourceSuggestionId: text("source_suggestion_id"),
+    supersedesId: text("supersedes_id"),
+    createdAt: timestamptz("created_at").notNull().defaultNow(),
+    retiredAt: timestamptz("retired_at"),
+  },
+  (t) => [index("playbook_rules_channel_idx").on(t.channelId, t.status)]
+)
+
+export const insightSuggestions = pgTable(
+  "insight_suggestions",
+  {
+    id: text("id").primaryKey(),
+    channelId: text("channel_id")
+      .notNull()
+      .references(() => youtubeChannels.id, { onDelete: "cascade" }),
+    target: text("target").$type<RuleTarget>().notNull(),
+    kind: text("kind").$type<SuggestionKind>().notNull(),
+    ruleId: text("rule_id").references(() => playbookRules.id, {
+      onDelete: "set null",
+    }),
+    text: text("text").notNull(),
+    rationale: text("rationale").notNull(),
+    evidenceFor: jsonb("evidence_for").$type<string[]>().notNull(),
+    evidenceAgainst: jsonb("evidence_against").$type<string[]>().notNull(),
+    confidence: doublePrecision("confidence").notNull(),
+    status: text("status")
+      .$type<SuggestionStatus>()
+      .notNull()
+      .default("pending"),
+    createdAt: timestamptz("created_at").notNull().defaultNow(),
+    decidedAt: timestamptz("decided_at"),
+  },
+  (t) => [index("insight_suggestions_channel_idx").on(t.channelId, t.status)]
+)
 
 export const publications = pgTable(
   "publications",

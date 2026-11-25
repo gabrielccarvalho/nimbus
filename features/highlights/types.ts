@@ -40,6 +40,7 @@ export type SelectorInput = {
   audience?: readonly AudiencePoint[]
   exclude?: readonly TimeRange[]
   niche?: NicheProfile
+  playbook?: { selection: readonly string[]; review: readonly string[] }
   frames?: FrameSource
   apiKey?: string
   onPart?: (

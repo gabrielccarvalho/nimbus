@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import type { TimeRange } from "../analysis/schema"
+import { playbookSection } from "../insights/playbook"
 import { beatSchema, type Beat } from "../effects/schema"
 import { languageName, transcriptLines } from "./prompt"
 import {
@@ -98,7 +99,7 @@ export function buildReviewContent(
   firstId: number,
   input: Pick<
     SelectorInput,
-    "words" | "segments" | "language" | "limits" | "niche"
+    "words" | "segments" | "language" | "limits" | "niche" | "playbook"
   >
 ): ReviewBlock[] {
   const language =
@@ -108,7 +109,7 @@ export function buildReviewContent(
   const blocks: ReviewBlock[] = [
     {
       type: "text",
-      text: `${input.niche ? `The game is ${input.niche.label}. What hooks viewers in this niche:\n${input.niche.lookFor.map((item) => `- ${item}`).join("\n")}\n\n` : ""}Each clip must stay between ${seconds(input.limits.minMs)} and ${seconds(input.limits.maxMs)} seconds long. Times are in milliseconds from the start of the recording. Write titles and hooks in ${language}. Lines marked (game) or (unclear) are game audio, not the streamer.`,
+      text: `${input.playbook?.review.length ? `${playbookSection(input.playbook.review)}\n` : ""}${input.niche ? `The game is ${input.niche.label}. What hooks viewers in this niche:\n${input.niche.lookFor.map((item) => `- ${item}`).join("\n")}\n\n` : ""}Each clip must stay between ${seconds(input.limits.minMs)} and ${seconds(input.limits.maxMs)} seconds long. Times are in milliseconds from the start of the recording. Write titles and hooks in ${language}. Lines marked (game) or (unclear) are game audio, not the streamer.`,
     },
   ]
   batch.forEach(({ candidate, times, frames }, index) => {
