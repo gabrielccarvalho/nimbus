@@ -1,3 +1,6 @@
+import { readdir, writeFile } from "node:fs/promises"
+import path from "node:path"
+
 import { sql } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -197,6 +200,35 @@ describe("worker loop", () => {
     expect((await queue.get(job.id))?.status).toBe("failed")
     expect((await queue.get(job.id))?.error).toContain("moov atom not found")
     expect(onFinalFailure).toHaveBeenCalledOnce()
+  })
+
+  it("gives each attempt its own scratch directory and removes it", async () => {
+    const queue = jobQueue(env.db)
+    const job = await queue.enqueue({
+      type: "probe",
+      projectId: (await project()).id,
+      maxAttempts: 2,
+    })
+    const dirs: string[] = []
+    const w = worker({
+      probe: async ({ scratch }) => {
+        dirs.push(scratch)
+        await writeFile(path.join(scratch, "graph.txt"), "graph")
+        if (dirs.length === 1) throw new AppError("EXTERNAL", "ffmpeg crashed")
+      },
+    })
+    await w.drain()
+    await env.db.execute(
+      sql`update jobs set run_after = now() - interval '1 hour' where id = ${job.id}`
+    )
+    await w.drain()
+
+    expect(dirs).toEqual([
+      path.join(env.scratchDir, `${job.id}-1`),
+      path.join(env.scratchDir, `${job.id}-2`),
+    ])
+    expect(await readdir(env.scratchDir)).toEqual([])
+    expect((await queue.get(job.id))?.status).toBe("succeeded")
   })
 
   it("aborts a running job when it is cancelled elsewhere", async () => {

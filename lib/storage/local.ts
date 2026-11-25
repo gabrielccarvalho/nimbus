@@ -44,10 +44,6 @@ export class LocalStorage implements StorageAdapter {
     this.root = path.resolve(/* turbopackIgnore: true */ root)
   }
 
-  resolve(key: string): string {
-    return this.path(key)
-  }
-
   path(key: string): string {
     if (!key || !KEY_PATTERN.test(key) || key.startsWith("/")) {
       throw new AppError("STORAGE", "Invalid storage key", {
@@ -68,7 +64,7 @@ export class LocalStorage implements StorageAdapter {
     body: Readable,
     options: { maxBytes?: number; transforms?: Transform[] } = {}
   ): Promise<{ bytes: number }> {
-    const target = this.resolve(key)
+    const target = this.path(key)
     const temp = `${target}.${process.pid}.${Date.now()}.part`
     await mkdir(path.dirname(target), { recursive: true })
     let bytes = 0
@@ -96,7 +92,7 @@ export class LocalStorage implements StorageAdapter {
   }
 
   async writeBuffer(key: string, data: Buffer | string) {
-    const target = this.resolve(key)
+    const target = this.path(key)
     await mkdir(path.dirname(target), { recursive: true })
     const temp = `${target}.${process.pid}.${Date.now()}.part`
     await writeFile(temp, data)
@@ -104,14 +100,14 @@ export class LocalStorage implements StorageAdapter {
   }
 
   async move(fromKey: string, toKey: string) {
-    const to = this.resolve(toKey)
+    const to = this.path(toKey)
     await mkdir(path.dirname(to), { recursive: true })
-    await rename(this.resolve(fromKey), to)
+    await rename(this.path(fromKey), to)
   }
 
   async stat(key: string) {
     try {
-      const info = await stat(this.resolve(key))
+      const info = await stat(this.path(key))
       if (!info.isFile()) return null
       return { bytes: info.size, mtimeMs: info.mtimeMs }
     } catch (error) {
@@ -122,21 +118,21 @@ export class LocalStorage implements StorageAdapter {
 
   read(key: string, range?: ByteRange): Readable {
     return createReadStream(
-      this.resolve(key),
+      this.path(key),
       range ? { start: range.start, end: range.end } : undefined
     )
   }
 
   async remove(key: string) {
-    await rm(this.resolve(key), { force: true })
+    await rm(this.path(key), { force: true })
   }
 
   async removePrefix(prefix: string) {
-    await rm(this.resolve(prefix), { recursive: true, force: true })
+    await rm(this.path(prefix), { recursive: true, force: true })
   }
 
   async list(prefix: string): Promise<string[]> {
-    const base = this.resolve(prefix)
+    const base = this.path(prefix)
     try {
       const entries = await readdir(base, {
         recursive: true,

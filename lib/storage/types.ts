@@ -7,7 +7,6 @@ export type UploadTarget =
   | { url: null }
 
 export interface StorageAdapter {
-  resolve(key: string): string
   write(
     key: string,
     body: Readable,

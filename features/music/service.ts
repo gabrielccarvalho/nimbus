@@ -9,6 +9,7 @@ import { readableFromRequestBody } from "@/lib/http/request-body"
 import { logger } from "@/lib/logger"
 import { getStorage, storageKeys, type StorageAdapter } from "@/lib/storage"
 import { assertDiskSpace } from "@/lib/storage/disk"
+import { withScratch } from "@/lib/storage/scratch"
 
 import { parseAudioProbe } from "../pipeline/steps/probe-parse"
 import { UPLOAD_FILENAME_HEADER } from "../projects/upload"
@@ -145,11 +146,19 @@ export async function handleMusicUpload(
       })
     if (!format) throw notAudio()
 
-    const file = storage.resolve(tempKey)
-    const { durationMs } = parseAudioProbe(
-      await runFfprobe(file, request.signal, "audio")
+    const { durationMs, peaks } = await withScratch(
+      `music-${id}`,
+      async (scratch) => {
+        const file = await storage.localCopy(tempKey, scratch, request.signal)
+        const { durationMs } = parseAudioProbe(
+          await runFfprobe(file, request.signal, "audio")
+        )
+        return {
+          durationMs,
+          peaks: await readPeaks(file, durationMs, request.signal),
+        }
+      }
     )
-    const peaks = await readPeaks(file, durationMs, request.signal)
 
     storedKey = storageKeys.music(actor.workspaceId, id, format)
     await storage.move(tempKey, storedKey)

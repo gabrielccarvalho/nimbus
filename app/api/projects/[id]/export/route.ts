@@ -20,12 +20,13 @@ export async function GET(
     const project = await assertProjectAccess(id)
     const storage = getStorage()
     const contents = await exportContents(db, id)
-    const present = await Promise.all(
-      contents.files.map(async (file) =>
-        Boolean(await storage.stat(file.storageKey))
-      )
+    const stats = await Promise.all(
+      contents.files.map((file) => storage.stat(file.storageKey))
     )
-    const files = contents.files.filter((_, i) => present[i])
+    const files = contents.files.flatMap((file, i) => {
+      const info = stats[i]
+      return info ? [{ ...file, bytes: info.bytes }] : []
+    })
     const manifest = contents.manifest.filter((entry) =>
       files.some((file) => file.name === entry.file)
     )
@@ -34,9 +35,11 @@ export async function GET(
     }
     const zip = new yazl.ZipFile()
     for (const file of files) {
-      zip.addFile(storage.resolve(file.storageKey), file.name, {
-        compress: false,
-      })
+      zip.addReadStreamLazy(
+        file.name,
+        { compress: false, size: file.bytes },
+        (callback) => callback(null, storage.read(file.storageKey))
+      )
     }
     zip.addBuffer(
       Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`),

@@ -1,4 +1,5 @@
 import { utimes } from "node:fs/promises"
+import path from "node:path"
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
@@ -20,7 +21,7 @@ async function plant(key: string, ageMs: number) {
   const storage = getStorage()
   await storage.writeBuffer(key, "x")
   const when = new Date(Date.now() - ageMs)
-  await utimes(storage.resolve(key), when, when)
+  await utimes(path.join(env.dataDir, key), when, when)
 }
 
 describe("sweep", () => {
@@ -31,7 +32,7 @@ describe("sweep", () => {
     await plant(storageKeys.uploadTemp("abandoned"), day)
     await plant(storageKeys.uploadTemp("in-progress"), 1000)
     await plant("projects/deleted-project/source.mp4", day)
-    await plant(storageKeys.work(projectId, "crashed-graph.txt"), day)
+    await plant(`projects/${projectId}/work/crashed-graph.txt`, day)
     await plant(storageKeys.render(projectId, "clip", 1), day)
 
     const before = await getStorage().list(storageKeys.projectPrefix(projectId))

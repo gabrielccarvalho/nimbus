@@ -20,6 +20,7 @@ export const probeStep: JobHandler = async ({
   job,
   db,
   signal,
+  scratch,
   reportProgress,
   logger,
 }) => {
@@ -27,7 +28,7 @@ export const probeStep: JobHandler = async ({
   const storage = getStorage()
   const assets = assetRepository(db)
   const source = await sourceAsset(db, project)
-  const sourcePath = storage.resolve(source.storageKey)
+  const sourcePath = await storage.localCopy(source.storageKey, scratch, signal)
 
   const info = parseProbe(await runFfprobe(sourcePath, signal))
   await assets.update(source.id, {
@@ -42,7 +43,7 @@ export const probeStep: JobHandler = async ({
 
   const thumbKey = storageKeys.thumbnail(project.id)
   if (!(await assets.findByKind(project.id, "thumbnail"))) {
-    await produceFile(project.id, thumbKey, (file) =>
+    await produceFile(scratch, thumbKey, (file) =>
       runFfmpeg(
         [
           "-ss",
@@ -72,7 +73,7 @@ export const probeStep: JobHandler = async ({
   reportProgress(20)
 
   const proxyKey = storageKeys.proxy(project.id)
-  await produceFile(project.id, proxyKey, (file) =>
+  await produceFile(scratch, proxyKey, (file) =>
     runFfmpeg(
       [
         "-i",

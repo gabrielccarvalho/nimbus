@@ -143,7 +143,7 @@ describe("transcribe step", () => {
     await runJobs(env.db, ["transcribe"])
 
     const audio = await assets.findByKind(projectId, "audio")
-    const wav = await readFile(getStorage().resolve(audio!.storageKey))
+    const wav = await readFile(path.join(env.dataDir, audio!.storageKey))
     let peak = 0
     for (let i = wav.indexOf("data") + 8; i + 1 < wav.length; i += 2) {
       peak = Math.max(peak, Math.abs(wav.readInt16LE(i)))

@@ -1,5 +1,8 @@
 import "server-only"
 
+import { writeFile } from "node:fs/promises"
+import path from "node:path"
+
 import { getEnv } from "@/lib/env"
 import { AppError } from "@/lib/errors"
 import { getFfmpegCapabilities } from "@/lib/media/capabilities"
@@ -35,12 +38,13 @@ import { recordUsage } from "../../accounts/usage"
 import { getAppSettings } from "../../settings/service"
 import { speakerTranscriptWords } from "../../captions/speaker"
 import { transcriptRepository } from "../../transcription/repository"
-import { sourceFile, throwIfAborted } from "./common"
+import { produceFile, sourceFile, throwIfAborted } from "./common"
 
 export const renderClipStep: JobHandler = async ({
   job,
   db,
   signal,
+  scratch,
   reportProgress,
   logger,
 }) => {
@@ -87,7 +91,7 @@ export const renderClipStep: JobHandler = async ({
   }
   const storage = getStorage()
   const durationMs = clip.endMs - clip.startMs
-  await assertDiskSpace(env.DATA_DIR, estimateRenderBytes(durationMs))
+  await assertDiskSpace(env.SCRATCH_DIR, estimateRenderBytes(durationMs))
 
   const words =
     captions || audioMix?.duck
@@ -101,15 +105,14 @@ export const renderClipStep: JobHandler = async ({
   )
 
   const stamp = Date.now()
-  const workKey = (name: string) =>
-    storageKeys.work(project.id, `${clip.id}-${stamp}.${name}`)
+  const workFile = (name: string) => path.join(scratch, `${clip.id}.${name}`)
   let subtitles: { file: string; fontsDir: string } | undefined
   if (captions || textOverlay) {
     const style = resolveCaptionStyle(
       clip.captionOverrides?.style ?? project.settings.captionStyle
     )
-    await storage.writeBuffer(
-      workKey("ass"),
+    await writeFile(
+      workFile("ass"),
       buildAss({
         pages: captions ? clipCaptionPages(words, clip, style) : [],
         style,
@@ -124,7 +127,7 @@ export const renderClipStep: JobHandler = async ({
       })
     )
     subtitles = {
-      file: storage.resolve(workKey("ass")),
+      file: workFile("ass"),
       fontsDir: CAPTION_FONTS_DIR,
     }
   }
@@ -143,10 +146,10 @@ export const renderClipStep: JobHandler = async ({
     }
     commands = effectCommands(effects)
     // sendcmd refuses an empty file.
-    if (commands) await storage.writeBuffer(workKey("cmds.txt"), commands)
+    if (commands) await writeFile(workFile("cmds.txt"), commands)
     graph = effectsGraph({
       ...effects,
-      commandsFile: commands ? storage.resolve(workKey("cmds.txt")) : undefined,
+      commandsFile: commands ? workFile("cmds.txt") : undefined,
       subtitles,
       audio,
     })
@@ -158,7 +161,7 @@ export const renderClipStep: JobHandler = async ({
       audio,
     })
   }
-  await storage.writeBuffer(workKey("graph.txt"), graph)
+  await writeFile(workFile("graph.txt"), graph)
   const settings = await getAppSettings(db, project.workspaceId)
   const encoder = chooseEncoder(
     encoderPreference(settings.hardwareEncoding, env.VIDEO_ENCODER),
@@ -167,22 +170,24 @@ export const renderClipStep: JobHandler = async ({
   const outputKey = storageKeys.render(project.id, clip.id, stamp)
   reportProgress(2)
 
-  try {
+  const input = await storage.localCopy(source.storageKey, scratch, signal)
+  const music =
+    audio?.music && track && audioMix
+      ? {
+          file: await storage.localCopy(track.storageKey, scratch, signal),
+          seekMs: audioMix.trackStartMs,
+        }
+      : undefined
+  await produceFile(scratch, outputKey, async (output) => {
     await runFfmpeg(
       renderArgs({
-        input: storage.resolve(source.storageKey),
+        input,
         seekMs: seekFor(clip.startMs).seekMs,
-        music:
-          audio?.music && track && audioMix
-            ? {
-                file: storage.resolve(track.storageKey),
-                seekMs: audioMix.trackStartMs,
-              }
-            : undefined,
-        graphFile: storage.resolve(workKey("graph.txt")),
+        music,
+        graphFile: workFile("graph.txt"),
         encoder,
         crf: renderQualityCrf[project.settings.renderQuality],
-        output: storage.resolve(workKey("mp4")),
+        output,
       }),
       {
         signal,
@@ -191,15 +196,7 @@ export const renderClipStep: JobHandler = async ({
       }
     )
     throwIfAborted(signal)
-    await storage.move(workKey("mp4"), outputKey)
-  } catch (error) {
-    await storage.remove(workKey("mp4"))
-    throw error
-  } finally {
-    await storage.remove(workKey("graph.txt"))
-    if (commands) await storage.remove(workKey("cmds.txt"))
-    if (subtitles) await storage.remove(workKey("ass"))
-  }
+  })
 
   const assets = assetRepository(db)
   const asset = await assets.create({

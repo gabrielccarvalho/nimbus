@@ -1,5 +1,8 @@
 import "server-only"
 
+import { writeFile } from "node:fs/promises"
+import path from "node:path"
+
 import { getEnv } from "@/lib/env"
 import { AppError } from "@/lib/errors"
 import { getFfmpegCapabilities } from "@/lib/media/capabilities"
@@ -27,7 +30,7 @@ import { recordUsage } from "../../accounts/usage"
 import { getAppSettings } from "../../settings/service"
 import { speakerTranscriptWords } from "../../captions/speaker"
 import { transcriptRepository } from "../../transcription/repository"
-import { sourceFile, throwIfAborted } from "./common"
+import { produceFile, sourceFile, throwIfAborted } from "./common"
 
 const EDIT_BASELINE = 0.9
 const EDIT_FONT_SCALE = 1.3
@@ -36,6 +39,7 @@ export const renderEditStep: JobHandler = async ({
   job,
   db,
   signal,
+  scratch,
   reportProgress,
   logger,
 }) => {
@@ -63,14 +67,13 @@ export const renderEditStep: JobHandler = async ({
   }
   const outputMs = editedDuration(keep)
   await assertDiskSpace(
-    env.DATA_DIR,
+    env.SCRATCH_DIR,
     estimateRenderBytes(outputMs, width * height)
   )
 
   const storage = getStorage()
   const stamp = Date.now()
-  const workKey = (name: string) =>
-    storageKeys.work(project.id, `edit-${stamp}.${name}`)
+  const workFile = (name: string) => path.join(scratch, `edit.${name}`)
   let subtitles: { file: string; fontsDir: string } | undefined
   if (captions) {
     const preset = resolveCaptionStyle(project.settings.captionStyle)
@@ -91,35 +94,33 @@ export const renderEditStep: JobHandler = async ({
       maxWordsPerPage: style.maxWordsPerPage,
       maxCharsPerLine: style.maxCharsPerLine + 10,
     })
-    await storage.writeBuffer(
-      workKey("ass"),
+    await writeFile(
+      workFile("ass"),
       buildAss({ pages, style, baseline: EDIT_BASELINE, width, height })
     )
     subtitles = {
-      file: storage.resolve(workKey("ass")),
+      file: workFile("ass"),
       fontsDir: CAPTION_FONTS_DIR,
     }
   }
 
-  await storage.writeBuffer(
-    workKey("graph.txt"),
-    editGraph({ keep, subtitles })
-  )
+  await writeFile(workFile("graph.txt"), editGraph({ keep, subtitles }))
   const settings = await getAppSettings(db, project.workspaceId)
   const encoder = chooseEncoder(
     encoderPreference(settings.hardwareEncoding, env.VIDEO_ENCODER),
     capabilities.encoders
   )
   const outputKey = storageKeys.edit(project.id, stamp)
-  try {
+  const input = await storage.localCopy(source.storageKey, scratch, signal)
+  await produceFile(scratch, outputKey, async (output) => {
     await runFfmpeg(
       renderArgs({
-        input: storage.resolve(source.storageKey),
+        input,
         seekMs: 0,
-        graphFile: storage.resolve(workKey("graph.txt")),
+        graphFile: workFile("graph.txt"),
         encoder,
         crf: renderQualityCrf[project.settings.renderQuality],
-        output: storage.resolve(workKey("mp4")),
+        output,
       }),
       {
         signal,
@@ -128,14 +129,7 @@ export const renderEditStep: JobHandler = async ({
       }
     )
     throwIfAborted(signal)
-    await storage.move(workKey("mp4"), outputKey)
-  } catch (error) {
-    await storage.remove(workKey("mp4"))
-    throw error
-  } finally {
-    await storage.remove(workKey("graph.txt"))
-    if (subtitles) await storage.remove(workKey("ass"))
-  }
+  })
 
   const assets = assetRepository(db)
   const previous = await assets.findByKind(project.id, "edit")

@@ -1,5 +1,6 @@
 import { execFileSync, spawnSync } from "node:child_process"
 import { readFile } from "node:fs/promises"
+import path from "node:path"
 
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -204,7 +205,7 @@ async function renderOne(captionsEnabled: boolean) {
     "done"
   )
   const asset = (await assetRepository(env.db).get(clip.renderAssetId!))!
-  return { clip, file: getStorage().resolve(asset.storageKey), projectId }
+  return { clip, file: path.join(env.dataDir, asset.storageKey), projectId }
 }
 
 describe("render_clip", () => {
@@ -329,7 +330,7 @@ describe("render_clip with effects", () => {
     const clip = (await clips.get(clipId))!
     expect(clip.status).toBe("rendered")
     const asset = (await assetRepository(env.db).get(clip.renderAssetId!))!
-    return { clip, file: getStorage().resolve(asset.storageKey) }
+    return { clip, file: path.join(env.dataDir, asset.storageKey) }
   }
 
   it("renders a focus range as webcam content", async () => {
@@ -465,7 +466,7 @@ describe("render_clip from 4:3", () => {
     const rendered = (await clipRepository(env.db).get(clip!.id))!
     expect(rendered.error).toBeNull()
     const asset = (await assetRepository(env.db).get(rendered.renderAssetId!))!
-    const video = probe(getStorage().resolve(asset.storageKey)).streams.find(
+    const video = probe(path.join(env.dataDir, asset.storageKey)).streams.find(
       (s) => s.codec_type === "video"
     )!
     expect([video.width, video.height]).toEqual([1080, 1920])
@@ -486,7 +487,7 @@ describe("render_edit", () => {
         projectId,
         "edit"
       ))!
-      const info = probe(getStorage().resolve(edit.storageKey))
+      const info = probe(path.join(env.dataDir, edit.storageKey))
       const video = info.streams.find((s) => s.codec_type === "video")!
       expect([video.width, video.height]).toEqual([1920, 1080])
       expect(Number(info.format.duration)).toBeLessThan(19)
@@ -603,7 +604,7 @@ describe("render_clip with music and on-screen text", () => {
     const clip = (await clips.get(clipId))!
     if (clip.status !== "rendered") return { clip, thrown, file: "" }
     const asset = (await assetRepository(env.db).get(clip.renderAssetId!))!
-    return { clip, thrown, file: getStorage().resolve(asset.storageKey) }
+    return { clip, thrown, file: path.join(env.dataDir, asset.storageKey) }
   }
 
   function sourceSilence(clip: { startMs: number; endMs: number }) {

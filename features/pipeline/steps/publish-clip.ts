@@ -38,6 +38,7 @@ export const publishClipStep: JobHandler = async ({
   job,
   db,
   signal,
+  scratch,
   reportProgress,
   logger,
 }) => {
@@ -134,6 +135,7 @@ export const publishClipStep: JobHandler = async ({
       fresh = true
     }
     const session = uploadUri
+    const file = await storage.localCopy(asset.storageKey, scratch, signal)
     return authorized(async (t) => {
       const offset = fresh ? 0 : await youtube.uploadedBytes(t, session, bytes)
       fresh = false
@@ -146,7 +148,7 @@ export const publishClipStep: JobHandler = async ({
       return youtube.uploadFrom(
         t,
         session,
-        storage.resolve(asset.storageKey),
+        file,
         offset,
         bytes,
         signal,

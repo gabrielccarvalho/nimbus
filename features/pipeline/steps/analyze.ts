@@ -31,6 +31,7 @@ export const analyzeStep: JobHandler = async ({
   job,
   db,
   signal,
+  scratch,
   reportProgress,
   reportDetail,
   logger,
@@ -57,10 +58,11 @@ export const analyzeStep: JobHandler = async ({
       silences: silences.found().slice(0, MAX_DETAIL_SILENCES),
     } satisfies StepDetail)
   }
+  const inputPath = await storage.localCopy(input.storageKey, scratch, signal)
   await runFfmpeg(
     [
       "-i",
-      storage.resolve(input.storageKey),
+      inputPath,
       "-vn",
       "-af",
       `silencedetect=noise=${SILENCE_NOISE_DB}dB:d=${SILENCE_MIN_MS / 1000},ebur128=metadata=0`,
@@ -87,17 +89,9 @@ export const analyzeStep: JobHandler = async ({
   const cuts = createCutParser()
   const video =
     (await assetRepository(db).findByKind(project.id, "proxy")) ?? source
+  const videoPath = await storage.localCopy(video.storageKey, scratch, signal)
   await runFfmpeg(
-    [
-      "-i",
-      storage.resolve(video.storageKey),
-      "-an",
-      "-vf",
-      cutDetectionFilter,
-      "-f",
-      "null",
-      "-",
-    ],
+    ["-i", videoPath, "-an", "-vf", cutDetectionFilter, "-f", "null", "-"],
     {
       signal,
       expectedDurationMs: durationMs,

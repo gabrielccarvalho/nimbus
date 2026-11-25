@@ -23,16 +23,12 @@ export const storageKeys = {
   source: (projectId: string, ext: string) =>
     `projects/${projectId}/source.${ext}`,
   audio: (projectId: string) => `projects/${projectId}/audio.wav`,
-  languageSample: (projectId: string, id: string) =>
-    `projects/${projectId}/work/language-sample-${id}.wav`,
   thumbnail: (projectId: string) => `projects/${projectId}/thumbnail.jpg`,
   proxy: (projectId: string) => `projects/${projectId}/proxy.mp4`,
   render: (projectId: string, clipId: string, stamp: number) =>
     `projects/${projectId}/renders/${clipId}-${stamp}.mp4`,
   edit: (projectId: string, stamp: number) =>
     `projects/${projectId}/renders/edit-${stamp}.mp4`,
-  work: (projectId: string, name: string) =>
-    `projects/${projectId}/work/${name}`,
   avatar: (owner: AvatarOwner, id: string, stamp: number, ext: string) =>
     `avatars/${owner}/${id}/${stamp}.${ext}`,
   avatarPrefix: (owner: AvatarOwner, id: string) => `avatars/${owner}/${id}`,
@@ -40,7 +36,6 @@ export const storageKeys = {
     `music/${workspaceId}/${trackId}.${ext}`,
   musicPrefix: (workspaceId: string) => `music/${workspaceId}`,
   uploadTemp: (id: string) => `tmp/uploads/${id}.part`,
-  downloadDir: (id: string) => `tmp/downloads/${id}`,
 }
 
 const SERVABLE_KEY =

@@ -1,5 +1,6 @@
 import "server-only"
 
+import os from "node:os"
 import path from "node:path"
 import { z } from "zod"
 
@@ -13,6 +14,7 @@ const envSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   DATA_DIR: z.string().min(1).default("./data"),
+  SCRATCH_DIR: z.string().min(1).default(path.join(os.tmpdir(), "nimbus")),
   DATABASE_URL: z
     .string()
     .min(1)
@@ -93,6 +95,7 @@ export function parseEnv(source: Record<string, string | undefined>): Env {
   return {
     ...raw,
     DATA_DIR: path.resolve(/* turbopackIgnore: true */ raw.DATA_DIR),
+    SCRATCH_DIR: path.resolve(/* turbopackIgnore: true */ raw.SCRATCH_DIR),
     BETTER_AUTH_SECRET: secret(
       "BETTER_AUTH_SECRET",
       raw.BETTER_AUTH_SECRET,

@@ -1,6 +1,6 @@
 import "server-only"
 
-import { statfs } from "node:fs/promises"
+import { mkdir, statfs } from "node:fs/promises"
 
 import { AppError } from "@/lib/errors"
 
@@ -15,6 +15,7 @@ export async function assertDiskSpace(
   estimateBytes: number,
   action = "render"
 ) {
+  await mkdir(directory, { recursive: true })
   const stats = await statfs(directory)
   const free = stats.bavail * stats.bsize
   if (!hasRoomFor(free, estimateBytes)) {

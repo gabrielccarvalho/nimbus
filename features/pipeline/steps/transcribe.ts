@@ -1,6 +1,8 @@
 import "server-only"
 
 import { randomUUID } from "node:crypto"
+import { rm } from "node:fs/promises"
+import path from "node:path"
 
 import { getStorage, storageKeys } from "@/lib/storage"
 
@@ -30,9 +32,8 @@ async function chooseLanguage(
   project: Project,
   audioPath: string,
   durationMs: number,
-  { signal, logger }: Pick<JobContext, "signal" | "logger">
+  { signal, scratch, logger }: Pick<JobContext, "signal" | "scratch" | "logger">
 ) {
-  const storage = getStorage()
   const resolved = resolveLanguage({
     setting: project.settings.language,
     sourceLanguage: project.sourceLanguage,
@@ -41,8 +42,7 @@ async function chooseLanguage(
   const transcriber = getTranscriber()
   if (!transcriber.multilingual)
     return { language: "en", source: "whisper" } as const
-  const sampleKey = storageKeys.languageSample(project.id, randomUUID())
-  const samplePath = storage.resolve(sampleKey)
+  const samplePath = path.join(scratch, `language-sample-${randomUUID()}.wav`)
   const votes = []
   try {
     for (const startMs of detectionWindows(durationMs, {
@@ -67,7 +67,7 @@ async function chooseLanguage(
       if (vote) votes.push(vote)
     }
   } finally {
-    await storage.remove(sampleKey)
+    await rm(samplePath, { force: true })
   }
   const picked = pickLanguage(votes)
   logger.info({ votes, picked }, "detected spoken language")
@@ -80,6 +80,7 @@ export const transcribeStep: JobHandler = async ({
   job,
   db,
   signal,
+  scratch,
   reportProgress,
   reportDetail,
   logger,
@@ -106,11 +107,12 @@ export const transcribeStep: JobHandler = async ({
     logger.warn({ track }, "chosen audio track is missing, using the default")
   }
 
-  await produceFile(project.id, audioKey, (file) =>
+  const sourcePath = await storage.localCopy(source.storageKey, scratch, signal)
+  await produceFile(scratch, audioKey, (file) =>
     runFfmpeg(
       [
         "-i",
-        storage.resolve(source.storageKey),
+        sourcePath,
         ...(trackExists ? ["-map", `0:a:${track}`] : []),
         "-vn",
         "-ac",
@@ -144,10 +146,11 @@ export const transcribeStep: JobHandler = async ({
     })
   }
 
-  const audioPath = storage.resolve(audioKey)
+  const audioPath = await storage.localCopy(audioKey, scratch, signal)
   reportDetail({ ...live, phase: "detecting" })
   const chosen = await chooseLanguage(project, audioPath, durationMs, {
     signal,
+    scratch,
     logger,
   })
   reportProgress(15)

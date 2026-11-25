@@ -1,12 +1,12 @@
 import "server-only"
 
 import { randomUUID } from "node:crypto"
-import { mkdir } from "node:fs/promises"
+import { rm } from "node:fs/promises"
 import path from "node:path"
 
 import { withTransaction, type Db } from "@/lib/db"
 import { AppError } from "@/lib/errors"
-import { getStorage, storageKeys } from "@/lib/storage"
+import { getStorage } from "@/lib/storage"
 
 import { jobQueue } from "../../jobs/queue"
 import type { JobType } from "../../jobs/schema"
@@ -66,25 +66,18 @@ export async function sourceFile(db: Db, project: Project) {
 }
 
 // A retried job can overlap an orphaned ffmpeg from a killed worker, so each
-// attempt writes its own work file and only a finished one replaces the target.
+// attempt works in its own scratch and only a finished file replaces the target.
 export async function produceFile(
-  projectId: string,
+  scratch: string,
   key: string,
   produce: (file: string) => Promise<unknown>
 ) {
-  const storage = getStorage()
-  const workKey = storageKeys.work(
-    projectId,
-    `${randomUUID()}-${path.posix.basename(key)}`
-  )
-  const file = storage.resolve(workKey)
-  await mkdir(path.dirname(file), { recursive: true })
+  const file = path.join(scratch, `${randomUUID()}-${path.posix.basename(key)}`)
   try {
     await produce(file)
-    await storage.move(workKey, key)
-  } catch (error) {
-    await storage.remove(workKey)
-    throw error
+    await getStorage().putFile(file, key)
+  } finally {
+    await rm(file, { force: true })
   }
 }
 

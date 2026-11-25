@@ -1,6 +1,5 @@
 import "server-only"
 
-import { mkdir } from "node:fs/promises"
 import path from "node:path"
 
 import { getEnv } from "@/lib/env"
@@ -11,7 +10,7 @@ import { assertDiskSpace } from "@/lib/storage/disk"
 
 import { getDownloader } from "../../downloads"
 import { isPublicUrl } from "../../downloads/url"
-import type { JobHandler } from "../../jobs/worker-loop"
+import type { JobContext, JobHandler } from "../../jobs/worker-loop"
 import {
   ACCEPTED_VIDEO_TYPES,
   mimeFromFileName,
@@ -21,32 +20,23 @@ import { runFfmpeg } from "../../render/ffmpeg-runner"
 import { projectNameSchema } from "../../projects/schema"
 import { normalizeLanguage } from "../../transcription/language"
 import type { StepDetail } from "../detail"
-import { beginStep, completeStep, throwIfAborted } from "./common"
+import { beginStep, completeStep, produceFile, throwIfAborted } from "./common"
 
 async function saveThumbnail(
   db: Db,
   projectId: string,
   url: string,
-  signal: AbortSignal
+  { signal, scratch }: Pick<JobContext, "signal" | "scratch">
 ) {
   const assets = assetRepository(db)
   if (await assets.findByKind(projectId, "thumbnail")) return
   const storage = getStorage()
   const key = storageKeys.thumbnail(projectId)
-  await mkdir(path.dirname(storage.resolve(key)), { recursive: true })
-  await runFfmpeg(
-    [
-      "-i",
-      url,
-      "-frames:v",
-      "1",
-      "-vf",
-      "scale=640:-2",
-      "-q:v",
-      "4",
-      storage.resolve(key),
-    ],
-    { signal, timeoutMs: 30_000 }
+  await produceFile(scratch, key, (file) =>
+    runFfmpeg(
+      ["-i", url, "-frames:v", "1", "-vf", "scale=640:-2", "-q:v", "4", file],
+      { signal, timeoutMs: 30_000 }
+    )
   )
   await assets.create({
     projectId,
@@ -62,6 +52,7 @@ export const downloadStep: JobHandler = async ({
   job,
   db,
   signal,
+  scratch,
   reportProgress,
   reportDetail,
   logger,
@@ -92,9 +83,11 @@ export const downloadStep: JobHandler = async ({
   const language = normalizeLanguage(info.language)
   if (language) await projects.setSourceLanguage(project.id, language)
   if (info.thumbnailUrl && isPublicUrl(info.thumbnailUrl)) {
-    await saveThumbnail(db, project.id, info.thumbnailUrl, signal).catch(
-      (error: unknown) =>
-        logger.warn({ err: error }, "couldn't save the video's thumbnail")
+    await saveThumbnail(db, project.id, info.thumbnailUrl, {
+      signal,
+      scratch,
+    }).catch((error: unknown) =>
+      logger.warn({ err: error }, "couldn't save the video's thumbnail")
     )
   }
   if (info.approxBytes) {
@@ -104,47 +97,44 @@ export const downloadStep: JobHandler = async ({
         "This video is larger than the upload limit"
       )
     }
-    await assertDiskSpace(env.DATA_DIR, info.approxBytes, "download this video")
+    await assertDiskSpace(
+      env.SCRATCH_DIR,
+      info.approxBytes,
+      "download this video"
+    )
   }
   reportProgress(2)
 
-  const dirKey = storageKeys.downloadDir(project.id)
-  await storage.removePrefix(dirKey)
-  try {
-    const file = await downloader.download({
-      url: project.sourceUrl,
-      dir: storage.resolve(dirKey),
-      maxBytes: env.MAX_UPLOAD_BYTES,
-      signal,
-      onProgress: ({ percent, ...stats }) => {
-        reportProgress(2 + percent * 0.98)
-        reportDetail({ kind: "download", ...stats } satisfies StepDetail)
-      },
-    })
-    throwIfAborted(signal)
-    const mime = mimeFromFileName(file)
-    if (!mime) {
-      throw new AppError(
-        "UNSUPPORTED_MEDIA",
-        "The downloaded video isn't in a supported format"
-      )
-    }
-    const sourceKey = storageKeys.source(project.id, ACCEPTED_VIDEO_TYPES[mime])
-    await storage.move(`${dirKey}/${path.basename(file)}`, sourceKey)
-    const bytes = (await storage.stat(sourceKey))?.bytes ?? 0
-    await withTransaction(db, async (tx) => {
-      const asset = await assetRepository(tx).create({
-        projectId: project.id,
-        kind: "source",
-        storageKey: sourceKey,
-        mime,
-        bytes,
-      })
-      await projectRepository(tx).setSourceAsset(project.id, asset.id)
-    })
-    logger.info({ bytes, mime, downloader: downloader.id }, "downloaded")
-  } finally {
-    await storage.removePrefix(dirKey)
+  const file = await downloader.download({
+    url: project.sourceUrl,
+    dir: path.join(scratch, "download"),
+    maxBytes: env.MAX_UPLOAD_BYTES,
+    signal,
+    onProgress: ({ percent, ...stats }) => {
+      reportProgress(2 + percent * 0.98)
+      reportDetail({ kind: "download", ...stats } satisfies StepDetail)
+    },
+  })
+  throwIfAborted(signal)
+  const mime = mimeFromFileName(file)
+  if (!mime) {
+    throw new AppError(
+      "UNSUPPORTED_MEDIA",
+      "The downloaded video isn't in a supported format"
+    )
   }
+  const sourceKey = storageKeys.source(project.id, ACCEPTED_VIDEO_TYPES[mime])
+  const { bytes } = await storage.putFile(file, sourceKey)
+  await withTransaction(db, async (tx) => {
+    const asset = await assetRepository(tx).create({
+      projectId: project.id,
+      kind: "source",
+      storageKey: sourceKey,
+      mime,
+      bytes,
+    })
+    await projectRepository(tx).setSourceAsset(project.id, asset.id)
+  })
+  logger.info({ bytes, mime, downloader: downloader.id }, "downloaded")
   await completeStep(db, project.id, "uploaded", "probe")
 }
