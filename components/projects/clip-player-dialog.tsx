@@ -139,6 +139,7 @@ function ClipPlayer({
               startMs={clip.startMs}
               captionStyle={caption.style}
               captionsEnabled={captionsEnabled}
+              overlay={clip.textOverlay}
               className="rounded-none"
             />
           </>

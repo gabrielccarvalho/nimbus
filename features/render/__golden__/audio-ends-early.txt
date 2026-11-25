@@ -1,0 +1,3 @@
+[0:a]atrim=start=2.000:end=17.000,asetpts=PTS-STARTPTS,aformat=sample_rates=48000:channel_layouts=stereo[src];
+[1:a]atrim=end=8.000,asetpts=PTS-STARTPTS,aformat=sample_rates=48000:channel_layouts=stereo,volume=-16dB,volume='pow(10,-0.5*(clip((t-0.800)/0.200,0,1)*clip((2.700-t)/0.200,0,1)+clip((t-5.800)/0.200,0,1)*clip((8.200-t)/0.200,0,1)))':eval=frame,afade=t=in:st=0:d=0.500,afade=t=out:st=6.500:d=1.500[music];
+[src][music]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,alimiter=limit=0.95:level=0:latency=1[a]

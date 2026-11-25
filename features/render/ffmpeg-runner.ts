@@ -12,6 +12,7 @@ export type FfmpegRunOptions = {
   expectedDurationMs?: number
   onProgress?: (percent: number) => void
   onStderrLine?: (line: string) => void
+  onStdoutData?: (chunk: Buffer) => void
 }
 
 export async function runFfmpeg(
@@ -33,7 +34,8 @@ export async function runFfmpeg(
     {
       signal: options.signal,
       timeoutMs: options.timeoutMs,
-      collectStdout: !withProgress,
+      collectStdout: !withProgress && !options.onStdoutData,
+      onStdoutData: options.onStdoutData,
       onStderrLine: options.onStderrLine,
       onStdoutLine: withProgress
         ? (line) => {
@@ -51,7 +53,11 @@ export async function runFfmpeg(
   return result
 }
 
-export async function runFfprobe(file: string, signal?: AbortSignal) {
+export async function runFfprobe(
+  file: string,
+  signal?: AbortSignal,
+  kind: "video" | "audio" = "video"
+) {
   const env = getEnv()
   const result = await runProcess(
     env.FFPROBE_PATH,
@@ -69,7 +75,9 @@ export async function runFfprobe(file: string, signal?: AbortSignal) {
   if (result.code !== 0) {
     throw new AppError(
       "UNSUPPORTED_MEDIA",
-      "This file couldn't be read as a video",
+      kind === "audio"
+        ? "This file couldn't be read as audio"
+        : "This file couldn't be read as a video",
       { details: { stderrTail: result.stderrTail } }
     )
   }

@@ -18,6 +18,7 @@ export const fixtures = {
   standard: path.join(fixturesDir, "gameplay-4x3.mp4"),
   notVideo: path.join(fixturesDir, "not-a-video.mp4"),
   noAudio: path.join(fixturesDir, "no-audio.mp4"),
+  tone: path.join(fixturesDir, "tone-880hz.m4a"),
 } as const
 
 export const FIXTURE_DURATION_S = 20
@@ -157,6 +158,19 @@ export async function makeFixtures({ force = false } = {}) {
       "-pix_fmt",
       "yuv420p",
       fixtures.noAudio,
+    ])
+  }
+  if (needed(fixtures.tone)) {
+    await run([
+      "-f",
+      "lavfi",
+      "-i",
+      "sine=f=880:d=30:sample_rate=48000",
+      "-c:a",
+      "aac",
+      "-b:a",
+      "96k",
+      fixtures.tone,
     ])
   }
   if (needed(fixtures.notVideo)) {

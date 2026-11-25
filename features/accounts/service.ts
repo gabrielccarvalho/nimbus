@@ -70,6 +70,7 @@ export async function deleteOwnedWorkspaces(
       .where(eq(projects.workspaceId, id))
     for (const project of rows) await deleteProject(db, storage, project.id)
     await storage.removePrefix(storageKeys.avatarPrefix("workspaces", id))
+    await storage.removePrefix(storageKeys.musicPrefix(id))
     await db.delete(workspaces).where(eq(workspaces.id, id))
   }
   await storage.removePrefix(storageKeys.avatarPrefix("users", userId))

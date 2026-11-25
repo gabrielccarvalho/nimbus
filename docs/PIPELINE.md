@@ -149,6 +149,22 @@ Golden copies of all three graphs and the edit graph live in `features/render/__
 
 A clip with effect events renders through `effectsGraph` (`features/render/effects-graph.ts`) instead of `verticalGraph` (ADR-0053). `effectCommands` samples `frameAt` (`features/effects/frame.ts`, the same function the canvas preview draws) once per output frame and writes a `sendcmd` file: each region crops its layout rect, `scale@eN` resizes it so the zoomed or shaken crop lands at the destination size, and a fixed `crop@eN` picks the offset. Focus overlays a full-frame branch per target in use (the webcam, or the gameplay cover crop for full game) with `enable='between(t,…)'`. Captions are burned on top of the final frame, so effects never move them. Clips with no effects (`effects` null or empty) keep the plain graph and its goldens.
 
+### Music and on-screen text
+
+A clip with `audioMix.trackId` gets the track as a second input, input-seeked to `trackStartMs` (`-ss … -i <track>` after the source). `planAudio()` (`features/music/envelope.ts`) turns the mix, the track's duration, the clip length and the clip's transcript words (made clip-relative with `wordsInRange`) into a plan, and `audioGraph()` writes it (golden `features/render/__golden__/audio-*.txt`, `cam-top-music.txt`, `effects-music.txt`):
+
+```
+[0:a]atrim=start=2.000:end=17.000,asetpts=PTS-STARTPTS,volume=-3dB,aformat=sample_rates=48000:channel_layouts=stereo[src];
+[1:a]atrim=end=15.000,asetpts=PTS-STARTPTS,aformat=…,volume=-16dB,
+  volume='pow(10,-0.5*(clip((t-0.800)/0.200,0,1)*clip((2.700-t)/0.200,0,1)+…))':eval=frame,
+  afade=t=in:st=0:d=0.500,afade=t=out:st=13.500:d=1.500[music];
+[src][music]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,alimiter=limit=0.95:level=0:latency=1[a]
+```
+
+The music `atrim` ends at the shorter of the clip and what's left of the track, so a short track stops early with its fade-out fitted inside it, and `duration=first` keeps the output at the clip length. The `volume` expression is the duck envelope (−10 dB under each merged speech interval, 200 ms ramps; omitted when ducking is off or nobody speaks). `normalize=0` keeps both levels as set, and the limiter only stops clipping. A null `audioMix`, or one without a track, keeps the plain `[0:a]atrim` chain, with `volume=` when `sourceDb` isn't 0 and the limiter when it's above 0. `render_edit` never gets music.
+
+A `textOverlay` adds one `Dialogue` on layer 1 in the `Title` style of the clip's ASS file, from 0 to `untilMs` (or the clip end), wrapped by libass (`\q0`) inside 90 px side margins, 240 px from the top or centred (`\an5`). It's burned with the captions, or alone when captions are off (golden `features/captions/__golden__/overlay.ass`).
+
 ### Output encoding
 
 ```sh
@@ -163,6 +179,8 @@ Input seeking (`-ss` before `-i`) jumps to the nearest keyframe 2 s before the c
 - ffmpeg writes into `projects/<id>/work/` and the file is moved into `renders/` only after a clean exit, so a crash or cancel never leaves a half-written render. The work ASS and graph files are always removed.
 - Before starting, the step checks free space on `DATA_DIR` (`statfs`): it needs 2 × the estimate (8 Mb/s video + 160 kb/s audio at 1080×1920, scaled by pixel count) + 500 MB.
 - A missing source file fails fast with `NOT_FOUND` (not retried).
+- A clip whose music track was deleted, or belongs to another workspace, fails with `CONFLICT` ("This clip's music track was deleted. Pick another track or remove the music."). `CONFLICT` is retried with backoff before the clip turns `failed`.
+- An on-screen text needs libass even with captions off. Without it the render fails with `DEPENDENCY_MISSING` ("This ffmpeg can't burn in on-screen text (no libass). Install one with libass or remove the text.").
 - When a `render_clip` job ends (success, final failure or cancel), `settleRendering()` checks for other queued/running render jobs; when none are left the project moves `rendering → done` if any clip is rendered, otherwise back to `ready_for_review`. The worker's `onSucceeded` hook runs it after the job row is marked complete, so the job being settled isn't counted as active.
 - Re-rendering a clip replaces its render asset and deletes the old file.
 
@@ -224,4 +242,4 @@ Presets (`styles.ts`): `punch` (Oxanium ExtraBold 92, uppercase, 7 px outline, 3
 
 ## Caption burn-in requires libass
 
-`ass=` needs an ffmpeg built with `--enable-libass`. `pnpm run doctor` checks `ffmpeg -filters` for `ass`. Without it, renders fail fast with `DEPENDENCY_MISSING` unless captions are disabled for that render (see PROGRESS → Blockers).
+`ass=` needs an ffmpeg built with `--enable-libass`. `pnpm run doctor` checks `ffmpeg -filters` for `ass`. Without it, renders fail fast with `DEPENDENCY_MISSING` unless captions are disabled for that render and the clip has no on-screen text (see PROGRESS → Blockers).

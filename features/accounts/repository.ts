@@ -6,6 +6,7 @@ import { newId, now, withTransaction, type Db } from "@/lib/db"
 import {
   account,
   assets,
+  musicTracks,
   projects,
   settings,
   usageEvents,
@@ -178,14 +179,20 @@ export function accountRepository(db: Db) {
     },
 
     async storageBytes(workspaceId: string) {
-      const [row] = await db
+      const [media] = await db
         .select({
           total: sql<number>`coalesce(sum(${assets.bytes}), 0)::float`,
         })
         .from(assets)
         .innerJoin(projects, eq(projects.id, assets.projectId))
         .where(eq(projects.workspaceId, workspaceId))
-      return row?.total ?? 0
+      const [music] = await db
+        .select({
+          total: sql<number>`coalesce(sum(${musicTracks.bytes}), 0)::float`,
+        })
+        .from(musicTracks)
+        .where(eq(musicTracks.workspaceId, workspaceId))
+      return (media?.total ?? 0) + (music?.total ?? 0)
     },
 
     async linkedAccounts(userId: string) {

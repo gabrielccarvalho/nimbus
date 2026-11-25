@@ -71,6 +71,8 @@ const clip = {
   captionOverrides: null,
   layoutOverride: null,
   effects: null,
+  audioMix: null,
+  textOverlay: null,
 } as Clip
 
 const settings = {
@@ -89,11 +91,11 @@ const snapshot: ProjectSnapshot = {
   clips: [{ id: "c1", status: "candidate" }],
 }
 
-function renderEditor() {
+function renderEditor(edit: Partial<Clip> = {}) {
   return render(
     <ClipEditor
       projectId="p1"
-      clip={clip}
+      clip={{ ...clip, ...edit }}
       src="/media/proxy.mp4"
       sourceDurationMs={120_000}
       sourceWidth={W}
@@ -110,6 +112,7 @@ function renderEditor() {
         publishesLeftToday: null,
       }}
       siblings={{ index: 0, count: 2, previousId: null, nextId: "c2" }}
+      musicTracks={[]}
     />
   )
 }
@@ -170,6 +173,41 @@ describe("ClipEditor", () => {
     expect(updateClipAction).toHaveBeenCalledTimes(1)
   })
 
+  it("keeps the added effect selected when the server reorders the effects", async () => {
+    const zoom = (startMs: number) => ({
+      kind: "zoom" as const,
+      startMs,
+      endMs: startMs + 1500,
+      scale: 1.4,
+      focus: { x: 0.5, y: 0.5 },
+    })
+    vi.mocked(updateClipAction).mockResolvedValue({
+      ok: true,
+      value: {
+        effects: {
+          edited: true,
+          events: [zoom(10_000), zoom(20_000), zoom(30_000)],
+        },
+      },
+    })
+    renderEditor({
+      effects: { edited: false, events: [zoom(20_000), zoom(30_000)] },
+    })
+    await userEvent.click(screen.getByRole("button", { name: "Add zoom" }))
+    const zoomTrack = screen.getByRole("group", { name: "Zoom" })
+    const added = within(zoomTrack).getByRole("button", {
+      name: "Zoom 1.4× at 0:00.0",
+    })
+    expect(added).toHaveAttribute("aria-pressed", "true")
+    await waitFor(() =>
+      expect(screen.getByTestId("save-state")).toHaveTextContent("Saved")
+    )
+    expect(updateClipAction).toHaveBeenCalledTimes(1)
+    expect(
+      within(zoomTrack).getByRole("button", { pressed: true })
+    ).toHaveAccessibleName("Zoom 1.4× at 0:00.0")
+  })
+
   it("links to the neighbouring clips", () => {
     renderEditor()
     expect(screen.getByRole("button", { name: "Previous clip" })).toBeDisabled()
@@ -177,6 +215,63 @@ describe("ClipEditor", () => {
       "href",
       "/projects/p1/clips/c2"
     )
+  })
+})
+
+describe("ClipEditor audio and text", () => {
+  beforeEach(() => {
+    vi.mocked(updateClipAction).mockResolvedValue({
+      ok: true,
+      value: { effects: null },
+    } as never)
+  })
+
+  it("adds an Audio & text tab that autosaves the overlay", async () => {
+    renderEditor({ hook: "Wait for the jump" })
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      "Details",
+      "Layout",
+      "Captions",
+      "Audio & text",
+    ])
+    await userEvent.click(screen.getByRole("tab", { name: "Audio & text" }))
+    await userEvent.click(
+      screen.getByRole("switch", { name: "Show text on the video" })
+    )
+    await waitFor(() => expect(updateClipAction).toHaveBeenCalled())
+    const [, , edit] = vi.mocked(updateClipAction).mock.calls.at(-1)!
+    expect(edit).toMatchObject({
+      textOverlay: {
+        text: "Wait for the jump",
+        position: "top",
+        untilMs: 3000,
+      },
+    })
+    await waitFor(() =>
+      expect(screen.getByTestId("save-state")).toHaveTextContent("Saved")
+    )
+  })
+
+  it("keeps the music and text when only the title changes", async () => {
+    const audioMix = {
+      trackId: "t1",
+      trackStartMs: 4_000,
+      musicDb: -12,
+      sourceDb: 2,
+      duck: false,
+      fadeInMs: 500,
+      fadeOutMs: 1_000,
+    }
+    const textOverlay = {
+      text: "Watch this",
+      position: "center" as const,
+      untilMs: null,
+    }
+    renderEditor({ audioMix, textOverlay })
+    await userEvent.type(screen.getByLabelText("Title"), "!")
+    await waitFor(() => expect(updateClipAction).toHaveBeenCalled())
+    const [, , edit] = vi.mocked(updateClipAction).mock.calls.at(-1)!
+    expect(edit).toMatchObject({ title: "Clip!", audioMix, textOverlay })
   })
 })
 

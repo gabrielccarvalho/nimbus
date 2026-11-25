@@ -55,6 +55,7 @@ export default async function ClipEditorPage({
         snapshot={data.snapshot}
         siblings={data.siblings}
         publishing={publishing}
+        musicTracks={data.musicTracks}
       />
     </>
   )

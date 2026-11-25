@@ -15,6 +15,7 @@ import { SignalDot } from "@/components/ui/signal-dot"
 import { StatusPill } from "@/components/ui/status-pill"
 import {
   CaptionPreview,
+  CaptionPreviewOverlay,
   CaptionPreviewText,
 } from "@/components/ui/caption-preview"
 import {
@@ -61,7 +62,13 @@ import {
 import { Sparkline } from "@/components/ui/sparkline"
 import { Slider } from "@/components/ui/slider"
 import { buildCaptionPages } from "@/features/captions/pages"
-import { CAPTION_PRESETS, cssCaptionStyle } from "@/features/captions/styles"
+import { overlayFontSize } from "@/features/captions/overlay"
+import {
+  CAPTION_PRESETS,
+  cssCaptionStyle,
+  cssColor,
+  resolveCaptionStyle,
+} from "@/features/captions/styles"
 
 const SAMPLE_PAGES = buildCaptionPages(
   "Wait what just happened? Did you see that insane clutch"
@@ -69,6 +76,8 @@ const SAMPLE_PAGES = buildCaptionPages(
     .map((text, i) => ({ text, startMs: i * 350, endMs: i * 350 + 300 })),
   4000
 )
+
+const OVERLAY_STYLE = resolveCaptionStyle({ presetId: "punch" })
 
 type ExampleBlock = { id: string; startMs: number; endMs: number }
 
@@ -136,6 +145,23 @@ function CaptionPreviewExample() {
           </CaptionPreview>
           <figcaption className="text-xs text-muted-foreground">
             {preset.label}
+          </figcaption>
+        </figure>
+      ))}
+      {(["top", "center"] as const).map((position) => (
+        <figure key={position} className="flex w-40 flex-col gap-1">
+          <CaptionPreview className="bg-[linear-gradient(160deg,var(--color-muted-foreground),var(--color-foreground))]">
+            <CaptionPreviewOverlay
+              text="Wait for the clutch at the end"
+              position={position}
+              fontFamily={cssCaptionStyle(OVERLAY_STYLE).fontFamily}
+              fontSize={overlayFontSize(OVERLAY_STYLE)}
+              color={cssColor("background")}
+              outlineColor={cssColor("foreground")}
+            />
+          </CaptionPreview>
+          <figcaption className="text-xs text-muted-foreground">
+            Overlay, {position}
           </figcaption>
         </figure>
       ))}

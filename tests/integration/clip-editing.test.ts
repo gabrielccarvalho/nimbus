@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { GET as exportZip } from "@/app/api/projects/[id]/export/route"
@@ -10,10 +11,12 @@ import {
   updateClip,
 } from "@/features/clips/service"
 import { confirmLayout } from "@/features/layout/service"
+import { musicRepository } from "@/features/music/repository"
+import { DEFAULT_AUDIO_MIX } from "@/features/music/schema"
 import { projectRepository } from "@/features/projects/repository"
 import { startClipRenders } from "@/features/render/service"
 
-import { layouts } from "@/lib/db/schema"
+import { layouts, projects, workspaces } from "@/lib/db/schema"
 
 import { fixtures } from "../../scripts/make-fixtures"
 import { runJobs, uploadFixture } from "../utils/pipeline"
@@ -57,6 +60,8 @@ const edit = (overrides: Partial<Parameters<typeof updateClip>[3]> = {}) => ({
   captionOverrides: { pages: [{ index: 0, text: "fixed text" }] },
   layoutOverride: null,
   effects: null,
+  audioMix: null,
+  textOverlay: null,
   ...overrides,
 })
 
@@ -143,6 +148,140 @@ describe("updateClip", () => {
     await expect(
       updateClip(env.db, projectId, clip.id, edit())
     ).rejects.toThrow(/rendering/)
+  })
+})
+
+async function addWorkspace() {
+  const id = crypto.randomUUID()
+  await env.db.insert(workspaces).values({ id, name: "Studio" })
+  return id
+}
+
+function addTrack(workspaceId: string, durationMs = 30_000) {
+  const id = crypto.randomUUID()
+  return musicRepository(env.db).create({
+    id,
+    workspaceId,
+    title: "Night drive",
+    storageKey: `music/${workspaceId}/${id}.mp3`,
+    mime: "audio/mpeg",
+    durationMs,
+    peaks: [],
+  })
+}
+
+async function projectTrack(projectId: string, durationMs?: number) {
+  const workspaceId = await addWorkspace()
+  await env.db
+    .update(projects)
+    .set({ workspaceId })
+    .where(eq(projects.id, projectId))
+  return addTrack(workspaceId, durationMs)
+}
+
+describe("clip music and text", () => {
+  const overlay = {
+    text: "Wait for it",
+    position: "top" as const,
+    untilMs: 3000,
+  }
+
+  it("stores the music mix and on-screen text, and clears them with null", async () => {
+    const { projectId, clip } = await reviewedProject()
+    const track = await projectTrack(projectId)
+    const audioMix = { ...DEFAULT_AUDIO_MIX, trackId: track.id }
+    const saved = await updateClip(
+      env.db,
+      projectId,
+      clip.id,
+      edit({ audioMix, textOverlay: overlay })
+    )
+    expect(saved.audioMix).toEqual(audioMix)
+    expect(saved.textOverlay).toEqual(overlay)
+    expect(await clipRepository(env.db).getOrThrow(clip.id)).toMatchObject({
+      audioMix,
+      textOverlay: overlay,
+    })
+
+    const cleared = await updateClip(env.db, projectId, clip.id, edit())
+    expect(cleared.audioMix).toBeNull()
+    expect(cleared.textOverlay).toBeNull()
+  })
+
+  it("rejects a track from another workspace or one that was deleted", async () => {
+    const { projectId, clip } = await reviewedProject()
+    const own = await projectTrack(projectId)
+    const other = await addTrack(await addWorkspace())
+    await expect(
+      updateClip(
+        env.db,
+        projectId,
+        clip.id,
+        edit({ audioMix: { ...DEFAULT_AUDIO_MIX, trackId: other.id } })
+      )
+    ).rejects.toMatchObject({
+      code: "VALIDATION",
+      message: "That music track is no longer in your library",
+    })
+    await musicRepository(env.db).delete(own.id)
+    await expect(
+      updateClip(
+        env.db,
+        projectId,
+        clip.id,
+        edit({ audioMix: { ...DEFAULT_AUDIO_MIX, trackId: own.id } })
+      )
+    ).rejects.toMatchObject({
+      code: "VALIDATION",
+      message: "That music track is no longer in your library",
+    })
+    expect(
+      (await clipRepository(env.db).getOrThrow(clip.id)).audioMix
+    ).toBeNull()
+  })
+
+  it("needs the music to start before the track ends", async () => {
+    const { projectId, clip } = await reviewedProject()
+    const track = await projectTrack(projectId, 30_000)
+    for (const trackStartMs of [30_000, 45_000]) {
+      await expect(
+        updateClip(
+          env.db,
+          projectId,
+          clip.id,
+          edit({
+            audioMix: { ...DEFAULT_AUDIO_MIX, trackId: track.id, trackStartMs },
+          })
+        )
+      ).rejects.toMatchObject({
+        code: "VALIDATION",
+        message: "Start the music before the track ends",
+      })
+    }
+    const saved = await updateClip(
+      env.db,
+      projectId,
+      clip.id,
+      edit({
+        audioMix: {
+          ...DEFAULT_AUDIO_MIX,
+          trackId: track.id,
+          trackStartMs: 29_999,
+        },
+      })
+    )
+    expect(saved.audioMix?.trackStartMs).toBe(29_999)
+  })
+
+  it("saves a mix without a track", async () => {
+    const { projectId, clip } = await reviewedProject()
+    const saved = await updateClip(
+      env.db,
+      projectId,
+      clip.id,
+      edit({ audioMix: { ...DEFAULT_AUDIO_MIX, sourceDb: -6 } })
+    )
+    expect(saved.audioMix).toEqual({ ...DEFAULT_AUDIO_MIX, sourceDb: -6 })
   })
 })
 

@@ -23,6 +23,7 @@ import type {
   AnalyticsPeriod,
   ChannelContentType,
 } from "@/features/analytics/schema"
+import type { TextOverlay } from "@/features/captions/overlay"
 import type { CaptionOverrides, ClipStatus } from "@/features/clips/schema"
 import type { Beat, ClipEffects } from "@/features/effects/schema"
 import type { JobStatus, JobType } from "@/features/jobs/schema"
@@ -33,6 +34,7 @@ import type {
   Rect,
 } from "@/features/layout/schema"
 import type { PlanId, UsageKind } from "@/features/accounts/schema"
+import type { AudioMix } from "@/features/music/schema"
 import type {
   ChannelStatus,
   PublicationOrigin,
@@ -318,6 +320,8 @@ export const clips = pgTable(
     effects: jsonb("effects").$type<ClipEffects | null>(),
     beats: jsonb("beats").$type<Beat[] | null>(),
     playbookRuleIds: jsonb("playbook_rule_ids").$type<string[] | null>(),
+    audioMix: jsonb("audio_mix").$type<AudioMix | null>(),
+    textOverlay: jsonb("text_overlay").$type<TextOverlay | null>(),
     renderAssetId: text("render_asset_id").references(() => assets.id, {
       onDelete: "set null",
     }),
@@ -325,6 +329,27 @@ export const clips = pgTable(
     ...timestamps,
   },
   (t) => [index("clips_project_idx").on(t.projectId, t.score)]
+)
+
+export const musicTracks = pgTable(
+  "music_tracks",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    storageKey: text("storage_key").notNull(),
+    mime: text("mime").notNull(),
+    bytes: bigint("bytes", { mode: "number" }).notNull().default(0),
+    durationMs: integer("duration_ms").notNull(),
+    peaks: jsonb("peaks").$type<number[]>().notNull(),
+    createdBy: text("created_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    ...timestamps,
+  },
+  (t) => [index("music_tracks_workspace_idx").on(t.workspaceId, t.createdAt)]
 )
 
 export const youtubeChannels = pgTable("youtube_channels", {

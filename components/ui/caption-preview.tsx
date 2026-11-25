@@ -1,6 +1,8 @@
 import { cn } from "cn"
 import * as React from "react"
 
+import { OVERLAY_MARGIN_X, OVERLAY_TOP_Y } from "@/features/captions/overlay"
+
 type CaptionPreviewWord = { text: string; startMs: number; endMs: number }
 
 type CaptionPreviewPage = {
@@ -224,8 +226,60 @@ function CaptionPreviewText({
   )
 }
 
+const FRAME_HEIGHT = 1920
+const OVERLAY_OUTLINE = 8
+
+function CaptionPreviewOverlay({
+  className,
+  text,
+  position,
+  fontFamily,
+  fontSize,
+  color,
+  outlineColor,
+  style,
+  ...props
+}: React.ComponentProps<"div"> & {
+  text: string
+  position: "top" | "center"
+  fontFamily: string
+  fontSize: number
+  color: string
+  outlineColor: string
+}) {
+  return (
+    <div
+      data-slot="caption-preview-overlay"
+      data-position={position}
+      className={cn(
+        "pointer-events-none absolute text-center leading-[1.15] font-bold text-balance",
+        position === "center" && "-translate-y-1/2",
+        className
+      )}
+      style={{
+        top:
+          position === "center"
+            ? "50%"
+            : `${(OVERLAY_TOP_Y / FRAME_HEIGHT) * 100}%`,
+        left: units(OVERLAY_MARGIN_X),
+        right: units(OVERLAY_MARGIN_X),
+        fontFamily,
+        fontSize: units(fontSize),
+        color,
+        WebkitTextStroke: `${units(OVERLAY_OUTLINE * 2)} ${outlineColor}`,
+        paintOrder: "stroke fill",
+        ...style,
+      }}
+      {...props}
+    >
+      {text}
+    </div>
+  )
+}
+
 export {
   CaptionPreview,
+  CaptionPreviewOverlay,
   CaptionPreviewText,
   type CaptionPreviewPage,
   type CaptionPreviewStyle,

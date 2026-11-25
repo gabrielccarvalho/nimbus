@@ -52,9 +52,12 @@ test("sidebar collapse state persists across reloads", async ({ page }) => {
 
 test("command palette jumps to a page", async ({ page }) => {
   await page.goto("/")
-  await page.keyboard.press("ControlOrMeta+k")
   const palette = page.getByRole("dialog", { name: "Search" })
-  await expect(palette).toBeVisible()
+  // goto resolves on load, before React attaches the hotkey listener.
+  await expect(async () => {
+    await page.keyboard.press("ControlOrMeta+k")
+    await expect(palette).toBeVisible({ timeout: 1_000 })
+  }).toPass()
   await page.keyboard.type("settings")
   await page.keyboard.press("Enter")
   await expect(page).toHaveURL(/\/settings\/profile$/)

@@ -19,6 +19,7 @@ import { loadPlaybook } from "../insights/repository"
 import { buildManualPrompt } from "../highlights/prompt"
 import { jobQueue } from "../jobs/queue"
 import { layoutRepository } from "../layout/repository"
+import { musicTracksFor } from "../music/queries"
 import { getProjectSnapshot } from "../pipeline/snapshot"
 import { isEnglishOnlyModel } from "../transcription/language"
 import { transcriptRepository } from "../transcription/repository"
@@ -297,13 +298,15 @@ export async function getClipEditor(projectId: string, clipId: string) {
     clipRepository(db).get(clipId),
   ])
   if (!project || !clip || clip.projectId !== project.id) return undefined
-  const [assets, layout, transcript, snapshot, clips] = await Promise.all([
-    assetRepository(db).listForProject(projectId),
-    layoutRepository(db).get(projectId),
-    transcriptRepository(db).get(projectId),
-    getProjectSnapshot(db, projectId),
-    clipRepository(db).listForProject(projectId),
-  ])
+  const [assets, layout, transcript, snapshot, clips, musicTracks] =
+    await Promise.all([
+      assetRepository(db).listForProject(projectId),
+      layoutRepository(db).get(projectId),
+      transcriptRepository(db).get(projectId),
+      getProjectSnapshot(db, projectId),
+      clipRepository(db).listForProject(projectId),
+      project.workspaceId ? musicTracksFor(db, project.workspaceId) : [],
+    ])
   const order = clips
     .filter((c) => c.status !== "rejected" || c.id === clip.id)
     .toSorted((a, b) => b.score - a.score)
@@ -336,6 +339,7 @@ export async function getClipEditor(projectId: string, clipId: string) {
         }
       : undefined,
     snapshot: snapshot!,
+    musicTracks,
   }
 }
 

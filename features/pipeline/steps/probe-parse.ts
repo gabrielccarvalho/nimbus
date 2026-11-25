@@ -58,7 +58,7 @@ function parseSar(sar: string | undefined): number {
   return a && b ? a / b : 1
 }
 
-export function parseProbe(json: string): ProbeResult {
+function readProbe(json: string) {
   let raw: unknown
   try {
     raw = JSON.parse(json)
@@ -78,7 +78,11 @@ export function parseProbe(json: string): ProbeResult {
       "Couldn't read this file's media info"
     )
   }
-  const { streams, format } = parsed.data
+  return parsed.data
+}
+
+export function parseProbe(json: string): ProbeResult {
+  const { streams, format } = readProbe(json)
   const video = streams.find(
     (s) => s.codec_type === "video" && !s.disposition?.attached_pic
   )
@@ -126,6 +130,25 @@ export function parseProbe(json: string): ProbeResult {
       title: stream.tags?.title ?? stream.tags?.handler_name ?? null,
     })),
     formatName: format?.format_name ?? "unknown",
+  }
+}
+
+export function parseAudioProbe(json: string) {
+  const { streams, format } = readProbe(json)
+  const audio = streams.find((s) => s.codec_type === "audio")
+  if (!audio) {
+    throw new AppError("UNSUPPORTED_MEDIA", "This file has no audio track")
+  }
+  const seconds = Number(format?.duration ?? audio.duration ?? NaN)
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    throw new AppError(
+      "UNSUPPORTED_MEDIA",
+      "This file has no playable duration"
+    )
+  }
+  return {
+    durationMs: Math.round(seconds * 1000),
+    codec: audio.codec_name ?? "unknown",
   }
 }
 

@@ -36,6 +36,9 @@ export const storageKeys = {
   avatar: (owner: AvatarOwner, id: string, stamp: number, ext: string) =>
     `avatars/${owner}/${id}/${stamp}.${ext}`,
   avatarPrefix: (owner: AvatarOwner, id: string) => `avatars/${owner}/${id}`,
+  music: (workspaceId: string, trackId: string, ext: string) =>
+    `music/${workspaceId}/${trackId}.${ext}`,
+  musicPrefix: (workspaceId: string) => `music/${workspaceId}`,
   uploadTemp: (id: string) => `tmp/uploads/${id}.part`,
   downloadDir: (id: string) => `tmp/downloads/${id}`,
 }

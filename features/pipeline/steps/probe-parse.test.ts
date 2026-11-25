@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   classifyAspect,
   isLandscape,
+  parseAudioProbe,
   parseProbe,
   parseRate,
 } from "./probe-parse"
@@ -165,4 +166,21 @@ describe("classifyAspect", () => {
     expect(isLandscape(1080, 1080)).toBe(false)
     expect(isLandscape(1080, 1920)).toBe(false)
   })
+})
+
+describe("parseAudioProbe", () => {
+  it("reads the duration and codec of an audio file", () =>
+    expect(
+      parseAudioProbe(
+        JSON.stringify({
+          streams: [{ codec_type: "audio", codec_name: "aac" }],
+          format: { duration: "30.02" },
+        })
+      )
+    ).toEqual({ durationMs: 30_020, codec: "aac" }))
+
+  it("rejects a file without audio", () =>
+    expect(() => parseAudioProbe(probe({ audio: null }))).toThrow(
+      "This file has no audio track"
+    ))
 })

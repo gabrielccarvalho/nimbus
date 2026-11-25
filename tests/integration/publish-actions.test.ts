@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { accountRepository } from "@/features/accounts/repository"
+import { updateClipAction } from "@/features/clips/actions"
 import * as jobQueueModule from "@/features/jobs/queue"
 import { clipRepository } from "@/features/clips/repository"
+import { musicRepository } from "@/features/music/repository"
+import { DEFAULT_AUDIO_MIX } from "@/features/music/schema"
 import {
   assetRepository,
   projectRepository,
@@ -143,6 +146,52 @@ describe("publishClipAction", () => {
       ok: false,
       error: { code: "CONFLICT", message: "Render the latest edit first" },
     })
+    expect(await publishJobs()).toHaveLength(0)
+  })
+
+  it("asks for a new render after only the music or the text changes", async () => {
+    const { workspace, project, clip } = await seed()
+    await assetRepository(env.db).create({
+      projectId: project.id,
+      kind: "source",
+      storageKey: `projects/${project.id}/source.mp4`,
+      mime: "video/mp4",
+      durationMs: 60_000,
+    })
+    const track = await musicRepository(env.db).create({
+      id: crypto.randomUUID(),
+      workspaceId: workspace.id,
+      title: "Night drive",
+      storageKey: `music/${workspace.id}/night.mp3`,
+      mime: "audio/mpeg",
+      durationMs: 60_000,
+      peaks: [],
+    })
+    const unchanged = {
+      startMs: clip.startMs,
+      endMs: clip.endMs,
+      title: clip.title,
+      hook: clip.hook,
+      captionOverrides: { pages: [] },
+    }
+    for (const change of [
+      { audioMix: { ...DEFAULT_AUDIO_MIX, trackId: track.id } },
+      { textOverlay: { text: "Wait for it", position: "top", untilMs: 3000 } },
+    ]) {
+      await clipRepository(env.db).update(clip.id, { status: "rendered" })
+      const saved = await updateClipAction(project.id, clip.id, {
+        ...unchanged,
+        ...change,
+      })
+      expect(saved.ok).toBe(true)
+      expect((await clipRepository(env.db).getOrThrow(clip.id)).status).toBe(
+        "approved"
+      )
+      expect(await publishClipAction(clip.id, input)).toMatchObject({
+        ok: false,
+        error: { code: "CONFLICT", message: "Render the latest edit first" },
+      })
+    }
     expect(await publishJobs()).toHaveLength(0)
   })
 
