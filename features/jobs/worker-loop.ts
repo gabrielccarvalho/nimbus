@@ -7,6 +7,14 @@ import type { Logger } from "@/lib/logger"
 import { jobQueue, type Job } from "./queue"
 import { RENDER_JOB_TYPES, type JobType } from "./schema"
 
+export const workerShutdown = () =>
+  new AppError("CANCELLED", "Worker shutting down", {
+    details: { shutdown: true },
+  })
+
+export const shuttingDown = (signal: AbortSignal) =>
+  signal.reason instanceof AppError && signal.reason.details?.shutdown === true
+
 export type JobContext = {
   job: Job
   db: Db
@@ -295,7 +303,7 @@ export function createWorker(options: WorkerOptions) {
       )
       if (!(await Promise.race([drained, timedOut]))) {
         for (const controller of controllers.values()) {
-          controller.abort(new AppError("CANCELLED", "Worker shutting down"))
+          controller.abort(workerShutdown())
         }
         await Promise.allSettled(active)
       }

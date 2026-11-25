@@ -14,6 +14,7 @@ import {
 } from "@/features/publishing/repository"
 import type { QuotaKind } from "@/features/publishing/schema"
 import { analyticsRepository } from "@/features/analytics/repository"
+import { jobQueue } from "@/features/jobs/queue"
 import {
   account,
   channelDaily,
@@ -213,6 +214,45 @@ describe("publishingRepository", () => {
     expect(await repo.getPublication(nimbus.id)).toBeDefined()
     expect(await env.db.select().from(channelDaily)).toEqual([])
     expect(await env.db.select().from(channelTopVideos)).toEqual([])
+  })
+
+  it("cancels the queued channel jobs when the workspace switches YouTube channel", async () => {
+    const { repo, channel, workspaceId } = await seed()
+    const queue = jobQueue(env.db)
+    const queued = await Promise.all(
+      (["sync_uploads", "sync_channel"] as const).map((type) =>
+        queue.enqueue({
+          type,
+          projectId: null,
+          payload: { channelId: channel.id },
+        })
+      )
+    )
+    const batch = await queue.enqueue({
+      type: "sync_stats_batch",
+      projectId: null,
+      payload: { channelId: channel.id, publicationIds: ["p1"] },
+    })
+    const elsewhere = await queue.enqueue({
+      type: "sync_channel",
+      projectId: null,
+      payload: { channelId: "other" },
+    })
+    const input = {
+      workspaceId,
+      accountId: channel.accountId,
+      title: "Channel",
+    }
+
+    await repo.upsertChannel({ ...input, channelId: "UC1" })
+    expect((await queue.get(batch.id))!.status).toBe("queued")
+
+    await repo.upsertChannel({ ...input, channelId: "UC2" })
+
+    for (const job of [...queued, batch]) {
+      expect((await queue.get(job.id))!.status).toBe("cancelled")
+    }
+    expect((await queue.get(elsewhere.id))!.status).toBe("queued")
   })
 
   it("deletes publications with their clip", async () => {

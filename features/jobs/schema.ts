@@ -47,6 +47,7 @@ export const jobPayloadSchemas = {
     channelId: z.string().min(1),
     pageToken: z.string().min(1).optional(),
     passStartedAt: z.iso.datetime().optional(),
+    full: z.literal(true).optional(),
   }),
   sync_channel: z.object({ channelId: z.string().min(1) }),
   sync_stats_batch: z.object({

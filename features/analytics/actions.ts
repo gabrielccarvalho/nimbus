@@ -23,7 +23,7 @@ export async function importShortsAction() {
       if (channel.status !== "ok" || !channel.accountId) {
         throw new AppError("CONFLICT", RECONNECT_MESSAGE)
       }
-      if (!(await enqueueUploadsSync(getDb(), channel.id))) {
+      if (!(await enqueueUploadsSync(getDb(), channel.id, { full: true }))) {
         throw new AppError("CONFLICT", "Already importing your Shorts")
       }
     },

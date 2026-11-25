@@ -6,11 +6,13 @@ import { newId, now, withTransaction, type Db } from "@/lib/db"
 import {
   channelDaily,
   channelTopVideos,
+  jobs,
   publications,
   youtubeChannels,
   youtubeQuotaUsage,
 } from "@/lib/db/schema"
 
+import { jobQueue } from "../jobs/queue"
 import {
   ACTIVE_PUBLICATION_STATUSES,
   type ChannelStatus,
@@ -76,6 +78,21 @@ export function publishingRepository(db: Db) {
           await tx
             .delete(channelTopVideos)
             .where(eq(channelTopVideos.channelId, previous.id))
+          const stale = await tx
+            .select({ id: jobs.id })
+            .from(jobs)
+            .where(
+              and(
+                inArray(jobs.type, [
+                  "sync_uploads",
+                  "sync_channel",
+                  "sync_stats_batch",
+                ]),
+                eq(jobs.status, "queued"),
+                sql`${jobs.payload}->>'channelId' = ${previous.id}`
+              )
+            )
+          for (const job of stale) await jobQueue(tx).cancel(job.id)
         }
         const [row] = await tx
           .insert(youtubeChannels)

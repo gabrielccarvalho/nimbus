@@ -13,6 +13,7 @@ export function parsePeriod(value: unknown): AnalyticsPeriod {
 }
 
 export const ANALYTICS_SYNC_EVERY_MS = 24 * 3_600_000
+export const FAILED_CHANNEL_JOB_WAIT_MS = 6 * 3_600_000
 export const CHANNEL_BACKFILL_DAYS = 90
 export const LATE_DATA_DAYS = 3
 export const UPLOADS_OVERLAP_DAYS = 7

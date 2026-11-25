@@ -369,8 +369,34 @@ describe("enqueueDueAnalyticsSyncs", () => {
     )
 
     expect(await enqueueDueAnalyticsSyncs(env.db, now)).toBe(1)
-    expect(await channelJobs("sync_uploads")).toHaveLength(1)
+    const uploads = await channelJobs("sync_uploads")
+    expect(uploads.map((job) => job.payload)).toEqual([
+      { channelId: channel.id },
+    ])
     expect(await channelJobs()).toHaveLength(0)
+  })
+
+  it("waits 6 hours after a failed channel job before enqueueing that type again", async () => {
+    const { channel } = await seed()
+    const now = new Date()
+    const failed = await jobQueue(env.db).enqueue({
+      type: "sync_channel",
+      projectId: null,
+      payload: { channelId: channel.id },
+    })
+    await env.db
+      .update(jobs)
+      .set({ status: "failed", finishedAt: new Date(now.getTime() - HOUR) })
+      .where(eq(jobs.id, failed.id))
+
+    expect(await enqueueDueAnalyticsSyncs(env.db, now)).toBe(0)
+
+    await env.db
+      .update(jobs)
+      .set({ finishedAt: new Date(now.getTime() - 7 * HOUR) })
+      .where(eq(jobs.id, failed.id))
+
+    expect(await enqueueDueAnalyticsSyncs(env.db, now)).toBe(1)
   })
 
   it("never enqueues a second job while one is active", async () => {

@@ -1,4 +1,8 @@
+"use client"
+
 import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { useEffect } from "react"
 
 import { Empty, EmptyDescription, EmptyHeader } from "@/components/ui/empty"
 import {
@@ -13,6 +17,8 @@ import type { AnalyticsPeriod } from "@/features/analytics/schema"
 
 import { PeriodPicker } from "./period-picker"
 import { ViewsChart } from "./views-chart"
+
+const POLL_MS = 5000
 
 const number = new Intl.NumberFormat("en-US")
 const hours = new Intl.NumberFormat("en-US", {
@@ -49,6 +55,14 @@ export function Overview({
 }: Awaited<ReturnType<typeof getAnalyticsOverview>> & {
   period: AnalyticsPeriod
 }) {
+  const router = useRouter()
+
+  useEffect(() => {
+    if (!syncing) return
+    const id = setInterval(() => router.refresh(), POLL_MS)
+    return () => clearInterval(id)
+  }, [syncing, router])
+
   const tiles =
     summary &&
     ([

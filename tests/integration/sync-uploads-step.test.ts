@@ -1,8 +1,11 @@
 import { and, eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { analyticsRepository } from "@/features/analytics/repository"
 import { clipRepository } from "@/features/clips/repository"
 import { jobQueue } from "@/features/jobs/queue"
+import { workerShutdown } from "@/features/jobs/worker-loop"
+import { syncUploadsStep } from "@/features/pipeline/steps/sync-uploads"
 import { projectRepository } from "@/features/projects/repository"
 import { defaultProjectSettings } from "@/features/projects/schema"
 import { RECONNECT_MESSAGE } from "@/features/publishing/google-token"
@@ -23,6 +26,7 @@ import {
   youtubeQuotaUsage,
 } from "@/lib/db/schema"
 import { AppError } from "@/lib/errors"
+import { logger } from "@/lib/logger"
 
 import { runJobs } from "../utils/pipeline"
 import { createTestEnv, type TestEnv } from "../utils/test-env"
@@ -93,11 +97,14 @@ async function importUnits() {
   return rows.reduce((sum, row) => sum + row.units, 0)
 }
 
-async function runUploads(channelId: string) {
+async function runUploads(
+  channelId: string,
+  extra: Record<string, unknown> = {}
+) {
   const job = await jobQueue(env.db).enqueue({
     type: "sync_uploads",
     projectId: null,
-    payload: { channelId },
+    payload: { channelId, ...extra },
     maxAttempts: 1,
   })
   await runJobs(env.db, ["sync_uploads"])
@@ -303,6 +310,108 @@ describe("sync_uploads", () => {
     expect((await repo.getChannelById(channel.id))!.uploadsSyncedAt).toEqual(
       passStartedAt
     )
+  })
+
+  it("rescans every page on a full import even after a recent pass", async () => {
+    const { channel } = await seed()
+    await analyticsRepository(env.db).markSynced(
+      channel.id,
+      "uploadsSyncedAt",
+      new Date()
+    )
+
+    await runUploads(channel.id)
+    expect(await imported()).toEqual([])
+
+    await runUploads(channel.id, { full: true })
+    expect((await imported()).map((row) => row.videoId).sort()).toEqual([
+      "fake-past-1",
+      "fake-past-2",
+      "fake-past-3",
+    ])
+  })
+
+  it("keeps a full rescan full when it resumes after the quota reset", async () => {
+    env.cleanup()
+    env = await createTestEnv({
+      YOUTUBE_CLIENT: "fake",
+      YOUTUBE_DAILY_QUOTA: "3",
+    })
+    const { channel } = await seed()
+
+    const job = await runUploads(channel.id, { full: true })
+
+    const next = (await uploadJobs()).find((row) => row.id !== job.id)!
+    expect(next.payload).toMatchObject({ pageToken: "2", full: true })
+  })
+
+  it("hands the unread page to a new job when the worker shuts down between pages", async () => {
+    const { channel } = await seed()
+    const controller = new AbortController()
+    const page = fake.playlistPage.bind(fake)
+    vi.spyOn(fake, "playlistPage").mockImplementation(
+      async (token, playlistId, pageToken) => {
+        const result = await page(token, playlistId, pageToken)
+        controller.abort(workerShutdown())
+        return result
+      }
+    )
+    const job = await jobQueue(env.db).enqueue({
+      type: "sync_uploads",
+      projectId: null,
+      payload: { channelId: channel.id },
+      maxAttempts: 1,
+    })
+    const startedAt = new Date()
+
+    await syncUploadsStep({
+      job: { ...job, startedAt },
+      db: env.db,
+      logger,
+      signal: controller.signal,
+      reportProgress: () => {},
+      reportDetail: () => {},
+    })
+
+    const next = (await uploadJobs()).find((row) => row.id !== job.id)!
+    expect(next.status).toBe("queued")
+    expect(next.payload).toEqual({
+      channelId: channel.id,
+      pageToken: "2",
+      passStartedAt: startedAt.toISOString(),
+    })
+    expect(next.runAfter.getTime()).toBeLessThanOrEqual(Date.now())
+    expect(
+      (await publishingRepository(env.db).getChannelById(channel.id))!
+        .uploadsSyncedAt
+    ).toBeNull()
+  })
+
+  it("falls back to duration when the probe hits an Analytics quota error", async () => {
+    const { channel } = await seed()
+    const probe = vi
+      .spyOn(fake, "videoContentType")
+      .mockRejectedValue(
+        new AppError("EXTERNAL", "Quota exceeded", { cause: "quota" })
+      )
+
+    const job = await runUploads(channel.id)
+
+    expect(job.status).toBe("succeeded")
+    expect(await imported()).toHaveLength(4)
+    expect(probe).toHaveBeenCalledTimes(1)
+  })
+
+  it("fails the import when the probe can't authorize", async () => {
+    const { channel } = await seed()
+    vi.spyOn(fake, "videoContentType").mockRejectedValue(
+      new AppError("UNAUTHORIZED", RECONNECT_MESSAGE)
+    )
+
+    const job = await runUploads(channel.id)
+
+    expect(job.status).toBe("failed")
+    expect(await imported()).toEqual([])
   })
 
   it("falls back to duration when the content type probe is rejected", async () => {

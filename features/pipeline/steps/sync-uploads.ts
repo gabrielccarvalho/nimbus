@@ -11,7 +11,7 @@ import {
 } from "../../analytics/schema"
 import { importableShort, SHORT_MAX_MS } from "../../analytics/shorts"
 import { jobQueue } from "../../jobs/queue"
-import type { JobHandler } from "../../jobs/worker-loop"
+import { shuttingDown, type JobHandler } from "../../jobs/worker-loop"
 import {
   RECONNECT_MESSAGE,
   withGoogleToken,
@@ -29,6 +29,7 @@ export const syncUploadsStep: JobHandler = async ({
   job,
   db,
   logger,
+  signal,
   reportProgress,
 }) => {
   const channelId = job.payload.channelId
@@ -73,7 +74,8 @@ export const syncUploadsStep: JobHandler = async ({
   const pending: string[] = []
   const flush = (count = pending.length) =>
     enqueueStatsBatches(db, channelId, pending.splice(0, count))
-  const defer = async (pageToken: string | null) => {
+  const full = job.payload.full === true
+  const resume = async (pageToken: string | null, runAfter: Date) => {
     await flush()
     await jobQueue(db).enqueue({
       type: "sync_uploads",
@@ -82,10 +84,14 @@ export const syncUploadsStep: JobHandler = async ({
         channelId,
         ...(pageToken && { pageToken }),
         passStartedAt: passStartedAt.toISOString(),
+        ...(full && { full }),
       },
-      runAfter: nextQuotaReset(now()),
+      runAfter,
       maxAttempts: 3,
     })
+  }
+  const defer = async (pageToken: string | null) => {
+    await resume(pageToken, nextQuotaReset(now()))
     logger.info(
       { channelId, pageToken },
       "YouTube quota spent, import deferred"
@@ -98,11 +104,12 @@ export const syncUploadsStep: JobHandler = async ({
   if (playlistId === QUOTA_SPENT) return defer(pageToken)
 
   const known = await analytics.knownVideoIds(channelId)
-  const overlapFrom = channel.uploadsSyncedAt
-    ? new Date(
-        channel.uploadsSyncedAt.getTime() - UPLOADS_OVERLAP_DAYS * DAY_MS
-      )
-    : null
+  const overlapFrom =
+    channel.uploadsSyncedAt && !full
+      ? new Date(
+          channel.uploadsSyncedAt.getTime() - UPLOADS_OVERLAP_DAYS * DAY_MS
+        )
+      : null
   const isOld = (publishedAt: Date | null) =>
     overlapFrom !== null && publishedAt !== null && publishedAt < overlapFrom
   let detection: "probe" | "duration" | null = null
@@ -110,6 +117,14 @@ export const syncUploadsStep: JobHandler = async ({
 
   try {
     do {
+      if (shuttingDown(signal)) {
+        await resume(pageToken, now())
+        logger.info(
+          { channelId, pageToken },
+          "worker stopping, import handed on"
+        )
+        return
+      }
       const page = await booked((token) =>
         youtube.playlistPage(token, playlistId, pageToken)
       )
@@ -143,7 +158,10 @@ export const syncUploadsStep: JobHandler = async ({
               )
               detection = "probe"
             } catch (error) {
-              if (!(error instanceof AppError) || error.code !== "VALIDATION") {
+              if (
+                error instanceof AppError &&
+                (error.code === "UNAUTHORIZED" || error.cause === "token")
+              ) {
                 throw error
               }
               logger.warn(

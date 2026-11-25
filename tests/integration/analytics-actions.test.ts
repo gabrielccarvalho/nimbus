@@ -61,7 +61,7 @@ const uploadJobs = () =>
   env.db.select().from(jobs).where(eq(jobs.type, "sync_uploads"))
 
 describe("importShortsAction", () => {
-  it("enqueues one uploads sync for the workspace's channel", async () => {
+  it("enqueues one full uploads rescan for the workspace's channel", async () => {
     const { channel } = await seed()
 
     expect(await importShortsAction()).toMatchObject({ ok: true })
@@ -69,7 +69,7 @@ describe("importShortsAction", () => {
     const rows = await uploadJobs()
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({
-      payload: { channelId: channel!.id },
+      payload: { channelId: channel!.id, full: true },
       projectId: null,
       maxAttempts: 3,
       status: "queued",

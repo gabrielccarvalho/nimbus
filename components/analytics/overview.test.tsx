@@ -1,11 +1,21 @@
-import { render, screen, within } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
+import { act, render, screen, within } from "@testing-library/react"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { getAnalyticsOverview } from "@/features/analytics/queries"
 
 import { Overview } from "./overview"
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/analytics" }))
+const refresh = vi.fn()
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/analytics",
+  useRouter: () => ({ refresh }),
+}))
+
+afterEach(() => {
+  vi.useRealTimers()
+  refresh.mockClear()
+})
 
 type Props = Awaited<ReturnType<typeof getAnalyticsOverview>>
 
@@ -58,6 +68,22 @@ describe("Overview", () => {
       within(tile("Average view duration")).getByText("1:15")
     ).toBeInTheDocument()
     expect(within(tile("Likes")).getByText("340")).toBeInTheDocument()
+  })
+
+  it("refreshes every 5 seconds while syncing until unmounted", () => {
+    vi.useFakeTimers()
+    const { unmount, rerender } = render(
+      <Overview {...props({ syncing: true })} period={28} />
+    )
+    void act(() => vi.advanceTimersByTime(5000))
+    expect(refresh).toHaveBeenCalledTimes(1)
+    rerender(<Overview {...props()} period={28} />)
+    void act(() => vi.advanceTimersByTime(10000))
+    expect(refresh).toHaveBeenCalledTimes(1)
+    rerender(<Overview {...props({ syncing: true })} period={28} />)
+    unmount()
+    void act(() => vi.advanceTimersByTime(10000))
+    expect(refresh).toHaveBeenCalledTimes(1)
   })
 
   it("says how fresh the data is", () => {
