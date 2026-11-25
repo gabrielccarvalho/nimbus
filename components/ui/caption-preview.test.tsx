@@ -1,7 +1,11 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 
-import { CaptionPreview, CaptionPreviewText } from "./caption-preview"
+import {
+  CaptionPreview,
+  CaptionPreviewOverlay,
+  CaptionPreviewText,
+} from "./caption-preview"
 
 const pages = [
   {
@@ -111,5 +115,40 @@ describe("CaptionPreviewText placement", () => {
     expect(onBaselineChange).toHaveBeenLastCalledWith(0.95)
     fireEvent.keyDown(slider, { key: "a" })
     expect(onBaselineChange).toHaveBeenCalledTimes(4)
+  })
+})
+
+describe("CaptionPreviewOverlay", () => {
+  const renderOverlay = (position: "top" | "center") =>
+    render(
+      <CaptionPreview>
+        <CaptionPreviewOverlay
+          text="Wait for the jump"
+          position={position}
+          fontFamily="sans-serif"
+          fontSize={108}
+          color="rgb(10 10 10 / 1)"
+          outlineColor="rgb(255 255 255 / 1)"
+        />
+      </CaptionPreview>
+    ).container.querySelector<HTMLElement>(
+      "[data-slot=caption-preview-overlay]"
+    )!
+
+  it("sits 240 of 1920 units from the top, balanced inside the side margins", () => {
+    const overlay = renderOverlay("top")
+    expect(overlay).toHaveTextContent("Wait for the jump")
+    expect(overlay.style.top).toBe("12.5%")
+    expect(overlay.style.fontSize).toBe("calc(10cqw)")
+    expect(overlay.style.left).toBe("calc(8.33333cqw)")
+    expect(overlay.style.right).toBe("calc(8.33333cqw)")
+    expect(overlay).toHaveClass("text-balance")
+    expect(overlay).not.toHaveClass("-translate-y-1/2")
+  })
+
+  it("centres on the frame", () => {
+    const overlay = renderOverlay("center")
+    expect(overlay.style.top).toBe("50%")
+    expect(overlay).toHaveClass("-translate-y-1/2")
   })
 })

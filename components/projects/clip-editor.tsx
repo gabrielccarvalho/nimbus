@@ -50,6 +50,7 @@ import {
   wordsInRange,
 } from "@/features/captions/pages"
 import {
+  captionBaseline,
   placeCaption,
   resolveCaptionStyle,
   type CaptionFontId,
@@ -57,16 +58,20 @@ import {
 import { setClipStatusAction, updateClipAction } from "@/features/clips/actions"
 import type { Clip } from "@/features/clips/repository"
 import { usesWebcam, type LayoutInput } from "@/features/layout/schema"
+import { planAudio } from "@/features/music/envelope"
+import type { MusicTrackSummary } from "@/features/music/schema"
 import type { ProjectSnapshot } from "@/features/pipeline/snapshot"
 import type { ProjectSettings } from "@/features/projects/schema"
 import { renderClipsAction } from "@/features/render/actions"
 import type { Word } from "@/features/transcription/schema"
 import { formatTimestamp } from "@/lib/format"
 
+import { AudioTextPanel } from "./audio-text-panel"
 import { CaptionStyleFields } from "./caption-style-fields"
 import { ClipEffectsCard, ClipEffectsPreview } from "./clip-effects"
 import { useClipStatus } from "./clip-player-dialog"
 import { ClipLoop } from "./clip-preview"
+import { MusicPreview } from "./music-preview"
 import { PublishControl, type PublishingState } from "./publish-dialog"
 import { useProjectEvents } from "./use-project-events"
 import {
@@ -101,6 +106,7 @@ type ClipEditorProps = {
     previousId: string | null
     nextId: string | null
   }
+  musicTracks: MusicTrackSummary[]
 }
 
 const seconds = (ms: number) => (ms / 1000).toFixed(1)
@@ -171,6 +177,7 @@ export function ClipEditor({
   snapshot: initialSnapshot,
   publishing,
   siblings,
+  musicTracks,
 }: ClipEditorProps) {
   const router = useRouter()
   const snapshot = useProjectEvents(initialSnapshot)
@@ -187,6 +194,9 @@ export function ClipEditor({
   const layout = layoutOverride ?? projectLayout
   const hasWebcam = usesWebcam(layout.mode)
   const [effects, setEffects] = React.useState(clip.effects)
+  const [audioMix, setAudioMix] = React.useState(clip.audioMix)
+  const [textOverlay, setTextOverlay] = React.useState(clip.textOverlay)
+  const [previewUnavailable, setPreviewUnavailable] = React.useState(false)
   const [selectedEffect, setSelectedEffect] = React.useState<number | null>(
     null
   )
@@ -205,21 +215,25 @@ export function ClipEditor({
   const windowEndMs = Math.min(sourceDurationMs, clip.endMs + WINDOW_PADDING_MS)
   const style = resolveCaptionStyle(styleRef)
   const durationMs = endMs - startMs
+  const clipWords = React.useMemo(
+    () => wordsInRange(words, startMs, endMs),
+    [words, startMs, endMs]
+  )
   const basePages = React.useMemo(
     () =>
-      buildCaptionPages(wordsInRange(words, startMs, endMs), durationMs, {
+      buildCaptionPages(clipWords, durationMs, {
         maxWordsPerPage: style.maxWordsPerPage,
         maxCharsPerLine: style.maxCharsPerLine,
       }),
-    [
-      words,
-      startMs,
-      endMs,
-      durationMs,
-      style.maxWordsPerPage,
-      style.maxCharsPerLine,
-    ]
+    [clipWords, durationMs, style.maxWordsPerPage, style.maxCharsPerLine]
   )
+  const track = musicTracks.find((t) => t.id === audioMix?.trackId) ?? null
+  const audioPlan = React.useMemo(
+    () => planAudio(audioMix, track, durationMs, clipWords),
+    [audioMix, track, durationMs, clipWords]
+  )
+  const captionsNearTop =
+    settings.captionsEnabled && captionBaseline(style, layout) < 0.4
   const overrides = Object.entries(pageTexts).map(([index, text]) => ({
     index: Number(index),
     text,
@@ -259,6 +273,8 @@ export function ClipEditor({
     captionOverrides: { pages: overrides, style: styleRef },
     layoutOverride,
     effects,
+    audioMix,
+    textOverlay,
   }
   const serialized = JSON.stringify(payload)
   const [saved, setSaved] = React.useState(serialized)
@@ -347,6 +363,14 @@ export function ClipEditor({
   return (
     <VideoPlayerProvider>
       <ClipLoop startMs={startMs} endMs={endMs} />
+      <MusicPreview
+        src={track?.url ?? null}
+        plan={audioPlan?.music ?? null}
+        trackStartMs={audioMix?.trackStartMs ?? 0}
+        clipStartMs={startMs}
+        sourceDb={audioPlan?.sourceDb ?? 0}
+        onUnavailable={() => setPreviewUnavailable(true)}
+      />
       <div className="grid gap-5">
         <div className="flex flex-wrap items-center gap-2.5">
           <Link
@@ -537,6 +561,7 @@ export function ClipEditor({
                 startMs={startMs}
                 captionStyle={style}
                 captionsEnabled={settings.captionsEnabled}
+                overlay={textOverlay}
                 onBaselineChange={(baseline) =>
                   setStyleRef((current) => placeCaption(current, baseline))
                 }
@@ -631,6 +656,7 @@ export function ClipEditor({
                 <TabsTrigger value="details">Details</TabsTrigger>
                 <TabsTrigger value="layout">Layout</TabsTrigger>
                 <TabsTrigger value="captions">Captions</TabsTrigger>
+                <TabsTrigger value="audio">Audio &amp; text</TabsTrigger>
               </TabsList>
               <TabsContent value="details" className="grid gap-4">
                 <div className="grid gap-2">
@@ -758,6 +784,21 @@ export function ClipEditor({
                     </li>
                   )}
                 </ol>
+              </TabsContent>
+              <TabsContent value="audio">
+                <AudioTextPanel
+                  audioMix={audioMix}
+                  onAudioMixChange={setAudioMix}
+                  textOverlay={textOverlay}
+                  onTextOverlayChange={setTextOverlay}
+                  tracks={musicTracks}
+                  clipDurationMs={durationMs}
+                  hook={hook}
+                  title={title}
+                  captionsNearTop={captionsNearTop}
+                  previewUnavailable={previewUnavailable}
+                  disabled={pending || rendering}
+                />
               </TabsContent>
             </Tabs>
           </aside>

@@ -1,4 +1,5 @@
-import { fireEvent, render } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
+import type * as React from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
@@ -59,7 +60,10 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-function renderAt(ms: number) {
+function renderAt(
+  ms: number,
+  overlay?: React.ComponentProps<typeof ClipPreview>["overlay"]
+) {
   time = ms / 1000
   const { container } = render(
     <VideoPlayerProvider>
@@ -71,6 +75,7 @@ function renderAt(ms: number) {
         startMs={0}
         captionStyle={captionStyle}
         captionsEnabled={false}
+        overlay={overlay}
       />
     </VideoPlayerProvider>
   )
@@ -97,5 +102,28 @@ describe("ClipPreview", () => {
     expect(first![6]).toBe(0)
     expect(second![6]).toBeGreaterThan(0)
     expect(first![8] + second![8]).toBeCloseTo(canvas.height)
+  })
+})
+
+describe("ClipPreview overlay", () => {
+  const overlay = {
+    text: "Wait for it",
+    position: "top",
+    untilMs: 3000,
+  } as const
+
+  it("shows the text for the first seconds of the clip", () => {
+    renderAt(1000, overlay)
+    expect(screen.getByText("Wait for it")).toBeInTheDocument()
+  })
+
+  it("hides it once the time is up", () => {
+    renderAt(4000, overlay)
+    expect(screen.queryByText("Wait for it")).toBeNull()
+  })
+
+  it("keeps it for the whole clip", () => {
+    renderAt(4000, { ...overlay, untilMs: null })
+    expect(screen.getByText("Wait for it")).toBeInTheDocument()
   })
 })

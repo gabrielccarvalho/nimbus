@@ -4,13 +4,16 @@ import * as React from "react"
 
 import {
   CaptionPreview,
+  CaptionPreviewOverlay,
   CaptionPreviewText,
 } from "@/components/ui/caption-preview"
 import { useVideoPlayer } from "@/components/ui/video-player"
+import { overlayFontSize, type TextOverlay } from "@/features/captions/overlay"
 import type { CaptionPage } from "@/features/captions/pages"
 import {
   captionBaseline,
   cssCaptionStyle,
+  cssColor,
   type CaptionStyle,
 } from "@/features/captions/styles"
 import type { Effect } from "@/features/effects/schema"
@@ -40,6 +43,7 @@ export function ClipPreview({
   captionStyle,
   captionsEnabled,
   onBaselineChange,
+  overlay,
   className,
 }: {
   layout: LayoutInput
@@ -49,10 +53,13 @@ export function ClipPreview({
   captionStyle: CaptionStyle
   captionsEnabled: boolean
   onBaselineChange?: (baseline: number) => void
+  overlay?: TextOverlay | null
   className?: string
 }) {
   const { currentMs } = useVideoPlayer()
   const placeable = captionsEnabled && Boolean(onBaselineChange)
+  const showOverlay =
+    overlay && currentMs - startMs < (overlay.untilMs ?? Infinity)
   return (
     <CaptionPreview
       role={placeable ? "group" : "img"}
@@ -73,6 +80,16 @@ export function ClipPreview({
           baseline={captionBaseline(captionStyle, layout)}
           onBaselineChange={onBaselineChange}
           aria-label={onBaselineChange ? "Caption position" : undefined}
+        />
+      )}
+      {showOverlay && (
+        <CaptionPreviewOverlay
+          text={overlay.text}
+          position={overlay.position}
+          fontFamily={cssCaptionStyle(captionStyle).fontFamily}
+          fontSize={overlayFontSize(captionStyle)}
+          color={cssColor("background")}
+          outlineColor={cssColor("foreground")}
         />
       )}
     </CaptionPreview>

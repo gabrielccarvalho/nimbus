@@ -173,6 +173,7 @@ A 9:16 frame that shows the caption page at a given time, styled like the burned
 - Parts: `CaptionPreview` (frame; a size container, so text scales with its width; put a background image or canvas inside), `CaptionPreviewText` (`pages`, `currentMs`, `captionStyle`, `baseline` 0–1 of the height). Pass `onBaselineChange` (and an `aria-label`) to make the caption a vertical slider: drag it, or use the arrow keys (Shift for 5%), Page Up/Down, Home/End. `minBaseline`/`maxBaseline` default to 0.1/0.95. A frame holding a movable caption should be `role="group"`, not `img`.
 - Sizes are in 1080-wide output pixels and converted with `cqw`, so a 220 px preview matches the 1080 px render. `cssCaptionStyle()` from `features/captions/styles.ts` turns a caption preset into `captionStyle`.
 - The highlight is a color change only (no motion). The text is real DOM text, so it's readable by screen readers.
+- `CaptionPreviewOverlay` is the on-screen text (`text`, `position` `"top"` or `"center"`, `fontFamily`, `fontSize`, `color`, `outlineColor`), bold and balanced, 240 of 1920 units from the top (or centred) with 90-unit side margins, like the ASS `Title` style. Size it with `overlayFontSize()` from `features/captions/overlay.ts`.
 
 ```tsx
 <CaptionPreview className="w-56">
@@ -243,6 +244,8 @@ Layout & captions: `LayoutModeOptions` (mode cards with a slot diagram; shared w
 
 - Heycamps restyle (ADR-0057): `button`, `badge`, `tabs`, `input`, `select`, `switch`, `dialog`, `alert-dialog`, `sheet`, `dropdown-menu`, `popover`, `tooltip`, `kbd` and `command` keep their structure and API but swap classes for the heycamps tokens (inset-ring hairlines instead of borders, `surface-menu` for floating surfaces, `focus-ring`). `Button`'s `default` variant is glass and the white pill is `variant="primary"`; `outline` and `secondary` are gone. `Select`'s `size="sm"` is the small glass pill used for inline overrides. `command` was added with `cmdk`; its install did not overwrite `dialog`.
 
+- `components/ui/slider.tsx`: `Slider` forwards `getAriaValueText` to its thumbs, so a value can be read as "-16 dB".
+
 - `components/ui/popover.tsx`: `PopoverContent` forwards `anchor` to the positioner, so a controlled popover can open next to an element that isn't its trigger (the clip editor's effects lane anchors it to the selected block).
 
 ### ChannelIcon (`components/channels/channel-icon.tsx`)
@@ -268,3 +271,15 @@ Upload, change or remove the profile photo (`target="user"`) or workspace logo (
 ### CaptionStylePreview (`components/projects/caption-style-preview.tsx`)
 
 A 9:16 mock frame (webcam band over gameplay) with a sample caption page in the given resolved `CaptionStyle`, at the baseline the renderer would use. Used on the workspace Captions page.
+
+### MusicUploadButton (`components/music/music-upload-button.tsx`)
+
+Uploads one audio file to `/api/uploads/music` with progress in the label, then calls `onUploaded(track)` and refreshes the route. Rejects files over 50 MB before sending. Used in the workspace music library and the clip editor.
+
+### AudioTextPanel (`components/projects/audio-text-panel.tsx`)
+
+The clip editor's "Audio & text" tab, controlled through `audioMix`/`onAudioMixChange` and `textOverlay`/`onTextOverlayChange`. Music: a track `Select` with an upload button (an upload is selected at once), a `Timeline` scrubber for the start in the track over the track's waveform with the clip's span as a range, music and original audio volume sliders, ducking and fades. Text: an on/off switch that starts from the hook, the text with a counter, position and how long it stays. `captionsNearTop` warns about top text over top captions and `previewUnavailable` says the preview can't play music.
+
+### MusicPreview (`components/projects/music-preview.tsx`)
+
+A hidden `<audio>` that plays the clip's track through Web Audio in step with the `VideoPlayer` video, at `musicGainAt()` of the render's `MusicPlan` (volume, fades, duck), and routes the video through a gain at `sourceDb`. Nothing is created until the video plays, and the video is routed only once the `AudioContext` runs, so it is never silenced by a suspended context. Without Web Audio it calls `onUnavailable` and leaves the video alone.
