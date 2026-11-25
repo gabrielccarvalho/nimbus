@@ -61,7 +61,9 @@ test("upload, confirm layout, render, download and edit a clip", async ({
   await first.click()
   await dialog.getByRole("link", { name: /Edit/ }).click()
   await expect(page.getByLabel("Title")).toBeVisible()
-  await expect(page.getByTestId("clip-status")).toHaveText("Up to date")
+  await expect(page.getByRole("main").getByTestId("clip-status")).toHaveText(
+    "Up to date"
+  )
   await expect(
     page.getByRole("group", { name: "Vertical preview with captions" })
   ).toBeVisible()
@@ -103,7 +105,9 @@ test("upload, confirm layout, render, download and edit a clip", async ({
   await expect(
     page.getByRole("button", { name: "Use project layout" })
   ).toBeVisible()
-  await expect(page.getByTestId("clip-status")).toHaveText("Out of date")
+  await expect(page.getByRole("main").getByTestId("clip-status")).toHaveText(
+    "Out of date"
+  )
   await expect(
     page.getByRole("heading", { name: "My best moment" })
   ).toBeVisible()
