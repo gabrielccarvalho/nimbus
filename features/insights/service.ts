@@ -13,7 +13,10 @@ import { channelCurves } from "../analytics/service"
 import { jobQueue } from "../jobs/queue"
 import { projectRepository } from "../projects/repository"
 import { retentionMoments } from "../publishing/stats"
-import { statsRepository } from "../publishing/stats-repository"
+import {
+  statsRepository,
+  type ChannelPublication,
+} from "../publishing/stats-repository"
 import { transcriptRepository } from "../transcription/repository"
 import type { InsightClip } from "./prompt"
 import {
@@ -39,10 +42,6 @@ type Transcript = NonNullable<
 type ProjectContext = Pick<Transcript, "language" | "words" | "segments"> & {
   niche: string
 }
-
-type ChannelPublication = Awaited<
-  ReturnType<ReturnType<typeof statsRepository>["forChannel"]>
->[number]
 
 function insightAgeDays({
   publication,
@@ -72,17 +71,20 @@ export async function eligibleInsightClips(
 ): Promise<InsightClip[]> {
   const rows = await statsRepository(db).forChannel(channelId)
   const { curves } = await channelCurves(db, channelId, rows)
-  const eligible = rows.filter(isInsightEligible).slice(0, INSIGHTS_MAX_CLIPS)
+  const candidates = rows.filter(isInsightEligible)
+  const eligible = [
+    ...candidates.filter((row) => row.clip),
+    ...candidates.filter((row) => !row.clip),
+  ].slice(0, INSIGHTS_MAX_CLIPS)
   const peers = [...curves].map(([publicationId, cumulative]) => ({
     publicationId,
     cumulative,
   }))
-  const relativeFor = (publicationId: string) => {
-    const cumulative = curves.get(publicationId)
-    return cumulative
-      ? relativePerformance({ publicationId, cumulative }, peers)
-      : null
-  }
+  const relativeFor = (publicationId: string) =>
+    relativePerformance(
+      { publicationId, cumulative: curves.get(publicationId) ?? [] },
+      peers
+    )
   const projects = projectRepository(db)
   const projectContext = new Map<string, Promise<ProjectContext>>()
   const contextFor = (projectId: string) => {

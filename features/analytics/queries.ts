@@ -190,13 +190,10 @@ export async function getShorts(): Promise<{
           viewsDay1: viewsAt(curve, 1),
           viewsDay7: viewsAt(curve, 7),
           viewsDay28: viewsAt(curve, 28),
-          relative:
-            curve.length > 0
-              ? relativePerformance(
-                  { publicationId: publication.id, cumulative: curve },
-                  peers
-                )
-              : null,
+          relative: relativePerformance(
+            { publicationId: publication.id, cumulative: curve },
+            peers
+          ),
           early: statsEarly(publishedAt, now),
           curve,
         },

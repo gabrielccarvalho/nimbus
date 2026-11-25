@@ -30,6 +30,13 @@ export type NewSnapshot = Omit<
   "id" | "fetchedAt"
 > & { fetchedAt?: Date }
 
+export type ChannelPublication = {
+  publication: Publication
+  clip: Clip | null
+  projectId: string | null
+  latest: Snapshot | null
+}
+
 export function statsRepository(db: Db) {
   return {
     async add(input: NewSnapshot): Promise<Snapshot> {
@@ -63,11 +70,7 @@ export function statsRepository(db: Db) {
     },
 
     async dueCandidates(): Promise<
-      {
-        publication: Publication
-        lastFetchedAt: Date | null
-        hasDaily: boolean
-      }[]
+      { publication: Publication; lastFetchedAt: Date | null }[]
     > {
       const rows = await db
         .select({
@@ -75,7 +78,6 @@ export function statsRepository(db: Db) {
           lastFetchedAt: sql<
             string | null
           >`(select max(s.fetched_at) from publication_stats s where s.publication_id = publications.id)`,
-          hasDaily: sql<boolean>`exists(select 1 from publication_daily d where d.publication_id = publications.id)`,
         })
         .from(publications)
         .innerJoin(
@@ -93,7 +95,6 @@ export function statsRepository(db: Db) {
       return rows.map((row) => ({
         publication: row.publication,
         lastFetchedAt: row.lastFetchedAt ? new Date(row.lastFetchedAt) : null,
-        hasDaily: row.hasDaily,
       }))
     },
 
@@ -127,14 +128,7 @@ export function statsRepository(db: Db) {
       )
     },
 
-    async forChannel(channelId: string): Promise<
-      {
-        publication: Publication
-        clip: Clip | null
-        projectId: string | null
-        latest: Snapshot | null
-      }[]
-    > {
+    async forChannel(channelId: string): Promise<ChannelPublication[]> {
       const rows = await db
         .select({ publication: publications, clip: clips })
         .from(publications)

@@ -27,7 +27,7 @@ export async function enqueueStatsSync(
 export async function enqueueDueStatsSyncs(db: Db, now: Date): Promise<number> {
   const candidates = await statsRepository(db).dueCandidates()
   let enqueued = 0
-  for (const { publication, lastFetchedAt, hasDaily } of candidates) {
+  for (const { publication, lastFetchedAt } of candidates) {
     if (
       publication.publishedAt &&
       (statsSyncDue(
@@ -35,7 +35,7 @@ export async function enqueueDueStatsSyncs(db: Db, now: Date): Promise<number> {
         lastFetchedAt,
         now
       ) ||
-        (!hasDaily &&
+        (!publication.dailySyncedAt &&
           dailyBackfillDue(publication.publishedAt, lastFetchedAt, now))) &&
       (await enqueueStatsSync(db, publication.id))
     ) {

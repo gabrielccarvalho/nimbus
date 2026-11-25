@@ -1,0 +1,1 @@
+ALTER TABLE "publications" ADD COLUMN "daily_synced_at" timestamp with time zone;

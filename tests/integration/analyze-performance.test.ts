@@ -334,6 +334,31 @@ describe("imported Shorts", () => {
 })
 
 describe("eligible insight clips", () => {
+  it("takes Nimbus clips first and fills the rest with imported Shorts", async () => {
+    const { channel, clips } = await seed(INSIGHTS_MAX_CLIPS - 1)
+    const imported = []
+    for (let i = 0; i < 2; i++) {
+      const p = await insertImportedPublication(env.db, channel.id, {
+        publishedAt: new Date(Date.now() - (9 - i) * DAY_MS),
+      })
+      await statsRepository(env.db).add({
+        publicationId: p.id,
+        views: 10,
+        likes: 0,
+        comments: 0,
+      })
+      imported.push(p)
+    }
+
+    const eligible = await eligibleInsightClips(env.db, channel.id)
+
+    expect(eligible).toHaveLength(INSIGHTS_MAX_CLIPS)
+    expect(eligible.filter((c) => c.origin === "nimbus")).toHaveLength(
+      clips.length
+    )
+    expect(eligible.at(-1)!.id).toBe(imported[1]!.id)
+  })
+
   it("counts the same clips the builder returns", async () => {
     const { channel, publicationIds } = await seed(10)
     const [noStats, young, removed, mixed] = publicationIds

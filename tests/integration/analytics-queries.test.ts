@@ -247,6 +247,28 @@ describe("getShorts", () => {
     expect(row.relative).toBeNull()
   })
 
+  it("ends each curve at the last day stored for that Short", async () => {
+    const { channel } = await seed()
+    const publishedAt = daysAgo(20)
+    for (let i = 0; i < 3; i++) {
+      const p = await insertImportedPublication(env.db, channel.id, {
+        publishedAt,
+      })
+      await withNumbers(p.id, publishedAt, Array(18).fill(10))
+    }
+    const stale = await insertImportedPublication(env.db, channel.id, {
+      publishedAt,
+    })
+    await withNumbers(stale.id, publishedAt, Array(7).fill(10))
+
+    const { rows } = await getShorts()
+
+    const row = rows.find((r) => r.publicationId === stale.id)!
+    expect(row.curve).toEqual([10, 20, 30, 40, 50, 60, 70])
+    expect(row.viewsDay7).toBeNull()
+    expect(row.relative).toBe(1)
+  })
+
   it("reports the import state from the latest sync_uploads job", async () => {
     const { channel } = await seed()
     const queue = jobQueue(env.db)

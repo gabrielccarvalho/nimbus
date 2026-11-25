@@ -124,6 +124,8 @@ export function PublishedClips({ rows }: { rows: ShortRow[] }) {
               ) : (
                 <a
                   href={row.url ?? undefined}
+                  target="_blank"
+                  rel="noreferrer"
                   className="font-medium hover:underline"
                 >
                   {row.title}

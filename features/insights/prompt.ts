@@ -48,7 +48,7 @@ Each rule is one instruction of at most ${RULE_MAX_CHARS} characters, written so
 - edit: a better wording for an existing rule, giving its id in ruleId.
 - retire: drop an existing rule that the evidence contradicts or that never mattered, giving its id in ruleId.
 
-For every suggestion cite the clip ids that support it in evidenceFor and the ones that argue against it in evidenceAgainst. Use only clip ids from the list. Prefer editing or retiring a rule over adding a near-duplicate of one that exists. Don't repeat anything listed as already rejected.
+For every suggestion cite the clip ids that support it in evidenceFor and the ones that argue against it in evidenceAgainst. Use only clip or Short ids from the list. Prefer editing or retiring a rule over adding a near-duplicate of one that exists. Don't repeat anything listed as already rejected.
 
 A handful of clips is a weak sample, and views depend on luck as much as on the edit. Suggest nothing when the evidence is weak; an empty list is a good answer.`
 

@@ -118,7 +118,7 @@ export const syncStatsStep: JobHandler = async ({ job, db, logger }) => {
 
   const analyticsRepo = analyticsRepository(db)
   const lastDay = await analyticsRepo.lastPublicationDay(publication.id)
-  let daily: Awaited<ReturnType<typeof youtube.videoDaily>> = []
+  let daily: Awaited<ReturnType<typeof youtube.videoDaily>> | null = null
   try {
     daily = await withGoogleToken(db, channel, (token) =>
       youtube.videoDaily(
@@ -132,7 +132,12 @@ export const syncStatsStep: JobHandler = async ({ job, db, logger }) => {
     if (error instanceof AppError && error.code === "UNAUTHORIZED") throw error
     logger.warn({ err: error, publicationId }, "couldn't read daily views")
   }
-  await analyticsRepo.upsertPublicationDaily(publication.id, daily)
+  if (daily) {
+    await analyticsRepo.upsertPublicationDaily(publication.id, daily)
+    await publishing.updatePublication(publication.id, {
+      dailySyncedAt: now(),
+    })
+  }
 
   await statsRepository(db).add({ publicationId, ...counts, ...analytics })
   logger.info({ publicationId, videoId, views: counts.views }, "stats synced")

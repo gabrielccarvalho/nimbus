@@ -4,7 +4,10 @@ import { withTransaction, type Db } from "@/lib/db"
 
 import { jobQueue } from "../jobs/queue"
 import { pacificDay } from "../publishing/quota"
-import { statsRepository } from "../publishing/stats-repository"
+import {
+  statsRepository,
+  type ChannelPublication,
+} from "../publishing/stats-repository"
 import { cumulativeViews } from "./curves"
 import { analyticsRepository } from "./repository"
 import { ANALYTICS_SYNC_EVERY_MS, type ChannelJobType } from "./schema"
@@ -52,10 +55,6 @@ export async function enqueueDueAnalyticsSyncs(
   return enqueued
 }
 
-type ChannelPublication = Awaited<
-  ReturnType<ReturnType<typeof statsRepository>["forChannel"]>
->[number]
-
 export async function channelCurves(
   db: Db,
   channelId: string,
@@ -71,13 +70,15 @@ export async function channelCurves(
   if (!dataThrough) return { dataThrough, curves }
   const byPublication = Map.groupBy(daily, (row) => row.publicationId)
   for (const { publication, latest } of rows) {
-    if (!latest || !publication.publishedAt) continue
+    const own = byPublication.get(publication.id)
+    if (!latest || !publication.publishedAt || !own) continue
+    const lastDay = own.at(-1)!.day
     curves.set(
       publication.id,
       cumulativeViews(
-        byPublication.get(publication.id) ?? [],
+        own,
         pacificDay(publication.publishedAt),
-        dataThrough
+        lastDay < dataThrough ? lastDay : dataThrough
       )
     )
   }

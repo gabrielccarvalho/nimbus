@@ -414,6 +414,7 @@ export const publications = pgTable(
     clipStartMs: integer("clip_start_ms"),
     clipEndMs: integer("clip_end_ms"),
     durationMs: integer("duration_ms"),
+    dailySyncedAt: timestamptz("daily_synced_at"),
     ...timestamps,
   },
   (t) => [

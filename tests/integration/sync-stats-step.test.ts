@@ -316,6 +316,22 @@ describe("sync_stats", () => {
       1
     )
     expect(await env.db.select().from(publicationDaily)).toEqual([])
+    expect(
+      (await publishingRepository(env.db).getPublication(publication.id))!
+        .dailySyncedAt
+    ).toBeNull()
+  })
+
+  it("marks the daily curve synced even when YouTube has no days yet", async () => {
+    const { publication } = await seed()
+    vi.spyOn(getYouTubeClient(), "videoDaily").mockResolvedValue([])
+
+    await runSync(publication.id)
+
+    expect(
+      (await publishingRepository(env.db).getPublication(publication.id))!
+        .dailySyncedAt
+    ).toBeInstanceOf(Date)
   })
 
   it("updates an imported Short's title from YouTube", async () => {
@@ -454,15 +470,7 @@ describe("stats scheduling", () => {
       comments: 0,
       fetchedAt: new Date(Date.now() - 10 * DAY_MS),
     })
-    await analyticsRepository(env.db).upsertPublicationDaily(recent.id, [
-      {
-        day: pacificDay(recent.publishedAt!),
-        views: 1,
-        estimatedMinutesWatched: 0,
-        likes: 0,
-        subscribersGained: 0,
-      },
-    ])
+    await repo.updatePublication(recent.id, { dailySyncedAt: new Date() })
 
     expect(await enqueueDueStatsSyncs(env.db, new Date())).toBe(2)
 
@@ -475,7 +483,7 @@ describe("stats scheduling", () => {
     )
   })
 
-  it("backfills a Short with no daily curve once a day", async () => {
+  it("backfills a Short whose daily curve was never read", async () => {
     const { publication } = await seed({
       publishedAt: new Date(Date.now() - 20 * DAY_MS),
     })
@@ -491,7 +499,25 @@ describe("stats scheduling", () => {
     expect(await enqueueDueStatsSyncs(env.db, new Date())).toBe(1)
   })
 
-  it("doesn't retry an empty daily curve within a day", async () => {
+  it("doesn't backfill once the daily curve has been read", async () => {
+    const { repo, publication } = await seed({
+      publishedAt: new Date(Date.now() - 20 * DAY_MS),
+    })
+    await statsRepository(env.db).add({
+      publicationId: publication.id,
+      views: 0,
+      likes: 0,
+      comments: 0,
+      fetchedAt: new Date(Date.now() - 2 * DAY_MS),
+    })
+    await repo.updatePublication(publication.id, {
+      dailySyncedAt: new Date(Date.now() - 2 * DAY_MS),
+    })
+
+    expect(await enqueueDueStatsSyncs(env.db, new Date())).toBe(0)
+  })
+
+  it("doesn't retry a failed daily read within a day", async () => {
     const { publication } = await seed({
       publishedAt: new Date(Date.now() - 20 * DAY_MS),
     })
