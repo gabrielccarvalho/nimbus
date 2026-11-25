@@ -64,7 +64,10 @@ test("publishes a rendered clip to YouTube", async ({ page }) => {
 
   await page.goto("/analytics/shorts")
   await expect(
-    page.getByRole("table").getByText("E2E published short")
+    page
+      .getByRole("table")
+      .filter({ has: page.getByRole("columnheader", { name: "Title" }) })
+      .getByText("E2E published short")
   ).toBeVisible()
   await expectNoSeriousA11yViolations(page)
 })

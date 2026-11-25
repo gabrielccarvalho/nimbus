@@ -188,7 +188,15 @@ The worker enqueues one `sweep` on start and every 6 h (never two at once). It d
 
 ## 9. sync_stats (no project)
 
-Enqueued by the worker every 30 min for publications whose age has passed 1, 2, 7 or 28 days since `publishedAt` without a snapshot for that age (`statsSyncDue`), and by "Refresh stats" in the clip dialog. It runs with `projectId: null` and never twice at once for one publication. The step calls `videos.list` (booked as quota kind `stats`) and the YouTube Analytics API for totals and the retention curve (not booked), then stores a `publication_stats` snapshot. A deleted video (empty `items` or a 404) marks the publication `removed`. An empty retention curve is stored as empty. When the daily quota is spent the job re-enqueues itself for after the reset. Access tokens are refreshed per call (`withGoogleToken`).
+Enqueued by the worker every 30 min for publications whose age has passed 1, 2, 7 or 28 days since `publishedAt` without a snapshot for that age (`statsSyncDue`), and by "Refresh stats" in the clip dialog. It runs with `projectId: null` and never twice at once for one publication. The step calls `videos.list` (booked as quota kind `stats`) and the YouTube Analytics API for totals and the retention curve (not booked), then stores a `publication_stats` snapshot. It also reads the Short's daily views and stores them in `publication_daily` (from the publish day, or the last stored day minus 3), stamping `dailySyncedAt`; a failing daily read doesn't fail the sync and is retried at most once a day. For an imported Short only `videos.list` and the daily read run, and a private or deleted video marks it `removed`. A deleted video (empty `items` or a 404) marks the publication `removed`. An empty retention curve is stored as empty. When the daily quota is spent the job re-enqueues itself for after the reset. Access tokens are refreshed per call (`withGoogleToken`).
+
+## 11. sync_uploads (no project)
+
+Enqueued by "Import past Shorts" and, once a channel has been imported, by the worker's due sweep when the last pass is over a day old; never twice at once for one channel (`lockChannelJob`). It reads the uploads playlist (`channels.list`, then `playlistItems.list` pages and `videos.list` for ids not yet known), keeps Shorts (duration, or the `creatorContentType` probe when it answers) and stores them as `imported` publications. Every Data API call is booked under quota kind `import`. A first run walks the whole playlist; later runs skip known ids and stop after the first page that holds a Short older than the last sync minus 7 days. When the quota is spent it re-enqueues itself for the reset with its page token and `passStartedAt`, which becomes `uploadsSyncedAt` when the pass finishes. New imports enqueue a `sync_stats` for their daily curve.
+
+## 12. sync_channel (no project)
+
+Enqueued by the due sweep when the channel has never synced or the last sync is over a day old, and when the overview is opened in that state. It reads channel daily metrics from the Analytics API (not booked) for the range from the last stored day minus 3 (90 days back on the first run) through today in Pacific time, and upserts `channel_daily`.
 
 ## 10. analyze_performance (no project)
 

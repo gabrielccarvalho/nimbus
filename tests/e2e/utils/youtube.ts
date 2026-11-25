@@ -54,6 +54,9 @@ export async function removeYouTubeChannel() {
     await client.query(
       `delete from playbook_rules where channel_id = 'e2e-channel'`
     )
+    await client.query(
+      `delete from jobs where type in ('sync_uploads', 'sync_channel') and payload->>'channelId' = 'e2e-channel'`
+    )
     await client.query(`delete from youtube_channels where id = 'e2e-channel'`)
     await client.query(`delete from account where id = 'e2e-google-account'`)
   } finally {

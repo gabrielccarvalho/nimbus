@@ -1,11 +1,11 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 
 import type { ShortRow } from "@/features/analytics/queries"
 
 import { GrowthChart } from "./growth-chart"
 
-function row(id: string, title: string): ShortRow {
+function row(id: string, title: string, publishedAt?: Date): ShortRow {
   return {
     publicationId: id,
     origin: "nimbus",
@@ -13,7 +13,7 @@ function row(id: string, title: string): ShortRow {
     projectId: "p",
     title,
     url: null,
-    publishedAt: new Date("2026-11-01T00:00:00Z"),
+    publishedAt: publishedAt ?? new Date("2026-11-01T00:00:00Z"),
     ageDays: 10,
     views: null,
     averageViewPercentage: null,
@@ -52,7 +52,22 @@ describe("GrowthChart", () => {
   it("offers the data as a table", () => {
     render(<GrowthChart rows={rows} median={median} highlightedId={null} />)
     expect(
-      screen.getByRole("columnheader", { name: "Past short two" })
+      screen.getByRole("rowheader", { name: "Past short two" })
     ).toBeInTheDocument()
+    expect(
+      screen.getByRole("columnheader", { name: "Day 7" })
+    ).toBeInTheDocument()
+    const rowOne = screen
+      .getByRole("rowheader", { name: "Past short one" })
+      .closest("tr")!
+    expect(within(rowOne).getByText("70")).toBeInTheDocument()
+  })
+
+  it("tables every Short even when the chart draws only the recent ones", () => {
+    const many = Array.from({ length: 35 }, (_, i) =>
+      row(`m${i}`, `Short ${i}`, new Date(Date.UTC(2026, 0, 1 + i)))
+    )
+    render(<GrowthChart rows={many} median={median} highlightedId="m0" />)
+    expect(screen.getAllByRole("rowheader")).toHaveLength(36)
   })
 })

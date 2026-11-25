@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo } from "react"
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
 
 import {
@@ -19,6 +20,8 @@ import {
 import type { ShortRow } from "@/features/analytics/queries"
 
 const DAYS = 28
+const DRAWN_SHORTS = 30
+const TABLE_DAYS = [1, 7, 14, 21, 28]
 
 const config = {
   median: { label: "Channel median", color: "var(--chart-1)" },
@@ -46,16 +49,33 @@ export function GrowthChart({
   highlightedId: string | null
 }) {
   const highlighted = rows.find((row) => row.publicationId === highlightedId)
-  const data = Array.from({ length: DAYS + 1 }, (_, day) => ({
-    day,
-    median: median[day] ?? null,
-    ...Object.fromEntries(
-      rows.map((row, i) => [`s${i}`, row.curve[day] ?? null])
-    ),
-  }))
-  const highlightedIndex = rows.findIndex(
+  const drawn = useMemo(() => {
+    const recent = [...rows]
+      .sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime())
+      .slice(0, DRAWN_SHORTS)
+    return highlighted && !recent.includes(highlighted)
+      ? [...recent, highlighted]
+      : recent
+  }, [rows, highlighted])
+  const data = useMemo(
+    () =>
+      Array.from({ length: DAYS + 1 }, (_, day) => {
+        const point: Record<string, number | null> = {
+          day,
+          median: median[day] ?? null,
+        }
+        drawn.forEach((row, i) => {
+          point[`s${i}`] = row.curve[day] ?? null
+        })
+        return point
+      }),
+    [drawn, median]
+  )
+  const highlightedIndex = drawn.findIndex(
     (row) => row.publicationId === highlightedId
   )
+  const cell = (value: number | null | undefined) =>
+    value == null ? "—" : number.format(value)
 
   return (
     <div className="grid gap-3">
@@ -92,7 +112,7 @@ export function GrowthChart({
               />
             }
           />
-          {rows.map((row, i) =>
+          {drawn.map((row, i) =>
             i === highlightedIndex ? null : (
               <Line
                 key={row.publicationId}
@@ -134,34 +154,31 @@ export function GrowthChart({
         <Table className="mt-2">
           <TableHeader>
             <TableRow>
-              <TableHead>Day</TableHead>
-              <TableHead className="text-end">Channel median</TableHead>
-              {rows.map((row) => (
-                <TableHead key={row.publicationId} className="text-end">
-                  {row.title}
+              <TableHead>Short</TableHead>
+              {TABLE_DAYS.map((day) => (
+                <TableHead key={day} className="text-end">
+                  Day {day}
                 </TableHead>
               ))}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.map((point) => (
-              <TableRow key={point.day}>
-                <TableCell>{point.day}</TableCell>
-                <TableCell className="text-end tabular-nums">
-                  {point.median === null ? "—" : number.format(point.median)}
+            <TableRow>
+              <TableHead scope="row">Channel median</TableHead>
+              {TABLE_DAYS.map((day) => (
+                <TableCell key={day} className="text-end tabular-nums">
+                  {cell(median[day])}
                 </TableCell>
-                {rows.map((row, i) => {
-                  const value = point[`s${i}` as keyof typeof point] as
-                    number | null
-                  return (
-                    <TableCell
-                      key={row.publicationId}
-                      className="text-end tabular-nums"
-                    >
-                      {value === null ? "—" : number.format(value)}
-                    </TableCell>
-                  )
-                })}
+              ))}
+            </TableRow>
+            {rows.map((row) => (
+              <TableRow key={row.publicationId}>
+                <TableHead scope="row">{row.title}</TableHead>
+                {TABLE_DAYS.map((day) => (
+                  <TableCell key={day} className="text-end tabular-nums">
+                    {cell(row.curve[day])}
+                  </TableCell>
+                ))}
               </TableRow>
             ))}
           </TableBody>
