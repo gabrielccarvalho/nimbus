@@ -7,12 +7,15 @@ import { getStorage, storageKeys } from "@/lib/storage"
 import { assertDiskSpace } from "@/lib/storage/disk"
 
 import { buildAss } from "../../captions/ass"
-import { clipCaptionPages } from "../../captions/pages"
+import { overlayEndMs } from "../../captions/overlay"
+import { clipCaptionPages, wordsInRange } from "../../captions/pages"
 import { captionBaseline, resolveCaptionStyle } from "../../captions/styles"
 import { clipRepository } from "../../clips/repository"
 import type { JobHandler } from "../../jobs/worker-loop"
 import { OUTPUT_HEIGHT, OUTPUT_WIDTH, planLayout } from "../../layout/geometry"
 import { layoutRepository } from "../../layout/repository"
+import { planAudio } from "../../music/envelope"
+import { musicRepository } from "../../music/repository"
 import { assetRepository, projectRepository } from "../../projects/repository"
 import { publishingRepository } from "../../publishing/repository"
 import { estimateRenderBytes } from "../../render/disk"
@@ -60,35 +63,65 @@ export const renderClipStep: JobHandler = async ({
     throw new AppError("CONFLICT", "The source hasn't been probed")
   }
 
+  const { audioMix, textOverlay } = clip
+  const track = audioMix?.trackId
+    ? await musicRepository(db).get(audioMix.trackId)
+    : null
+  if (audioMix?.trackId && track?.workspaceId !== project.workspaceId) {
+    throw new AppError(
+      "CONFLICT",
+      "This clip's music track was deleted. Pick another track or remove the music."
+    )
+  }
+
   const env = getEnv()
   const capabilities = await getFfmpegCapabilities(env.FFMPEG_PATH)
   const captions = project.settings.captionsEnabled
-  if (captions && !capabilities.hasLibass) {
+  if ((captions || textOverlay) && !capabilities.hasLibass) {
     throw new AppError(
       "DEPENDENCY_MISSING",
-      "This ffmpeg can't burn in captions (no libass). Install one with libass or turn captions off."
+      captions
+        ? "This ffmpeg can't burn in captions (no libass). Install one with libass or turn captions off."
+        : "This ffmpeg can't burn in on-screen text (no libass). Install one with libass or remove the text."
     )
   }
   const storage = getStorage()
   const durationMs = clip.endMs - clip.startMs
   await assertDiskSpace(env.DATA_DIR, estimateRenderBytes(durationMs))
 
+  const words =
+    captions || audioMix?.duck
+      ? speakerTranscriptWords(await transcriptRepository(db).get(project.id))
+      : []
+  const audio = planAudio(
+    audioMix,
+    track ?? null,
+    durationMs,
+    wordsInRange(words, clip.startMs, clip.endMs)
+  )
+
   const stamp = Date.now()
   const workKey = (name: string) =>
     storageKeys.work(project.id, `${clip.id}-${stamp}.${name}`)
   let subtitles: { file: string; fontsDir: string } | undefined
-  if (captions) {
+  if (captions || textOverlay) {
     const style = resolveCaptionStyle(
       clip.captionOverrides?.style ?? project.settings.captionStyle
     )
-    const pages = clipCaptionPages(
-      speakerTranscriptWords(await transcriptRepository(db).get(project.id)),
-      clip,
-      style
-    )
     await storage.writeBuffer(
       workKey("ass"),
-      buildAss({ pages, style, baseline: captionBaseline(style, layout) })
+      buildAss({
+        pages: captions ? clipCaptionPages(words, clip, style) : [],
+        style,
+        baseline: captionBaseline(style, layout),
+        overlay: textOverlay
+          ? {
+              text: textOverlay.text,
+              position: textOverlay.position,
+              endMs: overlayEndMs(textOverlay, durationMs),
+            }
+          : undefined,
+      })
     )
     subtitles = {
       file: storage.resolve(workKey("ass")),
@@ -115,12 +148,14 @@ export const renderClipStep: JobHandler = async ({
       ...effects,
       commandsFile: commands ? storage.resolve(workKey("cmds.txt")) : undefined,
       subtitles,
+      audio,
     })
   } else {
     graph = verticalGraph({
       plan: planLayout(layout, source.width, source.height),
       ...range,
       subtitles,
+      audio,
     })
   }
   await storage.writeBuffer(workKey("graph.txt"), graph)
@@ -137,6 +172,13 @@ export const renderClipStep: JobHandler = async ({
       renderArgs({
         input: storage.resolve(source.storageKey),
         seekMs: seekFor(clip.startMs).seekMs,
+        music:
+          audio?.music && track && audioMix
+            ? {
+                file: storage.resolve(track.storageKey),
+                seekMs: audioMix.trackStartMs,
+              }
+            : undefined,
         graphFile: storage.resolve(workKey("graph.txt")),
         encoder,
         crf: renderQualityCrf[project.settings.renderQuality],
@@ -189,7 +231,14 @@ export const renderClipStep: JobHandler = async ({
   }
   await recordUsage(db, project, "render_seconds", durationMs / 1000)
   logger.info(
-    { clipId: clip.id, encoder, captions, bytes: asset.bytes },
+    {
+      clipId: clip.id,
+      encoder,
+      captions,
+      music: Boolean(audio?.music),
+      overlay: Boolean(textOverlay),
+      bytes: asset.bytes,
+    },
     "clip rendered"
   )
 }
