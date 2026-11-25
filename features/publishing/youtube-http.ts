@@ -72,6 +72,14 @@ function column(report: AnalyticsReport, name: string): number | null {
   return value === undefined ? null : Number(value)
 }
 
+function dayColumn(at: (name: string) => number): number {
+  const index = at("day")
+  if (index < 0) {
+    throw new AppError("EXTERNAL", "YouTube analytics returned no day column")
+  }
+  return index
+}
+
 function columnIndexes(report: AnalyticsReport) {
   const indexes = new Map<string, number>()
   report.columnHeaders?.forEach((header, index) => {
@@ -238,12 +246,16 @@ export class YouTubeHttp implements YouTubeClient {
     }
     const item = body.items?.[0]
     if (!item) return null
+    const privacy = item.status?.privacyStatus
+    if (!privacy) {
+      throw new AppError("EXTERNAL", "YouTube didn't return the video's status")
+    }
     return {
       views: Number(item.statistics?.viewCount ?? 0),
       likes: Number(item.statistics?.likeCount ?? 0),
       comments: Number(item.statistics?.commentCount ?? 0),
       title: item.snippet?.title ?? "",
-      privacy: item.status?.privacyStatus ?? "private",
+      privacy,
     }
   }
 
@@ -323,16 +335,23 @@ export class YouTubeHttp implements YouTubeClient {
         status?: { privacyStatus?: PrivacyStatus; uploadStatus?: string }
       }[]
     }
-    return (body.items ?? []).map((item) => ({
-      videoId: item.id,
-      title: item.snippet.title,
-      publishedAt: new Date(item.snippet.publishedAt),
-      durationMs: item.contentDetails?.duration
-        ? parseIsoDuration(item.contentDetails.duration)
-        : null,
-      privacy: item.status?.privacyStatus ?? "private",
-      uploadStatus: item.status?.uploadStatus ?? "",
-    }))
+    return (body.items ?? []).flatMap((item) => {
+      const privacy = item.status?.privacyStatus
+      const uploadStatus = item.status?.uploadStatus
+      if (!privacy || !uploadStatus) return []
+      return [
+        {
+          videoId: item.id,
+          title: item.snippet.title,
+          publishedAt: new Date(item.snippet.publishedAt),
+          durationMs: item.contentDetails?.duration
+            ? parseIsoDuration(item.contentDetails.duration)
+            : null,
+          privacy,
+          uploadStatus,
+        },
+      ]
+    })
   }
 
   private async report(
@@ -383,10 +402,11 @@ export class YouTubeHttp implements YouTubeClient {
       sort: "day",
     })
     const at = columnIndexes(report)
+    const dayAt = dayColumn(at)
     const value = (row: (string | number)[], name: string) =>
       Number(row[at(name)] ?? 0)
     return (report.rows ?? []).map((row) => ({
-      day: String(row[at("day")]),
+      day: String(row[dayAt]),
       views: value(row, "views"),
       estimatedMinutesWatched: value(row, "estimatedMinutesWatched"),
       likes: value(row, "likes"),
@@ -416,9 +436,10 @@ export class YouTubeHttp implements YouTubeClient {
       })
     }
     const at = columnIndexes(report)
+    const dayAt = dayColumn(at)
     const merged = new Map<string, ChannelDay>()
     for (const row of report.rows ?? []) {
-      const day = String(row[at("day")])
+      const day = String(row[dayAt])
       const contentType = split
         ? contentTypeOf(String(row[at("creatorContentType")]))
         : "other"

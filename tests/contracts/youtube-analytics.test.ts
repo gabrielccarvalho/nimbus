@@ -106,6 +106,27 @@ describe("videoDetails", () => {
     ])
   })
 
+  it("skips items without a status", async () => {
+    server.use(
+      http.get(`${API}/videos`, () =>
+        HttpResponse.json({
+          items: [
+            {
+              id: "a",
+              snippet: { title: "A", publishedAt: "2026-11-01T10:00:00Z" },
+            },
+            {
+              id: "b",
+              snippet: { title: "B", publishedAt: "2026-11-01T10:00:00Z" },
+              status: { privacyStatus: "public" },
+            },
+          ],
+        })
+      )
+    )
+    expect(await client.videoDetails("t", ["a", "b"])).toEqual([])
+  })
+
   it("rejects more than 50 ids before any request", async () => {
     const hit = vi.fn()
     server.use(
@@ -191,6 +212,25 @@ describe("videoDaily", () => {
         subscribersGained: 1,
       },
     ])
+  })
+})
+
+describe("missing day column", () => {
+  it("throws for videoDaily and channelDaily", async () => {
+    server.use(
+      http.get(REPORTS, () =>
+        HttpResponse.json({
+          columnHeaders: [{ name: "views" }],
+          rows: [[1]],
+        })
+      )
+    )
+    await expect(
+      client.videoDaily("t", "abc", "2026-11-01", "2026-11-08")
+    ).rejects.toMatchObject({ code: "EXTERNAL" })
+    await expect(
+      client.channelDaily("t", "2026-11-01", "2026-11-08")
+    ).rejects.toMatchObject({ code: "EXTERNAL" })
   })
 })
 

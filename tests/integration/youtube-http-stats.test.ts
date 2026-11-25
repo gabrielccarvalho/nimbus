@@ -48,6 +48,17 @@ describe("videoStats", () => {
     })
   })
 
+  it("throws when the response has no status", async () => {
+    server.use(
+      http.get(VIDEOS, () =>
+        HttpResponse.json({ items: [{ snippet: { title: "Clip" } }] })
+      )
+    )
+    await expect(client.videoStats("t", "abc")).rejects.toMatchObject({
+      code: "EXTERNAL",
+    })
+  })
+
   it("returns null for empty items", async () => {
     server.use(http.get(VIDEOS, () => HttpResponse.json({ items: [] })))
     expect(await client.videoStats("t", "abc")).toBeNull()
