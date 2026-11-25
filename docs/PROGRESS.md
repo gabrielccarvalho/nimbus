@@ -378,6 +378,13 @@ Spec: `docs/superpowers/specs/2026-11-24-analytics-and-music-design.md`. Plan: `
 
 Not verified: how YouTube's Content ID treats the mixed audio, and the music preview by ear in a real browser (Chrome, Safari, Firefox). The tests fake `AudioContext`, and e2e Chromium plays no sound.
 
+### Phase 35: Trending music (ADR-0069)
+
+- [x] 1. `trendingMusic` on the YouTube client (`videos.list`, `chart=mostPopular`, Music category) and a cached, quota-booked service
+- [x] 2. "Trending on YouTube" list in the "Audio & text" tab, streamed in after the editor
+
+Not verified: the real chart through the Data API (tested against MSW and the fake), and the YouTube app's Add sound flow for a downloaded clip.
+
 ### Not verified
 
 - MediaPipe face detection on a real face (fixtures have none; the code path is unit tested and the model loads in e2e).

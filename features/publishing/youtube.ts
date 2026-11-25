@@ -7,6 +7,7 @@ import type {
   DailyViews,
   VideoDetails,
 } from "@/features/analytics/schema"
+import type { TrendingVideo } from "@/features/music/schema"
 
 import type { PrivacyStatus } from "./schema"
 import type { RetentionPoint } from "./stats"
@@ -89,6 +90,11 @@ export interface YouTubeClient {
     endDate: string,
     maxResults: number
   ): Promise<{ videoId: string; views: number }[]>
+  trendingMusic(
+    token: string,
+    regionCode: string,
+    maxResults: number
+  ): Promise<TrendingVideo[]>
 }
 
 let fake: YouTubeFake | undefined

@@ -59,7 +59,7 @@ import { setClipStatusAction, updateClipAction } from "@/features/clips/actions"
 import type { Clip } from "@/features/clips/repository"
 import { usesWebcam, type LayoutInput } from "@/features/layout/schema"
 import { planAudio } from "@/features/music/envelope"
-import type { MusicTrackSummary } from "@/features/music/schema"
+import type { MusicTrackSummary, TrendingMusic } from "@/features/music/schema"
 import type { ProjectSnapshot } from "@/features/pipeline/snapshot"
 import type { ProjectSettings } from "@/features/projects/schema"
 import { renderClipsAction } from "@/features/render/actions"
@@ -107,6 +107,7 @@ type ClipEditorProps = {
     nextId: string | null
   }
   musicTracks: MusicTrackSummary[]
+  trendingMusic: Promise<TrendingMusic>
 }
 
 const seconds = (ms: number) => (ms / 1000).toFixed(1)
@@ -178,6 +179,7 @@ export function ClipEditor({
   publishing,
   siblings,
   musicTracks,
+  trendingMusic,
 }: ClipEditorProps) {
   const router = useRouter()
   const snapshot = useProjectEvents(initialSnapshot)
@@ -801,6 +803,7 @@ export function ClipEditor({
                   textOverlay={textOverlay}
                   onTextOverlayChange={setTextOverlay}
                   tracks={musicTracks}
+                  trending={trendingMusic}
                   clipDurationMs={durationMs}
                   hook={hook}
                   title={title}

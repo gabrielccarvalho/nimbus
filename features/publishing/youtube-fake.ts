@@ -3,6 +3,7 @@ import "server-only"
 import { AppError } from "@/lib/errors"
 
 import type { ChannelDay, DailyViews } from "@/features/analytics/schema"
+import type { TrendingVideo } from "@/features/music/schema"
 
 import type { VideoStats, YouTubeClient } from "./youtube"
 
@@ -51,6 +52,25 @@ export const FAKE_PAST_UPLOADS: FakeUpload[] = [
     durationS: 600,
     daysAgo: 15,
     contentType: "VIDEO_ON_DEMAND",
+  },
+]
+
+export const FAKE_TRENDING_MUSIC: TrendingVideo[] = [
+  {
+    videoId: "fake-trend-1",
+    title: "Fake hit one",
+    channelTitle: "Fake artist",
+    thumbnailUrl: null,
+    durationMs: 184_000,
+    views: 12_400_000,
+  },
+  {
+    videoId: "fake-trend-2",
+    title: "Fake hit two",
+    channelTitle: "Other fake artist",
+    thumbnailUrl: null,
+    durationMs: 211_000,
+    views: 3_100_000,
   },
 ]
 
@@ -285,5 +305,9 @@ export class YouTubeFake implements YouTubeClient {
       }))
       .sort((a, b) => b.views - a.views || a.videoId.localeCompare(b.videoId))
       .slice(0, maxResults)
+  }
+
+  async trendingMusic(_token: string, _regionCode: string, maxResults: number) {
+    return FAKE_TRENDING_MUSIC.slice(0, maxResults)
   }
 }

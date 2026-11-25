@@ -282,6 +282,55 @@ describe("http YouTube client", () => {
     expect(opened[0]?.destroyed).toBe(true)
   })
 
+  it("reads the region's music chart", async () => {
+    server.use(
+      http.get(`${API}/youtube/v3/videos`, ({ request }) => {
+        const url = new URL(request.url)
+        expect(url.searchParams.get("chart")).toBe("mostPopular")
+        expect(url.searchParams.get("videoCategoryId")).toBe("10")
+        expect(url.searchParams.get("regionCode")).toBe("BR")
+        expect(url.searchParams.get("maxResults")).toBe("20")
+        expect(request.headers.get("authorization")).toBe("Bearer tok")
+        return HttpResponse.json({
+          items: [
+            {
+              id: "v1",
+              snippet: {
+                title: "Hit",
+                channelTitle: "Artist",
+                thumbnails: {
+                  default: { url: "https://img/d.jpg" },
+                  medium: { url: "https://img/m.jpg" },
+                },
+              },
+              contentDetails: { duration: "PT3M4S" },
+              statistics: { viewCount: "1200" },
+            },
+            { id: "v2", snippet: { title: "Bare", channelTitle: "Other" } },
+          ],
+        })
+      })
+    )
+    await expect(client().trendingMusic("tok", "BR", 20)).resolves.toEqual([
+      {
+        videoId: "v1",
+        title: "Hit",
+        channelTitle: "Artist",
+        thumbnailUrl: "https://img/m.jpg",
+        durationMs: 184_000,
+        views: 1200,
+      },
+      {
+        videoId: "v2",
+        title: "Bare",
+        channelTitle: "Other",
+        thumbnailUrl: null,
+        durationMs: null,
+        views: 0,
+      },
+    ])
+  })
+
   it("maps 401 to a token error", async () => {
     server.use(
       http.get(`${API}/youtube/v3/channels`, () =>

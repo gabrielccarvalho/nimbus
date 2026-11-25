@@ -13,6 +13,7 @@ import type { RetentionPoint } from "./stats"
 
 const API = "https://www.googleapis.com"
 const ANALYTICS = "https://youtubeanalytics.googleapis.com/v2/reports"
+const MUSIC_CATEGORY = "10"
 
 type GoogleError = {
   error?: {
@@ -392,6 +393,45 @@ export class YouTubeHttp implements YouTubeClient {
           uploadStatus,
         },
       ]
+    })
+  }
+
+  async trendingMusic(token: string, regionCode: string, maxResults: number) {
+    const query = new URLSearchParams({
+      part: "snippet,contentDetails,statistics",
+      chart: "mostPopular",
+      videoCategoryId: MUSIC_CATEGORY,
+      regionCode,
+      maxResults: String(maxResults),
+    })
+    const response = await send(`${API}/youtube/v3/videos?${query}`, {
+      headers: { authorization: `Bearer ${token}` },
+    })
+    if (!response.ok) throw await failure(response)
+    const body = (await response.json()) as {
+      items?: {
+        id: string
+        snippet: {
+          title: string
+          channelTitle: string
+          thumbnails?: Record<string, { url?: string } | undefined>
+        }
+        contentDetails?: { duration?: string }
+        statistics?: { viewCount?: string }
+      }[]
+    }
+    return (body.items ?? []).map((item) => {
+      const thumbnails = item.snippet.thumbnails ?? {}
+      return {
+        videoId: item.id,
+        title: item.snippet.title,
+        channelTitle: item.snippet.channelTitle,
+        thumbnailUrl: thumbnails.medium?.url ?? thumbnails.default?.url ?? null,
+        durationMs: item.contentDetails?.duration
+          ? parseIsoDuration(item.contentDetails.duration)
+          : null,
+        views: Number(item.statistics?.viewCount ?? 0),
+      }
     })
   }
 

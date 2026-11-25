@@ -3,6 +3,7 @@
 import * as React from "react"
 
 import { MusicUploadButton } from "@/components/music/music-upload-button"
+import { TrendingMusic } from "@/components/music/trending-music"
 import { FieldError } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -35,6 +36,7 @@ import {
   SOURCE_DB,
   type AudioMix,
   type MusicTrackSummary,
+  type TrendingMusic as TrendingMusicResult,
 } from "@/features/music/schema"
 import { formatDuration } from "@/lib/format"
 
@@ -92,6 +94,7 @@ export function AudioTextPanel({
   textOverlay,
   onTextOverlayChange,
   tracks,
+  trending,
   clipDurationMs,
   hook,
   title,
@@ -104,6 +107,7 @@ export function AudioTextPanel({
   textOverlay: TextOverlay | null
   onTextOverlayChange: (overlay: TextOverlay | null) => void
   tracks: MusicTrackSummary[]
+  trending: Promise<TrendingMusicResult>
   clipDurationMs: number
   hook: string
   title: string
@@ -310,6 +314,7 @@ export function AudioTextPanel({
             </div>
           </>
         )}
+        <TrendingMusic trending={trending} />
       </section>
 
       <section

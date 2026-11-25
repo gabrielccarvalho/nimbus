@@ -79,3 +79,17 @@ export function toSummary(
     usedBy,
   }
 }
+
+export type TrendingVideo = {
+  videoId: string
+  title: string
+  channelTitle: string
+  thumbnailUrl: string | null
+  durationMs: number | null
+  views: number
+}
+
+export type TrendingMusic =
+  | { status: "ok"; region: string; tracks: TrendingVideo[] }
+  | { status: "no_channel" }
+  | { status: "error"; message: string }

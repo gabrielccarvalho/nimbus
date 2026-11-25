@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 
 import { BreadcrumbLabel } from "@/components/app-shell/breadcrumbs"
 import { ClipEditor } from "@/components/projects/clip-editor"
+import { getTrendingMusic } from "@/features/music/queries"
 import { getClipEditor } from "@/features/projects/queries"
 import { getPublishing } from "@/features/publishing/queries"
 import { installedCaptionFonts } from "@/features/render/fonts"
@@ -56,6 +57,7 @@ export default async function ClipEditorPage({
         siblings={data.siblings}
         publishing={publishing}
         musicTracks={data.musicTracks}
+        trendingMusic={getTrendingMusic()}
       />
     </>
   )

@@ -74,6 +74,7 @@ function renderPanel(
     textOverlay: null,
     onTextOverlayChange: vi.fn(),
     tracks,
+    trending: Promise.resolve({ status: "no_channel" } as const),
     clipDurationMs: 30_000,
     hook: "Wait for the jump",
     title: "Bridge fight",

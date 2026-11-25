@@ -113,6 +113,7 @@ function renderEditor(edit: Partial<Clip> = {}) {
       }}
       siblings={{ index: 0, count: 2, previousId: null, nextId: "c2" }}
       musicTracks={[]}
+      trendingMusic={Promise.resolve({ status: "no_channel" })}
     />
   )
 }

@@ -282,7 +282,11 @@ The Settings › Music page: a `SettingsSection` with the `MusicUploadButton` in
 
 ### AudioTextPanel (`components/projects/audio-text-panel.tsx`)
 
-The clip editor's "Audio & text" tab, controlled through `audioMix`/`onAudioMixChange` and `textOverlay`/`onTextOverlayChange`. Music: a track `Select` with an upload button (an upload is selected at once), a `Timeline` scrubber for the start in the track over the track's waveform with the clip's span as a range, music and original audio volume sliders, ducking and fades. Text: an on/off switch that starts from the hook, the text with a counter, position and how long it stays. `captionsNearTop` warns about top text over top captions and `previewUnavailable` says the preview can't play music.
+The clip editor's "Audio & text" tab, controlled through `audioMix`/`onAudioMixChange` and `textOverlay`/`onTextOverlayChange`. Music: a track `Select` with an upload button (an upload is selected at once), a `Timeline` scrubber for the start in the track over the track's waveform with the clip's span as a range, music and original audio volume sliders, ducking and fades. Text: an on/off switch that starts from the hook, the text with a counter, position and how long it stays. `captionsNearTop` warns about top text over top captions and `previewUnavailable` says the preview can't play music. Under the music controls it shows `TrendingMusic` from the `trending` promise.
+
+### TrendingMusic (`components/music/trending-music.tsx`)
+
+The "Trending on YouTube" chart for the clip editor. Takes the `TrendingMusic` result as a promise and reads it with `use()` inside its own `Suspense` (skeleton rows while it loads), so the editor never waits on YouTube. Each song is a link to YouTube in a `role="listitem"` wrapper (on the `Item` itself the role would hide the link) with its rank, thumbnail, artist, length and compact views. Without a channel it asks to connect one, and it shows the service's message when the chart is unavailable.
 
 ### MusicPreview (`components/projects/music-preview.tsx`)
 
