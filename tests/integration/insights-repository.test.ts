@@ -110,7 +110,7 @@ describe("insights repository", () => {
     })
 
     const rejected = await repo.decideSuggestion(first!.id, "rejected")
-    expect(rejected.decidedAt).toBeInstanceOf(Date)
+    expect(rejected?.decidedAt).toBeInstanceOf(Date)
     expect(
       (await repo.rejectedSuggestions(channel.id)).map((s) => s.id)
     ).toEqual([first!.id])

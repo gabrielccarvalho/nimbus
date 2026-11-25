@@ -317,6 +317,54 @@ describe("approveSuggestion", () => {
   })
 })
 
+describe("decided-state races", () => {
+  it("creates no rule for a suggestion replaced by a new analysis", async () => {
+    const { channel } = await seed()
+    const s = await suggest(channel.id, { text: "Gone" })
+    const insights = insightsRepository(env.db)
+    await insights.replacePending(channel.id, [])
+    await expect(
+      approveSuggestion(env.db, channel.id, s.id, {})
+    ).rejects.toMatchObject({ code: "NOT_FOUND" })
+    expect(await insights.activeRules(channel.id)).toHaveLength(0)
+  })
+
+  it("decides atomically and only once", async () => {
+    const { channel } = await seed()
+    const s = await suggest(channel.id, { text: "Once" })
+    const insights = insightsRepository(env.db)
+    expect(await insights.decideSuggestion(s.id, "approved")).toBeDefined()
+    expect(await insights.decideSuggestion(s.id, "rejected")).toBeUndefined()
+    expect((await insights.getSuggestion(s.id))?.status).toBe("approved")
+  })
+
+  it("never exceeds the cap with concurrent approvals", async () => {
+    const { channel } = await seed()
+    const insights = insightsRepository(env.db)
+    for (let i = 0; i < PLAYBOOK_RULE_CAP - 1; i++) {
+      await insights.insertRule({
+        channelId: channel.id,
+        target: "selection",
+        text: `Rule ${i}`,
+      })
+    }
+    await insights.replacePending(channel.id, [
+      { ...base, text: "A" },
+      { ...base, text: "B" },
+    ])
+    const pending = await insights.pendingSuggestions(channel.id)
+
+    const results = await Promise.allSettled(
+      pending.map((p) => approveSuggestion(env.db, channel.id, p.id, {}))
+    )
+
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1)
+    expect(await insights.countActive(channel.id, "selection")).toBe(
+      PLAYBOOK_RULE_CAP
+    )
+  })
+})
+
 describe("rejectSuggestion", () => {
   it("keeps the row as rejected", async () => {
     const { channel } = await seed()

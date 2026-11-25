@@ -180,18 +180,22 @@ async function makeRoom(
   await repo.retireRule(rule.id)
 }
 
-async function pendingSuggestion(
+const alreadyDecided = () =>
+  new AppError("CONFLICT", "This suggestion was already decided.")
+
+async function decideSuggestion(
   repo: ReturnType<typeof insightsRepository>,
   channelId: string,
-  id: string
+  id: string,
+  status: "approved" | "rejected"
 ): Promise<InsightSuggestion> {
   const suggestion = await repo.getSuggestion(id)
   if (!suggestion || suggestion.channelId !== channelId) {
     throw new AppError("NOT_FOUND", "Suggestion not found")
   }
-  if (suggestion.status !== "pending") {
-    throw new AppError("CONFLICT", "This suggestion was already decided.")
-  }
+  if (suggestion.status !== "pending") throw alreadyDecided()
+  const decided = await repo.decideSuggestion(id, status)
+  if (!decided) throw alreadyDecided()
   return suggestion
 }
 
@@ -203,7 +207,13 @@ export function approveSuggestion(
 ): Promise<void> {
   return withTransaction(db, async (tx) => {
     const repo = insightsRepository(tx)
-    const suggestion = await pendingSuggestion(repo, channelId, suggestionId)
+    await repo.lockChannel(channelId)
+    const suggestion = await decideSuggestion(
+      repo,
+      channelId,
+      suggestionId,
+      "approved"
+    )
     const sourceSuggestionId = suggestion.id
 
     if (suggestion.kind === "add") {
@@ -239,7 +249,6 @@ export function approveSuggestion(
         await repo.retireRule(rule.id)
       }
     }
-    await repo.decideSuggestion(suggestion.id, "approved")
   })
 }
 
@@ -250,8 +259,8 @@ export function rejectSuggestion(
 ): Promise<void> {
   return withTransaction(db, async (tx) => {
     const repo = insightsRepository(tx)
-    const suggestion = await pendingSuggestion(repo, channelId, suggestionId)
-    await repo.decideSuggestion(suggestion.id, "rejected")
+    await repo.lockChannel(channelId)
+    await decideSuggestion(repo, channelId, suggestionId, "rejected")
   })
 }
 
@@ -264,6 +273,7 @@ export function editRule(
   const nextText = parseRuleText(text)
   return withTransaction(db, async (tx) => {
     const repo = insightsRepository(tx)
+    await repo.lockChannel(channelId)
     const rule = await ownedRule(repo, channelId, ruleId)
     if (rule.status !== "active") {
       throw new AppError("CONFLICT", "Only an active rule can be edited.")
@@ -285,6 +295,7 @@ export function retireRule(
 ): Promise<void> {
   return withTransaction(db, async (tx) => {
     const repo = insightsRepository(tx)
+    await repo.lockChannel(channelId)
     const rule = await ownedRule(repo, channelId, ruleId)
     if (rule.status !== "active") {
       throw new AppError("CONFLICT", "This rule is already retired.")
@@ -301,6 +312,7 @@ export function restoreRule(
 ): Promise<void> {
   return withTransaction(db, async (tx) => {
     const repo = insightsRepository(tx)
+    await repo.lockChannel(channelId)
     const rule = await ownedRule(repo, channelId, ruleId)
     if (rule.status === "active") {
       throw new AppError("CONFLICT", "This rule is already active.")
@@ -328,13 +340,17 @@ export async function findPatterns(
       `Finding patterns needs ${INSIGHTS_MIN_CLIPS} clips with stats at least ${INSIGHTS_MIN_AGE_DAYS} days old. You have ${eligible}.`
     )
   }
-  if (await insightsRepository(db).analysisActive(channelId)) {
-    throw new AppError("CONFLICT", "Already looking for patterns")
-  }
-  await jobQueue(db).enqueue({
-    type: "analyze_performance",
-    projectId: null,
-    payload: { channelId },
-    maxAttempts: 1,
+  await withTransaction(db, async (tx) => {
+    const repo = insightsRepository(tx)
+    await repo.lockChannel(channelId)
+    if (await repo.analysisActive(channelId)) {
+      throw new AppError("CONFLICT", "Already looking for patterns")
+    }
+    await jobQueue(tx).enqueue({
+      type: "analyze_performance",
+      projectId: null,
+      payload: { channelId },
+      maxAttempts: 1,
+    })
   })
 }

@@ -187,13 +187,24 @@ export function insightsRepository(db: Db) {
     async decideSuggestion(
       id: string,
       status: Exclude<SuggestionStatus, "pending">
-    ): Promise<InsightSuggestion> {
+    ): Promise<InsightSuggestion | undefined> {
       const [row] = await db
         .update(insightSuggestions)
         .set({ status, decidedAt: now() })
-        .where(eq(insightSuggestions.id, id))
+        .where(
+          and(
+            eq(insightSuggestions.id, id),
+            eq(insightSuggestions.status, "pending")
+          )
+        )
         .returning()
-      return row!
+      return row
+    },
+
+    async lockChannel(channelId: string): Promise<void> {
+      await db.execute(
+        sql`select pg_advisory_xact_lock(hashtext(${`playbook:${channelId}`}))`
+      )
     },
   }
 }
