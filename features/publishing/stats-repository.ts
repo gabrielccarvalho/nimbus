@@ -107,9 +107,12 @@ export function statsRepository(db: Db) {
         .from(jobs)
         .where(
           and(
-            eq(jobs.type, "sync_stats"),
+            inArray(jobs.type, ["sync_stats", "sync_stats_batch"]),
             inArray(jobs.status, ["queued", "running"]),
-            sql`${jobs.payload}->>'publicationId' = ${publicationId}`,
+            or(
+              sql`${jobs.payload}->>'publicationId' = ${publicationId}`,
+              sql`${jobs.payload}->'publicationIds' @> jsonb_build_array(${publicationId}::text)`
+            ),
             options.dueBy
               ? or(
                   eq(jobs.status, "running"),
@@ -120,6 +123,27 @@ export function statsRepository(db: Db) {
         )
         .limit(1)
       return row !== undefined
+    },
+
+    async activeSyncIds(): Promise<Set<string>> {
+      const rows = await db
+        .select({ payload: jobs.payload })
+        .from(jobs)
+        .where(
+          and(
+            inArray(jobs.type, ["sync_stats", "sync_stats_batch"]),
+            inArray(jobs.status, ["queued", "running"])
+          )
+        )
+      return new Set(
+        rows.flatMap(({ payload }) =>
+          Array.isArray(payload.publicationIds)
+            ? (payload.publicationIds as string[])
+            : typeof payload.publicationId === "string"
+              ? [payload.publicationId]
+              : []
+        )
+      )
     },
 
     async lockSync(publicationId: string): Promise<void> {

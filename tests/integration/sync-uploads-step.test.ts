@@ -79,6 +79,9 @@ const imported = () =>
 const statsJobs = () =>
   env.db.select().from(jobs).where(eq(jobs.type, "sync_stats"))
 
+const batchJobs = () =>
+  env.db.select().from(jobs).where(eq(jobs.type, "sync_stats_batch"))
+
 const uploadJobs = () =>
   env.db.select().from(jobs).where(eq(jobs.type, "sync_uploads"))
 
@@ -179,20 +182,26 @@ describe("sync_uploads", () => {
     expect(await imported()).toHaveLength(3)
   })
 
-  it("queues one stats sync per new import and nothing on a second run", async () => {
+  it("queues one stats batch for the new imports and nothing on a second run", async () => {
     const { channel } = await seed()
 
     await runUploads(channel.id)
     const rows = await imported()
-    const queued = await statsJobs()
-    expect(queued.map((job) => job.payload.publicationId).sort()).toEqual(
+    const queued = await batchJobs()
+    expect(queued).toHaveLength(1)
+    expect(queued[0]!.payload).toEqual({
+      channelId: channel.id,
+      publicationIds: expect.any(Array),
+    })
+    expect((queued[0]!.payload.publicationIds as string[]).sort()).toEqual(
       rows.map((row) => row.id).sort()
     )
+    expect(await statsJobs()).toEqual([])
 
     await runUploads(channel.id)
 
     expect(await imported()).toHaveLength(3)
-    expect(await statsJobs()).toHaveLength(3)
+    expect(await batchJobs()).toHaveLength(1)
   })
 
   it("books every Data API call and stops at uploads older than the last pass", async () => {

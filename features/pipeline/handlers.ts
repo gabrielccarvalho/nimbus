@@ -22,6 +22,7 @@ import { selectStep } from "./steps/select"
 import { sweepStep } from "./steps/sweep"
 import { syncChannelStep } from "./steps/sync-channel"
 import { syncStatsStep } from "./steps/sync-stats"
+import { syncStatsBatchStep } from "./steps/sync-stats-batch"
 import { syncUploadsStep } from "./steps/sync-uploads"
 import { transcribeStep } from "./steps/transcribe"
 
@@ -39,6 +40,7 @@ export const pipelineHandlers: JobHandlers = {
   analyze_performance: analyzePerformanceStep,
   sync_uploads: syncUploadsStep,
   sync_channel: syncChannelStep,
+  sync_stats_batch: syncStatsBatchStep,
 }
 
 const MINUTE = 60_000
@@ -59,6 +61,7 @@ export function jobStallTimeoutMs(job: Job): number {
     case "sync_uploads":
       return 15 * MINUTE
     case "sweep":
+    case "sync_stats_batch":
       return 10 * MINUTE
     case "sync_stats":
     case "sync_channel":

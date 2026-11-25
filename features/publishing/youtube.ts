@@ -13,6 +13,14 @@ import type { RetentionPoint } from "./stats"
 import { YouTubeFake } from "./youtube-fake"
 import { YouTubeHttp } from "./youtube-http"
 
+export type VideoStats = {
+  views: number
+  likes: number
+  comments: number
+  title: string
+  privacy: PrivacyStatus
+}
+
 export interface YouTubeClient {
   myChannel(
     token: string
@@ -32,16 +40,11 @@ export interface YouTubeClient {
     signal: AbortSignal,
     onProgress: (sent: number) => void
   ): Promise<{ videoId: string }>
-  videoStats(
+  videoStats(token: string, videoId: string): Promise<VideoStats | null>
+  videoStatsBatch(
     token: string,
-    videoId: string
-  ): Promise<{
-    views: number
-    likes: number
-    comments: number
-    title: string
-    privacy: PrivacyStatus
-  } | null>
+    videoIds: string[]
+  ): Promise<Map<string, VideoStats>>
   videoAnalytics(
     token: string,
     videoId: string,

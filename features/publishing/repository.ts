@@ -123,6 +123,11 @@ export function publishingRepository(db: Db) {
       return row
     },
 
+    async getPublications(ids: string[]): Promise<Publication[]> {
+      if (ids.length === 0) return []
+      return db.select().from(publications).where(inArray(publications.id, ids))
+    },
+
     async updatePublication(
       id: string,
       patch: PublicationPatch

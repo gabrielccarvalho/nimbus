@@ -474,13 +474,17 @@ describe("stats scheduling", () => {
 
     expect(await enqueueDueStatsSyncs(env.db, new Date())).toBe(2)
 
-    const queued = (await syncJobs()).map((row) => row.payload)
-    expect(queued).toEqual(
-      expect.arrayContaining([
-        { publicationId: publication.id },
-        { publicationId: imported.id },
-      ])
-    )
+    expect((await syncJobs()).map((row) => row.payload)).toEqual([
+      { publicationId: publication.id },
+    ])
+    const [batch] = await env.db
+      .select()
+      .from(jobs)
+      .where(eq(jobs.type, "sync_stats_batch"))
+    expect(batch!.payload).toEqual({
+      channelId: channel.id,
+      publicationIds: [imported.id],
+    })
   })
 
   it("backfills a Short whose daily curve was never read", async () => {
@@ -541,5 +545,132 @@ describe("stats scheduling", () => {
     const { publication } = await seed()
     expect(await enqueueStatsSync(env.db, publication.id)).toBe(true)
     expect(await enqueueStatsSync(env.db, publication.id)).toBe(false)
+  })
+})
+
+describe("sync_stats_batch", () => {
+  const batchJobs = () =>
+    env.db.select().from(jobs).where(eq(jobs.type, "sync_stats_batch"))
+
+  const statsUnits = async () =>
+    (
+      await env.db
+        .select()
+        .from(youtubeQuotaUsage)
+        .where(eq(youtubeQuotaUsage.kind, "stats"))
+    ).reduce((sum, row) => sum + row.units, 0)
+
+  it("syncs 120 due imported Shorts in 3 batches for 3 units", async () => {
+    const { channel } = await seed({ publishedAt: new Date() })
+    const ids: string[] = []
+    for (let i = 0; i < 120; i++) {
+      const row = await insertImportedPublication(env.db, channel.id, {
+        videoId: `fake-imp-${i}`,
+        publishedAt: new Date(Date.now() - 40 * DAY_MS),
+      })
+      ids.push(row.id)
+    }
+
+    expect(await enqueueDueStatsSyncs(env.db, new Date())).toBe(3)
+    expect(await enqueueDueStatsSyncs(env.db, new Date())).toBe(0)
+
+    const batches = await batchJobs()
+    expect(
+      batches.map((job) => (job.payload.publicationIds as string[]).length)
+    ).toEqual(expect.arrayContaining([50, 50, 20]))
+    expect(batches.every((job) => job.payload.channelId === channel.id)).toBe(
+      true
+    )
+    expect(
+      batches.flatMap((job) => job.payload.publicationIds as string[]).sort()
+    ).toEqual([...ids].sort())
+    expect(await syncJobs()).toEqual([])
+
+    await runJobs(env.db, ["sync_stats_batch"])
+
+    expect(await statsUnits()).toBe(3)
+    const latest = await statsRepository(env.db).latestFor(ids)
+    expect(latest.size).toBe(120)
+    expect(
+      await env.db
+        .select()
+        .from(publicationDaily)
+        .where(eq(publicationDaily.publicationId, ids[0]!))
+    ).not.toEqual([])
+  })
+
+  it("marks a Short missing from the response removed and syncs the rest", async () => {
+    const { repo, channel } = await seed({ publishedAt: new Date() })
+    const kept = await insertImportedPublication(env.db, channel.id, {
+      videoId: "fake-kept",
+    })
+    const gone = await insertImportedPublication(env.db, channel.id, {
+      videoId: "gone-1",
+    })
+    const batch = vi.spyOn(getYouTubeClient(), "videoStatsBatch")
+
+    await enqueueDueStatsSyncs(env.db, new Date())
+    await runJobs(env.db, ["sync_stats_batch"])
+
+    expect(batch).toHaveBeenCalledTimes(1)
+    expect((await repo.getPublication(gone.id))!.status).toBe("removed")
+    expect(await statsRepository(env.db).history(gone.id)).toEqual([])
+    expect((await repo.getPublication(kept.id))!.metadata.title).toBe(
+      "Fake upload"
+    )
+    expect(await statsRepository(env.db).history(kept.id)).toHaveLength(1)
+  })
+
+  it("defers the whole batch to the quota reset when the stats budget is spent", async () => {
+    env.cleanup()
+    env = await createTestEnv({
+      YOUTUBE_CLIENT: "fake",
+      YOUTUBE_DAILY_QUOTA: "1",
+    })
+    const { repo, channel, workspaceId } = await seed({
+      publishedAt: new Date(),
+    })
+    const a = await insertImportedPublication(env.db, channel.id, {
+      videoId: "fake-a",
+    })
+    const b = await insertImportedPublication(env.db, channel.id, {
+      videoId: "fake-b",
+    })
+    await repo.spendQuota({
+      day: pacificDay(new Date()),
+      workspaceId,
+      kind: "stats",
+      units: 1,
+      budget: 1,
+    })
+    await enqueueDueStatsSyncs(env.db, new Date())
+    const [first] = await batchJobs()
+
+    await runJobs(env.db, ["sync_stats_batch"])
+
+    const next = (await batchJobs()).find((row) => row.id !== first!.id)!
+    expect(next.status).toBe("queued")
+    expect(next.payload).toEqual(first!.payload)
+    expect(next.runAfter).toEqual(nextQuotaReset(new Date()))
+    expect(await statsRepository(env.db).latestFor([a.id, b.id])).toEqual(
+      new Map()
+    )
+  })
+
+  it("skips an imported Short that already has an active single sync", async () => {
+    const { channel } = await seed({ publishedAt: new Date() })
+    const single = await insertImportedPublication(env.db, channel.id, {
+      videoId: "fake-single",
+    })
+    const other = await insertImportedPublication(env.db, channel.id, {
+      videoId: "fake-other",
+    })
+    await enqueueStatsSync(env.db, single.id)
+
+    expect(await enqueueDueStatsSyncs(env.db, new Date())).toBe(1)
+
+    const [batch] = await batchJobs()
+    expect(batch!.payload.publicationIds).toEqual([other.id])
+    expect(await enqueueStatsSync(env.db, other.id)).toBe(false)
   })
 })

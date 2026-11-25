@@ -85,6 +85,61 @@ describe("videoStats", () => {
   })
 })
 
+describe("videoStatsBatch", () => {
+  it("reads every id in one request and leaves out the missing ones", async () => {
+    let requests = 0
+    server.use(
+      http.get(VIDEOS, ({ request }) => {
+        requests++
+        const url = new URL(request.url)
+        expect(url.searchParams.get("part")).toBe("statistics,snippet,status")
+        expect(url.searchParams.get("id")).toBe("a,b,c")
+        return HttpResponse.json({
+          items: [
+            {
+              id: "a",
+              snippet: { title: "A" },
+              status: { privacyStatus: "public" },
+              statistics: {
+                viewCount: "10",
+                likeCount: "2",
+                commentCount: "1",
+              },
+            },
+            {
+              id: "c",
+              snippet: { title: "C" },
+              status: { privacyStatus: "private" },
+              statistics: { viewCount: "3" },
+            },
+          ],
+        })
+      })
+    )
+    const stats = await client.videoStatsBatch("t", ["a", "b", "c"])
+    expect(requests).toBe(1)
+    expect([...stats]).toEqual([
+      [
+        "a",
+        { views: 10, likes: 2, comments: 1, title: "A", privacy: "public" },
+      ],
+      [
+        "c",
+        { views: 3, likes: 0, comments: 0, title: "C", privacy: "private" },
+      ],
+    ])
+  })
+
+  it("rejects more than 50 ids before any request", async () => {
+    await expect(
+      client.videoStatsBatch(
+        "t",
+        Array.from({ length: 51 }, (_, i) => `v${i}`)
+      )
+    ).rejects.toMatchObject({ code: "INTERNAL" })
+  })
+})
+
 describe("videoAnalytics", () => {
   it("reads columns by header name and sends the retention query", async () => {
     const seen: URL[] = []

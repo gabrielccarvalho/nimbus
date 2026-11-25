@@ -8,7 +8,7 @@ import { contentTypeOf, parseIsoDuration } from "@/features/analytics/shorts"
 import { AppError } from "@/lib/errors"
 
 import type { PrivacyStatus } from "./schema"
-import type { YouTubeClient } from "./youtube"
+import type { VideoStats, YouTubeClient } from "./youtube"
 import type { RetentionPoint } from "./stats"
 
 const API = "https://www.googleapis.com"
@@ -106,6 +106,31 @@ function columnIndexes(report: AnalyticsReport) {
     indexes.set(header.name, index)
   })
   return (name: string) => indexes.get(name) ?? -1
+}
+
+type StatsItem = {
+  id?: string
+  snippet?: { title?: string }
+  status?: { privacyStatus?: PrivacyStatus }
+  statistics?: {
+    viewCount?: string
+    likeCount?: string
+    commentCount?: string
+  }
+}
+
+function statsOf(item: StatsItem): VideoStats {
+  const privacy = item.status?.privacyStatus
+  if (!privacy) {
+    throw new AppError("EXTERNAL", "YouTube didn't return the video's status")
+  }
+  return {
+    views: Number(item.statistics?.viewCount ?? 0),
+    likes: Number(item.statistics?.likeCount ?? 0),
+    comments: Number(item.statistics?.commentCount ?? 0),
+    title: item.snippet?.title ?? "",
+    privacy,
+  }
 }
 
 const CHANNEL_METRICS = [
@@ -253,30 +278,26 @@ export class YouTubeHttp implements YouTubeClient {
       if (body.error?.errors?.[0]?.reason === "videoNotFound") return null
     }
     if (!response.ok) throw await failure(response)
-    const body = (await response.json()) as {
-      items?: {
-        snippet?: { title?: string }
-        status?: { privacyStatus?: PrivacyStatus }
-        statistics?: {
-          viewCount?: string
-          likeCount?: string
-          commentCount?: string
-        }
-      }[]
-    }
+    const body = (await response.json()) as { items?: StatsItem[] }
     const item = body.items?.[0]
-    if (!item) return null
-    const privacy = item.status?.privacyStatus
-    if (!privacy) {
-      throw new AppError("EXTERNAL", "YouTube didn't return the video's status")
+    return item ? statsOf(item) : null
+  }
+
+  async videoStatsBatch(token: string, videoIds: string[]) {
+    if (videoIds.length > 50) {
+      throw new AppError("INTERNAL", "videos.list takes at most 50 ids")
     }
-    return {
-      views: Number(item.statistics?.viewCount ?? 0),
-      likes: Number(item.statistics?.likeCount ?? 0),
-      comments: Number(item.statistics?.commentCount ?? 0),
-      title: item.snippet?.title ?? "",
-      privacy,
-    }
+    const response = await send(
+      `${API}/youtube/v3/videos?${new URLSearchParams({ part: "statistics,snippet,status", id: videoIds.join(",") })}`,
+      { headers: { authorization: `Bearer ${token}` } }
+    )
+    if (!response.ok) throw await failure(response)
+    const body = (await response.json()) as { items?: StatsItem[] }
+    return new Map(
+      (body.items ?? []).flatMap((item) =>
+        item.id ? [[item.id, statsOf(item)] as const] : []
+      )
+    )
   }
 
   async uploadsPlaylist(token: string) {

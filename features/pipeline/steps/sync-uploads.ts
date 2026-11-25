@@ -18,7 +18,8 @@ import {
 } from "../../publishing/google-token"
 import { LIST_UNITS, nextQuotaReset, pacificDay } from "../../publishing/quota"
 import { publishingRepository } from "../../publishing/repository"
-import { enqueueStatsSync } from "../../publishing/stats-service"
+import { STATS_BATCH_SIZE } from "../../jobs/schema"
+import { enqueueStatsBatches } from "../../publishing/stats-service"
 import { getYouTubeClient } from "../../publishing/youtube"
 
 const DAY_MS = 86_400_000
@@ -69,7 +70,11 @@ export const syncUploadsStep: JobHandler = async ({
     typeof job.payload.passStartedAt === "string"
       ? new Date(job.payload.passStartedAt)
       : (job.startedAt ?? now())
+  const pending: string[] = []
+  const flush = (count = pending.length) =>
+    enqueueStatsBatches(db, channelId, pending.splice(0, count))
   const defer = async (pageToken: string | null) => {
+    await flush()
     await jobQueue(db).enqueue({
       type: "sync_uploads",
       projectId: null,
@@ -161,8 +166,9 @@ export const syncUploadsStep: JobHandler = async ({
           await repo.lockChannelJob("sync_uploads", channelId)
           return repo.insertImported(channelId, shorts)
         })
-        for (const publication of imported) {
-          await enqueueStatsSync(db, publication.id)
+        pending.push(...imported.map((publication) => publication.id))
+        while (pending.length >= STATS_BATCH_SIZE) {
+          await flush(STATS_BATCH_SIZE)
         }
         if (imported.length > 0) {
           logger.info(
@@ -181,5 +187,6 @@ export const syncUploadsStep: JobHandler = async ({
     if (detection) logger.info({ channelId, detection }, "Short detection path")
   }
 
+  await flush()
   await analytics.markSynced(channelId, "uploadsSyncedAt", passStartedAt)
 }

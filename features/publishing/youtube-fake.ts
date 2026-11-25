@@ -4,7 +4,7 @@ import { AppError } from "@/lib/errors"
 
 import type { ChannelDay, DailyViews } from "@/features/analytics/schema"
 
-import type { YouTubeClient } from "./youtube"
+import type { VideoStats, YouTubeClient } from "./youtube"
 
 const DAY_MS = 86_400_000
 
@@ -120,6 +120,18 @@ export class YouTubeFake implements YouTubeClient {
           privacy: "public" as const,
         }
       : null
+  }
+
+  async videoStatsBatch(token: string, videoIds: string[]) {
+    if (videoIds.length > 50) {
+      throw new AppError("INTERNAL", "videos.list takes at most 50 ids")
+    }
+    const stats = new Map<string, VideoStats>()
+    for (const videoId of videoIds) {
+      const found = await this.videoStats(token, videoId)
+      if (found) stats.set(videoId, found)
+    }
+    return stats
   }
 
   async videoAnalytics() {
