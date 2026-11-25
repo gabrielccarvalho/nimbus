@@ -6,6 +6,7 @@ import {
   between,
   desc,
   eq,
+  gte,
   inArray,
   isNotNull,
   sql,
@@ -175,6 +176,20 @@ export function analyticsRepository(db: Db) {
           )
         )
         .orderBy(asc(channelDaily.day), asc(channelDaily.contentType))
+    },
+
+    publishedSince(channelId: string, since: Date): Promise<Publication[]> {
+      return db
+        .select()
+        .from(publications)
+        .where(
+          and(
+            eq(publications.channelId, channelId),
+            eq(publications.status, "published"),
+            isNotNull(publications.videoId),
+            gte(publications.publishedAt, since)
+          )
+        )
     },
 
     async knownVideoIds(channelId: string): Promise<Set<string>> {

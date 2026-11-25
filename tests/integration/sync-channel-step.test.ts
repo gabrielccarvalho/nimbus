@@ -21,16 +21,22 @@ import {
   account,
   channelDaily,
   jobs,
+  publicationDaily,
+  publicationStats,
   user,
   workspaces,
   youtubeChannels,
+  youtubeQuotaUsage,
 } from "@/lib/db/schema"
+import { AppError } from "@/lib/errors"
 
 import { runJobs } from "../utils/pipeline"
 import { createTestEnv, type TestEnv } from "../utils/test-env"
 
 let env: TestEnv
 let fake: YouTubeFake
+
+const DAY_MS = 86_400_000
 
 beforeEach(async () => {
   env = await createTestEnv({
@@ -222,6 +228,71 @@ describe("sync_channel", () => {
     expect(
       rows.filter((row) => row.day === day).map((row) => row.contentType)
     ).toEqual(expect.arrayContaining(["shorts", "long"]))
+  })
+
+  it("refreshes the daily curve of the channel's Shorts up to 31 days old without spending quota", async () => {
+    const { repo, channel } = await seed()
+    const publish = (videoId: string, ageDays: number) =>
+      repo.createPublication({
+        clipId: null,
+        channelId: channel.id,
+        metadata: {
+          title: "Clutch",
+          description: "",
+          tags: [],
+          privacy: "public",
+          publishAt: null,
+        },
+        status: "published",
+        videoId,
+        publishedAt: new Date(Date.now() - ageDays * DAY_MS),
+      })
+    const young = await publish("fake-1", 10)
+    const old = await publish("fake-2", 40)
+    const daily = vi.spyOn(fake, "videoDaily")
+
+    const job = await runChannel(channel.id)
+
+    expect(job.status).toBe("succeeded")
+    const rows = await env.db
+      .select()
+      .from(publicationDaily)
+      .where(eq(publicationDaily.publicationId, young.id))
+      .orderBy(publicationDaily.day)
+    expect(rows.at(-1)!.day).toBe(addDays(pacificDay(new Date()), -2))
+    expect((await repo.getPublication(young.id))!.dailySyncedAt).toBeInstanceOf(
+      Date
+    )
+    expect(daily).toHaveBeenCalledTimes(1)
+    expect((await repo.getPublication(old.id))!.dailySyncedAt).toBeNull()
+    expect(await env.db.select().from(youtubeQuotaUsage)).toEqual([])
+    expect(await env.db.select().from(publicationStats)).toEqual([])
+  })
+
+  it("skips a Short whose daily read fails and still succeeds", async () => {
+    const { repo, channel } = await seed()
+    await repo.createPublication({
+      clipId: null,
+      channelId: channel.id,
+      metadata: {
+        title: "Clutch",
+        description: "",
+        tags: [],
+        privacy: "public",
+        publishAt: null,
+      },
+      status: "published",
+      videoId: "fake-1",
+      publishedAt: new Date(Date.now() - 5 * DAY_MS),
+    })
+    vi.spyOn(fake, "videoDaily").mockRejectedValue(
+      new AppError("EXTERNAL", "Forbidden")
+    )
+
+    const job = await runChannel(channel.id)
+
+    expect(job.status).toBe("succeeded")
+    expect(await env.db.select().from(publicationDaily)).toEqual([])
   })
 
   it("fails with the reconnect message and makes no call when the channel needs reconnecting", async () => {

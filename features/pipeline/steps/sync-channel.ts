@@ -5,7 +5,11 @@ import { AppError } from "@/lib/errors"
 
 import { addDays } from "../../analytics/curves"
 import { analyticsRepository } from "../../analytics/repository"
-import { CHANNEL_BACKFILL_DAYS, LATE_DATA_DAYS } from "../../analytics/schema"
+import {
+  CHANNEL_BACKFILL_DAYS,
+  CHANNEL_CURVE_DAYS,
+  LATE_DATA_DAYS,
+} from "../../analytics/schema"
 import type { JobHandler } from "../../jobs/worker-loop"
 import {
   RECONNECT_MESSAGE,
@@ -14,6 +18,9 @@ import {
 import { pacificDay } from "../../publishing/quota"
 import { publishingRepository } from "../../publishing/repository"
 import { getYouTubeClient } from "../../publishing/youtube"
+import { refreshDailyCurve } from "./sync-publication"
+
+const DAY_MS = 86_400_000
 
 export const syncChannelStep: JobHandler = async ({ job, db, logger }) => {
   const channelId = job.payload.channelId
@@ -45,4 +52,13 @@ export const syncChannelStep: JobHandler = async ({ job, db, logger }) => {
     { channelId, from, to: today, rows: rows.length, split },
     "synced channel analytics"
   )
+
+  const young = await analytics.publishedSince(
+    channelId,
+    new Date(startedAt.getTime() - CHANNEL_CURVE_DAYS * DAY_MS)
+  )
+  for (const { id, videoId, publishedAt } of young) {
+    if (!videoId || !publishedAt) continue
+    await refreshDailyCurve(db, channel, { id, videoId, publishedAt }, logger)
+  }
 }
