@@ -1,6 +1,12 @@
 import type { TimeRange } from "../analysis/schema"
 import type { LayoutPlan, PixelRect } from "../layout/geometry"
 import { OUTPUT_HEIGHT, OUTPUT_WIDTH } from "../layout/geometry"
+import {
+  DUCK_DB,
+  DUCK_RAMP_MS,
+  type AudioPlan,
+  type MusicPlan,
+} from "../music/envelope"
 
 export const PRE_ROLL_S = 2
 
@@ -31,25 +37,86 @@ export function seekFor(startMs: number) {
   return { seekMs, offsetMs: startMs - seekMs }
 }
 
+const STEREO_48K = "aformat=sample_rates=48000:channel_layouts=stereo"
+const LIMITER = "alimiter=limit=0.95:level=0:latency=1"
+
+function duckVolume(duck: MusicPlan["duck"]) {
+  const ramp = seconds(DUCK_RAMP_MS)
+  const terms = duck.map(({ startMs, endMs }) => {
+    const rampStartMs = startMs - DUCK_RAMP_MS
+    const rise =
+      rampStartMs < 0
+        ? `t+${seconds(-rampStartMs)}`
+        : `t-${seconds(rampStartMs)}`
+    return `clip((${rise})/${ramp},0,1)*clip((${seconds(endMs + DUCK_RAMP_MS)}-t)/${ramp},0,1)`
+  })
+  return `volume='pow(10,${DUCK_DB / 20}*(${terms.join("+")}))':eval=frame`
+}
+
+function musicBranch(music: MusicPlan) {
+  const { musicDb, lengthMs, fadeInMs, fadeOutMs, duck } = music
+  return [
+    `[1:a]atrim=end=${seconds(lengthMs)}`,
+    "asetpts=PTS-STARTPTS",
+    STEREO_48K,
+    `volume=${musicDb}dB`,
+    ...(duck.length > 0 ? [duckVolume(duck)] : []),
+    ...(fadeInMs > 0 ? [`afade=t=in:st=0:d=${seconds(fadeInMs)}`] : []),
+    ...(fadeOutMs > 0
+      ? [
+          `afade=t=out:st=${seconds(lengthMs - fadeOutMs)}:d=${seconds(fadeOutMs)}`,
+        ]
+      : []),
+  ].join(",")
+}
+
+export function audioGraph({
+  from,
+  to,
+  audio,
+}: {
+  from: string
+  to: string
+  audio?: AudioPlan | null
+}) {
+  const sourceDb = audio?.sourceDb ?? 0
+  const music = audio?.music ?? null
+  const source = [
+    `[0:a]atrim=start=${from}:end=${to}`,
+    "asetpts=PTS-STARTPTS",
+    ...(sourceDb !== 0 ? [`volume=${sourceDb}dB`] : []),
+  ]
+  if (!music) {
+    return [...source, ...(sourceDb > 0 ? [LIMITER] : [])].join(",") + "[a]"
+  }
+  return [
+    `${[...source, STEREO_48K].join(",")}[src]`,
+    `${musicBranch(music)}[music]`,
+    `[src][music]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,${LIMITER}[a]`,
+  ].join(";\n")
+}
+
 export function verticalGraph({
   plan,
   startMs,
   endMs,
   fps,
   subtitles,
+  audio,
 }: {
   plan: LayoutPlan
   startMs: number
   endMs: number
   fps: number
   subtitles?: Subtitles
+  audio?: AudioPlan | null
 }) {
   const { offsetMs } = seekFor(startMs)
   const from = seconds(offsetMs)
   const to = seconds(offsetMs + endMs - startMs)
   const trim = `[0:v]trim=start=${from}:end=${to},setpts=PTS-STARTPTS`
   const tail = `fps=${fps},format=yuv420p${subtitleFilter(subtitles)}[v]`
-  const audio = `[0:a]atrim=start=${from}:end=${to},asetpts=PTS-STARTPTS[a]`
+  const audioLines = audioGraph({ from, to, audio })
 
   if (plan.mode === "no-cam-blur-fill") {
     return [
@@ -57,14 +124,14 @@ export function verticalGraph({
       `[bgsrc]${crop(plan.background)},scale=${OUTPUT_WIDTH}:${OUTPUT_HEIGHT},boxblur=20:2,eq=brightness=-0.15,setsar=1[bg]`,
       `[fg]scale=${plan.foreground.w}:${plan.foreground.h},setsar=1[fgs]`,
       `[bg][fgs]overlay=(W-w)/2:(H-h)/2,${tail}`,
-      audio,
+      audioLines,
     ].join(";\n")
   }
 
   if (plan.mode === "no-cam-fill") {
     return [
       `${trim},${crop(plan.crop)},scale=${OUTPUT_WIDTH}:${OUTPUT_HEIGHT},setsar=1,${tail}`,
-      audio,
+      audioLines,
     ].join(";\n")
   }
 
@@ -74,7 +141,7 @@ export function verticalGraph({
     `[top_src]${crop(top.crop)},scale=${OUTPUT_WIDTH}:${top.outHeight},setsar=1[top]`,
     `[bottom_src]${crop(bottom.crop)},scale=${OUTPUT_WIDTH}:${bottom.outHeight},setsar=1[bottom]`,
     `[top][bottom]vstack=inputs=2,${tail}`,
-    audio,
+    audioLines,
   ].join(";\n")
 }
 
@@ -147,6 +214,7 @@ export function chooseEncoder(
 export function renderArgs({
   input,
   seekMs,
+  music,
   graphFile,
   encoder,
   crf = 20,
@@ -154,6 +222,7 @@ export function renderArgs({
 }: {
   input: string
   seekMs: number
+  music?: { file: string; seekMs: number }
   graphFile: string
   encoder: Encoder
   crf?: number
@@ -163,6 +232,13 @@ export function renderArgs({
     ...(seekMs > 0 ? ["-ss", seconds(seekMs)] : []),
     "-i",
     input,
+    ...(music
+      ? [
+          ...(music.seekMs > 0 ? ["-ss", seconds(music.seekMs)] : []),
+          "-i",
+          music.file,
+        ]
+      : []),
     "-/filter_complex",
     graphFile,
     "-map",

@@ -1,0 +1,1 @@
+[0:a]atrim=start=2.000:end=17.000,asetpts=PTS-STARTPTS,volume=6dB,alimiter=limit=0.95:level=0:latency=1[a]

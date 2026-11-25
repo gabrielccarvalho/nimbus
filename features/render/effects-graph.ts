@@ -6,7 +6,9 @@ import {
 } from "../effects/frame"
 import type { Effect } from "../effects/schema"
 import { usesWebcam, type LayoutInput } from "../layout/schema"
+import type { AudioPlan } from "../music/envelope"
 import {
+  audioGraph,
   escapeFilterPath,
   seconds,
   seekFor,
@@ -145,8 +147,13 @@ function composite(regions: readonly FrameRegion[]) {
 export function effectsGraph({
   commandsFile,
   subtitles,
+  audio,
   ...input
-}: EffectsInput & { commandsFile?: string; subtitles?: Subtitles }) {
+}: EffectsInput & {
+  commandsFile?: string
+  subtitles?: Subtitles
+  audio?: AudioPlan | null
+}) {
   const { startMs, endMs, fps } = input
   const { offsetMs } = seekFor(startMs)
   const from = seconds(offsetMs)
@@ -173,6 +180,6 @@ export function effectsGraph({
           }),
         ]
       : [`${composite(stacked)},${tail}`]),
-    `[0:a]atrim=start=${from}:end=${to},asetpts=PTS-STARTPTS[a]`,
+    audioGraph({ from, to, audio }),
   ].join(";\n")
 }

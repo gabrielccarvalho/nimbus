@@ -9,6 +9,7 @@ import { estimateRenderBytes } from "./disk"
 import { editedDuration, keepRanges, remapToEdit } from "./edit"
 import { effectCommands, effectsGraph } from "./effects-graph"
 import {
+  audioGraph,
   chooseEncoder,
   encoderPreference,
   videoEncoderArgs,
@@ -22,6 +23,118 @@ import {
 
 const subtitles = { file: "/data/work/c1.ass", fontsDir: "/app/assets/fonts" }
 const webcamRect = { x: 0.7833, y: 0.7704, w: 0.2, h: 0.2 }
+const music = {
+  musicDb: -16,
+  lengthMs: 15_000,
+  fadeInMs: 500,
+  fadeOutMs: 1_500,
+  duck: [
+    { startMs: 1_000, endMs: 2_500 },
+    { startMs: 6_000, endMs: 9_000 },
+  ],
+}
+const limiter = "alimiter=limit=0.95:level=0:latency=1"
+
+describe("audioGraph", () => {
+  it("mixes ducked, faded music under the source without normalising", () =>
+    expect(
+      audioGraph({
+        from: "2.000",
+        to: "17.000",
+        audio: { sourceDb: -3, music },
+      })
+    ).toBe(
+      [
+        "[0:a]atrim=start=2.000:end=17.000,asetpts=PTS-STARTPTS,volume=-3dB,aformat=sample_rates=48000:channel_layouts=stereo[src]",
+        "[1:a]atrim=end=15.000,asetpts=PTS-STARTPTS,aformat=sample_rates=48000:channel_layouts=stereo,volume=-16dB,volume='pow(10,-0.5*(clip((t-0.800)/0.200,0,1)*clip((2.700-t)/0.200,0,1)+clip((t-5.800)/0.200,0,1)*clip((9.200-t)/0.200,0,1)))':eval=frame,afade=t=in:st=0:d=0.500,afade=t=out:st=13.500:d=1.500[music]",
+        "[src][music]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,alimiter=limit=0.95:level=0:latency=1[a]",
+      ].join(";\n")
+    ))
+
+  it("keeps today's audio line without a plan or at 0 dB", () => {
+    const today = "[0:a]atrim=start=2.000:end=17.000,asetpts=PTS-STARTPTS[a]"
+    expect(audioGraph({ from: "2.000", to: "17.000" })).toBe(today)
+    expect(audioGraph({ from: "2.000", to: "17.000", audio: null })).toBe(today)
+    expect(
+      audioGraph({
+        from: "2.000",
+        to: "17.000",
+        audio: { sourceDb: 0, music: null },
+      })
+    ).toBe(today)
+  })
+
+  it("ramps into speech that starts the clip", () =>
+    expect(
+      audioGraph({
+        from: "0.000",
+        to: "15.000",
+        audio: {
+          sourceDb: 0,
+          music: { ...music, duck: [{ startMs: 0, endMs: 1_000 }] },
+        },
+      })
+    ).toContain(
+      "volume='pow(10,-0.5*(clip((t+0.200)/0.200,0,1)*clip((1.200-t)/0.200,0,1)))':eval=frame"
+    ))
+
+  it("drops the duck and fade-in without speech or a fade", () => {
+    const graph = audioGraph({
+      from: "2.000",
+      to: "17.000",
+      audio: { sourceDb: 0, music: { ...music, duck: [], fadeInMs: 0 } },
+    })
+    expect(graph).not.toContain("eval=frame")
+    expect(graph).not.toContain("afade=t=in")
+    expect(graph).toContain(
+      "[0:a]atrim=start=2.000:end=17.000,asetpts=PTS-STARTPTS,aformat=sample_rates=48000:channel_layouts=stereo[src]"
+    )
+    expect(graph).toContain("volume=-16dB,afade=t=out:st=13.500:d=1.500[music]")
+  })
+
+  it("limits only a boosted source", () => {
+    const source = (sourceDb: number) =>
+      audioGraph({
+        from: "2.000",
+        to: "17.000",
+        audio: { sourceDb, music: null },
+      })
+    expect(source(-3)).toBe(
+      "[0:a]atrim=start=2.000:end=17.000,asetpts=PTS-STARTPTS,volume=-3dB[a]"
+    )
+    expect(source(6)).toBe(
+      `[0:a]atrim=start=2.000:end=17.000,asetpts=PTS-STARTPTS,volume=6dB,${limiter}[a]`
+    )
+  })
+
+  it("pins the mixes", async () => {
+    const from = "2.000"
+    const to = "17.000"
+    await expect(
+      audioGraph({ from, to, audio: { sourceDb: -3, music } })
+    ).toMatchFileSnapshot("./__golden__/audio-duck.txt")
+    await expect(
+      audioGraph({
+        from,
+        to,
+        audio: {
+          sourceDb: 0,
+          music: {
+            ...music,
+            lengthMs: 8_000,
+            duck: [
+              { startMs: 1_000, endMs: 2_500 },
+              { startMs: 6_000, endMs: 8_000 },
+            ],
+          },
+        },
+      })
+    ).toMatchFileSnapshot("./__golden__/audio-ends-early.txt")
+    await expect(
+      audioGraph({ from, to, audio: { sourceDb: 6, music: null } })
+    ).toMatchFileSnapshot("./__golden__/audio-source-only.txt")
+  })
+})
 
 describe("verticalGraph", () => {
   it("builds cam-top with captions", async () => {
@@ -42,6 +155,27 @@ describe("verticalGraph", () => {
       subtitles,
     })
     await expect(graph).toMatchFileSnapshot("./__golden__/cam-top.txt")
+  })
+
+  it("builds cam-top with music", async () => {
+    const graph = verticalGraph({
+      plan: planLayout(
+        {
+          webcamRect,
+          gameplayRect: FULL_FRAME,
+          gameplayFocusX: 0.5,
+          mode: "cam-top",
+        },
+        1920,
+        1080
+      ),
+      startMs: 12_000,
+      endMs: 41_500,
+      fps: 30,
+      subtitles,
+      audio: { sourceDb: 0, music },
+    })
+    await expect(graph).toMatchFileSnapshot("./__golden__/cam-top-music.txt")
   })
 
   it("builds split-50 near the start without pre-roll", async () => {
@@ -113,28 +247,38 @@ describe("effectsGraph", () => {
   }
   const source = { width: 1920, height: 1080 }
 
+  const zoomShakeFocus = {
+    layout: camTop,
+    source,
+    events: [
+      {
+        kind: "zoom",
+        startMs: 14_000,
+        endMs: 17_000,
+        scale: 1.4,
+        focus: { x: 0.5, y: 0.5 },
+      },
+      { kind: "shake", startMs: 16_000, endMs: 16_600, intensity: "strong" },
+      { kind: "focus", startMs: 21_000, endMs: 24_500, target: "cam" },
+    ],
+    startMs: 12_000,
+    endMs: 41_500,
+    fps: 30,
+    commandsFile: "/data/work/c1.cmds.txt",
+    subtitles,
+  } as const
+
   it("builds zoom+shake+focus on cam-top", async () => {
-    const graph = effectsGraph({
-      layout: camTop,
-      source,
-      events: [
-        {
-          kind: "zoom",
-          startMs: 14_000,
-          endMs: 17_000,
-          scale: 1.4,
-          focus: { x: 0.5, y: 0.5 },
-        },
-        { kind: "shake", startMs: 16_000, endMs: 16_600, intensity: "strong" },
-        { kind: "focus", startMs: 21_000, endMs: 24_500, target: "cam" },
-      ],
-      startMs: 12_000,
-      endMs: 41_500,
-      fps: 30,
-      commandsFile: "/data/work/c1.cmds.txt",
-      subtitles,
-    })
+    const graph = effectsGraph(zoomShakeFocus)
     await expect(graph).toMatchFileSnapshot("./__golden__/effects-cam-top.txt")
+  })
+
+  it("builds zoom+shake+focus on cam-top with music", async () => {
+    const graph = effectsGraph({
+      ...zoomShakeFocus,
+      audio: { sourceDb: 0, music },
+    })
+    await expect(graph).toMatchFileSnapshot("./__golden__/effects-music.txt")
   })
 
   it("builds full game with a zoom on cam-top", async () => {
@@ -426,6 +570,40 @@ describe("helpers", () => {
       "-movflags",
       "+faststart",
       "/out.mp4",
+    ])
+  })
+
+  it("adds the music track as the second input", () => {
+    const args = (seekMs: number) =>
+      renderArgs({
+        input: "/in.mp4",
+        seekMs: 10_000,
+        music: { file: "/data/music/w/t.m4a", seekMs },
+        graphFile: "/g.txt",
+        encoder: "libx264",
+        output: "/out.mp4",
+      })
+    expect(args(45_000).slice(0, 10)).toEqual([
+      "-ss",
+      "10.000",
+      "-i",
+      "/in.mp4",
+      "-ss",
+      "45.000",
+      "-i",
+      "/data/music/w/t.m4a",
+      "-/filter_complex",
+      "/g.txt",
+    ])
+    expect(args(0).slice(0, 8)).toEqual([
+      "-ss",
+      "10.000",
+      "-i",
+      "/in.mp4",
+      "-i",
+      "/data/music/w/t.m4a",
+      "-/filter_complex",
+      "/g.txt",
     ])
   })
 
