@@ -5,7 +5,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
-const FIXTURES_VERSION = "3"
+const FIXTURES_VERSION = "2"
 
 export const fixturesDir = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
