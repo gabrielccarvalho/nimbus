@@ -67,9 +67,12 @@ test("another account can't see or reach this account's projects", async ({
   }
 
   await intruder.goto("/")
-  await intruder.keyboard.press("ControlOrMeta+k")
   const palette = intruder.getByRole("dialog", { name: "Search" })
-  await expect(palette).toBeVisible()
+  // goto resolves on load, before React attaches the hotkey listener.
+  await expect(async () => {
+    await intruder.keyboard.press("ControlOrMeta+k")
+    await expect(palette).toBeVisible({ timeout: 1_000 })
+  }).toPass()
   await intruder.keyboard.type("gameplay")
   await expect(
     palette.getByRole("option", { name: /gameplay-16x9/ })
