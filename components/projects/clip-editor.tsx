@@ -306,6 +306,15 @@ export function ClipEditor({
       JSON.stringify(stored) !== JSON.stringify(snapshot.effects)
     ) {
       setEffects(stored)
+      setSelectedEffect((index) => {
+        const effect =
+          index === null ? undefined : snapshot.effects?.events[index]
+        if (!effect || !stored) return null
+        const found = stored.events.findIndex(
+          (event) => JSON.stringify(event) === JSON.stringify(effect)
+        )
+        return found === -1 ? null : found
+      })
       setSaved(JSON.stringify({ ...snapshot, effects: stored }))
     } else {
       setSaved(text)

@@ -173,6 +173,41 @@ describe("ClipEditor", () => {
     expect(updateClipAction).toHaveBeenCalledTimes(1)
   })
 
+  it("keeps the added effect selected when the server reorders the effects", async () => {
+    const zoom = (startMs: number) => ({
+      kind: "zoom" as const,
+      startMs,
+      endMs: startMs + 1500,
+      scale: 1.4,
+      focus: { x: 0.5, y: 0.5 },
+    })
+    vi.mocked(updateClipAction).mockResolvedValue({
+      ok: true,
+      value: {
+        effects: {
+          edited: true,
+          events: [zoom(10_000), zoom(20_000), zoom(30_000)],
+        },
+      },
+    })
+    renderEditor({
+      effects: { edited: false, events: [zoom(20_000), zoom(30_000)] },
+    })
+    await userEvent.click(screen.getByRole("button", { name: "Add zoom" }))
+    const zoomTrack = screen.getByRole("group", { name: "Zoom" })
+    const added = within(zoomTrack).getByRole("button", {
+      name: "Zoom 1.4× at 0:00.0",
+    })
+    expect(added).toHaveAttribute("aria-pressed", "true")
+    await waitFor(() =>
+      expect(screen.getByTestId("save-state")).toHaveTextContent("Saved")
+    )
+    expect(updateClipAction).toHaveBeenCalledTimes(1)
+    expect(
+      within(zoomTrack).getByRole("button", { pressed: true })
+    ).toHaveAccessibleName("Zoom 1.4× at 0:00.0")
+  })
+
   it("links to the neighbouring clips", () => {
     renderEditor()
     expect(screen.getByRole("button", { name: "Previous clip" })).toBeDisabled()
