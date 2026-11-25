@@ -77,7 +77,12 @@ function createAuth() {
       },
     },
     account: {
-      accountLinking: { enabled: true, trustedProviders: ["google", "twitch"] },
+      accountLinking: {
+        enabled: true,
+        trustedProviders: ["google", "twitch"],
+        // A channel often lives on a different Google account than the Nimbus login.
+        allowDifferentEmails: true,
+      },
     },
     rateLimit: { enabled: env.NODE_ENV === "production" && !env.E2E },
     databaseHooks: {
