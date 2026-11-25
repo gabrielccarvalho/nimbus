@@ -19,6 +19,7 @@ import {
   type PlaybookRule,
 } from "./repository"
 import {
+  INSIGHTS_MAX_CLIPS,
   INSIGHTS_MIN_AGE_DAYS,
   INSIGHTS_MIN_CLIPS,
   PLAYBOOK_CAP_MESSAGE,
@@ -36,32 +37,45 @@ type ProjectContext = Pick<Transcript, "language" | "words" | "segments"> & {
   niche: string
 }
 
+type ChannelPublication = Awaited<
+  ReturnType<ReturnType<typeof statsRepository>["forChannel"]>
+>[number]
+
+function insightAgeDays({
+  publication,
+  latest,
+}: ChannelPublication): number | null {
+  if (!publication.publishedAt || !latest) return null
+  const ageDays =
+    (latest.fetchedAt.getTime() - publication.publishedAt.getTime()) / DAY_MS
+  return ageDays >= INSIGHTS_MIN_AGE_DAYS ? ageDays : null
+}
+
+export function isInsightEligible(row: ChannelPublication): boolean {
+  return insightAgeDays(row) !== null
+}
+
+export async function eligibleInsightCount(
+  db: Db,
+  channelId: string
+): Promise<number> {
+  const rows = await statsRepository(db).forChannel(channelId)
+  return rows.filter(isInsightEligible).length
+}
+
 export async function eligibleInsightClips(
   db: Db,
   channelId: string
 ): Promise<InsightClip[]> {
-  const stats = statsRepository(db)
-  const rows = await stats.forChannel(channelId)
-  const eligible = []
-  for (const row of rows) {
-    const { publication } = row
-    if (!publication.publishedAt) continue
-    const snapshot = (await stats.history(publication.id)).at(-1)
-    if (
-      !snapshot ||
-      snapshot.fetchedAt.getTime() - publication.publishedAt.getTime() <
-        INSIGHTS_MIN_AGE_DAYS * DAY_MS
-    ) {
-      continue
-    }
-    eligible.push({
-      ...row,
-      snapshot,
-      ageDays:
-        (snapshot.fetchedAt.getTime() - publication.publishedAt.getTime()) /
-        DAY_MS,
+  const rows = await statsRepository(db).forChannel(channelId)
+  const eligible = rows
+    .flatMap((row) => {
+      const ageDays = insightAgeDays(row)
+      return ageDays === null
+        ? []
+        : [{ ...row, snapshot: row.latest!, ageDays }]
     })
-  }
+    .slice(0, INSIGHTS_MAX_CLIPS)
 
   const samples = eligible.map((e) => ({
     publicationId: e.publication.id,
@@ -332,7 +346,7 @@ export async function findPatterns(
       "Add an Anthropic key in Settings to find patterns"
     )
   }
-  const eligible = (await eligibleInsightClips(db, channelId)).length
+  const eligible = await eligibleInsightCount(db, channelId)
   if (eligible < INSIGHTS_MIN_CLIPS) {
     throw new AppError(
       "CONFLICT",

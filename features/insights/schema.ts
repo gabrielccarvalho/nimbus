@@ -17,6 +17,8 @@ export const PLAYBOOK_CAP_MESSAGE = `This list already has ${PLAYBOOK_RULE_CAP} 
 export const RULE_MAX_CHARS = 200
 export const INSIGHTS_MIN_CLIPS = 8
 export const INSIGHTS_MIN_AGE_DAYS = 7
+export const INSIGHTS_MAX_CLIPS = 60
+export const INSIGHTS_MAX_REJECTED = 30
 
 export const ruleTextSchema = z
   .string()

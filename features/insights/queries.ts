@@ -14,7 +14,7 @@ import {
   type PlaybookRule,
 } from "./repository"
 import { INSIGHTS_MIN_CLIPS } from "./schema"
-import { eligibleInsightClips } from "./service"
+import { isInsightEligible } from "./service"
 
 export type EvidenceClip = {
   clipId: string
@@ -75,15 +75,13 @@ export async function getInsights() {
   if (!channel) return empty
 
   const insights = insightsRepository(db)
-  const [eligible, running, lastError, pending, rules, published] =
-    await Promise.all([
-      eligibleInsightClips(db, channel.id),
-      insights.analysisActive(channel.id),
-      insights.lastAnalysisError(channel.id),
-      insights.pendingSuggestions(channel.id),
-      insights.rules(channel.id),
-      statsRepository(db).forChannel(channel.id),
-    ])
+  const [running, lastError, pending, rules, published] = await Promise.all([
+    insights.analysisActive(channel.id),
+    insights.lastAnalysisError(channel.id),
+    insights.pendingSuggestions(channel.id),
+    insights.rules(channel.id),
+    statsRepository(db).forChannel(channel.id),
+  ])
 
   const clipsById = new Map(
     published.map(({ clip, projectId, latest }) => [
@@ -110,7 +108,7 @@ export async function getInsights() {
   return {
     ...empty,
     channel: { title: channel.title },
-    eligible: eligible.length,
+    eligible: published.filter(isInsightEligible).length,
     running,
     lastError,
     suggestions: pending.map((s): SuggestionView => ({

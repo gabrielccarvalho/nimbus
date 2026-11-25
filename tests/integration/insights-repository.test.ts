@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { insightsRepository } from "@/features/insights/repository"
+import { INSIGHTS_MAX_REJECTED } from "@/features/insights/schema"
 import { publishingRepository } from "@/features/publishing/repository"
-import { workspaces } from "@/lib/db/schema"
+import { insightSuggestions, workspaces } from "@/lib/db/schema"
 
 import { createTestEnv, type TestEnv } from "../utils/test-env"
 
@@ -122,6 +123,26 @@ describe("insights repository", () => {
     expect(await repo.rejectedSuggestions(channel.id)).toHaveLength(1)
     await repo.replacePending(channel.id, [])
     expect(await repo.pendingSuggestions(channel.id)).toEqual([])
+  })
+
+  it("returns only the newest rejected suggestions", async () => {
+    const { channel, repo } = await seed()
+    const count = INSIGHTS_MAX_REJECTED + 2
+    await env.db.insert(insightSuggestions).values(
+      Array.from({ length: count }, (_, i) => ({
+        ...suggestion(`rejected ${i}`),
+        id: crypto.randomUUID(),
+        channelId: channel.id,
+        status: "rejected" as const,
+        decidedAt: new Date(Date.UTC(2026, 10, 1, 0, i)),
+      }))
+    )
+
+    const rejected = await repo.rejectedSuggestions(channel.id)
+
+    expect(rejected).toHaveLength(INSIGHTS_MAX_REJECTED)
+    expect(rejected[0]!.text).toBe(`rejected ${count - 1}`)
+    expect(rejected.at(-1)!.text).toBe("rejected 2")
   })
 
   it("links a suggestion to its rule", async () => {

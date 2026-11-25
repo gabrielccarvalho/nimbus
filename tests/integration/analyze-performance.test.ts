@@ -4,6 +4,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { clipRepository } from "@/features/clips/repository"
 import { insightsRepository } from "@/features/insights/repository"
+import { INSIGHTS_MAX_CLIPS } from "@/features/insights/schema"
+import {
+  eligibleInsightClips,
+  eligibleInsightCount,
+} from "@/features/insights/service"
 import { jobQueue } from "@/features/jobs/queue"
 import { projectRepository } from "@/features/projects/repository"
 import { defaultProjectSettings } from "@/features/projects/schema"
@@ -11,7 +16,14 @@ import { publishingRepository } from "@/features/publishing/repository"
 import { statsRepository } from "@/features/publishing/stats-repository"
 import { transcriptRepository } from "@/features/transcription/repository"
 import { resetEnvCache } from "@/lib/env"
-import { account, usageEvents, user, workspaces } from "@/lib/db/schema"
+import {
+  account,
+  publications,
+  publicationStats,
+  usageEvents,
+  user,
+  workspaces,
+} from "@/lib/db/schema"
 
 import { server } from "../utils/msw"
 import { runJobs } from "../utils/pipeline"
@@ -105,7 +117,7 @@ async function seed(published: number, { statsAgeDays = 8 } = {}) {
       retention: null,
     })
   }
-  return { channel, clips, workspaceId }
+  return { channel, clips, workspaceId, publicationIds }
 }
 
 const message = (text: string) => ({
@@ -230,5 +242,62 @@ describe("analyze_performance", () => {
     expect(job.error).toContain(
       "Add a Claude API key in Workspace settings to use Claude."
     )
+  })
+})
+
+describe("eligible insight clips", () => {
+  it("counts the same clips the builder returns", async () => {
+    const { channel, publicationIds } = await seed(10)
+    const [noStats, young, removed, mixed] = publicationIds
+    await env.db
+      .delete(publicationStats)
+      .where(eq(publicationStats.publicationId, noStats!))
+    const [youngPublication] = await env.db
+      .select()
+      .from(publications)
+      .where(eq(publications.id, young!))
+    await env.db
+      .update(publicationStats)
+      .set({
+        fetchedAt: new Date(
+          youngPublication!.publishedAt!.getTime() + 3 * DAY_MS
+        ),
+      })
+      .where(eq(publicationStats.publicationId, young!))
+    await env.db
+      .update(publications)
+      .set({ status: "removed" })
+      .where(eq(publications.id, removed!))
+    await statsRepository(env.db).add({
+      publicationId: mixed!,
+      fetchedAt: new Date(Date.now() - 9 * DAY_MS),
+      views: 1,
+      likes: 0,
+      comments: 0,
+    })
+
+    const clips = await eligibleInsightClips(env.db, channel.id)
+
+    expect(clips).toHaveLength(7)
+    expect(await eligibleInsightCount(env.db, channel.id)).toBe(clips.length)
+  })
+
+  it("keeps the most recently published clips up to the cap", async () => {
+    const count = INSIGHTS_MAX_CLIPS + 2
+    const { channel, clips, publicationIds } = await seed(count)
+    for (const [i, id] of publicationIds.entries()) {
+      await env.db
+        .update(publications)
+        .set({ publishedAt: new Date(Date.now() - 20 * DAY_MS + i * 60_000) })
+        .where(eq(publications.id, id))
+    }
+
+    const eligible = await eligibleInsightClips(env.db, channel.id)
+
+    expect(eligible).toHaveLength(INSIGHTS_MAX_CLIPS)
+    const ids = eligible.map((clip) => clip.clipId)
+    expect(ids).not.toContain(clips[0]!.id)
+    expect(ids).not.toContain(clips[1]!.id)
+    expect(await eligibleInsightCount(env.db, channel.id)).toBe(count)
   })
 })

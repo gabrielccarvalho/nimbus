@@ -6,7 +6,11 @@ import { newId, now, withTransaction, type Db } from "@/lib/db"
 import { insightSuggestions, jobs, playbookRules } from "@/lib/db/schema"
 
 import { publishingRepository } from "../publishing/repository"
-import type { RuleTarget, SuggestionStatus } from "./schema"
+import {
+  INSIGHTS_MAX_REJECTED,
+  type RuleTarget,
+  type SuggestionStatus,
+} from "./schema"
 
 export type PlaybookRule = typeof playbookRules.$inferSelect
 export type NewPlaybookRule = Pick<
@@ -126,6 +130,7 @@ export function insightsRepository(db: Db) {
           )
         )
         .orderBy(desc(insightSuggestions.decidedAt))
+        .limit(INSIGHTS_MAX_REJECTED)
     },
 
     replacePending(channelId: string, suggestions: NewInsightSuggestion[]) {
