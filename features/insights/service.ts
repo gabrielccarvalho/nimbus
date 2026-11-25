@@ -21,6 +21,7 @@ import {
 import {
   INSIGHTS_MIN_AGE_DAYS,
   INSIGHTS_MIN_CLIPS,
+  PLAYBOOK_CAP_MESSAGE,
   PLAYBOOK_RULE_CAP,
   ruleTextSchema,
   type RuleTarget,
@@ -132,8 +133,6 @@ export async function eligibleInsightClips(
   )
 }
 
-const capMessage = `This list already has ${PLAYBOOK_RULE_CAP} rules. Pick one to retire.`
-
 function parseRuleText(text: string) {
   const parsed = ruleTextSchema.safeParse(text)
   if (!parsed.success) {
@@ -164,7 +163,7 @@ async function makeRoom(
   retireRuleId: string | undefined
 ) {
   if ((await repo.countActive(channelId, target)) < PLAYBOOK_RULE_CAP) return
-  if (!retireRuleId) throw new AppError("CONFLICT", capMessage)
+  if (!retireRuleId) throw new AppError("CONFLICT", PLAYBOOK_CAP_MESSAGE)
   const rule = await repo.getRule(retireRuleId)
   if (
     !rule ||

@@ -13,6 +13,7 @@ export const suggestionStatuses = ["pending", "approved", "rejected"] as const
 export type SuggestionStatus = (typeof suggestionStatuses)[number]
 
 export const PLAYBOOK_RULE_CAP = 12
+export const PLAYBOOK_CAP_MESSAGE = `This list already has ${PLAYBOOK_RULE_CAP} rules. Pick one to retire.`
 export const RULE_MAX_CHARS = 200
 export const INSIGHTS_MIN_CLIPS = 8
 export const INSIGHTS_MIN_AGE_DAYS = 7
