@@ -16,6 +16,7 @@ import {
 } from "../../insights/schema"
 import { eligibleInsightClips } from "../../insights/service"
 import type { JobHandler } from "../../jobs/worker-loop"
+import { CLAUDE_KEY_MISSING_MESSAGE } from "../../accounts/schema"
 import { recordUsage, resolveAnthropicKey } from "../../accounts/usage"
 import { publishingRepository } from "../../publishing/repository"
 
@@ -40,10 +41,7 @@ export const analyzePerformanceStep: JobHandler = async ({
   }
   const apiKey = await resolveAnthropicKey(db, channel.workspaceId)
   if (!apiKey) {
-    throw new AppError(
-      "VALIDATION",
-      "Add a Claude API key in Workspace settings to use Claude."
-    )
+    throw new AppError("VALIDATION", CLAUDE_KEY_MISSING_MESSAGE)
   }
 
   const insights = insightsRepository(db)

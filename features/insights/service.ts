@@ -6,6 +6,7 @@ import { AppError } from "@/lib/errors"
 import { NICHE_PROFILES, resolveNiche } from "../highlights/niches"
 import { transcriptLines } from "../highlights/prompt"
 import type { Workspace } from "../accounts/repository"
+import { CLAUDE_KEY_MISSING_MESSAGE } from "../accounts/schema"
 import { claudeAvailable } from "../accounts/usage"
 import { jobQueue } from "../jobs/queue"
 import { projectRepository } from "../projects/repository"
@@ -341,10 +342,7 @@ export async function findPatterns(
   channelId: string
 ): Promise<void> {
   if (!claudeAvailable(workspace)) {
-    throw new AppError(
-      "DEPENDENCY_MISSING",
-      "Add an Anthropic key in Settings to find patterns"
-    )
+    throw new AppError("DEPENDENCY_MISSING", CLAUDE_KEY_MISSING_MESSAGE)
   }
   const eligible = await eligibleInsightCount(db, channelId)
   if (eligible < INSIGHTS_MIN_CLIPS) {

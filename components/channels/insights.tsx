@@ -5,6 +5,7 @@ import * as React from "react"
 
 import { Button } from "@/components/ui/button"
 import { Empty, EmptyDescription, EmptyHeader } from "@/components/ui/empty"
+import { CLAUDE_KEY_MISSING_MESSAGE } from "@/features/accounts/schema"
 import { findPatternsAction } from "@/features/insights/actions"
 import type { getInsights } from "@/features/insights/queries"
 
@@ -47,7 +48,7 @@ export function Insights({
 
   const blockers = [
     eligible < needed && `${eligible} of ${needed} clips have a week of stats`,
-    !claudeAvailable && "Add your Anthropic key in Settings to find patterns",
+    !claudeAvailable && CLAUDE_KEY_MISSING_MESSAGE,
   ].filter((reason): reason is string => reason !== false)
 
   return (

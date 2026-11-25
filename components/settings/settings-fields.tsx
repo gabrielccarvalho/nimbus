@@ -24,6 +24,7 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { CLAUDE_KEY_MISSING_MESSAGE } from "@/features/accounts/schema"
 import { CAPTION_PRESETS } from "@/features/captions/styles"
 import {
   NICHE_PROFILES,
@@ -178,7 +179,7 @@ export function HighlightFields<T extends Shared>({
                     <FieldTitle>{selector.label}</FieldTitle>
                     <FieldDescription>
                       {disabled
-                        ? "Add a Claude API key in Workspace settings to use Claude."
+                        ? CLAUDE_KEY_MISSING_MESSAGE
                         : selector.description}
                     </FieldDescription>
                   </FieldContent>

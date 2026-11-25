@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm"
 import { http, HttpResponse } from "msw"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import { CLAUDE_KEY_MISSING_MESSAGE } from "@/features/accounts/schema"
 import { clipRepository } from "@/features/clips/repository"
 import { insightsRepository } from "@/features/insights/repository"
 import { INSIGHTS_MAX_CLIPS } from "@/features/insights/schema"
@@ -239,9 +240,7 @@ describe("analyze_performance", () => {
     const job = await run(channel.id)
 
     expect(job.status).toBe("failed")
-    expect(job.error).toContain(
-      "Add a Claude API key in Workspace settings to use Claude."
-    )
+    expect(job.error).toContain(CLAUDE_KEY_MISSING_MESSAGE)
   })
 })
 

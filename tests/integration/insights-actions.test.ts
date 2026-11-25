@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { accountRepository } from "@/features/accounts/repository"
+import { CLAUDE_KEY_MISSING_MESSAGE } from "@/features/accounts/schema"
 import {
   approveSuggestionAction,
   editRuleAction,
@@ -627,7 +628,10 @@ describe("findPatternsAction", () => {
     const { workspace, channel } = await seed()
     expect(await findPatternsAction()).toMatchObject({
       ok: false,
-      error: { code: "DEPENDENCY_MISSING" },
+      error: {
+        code: "DEPENDENCY_MISSING",
+        message: CLAUDE_KEY_MISSING_MESSAGE,
+      },
     })
 
     await accountRepository(env.db).setAnthropicKey(

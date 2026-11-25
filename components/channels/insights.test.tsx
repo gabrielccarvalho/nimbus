@@ -10,6 +10,7 @@ import {
   restoreRuleAction,
   retireRuleAction,
 } from "@/features/insights/actions"
+import { CLAUDE_KEY_MISSING_MESSAGE } from "@/features/accounts/schema"
 import type { getInsights, RuleView } from "@/features/insights/queries"
 import { PLAYBOOK_CAP_MESSAGE } from "@/features/insights/schema"
 
@@ -124,7 +125,7 @@ describe("Find patterns", () => {
   it("is disabled without a Claude key", () => {
     render(<Insights {...data({ claudeAvailable: false })} />)
     expect(screen.getByRole("button", { name: "Find patterns" })).toBeDisabled()
-    expect(screen.getByText(/Anthropic key/)).toBeVisible()
+    expect(screen.getByText(CLAUDE_KEY_MISSING_MESSAGE)).toBeVisible()
   })
 
   it("runs the analysis", async () => {
