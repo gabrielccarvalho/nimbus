@@ -8,6 +8,7 @@ import { getDb } from "@/lib/db"
 import { AppError } from "@/lib/errors"
 import { parseId, runAction } from "@/lib/server-action"
 
+import { RECONNECT_MESSAGE } from "./google-token"
 import { storedPublishInput } from "./metadata"
 import { publishingRepository } from "./repository"
 import { publishInputSchema } from "./schema"
@@ -80,11 +81,20 @@ export async function refreshStatsAction(publicationId: unknown) {
   return runAction(
     "refreshStats",
     async () => {
-      await requireActor()
-      const publication = await publishingRepository(getDb()).getPublication(id)
+      const { workspace } = await requireActor()
+      const repo = publishingRepository(getDb())
+      const publication = await repo.getPublication(id)
       if (!publication) throw new AppError("NOT_FOUND", "Publication not found")
       const clip = await clipRepository(getDb()).getOrThrow(publication.clipId)
       await assertProjectAccess(clip.projectId)
+      const channel = await repo.getChannel(workspace.id)
+      if (
+        !channel ||
+        channel.id !== publication.channelId ||
+        channel.status !== "ok"
+      ) {
+        throw new AppError("CONFLICT", RECONNECT_MESSAGE)
+      }
       if (!(await enqueueStatsSync(getDb(), publication.id))) {
         throw new AppError("CONFLICT", "Stats are already refreshing")
       }

@@ -175,6 +175,22 @@ describe("sync_stats", () => {
     expect(next.runAfter).toEqual(nextQuotaReset(new Date()))
   })
 
+  it("retries after the quota reset when Google reports the quota exceeded", async () => {
+    const { publication } = await seed()
+    vi.spyOn(getYouTubeClient(), "videoStats").mockRejectedValue(
+      new AppError("EXTERNAL", "YouTube API quota exceeded", { cause: "quota" })
+    )
+
+    const job = await runSync(publication.id)
+
+    expect(job.status).toBe("succeeded")
+    expect(await statsRepository(env.db).history(publication.id)).toEqual([])
+    const next = (await syncJobs()).find((row) => row.id !== job.id)!
+    expect(next.status).toBe("queued")
+    expect(next.payload).toEqual({ publicationId: publication.id })
+    expect(next.runAfter).toEqual(nextQuotaReset(new Date()))
+  })
+
   it("fails with the reconnect message and calls Google never when the channel needs reconnecting", async () => {
     const { repo, channel, publication } = await seed()
     await repo.setChannelStatus(channel.id, "needs_reconnect")
@@ -228,6 +244,25 @@ describe("stats scheduling", () => {
     expect(rows[0]!.payload).toEqual({ publicationId: publication.id })
     expect(rows[0]!.maxAttempts).toBe(3)
     expect(rows[0]!.projectId).toBeNull()
+  })
+
+  it("enqueues one sync for concurrent requests", async () => {
+    const { publication } = await seed()
+
+    const results = await Promise.all([
+      enqueueStatsSync(env.db, publication.id),
+      enqueueStatsSync(env.db, publication.id),
+      enqueueDueStatsSyncs(env.db, new Date()),
+    ])
+
+    expect(results.filter((r) => r === true || r === 1)).toHaveLength(1)
+    expect(await syncJobs()).toHaveLength(1)
+  })
+
+  it("skips publications whose channel needs reconnecting", async () => {
+    const { repo, channel } = await seed()
+    await repo.setChannelStatus(channel.id, "needs_reconnect")
+    expect(await enqueueDueStatsSyncs(env.db, new Date())).toBe(0)
   })
 
   it("skips publications that aren't due yet", async () => {

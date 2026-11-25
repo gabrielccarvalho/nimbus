@@ -1,9 +1,25 @@
 import "server-only"
 
-import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm"
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  lte,
+  or,
+  sql,
+} from "drizzle-orm"
 
 import { newId, type Db } from "@/lib/db"
-import { clips, jobs, publicationStats, publications } from "@/lib/db/schema"
+import {
+  clips,
+  jobs,
+  publicationStats,
+  publications,
+  youtubeChannels,
+} from "@/lib/db/schema"
 
 import type { Clip } from "../clips/repository"
 import type { Publication } from "./repository"
@@ -57,10 +73,16 @@ export function statsRepository(db: Db) {
           >`(select max(s.fetched_at) from publication_stats s where s.publication_id = publications.id)`,
         })
         .from(publications)
+        .innerJoin(
+          youtubeChannels,
+          eq(youtubeChannels.id, publications.channelId)
+        )
         .where(
           and(
             eq(publications.status, "published"),
-            isNotNull(publications.videoId)
+            isNotNull(publications.videoId),
+            eq(youtubeChannels.status, "ok"),
+            isNotNull(youtubeChannels.accountId)
           )
         )
       return rows.map((row) => ({
@@ -69,7 +91,10 @@ export function statsRepository(db: Db) {
       }))
     },
 
-    async syncActive(publicationId: string): Promise<boolean> {
+    async syncActive(
+      publicationId: string,
+      options: { dueBy?: Date } = {}
+    ): Promise<boolean> {
       const [row] = await db
         .select({ id: jobs.id })
         .from(jobs)
@@ -77,11 +102,23 @@ export function statsRepository(db: Db) {
           and(
             eq(jobs.type, "sync_stats"),
             inArray(jobs.status, ["queued", "running"]),
-            sql`${jobs.payload}->>'publicationId' = ${publicationId}`
+            sql`${jobs.payload}->>'publicationId' = ${publicationId}`,
+            options.dueBy
+              ? or(
+                  eq(jobs.status, "running"),
+                  lte(jobs.runAfter, options.dueBy)
+                )
+              : undefined
           )
         )
         .limit(1)
       return row !== undefined
+    },
+
+    async lockSync(publicationId: string): Promise<void> {
+      await db.execute(
+        sql`select pg_advisory_xact_lock(hashtext(${`sync-stats:${publicationId}`}))`
+      )
     },
 
     async forChannel(channelId: string): Promise<

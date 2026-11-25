@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { jobQueue } from "@/features/jobs/queue"
@@ -12,7 +13,7 @@ import {
   type NewPublication,
 } from "@/features/publishing/repository"
 import { statsRepository } from "@/features/publishing/stats-repository"
-import { account, user, workspaces } from "@/lib/db/schema"
+import { account, user, workspaces, youtubeChannels } from "@/lib/db/schema"
 
 import { createTestEnv, type TestEnv } from "../utils/test-env"
 
@@ -123,6 +124,39 @@ describe("statsRepository", () => {
     await publish({ status: "published", videoId: "v1" })
     const due = await statsRepository(env.db).dueCandidates()
     expect(due[0]!.lastFetchedAt).toBeNull()
+  })
+
+  it("leaves out publications whose channel needs reconnecting or lost its account", async () => {
+    const { publish, repo, channel } = await seed()
+    const stats = statsRepository(env.db)
+    await publish({ status: "published", videoId: "v1" })
+    expect(await stats.dueCandidates()).toHaveLength(1)
+
+    await repo.setChannelStatus(channel.id, "needs_reconnect")
+    expect(await stats.dueCandidates()).toEqual([])
+
+    await repo.setChannelStatus(channel.id, "ok")
+    await env.db
+      .update(youtubeChannels)
+      .set({ accountId: null })
+      .where(eq(youtubeChannels.id, channel.id))
+    expect(await stats.dueCandidates()).toEqual([])
+  })
+
+  it("can ignore a sync deferred until later", async () => {
+    const { publish } = await seed()
+    const stats = statsRepository(env.db)
+    const a = await publish({ status: "published", videoId: "v1" })
+    const now = new Date()
+    await jobQueue(env.db).enqueue({
+      type: "sync_stats",
+      projectId: null,
+      payload: { publicationId: a.id },
+      runAfter: new Date(now.getTime() + 3_600_000),
+    })
+
+    expect(await stats.syncActive(a.id)).toBe(true)
+    expect(await stats.syncActive(a.id, { dueBy: now })).toBe(false)
   })
 
   it("reports a sync as active only while a matching job is queued or running", async () => {

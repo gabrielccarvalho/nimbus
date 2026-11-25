@@ -58,7 +58,7 @@ export const syncStatsStep: JobHandler = async ({ job, db, logger }) => {
     units: LIST_UNITS,
     budget: getEnv().YOUTUBE_DAILY_QUOTA,
   })
-  if (!spent) {
+  const defer = async () => {
     await jobQueue(db).enqueue({
       type: "sync_stats",
       projectId: null,
@@ -67,13 +67,19 @@ export const syncStatsStep: JobHandler = async ({ job, db, logger }) => {
       maxAttempts: 3,
     })
     logger.info({ publicationId }, "YouTube quota spent, stats sync deferred")
-    return
   }
+  if (!spent) return defer()
 
   const youtube = getYouTubeClient()
-  const counts = await withGoogleToken(db, channel, (token) =>
-    youtube.videoStats(token, videoId)
-  )
+  let counts: Awaited<ReturnType<typeof youtube.videoStats>>
+  try {
+    counts = await withGoogleToken(db, channel, (token) =>
+      youtube.videoStats(token, videoId)
+    )
+  } catch (error) {
+    if (error instanceof AppError && error.cause === "quota") return defer()
+    throw error
+  }
   if (!counts) {
     await publishing.updatePublication(publication.id, { status: "removed" })
     logger.info({ publicationId, videoId }, "video is gone from YouTube")

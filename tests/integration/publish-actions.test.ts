@@ -107,6 +107,8 @@ async function seed(opts: { plan?: "free" | "admin" } = {}) {
 
 const publishJobs = () =>
   env.db.select().from(jobs).where(eq(jobs.type, "publish_clip"))
+const syncJobs = () =>
+  env.db.select().from(jobs).where(eq(jobs.type, "sync_stats"))
 
 describe("publishClipAction", () => {
   it("creates a queued publication and enqueues one job", async () => {
@@ -405,6 +407,26 @@ describe("getPublishing", () => {
       stats: { views: 10, retention: [0.9, 0.4], markers: [] },
     })
   })
+
+  it("isn't refreshing while the only sync waits for the quota reset", async () => {
+    const { clip, project } = await seed()
+    const published = await publishClipAction(clip.id, input)
+    if (!published.ok) throw new Error("setup")
+    const id = published.value.publicationId
+    await jobQueueModule.jobQueue(env.db).enqueue({
+      type: "sync_stats",
+      projectId: null,
+      payload: { publicationId: id },
+      runAfter: new Date(Date.now() + 3_600_000),
+    })
+
+    const state = await getPublishing(project.id)
+    expect(state.publications[clip.id]).toMatchObject({ refreshing: false })
+    expect(await refreshStatsAction(id)).toMatchObject({
+      ok: false,
+      error: { code: "CONFLICT", message: "Stats are already refreshing" },
+    })
+  })
 })
 
 describe("refreshStatsAction", () => {
@@ -419,11 +441,77 @@ describe("refreshStatsAction", () => {
       ok: false,
       error: { code: "CONFLICT", message: "Stats are already refreshing" },
     })
-    const queued = await env.db
-      .select()
-      .from(jobs)
-      .where(eq(jobs.type, "sync_stats"))
-    expect(queued).toHaveLength(1)
+    expect(await syncJobs()).toHaveLength(1)
+  })
+
+  it("rejects with the reconnect message when the channel can't sync", async () => {
+    const { clip, channel } = await seed()
+    const published = await publishClipAction(clip.id, input)
+    if (!published.ok) throw new Error("setup")
+    const id = published.value.publicationId
+    const reconnect = {
+      ok: false,
+      error: { code: "CONFLICT", message: RECONNECT_MESSAGE },
+    }
+
+    await publishingRepository(env.db).setChannelStatus(
+      channel.id,
+      "needs_reconnect"
+    )
+    expect(await refreshStatsAction(id)).toMatchObject(reconnect)
+
+    await publishingRepository(env.db).setChannelStatus(channel.id, "ok")
+    await env.db
+      .update(youtubeChannels)
+      .set({ accountId: null })
+      .where(eq(youtubeChannels.id, channel.id))
+    expect(await refreshStatsAction(id)).toMatchObject(reconnect)
+
+    await env.db
+      .delete(youtubeChannels)
+      .where(eq(youtubeChannels.id, channel.id))
+    expect(await refreshStatsAction(id)).toMatchObject(reconnect)
+
+    expect(await syncJobs()).toHaveLength(0)
+  })
+
+  it("rejects with the reconnect message when the workspace connected another channel", async () => {
+    const { clip, channel, workspace } = await seed()
+    const published = await publishClipAction(clip.id, input)
+    if (!published.ok) throw new Error("setup")
+    await env.db
+      .delete(youtubeChannels)
+      .where(eq(youtubeChannels.id, channel.id))
+    await publishingRepository(env.db).upsertChannel({
+      workspaceId: workspace.id,
+      accountId: channel.accountId,
+      channelId: "UC2",
+      title: "New Channel",
+    })
+
+    expect(
+      await refreshStatsAction(published.value.publicationId)
+    ).toMatchObject({
+      ok: false,
+      error: { code: "CONFLICT", message: RECONNECT_MESSAGE },
+    })
+    expect(await syncJobs()).toHaveLength(0)
+  })
+
+  it("returns NOT_FOUND for another workspace's publication", async () => {
+    const { clip } = await seed()
+    const published = await publishClipAction(clip.id, input)
+    if (!published.ok) throw new Error("setup")
+    const id = crypto.randomUUID()
+    const other = { id, name: "Other", email: `${id}@example.com` }
+    await env.db.insert(user).values(other)
+    await accountRepository(env.db).createPersonalWorkspace(other)
+    signedIn.user = other
+
+    expect(
+      await refreshStatsAction(published.value.publicationId)
+    ).toMatchObject({ ok: false, error: { code: "NOT_FOUND" } })
+    expect(await syncJobs()).toHaveLength(0)
   })
 
   it("rejects an unknown publication", async () => {

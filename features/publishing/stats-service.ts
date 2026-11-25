@@ -1,6 +1,6 @@
 import "server-only"
 
-import type { Db } from "@/lib/db"
+import { withTransaction, type Db } from "@/lib/db"
 
 import { jobQueue } from "../jobs/queue"
 import { statsSyncDue } from "./stats"
@@ -10,14 +10,18 @@ export async function enqueueStatsSync(
   db: Db,
   publicationId: string
 ): Promise<boolean> {
-  if (await statsRepository(db).syncActive(publicationId)) return false
-  await jobQueue(db).enqueue({
-    type: "sync_stats",
-    projectId: null,
-    payload: { publicationId },
-    maxAttempts: 3,
+  return withTransaction(db, async (tx) => {
+    const stats = statsRepository(tx)
+    await stats.lockSync(publicationId)
+    if (await stats.syncActive(publicationId)) return false
+    await jobQueue(tx).enqueue({
+      type: "sync_stats",
+      projectId: null,
+      payload: { publicationId },
+      maxAttempts: 3,
+    })
+    return true
   })
-  return true
 }
 
 export async function enqueueDueStatsSyncs(db: Db, now: Date): Promise<number> {

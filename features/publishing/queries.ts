@@ -75,18 +75,19 @@ export async function getPublishing(projectId: string) {
   const statsRepo = statsRepository(db)
   const publicationIds = [...latest.values()].map((p) => p.id)
   const snapshots = await statsRepo.latestFor(publicationIds)
+  const now = new Date()
   const refreshingIds = new Set(
     (
       await Promise.all(
         publicationIds.map(
-          async (id) => [id, await statsRepo.syncActive(id)] as const
+          async (id) =>
+            [id, await statsRepo.syncActive(id, { dueBy: now })] as const
         )
       )
     )
       .filter(([, active]) => active)
       .map(([id]) => id)
   )
-  const now = new Date()
   const publications: Record<
     string,
     {
