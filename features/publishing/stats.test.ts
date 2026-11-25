@@ -1,0 +1,98 @@
+import { describe, expect, it } from "vitest"
+
+import {
+  markerRatios,
+  relativePerformance,
+  retentionMoments,
+  statsEarly,
+  statsSyncDue,
+} from "./stats"
+
+const day = 86_400_000
+const at = new Date("2026-11-01T12:00:00Z")
+const plus = (ms: number) => new Date(at.getTime() + ms)
+
+describe("stats", () => {
+  it("is due once each sync age passes", () => {
+    expect(statsSyncDue(at, null, plus(day - 1))).toBe(false)
+    expect(statsSyncDue(at, null, plus(day))).toBe(true)
+    expect(statsSyncDue(at, plus(day), plus(day + 1))).toBe(false)
+    expect(statsSyncDue(at, plus(day), plus(2 * day))).toBe(true)
+    expect(statsSyncDue(at, plus(28 * day), plus(90 * day))).toBe(false)
+    expect(statsSyncDue(at, plus(3 * day), plus(40 * day))).toBe(true)
+  })
+
+  it("labels the first 72 hours as early", () => {
+    expect(statsEarly(at, plus(71 * 3_600_000))).toBe(true)
+    expect(statsEarly(at, plus(72 * 3_600_000))).toBe(false)
+  })
+
+  it("finds the steepest drops in clip time with what was said and shown", () => {
+    const curve = Array.from({ length: 100 }, (_, i) => ({
+      ratio: (i + 1) / 100,
+      watch: i < 30 ? 1 : i < 31 ? 0.6 : 0.6 - i * 0.001,
+    }))
+    const moments = retentionMoments(
+      curve,
+      { startMs: 10_000, endMs: 30_000 },
+      {
+        words: [
+          { text: "wait", startMs: 16_000, endMs: 16_300, confidence: 1 },
+        ],
+        beats: [{ ms: 16_100, kind: "reaction" }],
+        effects: [
+          {
+            kind: "zoom",
+            startMs: 15_500,
+            endMs: 17_000,
+            scale: 1.4,
+            focus: { x: 0.5, y: 0.5 },
+          },
+        ],
+      }
+    )
+    expect(moments[0]).toMatchObject({
+      kind: "drop",
+      atMs: 6_200,
+      words: "wait",
+      beats: ["reaction"],
+      effects: ["zoom"],
+    })
+    expect(moments[0]!.change).toBeCloseTo(-0.4)
+  })
+
+  it("returns no moments for an empty curve", () => {
+    expect(
+      retentionMoments(
+        [],
+        { startMs: 0, endMs: 10_000 },
+        { words: [], beats: [], effects: [] }
+      )
+    ).toEqual([])
+  })
+
+  it("scores views against the channel's median for the same sync age", () => {
+    const s = (id: string, ageDays: number, views: number) => ({
+      publicationId: id,
+      ageDays,
+      views,
+    })
+    const samples = [
+      s("a", 7, 100),
+      s("b", 7, 200),
+      s("c", 7, 300),
+      s("d", 1, 5000),
+    ]
+    expect(relativePerformance(s("t", 7.5, 400), samples)).toBe(2)
+    expect(relativePerformance(s("t", 1, 400), samples)).toBeNull()
+  })
+
+  it("places beats as fractions of the uploaded range", () => {
+    expect(
+      markerRatios({ startMs: 10_000, endMs: 20_000 }, [
+        { ms: 15_000, kind: "weird" },
+        { ms: 25_000, kind: "weird" },
+      ])
+    ).toEqual([0.5])
+  })
+})
