@@ -1,7 +1,10 @@
 import { render, screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
 import type { ChannelRow } from "@/features/accounts/queries"
+
+import { authClient } from "@/components/auth/auth-client"
 
 import { ChannelList } from "./account-settings"
 
@@ -18,7 +21,7 @@ const youtube: ChannelRow = {
   configured: true,
   connectedAt: new Date(),
   providerId: "google",
-  accountId: "g-1",
+  accountId: "account-row-1",
   needsReconnect: false,
   channelTitle: "Mine",
   channelError: null,
@@ -71,5 +74,48 @@ describe("ChannelList", () => {
       />
     )
     expect(screen.getByRole("alert")).toHaveTextContent("No channel found")
+  })
+
+  it("unlinks the account row and refreshes", async () => {
+    vi.mocked(authClient.unlinkAccount).mockResolvedValue({
+      data: { status: true },
+      error: null,
+    } as never)
+    render(<ChannelList channels={[youtube]} />)
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Disconnect YouTube" }))
+    expect(authClient.unlinkAccount).toHaveBeenCalledWith({
+      accountId: "account-row-1",
+    })
+    expect(screen.queryByText(/didn't work/)).toBeNull()
+  })
+
+  it("says why a disconnect failed", async () => {
+    vi.mocked(authClient.unlinkAccount).mockResolvedValue({
+      data: null,
+      error: { code: "ACCOUNT_NOT_FOUND", message: "Account not found" },
+    } as never)
+    render(<ChannelList channels={[youtube]} />)
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Disconnect YouTube" }))
+    expect(await screen.findByText("Account not found")).toBeVisible()
+  })
+
+  it("asks for a fresh sign-in when the session is too old to disconnect", async () => {
+    vi.mocked(authClient.unlinkAccount).mockResolvedValue({
+      data: null,
+      error: { code: "SESSION_NOT_FRESH", message: "Session is not fresh" },
+    } as never)
+    render(<ChannelList channels={[youtube]} />)
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Disconnect YouTube" }))
+    expect(
+      await screen.findByText(
+        "Sign out and back in, then disconnect YouTube again."
+      )
+    ).toBeVisible()
   })
 })

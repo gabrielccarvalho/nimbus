@@ -640,7 +640,7 @@ function SessionList({ sessions }: { sessions: SecuritySettings["sessions"] }) {
 }
 
 export function ChannelList({ channels }: { channels: ChannelRow[] }) {
-  const { pending, run } = useAction()
+  const { pending, error, run } = useAction()
   const connect = (channel: ChannelRow) =>
     run(() =>
       authClient.linkSocial({
@@ -650,10 +650,18 @@ export function ChannelList({ channels }: { channels: ChannelRow[] }) {
       })
     )
   const disconnect = (channel: ChannelRow) =>
-    run(
-      () => authClient.unlinkAccount({ accountId: channel.accountId! }),
-      `${channel.name} disconnected`
-    )
+    run(async () => {
+      const result = await authClient.unlinkAccount({
+        accountId: channel.accountId!,
+      })
+      return result.error?.code === "SESSION_NOT_FRESH"
+        ? {
+            error: {
+              message: `Sign out and back in, then disconnect ${channel.name} again.`,
+            },
+          }
+        : result
+    }, `${channel.name} disconnected`)
 
   return (
     <SettingsSection className="gap-1">
@@ -727,6 +735,7 @@ export function ChannelList({ channels }: { channels: ChannelRow[] }) {
           </li>
         ))}
       </ul>
+      {error && <FieldError className="pt-2">{error}</FieldError>}
     </SettingsSection>
   )
 }
