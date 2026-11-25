@@ -12,6 +12,7 @@ import { storedPublishInput } from "./metadata"
 import { publishingRepository } from "./repository"
 import { publishInputSchema } from "./schema"
 import { queuePublication } from "./service"
+import { enqueueStatsSync } from "./stats-service"
 
 export async function publishClipAction(clipId: unknown, input: unknown) {
   const id = parseId(clipId, "clip id")
@@ -67,6 +68,26 @@ export async function retryPublicationAction(publicationId: unknown) {
         clip.id,
         metadata
       )
+      revalidatePath(`/projects/${clip.projectId}`, "layout")
+      return { publicationId: publication.id }
+    },
+    []
+  )
+}
+
+export async function refreshStatsAction(publicationId: unknown) {
+  const id = parseId(publicationId, "publication id")
+  return runAction(
+    "refreshStats",
+    async () => {
+      await requireActor()
+      const publication = await publishingRepository(getDb()).getPublication(id)
+      if (!publication) throw new AppError("NOT_FOUND", "Publication not found")
+      const clip = await clipRepository(getDb()).getOrThrow(publication.clipId)
+      await assertProjectAccess(clip.projectId)
+      if (!(await enqueueStatsSync(getDb(), publication.id))) {
+        throw new AppError("CONFLICT", "Stats are already refreshing")
+      }
       revalidatePath(`/projects/${clip.projectId}`, "layout")
       return { publicationId: publication.id }
     },

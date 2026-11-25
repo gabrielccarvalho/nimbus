@@ -39,6 +39,7 @@ import type { LayoutInput } from "@/features/layout/schema"
 import { formatDuration } from "@/lib/format"
 
 import { ClipLoop, ClipPreview } from "./clip-preview"
+import { ClipStats } from "./clip-stats"
 import { PublishControl, type PublishingState } from "./publish-dialog"
 import { ClipStatusBadge } from "./status-badge"
 
@@ -246,6 +247,7 @@ function ClipDetails({
   onMove: (step: number) => void
 }) {
   const { pending, setStatus } = useClipStatus(projectId, clip)
+  const publication = publishing.publications[clip.id]
   return (
     <div className="flex min-w-0 flex-col gap-4 sm:pt-6">
       <DialogHeader>
@@ -310,6 +312,11 @@ function ClipDetails({
         )}
         {render && <PublishControl clip={clip} publishing={publishing} />}
       </div>
+      {publication &&
+        (publication.status === "published" ||
+          publication.status === "removed") && (
+          <ClipStats publication={publication} />
+        )}
       <div className="mt-auto flex items-center justify-between gap-2">
         <Button size="sm" disabled={position <= 1} onClick={() => onMove(-1)}>
           <CaretLeftIcon data-icon="inline-start" aria-hidden />

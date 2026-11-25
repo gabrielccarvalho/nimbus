@@ -58,6 +58,7 @@ import {
   StatCardLabel,
   StatCardValue,
 } from "@/components/ui/stat-card"
+import { Sparkline } from "@/components/ui/sparkline"
 import { Slider } from "@/components/ui/slider"
 import { buildCaptionPages } from "@/features/captions/pages"
 import { CAPTION_PRESETS, cssCaptionStyle } from "@/features/captions/styles"
@@ -285,6 +286,15 @@ export function ComponentGallery() {
             </StatCard>
           </StatCardGroup>
         ))}
+      </Section>
+
+      <Section title="Sparkline">
+        <Sparkline
+          className="max-w-sm"
+          label="Retention example"
+          values={[1, 0.92, 0.8, 0.74, 0.6, 0.55, 0.41, 0.3, 0.22, 0.18]}
+          markers={[0.25, 0.6]}
+        />
       </Section>
 
       <Section title="VideoPlayer">

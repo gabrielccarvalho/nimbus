@@ -39,6 +39,10 @@ const base = {
     tags: ["old"],
     privacy: "unlisted" as const,
   },
+  publishedAt: null,
+  stats: null,
+  early: false,
+  refreshing: false,
 }
 
 const clip = {

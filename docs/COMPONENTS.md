@@ -76,6 +76,14 @@ Labeled metric tile, rendered as a `<dl>` group so label/value pairs are announc
 </StatCardGroup>
 ```
 
+### Sparkline (`components/ui/sparkline.tsx`)
+
+SVG polyline scaled to its box. `values` are plotted evenly left to right against `max(1, ...values)` (so a curve above 1 still fits); `markers` are fractions 0–1 drawn as dashed vertical ticks. Renders `role="img"` with the required `label` as its name; fewer than two values draws no line. Colour follows `currentColor` (`text-primary` by default), height is `h-10` and overridable via `className`.
+
+```tsx
+<Sparkline values={[1, 0.8, 0.5]} markers={[0.4]} label="Retention" />
+```
+
 ### Dropzone (`components/ui/dropzone.tsx`)
 
 File drop target that also opens the native picker.

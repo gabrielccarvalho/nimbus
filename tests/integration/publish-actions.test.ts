@@ -10,11 +10,13 @@ import {
 import { defaultProjectSettings } from "@/features/projects/schema"
 import {
   publishClipAction,
+  refreshStatsAction,
   retryPublicationAction,
 } from "@/features/publishing/actions"
 import { RECONNECT_MESSAGE } from "@/features/publishing/google-token"
 import { getPublishing } from "@/features/publishing/queries"
 import { publishingRepository } from "@/features/publishing/repository"
+import { statsRepository } from "@/features/publishing/stats-repository"
 import {
   account,
   jobs,
@@ -372,5 +374,63 @@ describe("getPublishing", () => {
     const state = await getPublishing(project.id)
     expect(state.channel).toBeNull()
     expect(state.publishesLeftToday).toBeNull()
+  })
+
+  it("adds the latest stats snapshot, retention values and early flag", async () => {
+    const { clip, project } = await seed()
+    const published = await publishClipAction(clip.id, input)
+    if (!published.ok) throw new Error("setup")
+    const id = published.value.publicationId
+    await publishingRepository(env.db).updatePublication(id, {
+      status: "published",
+      publishedAt: new Date(),
+    })
+    await statsRepository(env.db).add({
+      publicationId: id,
+      views: 10,
+      likes: 2,
+      comments: 1,
+      averageViewDurationS: 8,
+      averageViewPercentage: 40,
+      retention: [
+        { ratio: 0.5, watch: 0.9 },
+        { ratio: 1, watch: 0.4 },
+      ],
+    })
+
+    const state = await getPublishing(project.id)
+    expect(state.publications[clip.id]).toMatchObject({
+      early: true,
+      refreshing: false,
+      stats: { views: 10, retention: [0.9, 0.4], markers: [] },
+    })
+  })
+})
+
+describe("refreshStatsAction", () => {
+  it("enqueues a sync and refuses a second one while it is active", async () => {
+    const { clip } = await seed()
+    const published = await publishClipAction(clip.id, input)
+    if (!published.ok) throw new Error("setup")
+    const id = published.value.publicationId
+    expect((await refreshStatsAction(id)).ok).toBe(true)
+    const again = await refreshStatsAction(id)
+    expect(again).toMatchObject({
+      ok: false,
+      error: { code: "CONFLICT", message: "Stats are already refreshing" },
+    })
+    const queued = await env.db
+      .select()
+      .from(jobs)
+      .where(eq(jobs.type, "sync_stats"))
+    expect(queued).toHaveLength(1)
+  })
+
+  it("rejects an unknown publication", async () => {
+    await seed()
+    expect(await refreshStatsAction("missing")).toMatchObject({
+      ok: false,
+      error: { code: "NOT_FOUND" },
+    })
   })
 })

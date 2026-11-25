@@ -162,6 +162,10 @@ describe("ClipsGrid", () => {
               status: "published",
               url: "https://youtu.be/abc",
               error: null,
+              publishedAt: null,
+              stats: null,
+              early: false,
+              refreshing: false,
             },
           },
         }}
@@ -189,6 +193,10 @@ describe("ClipsGrid", () => {
               url: null,
               error: null,
               progress: 30,
+              publishedAt: null,
+              stats: null,
+              early: false,
+              refreshing: false,
             },
             c: {
               id: "pub2",
@@ -197,6 +205,10 @@ describe("ClipsGrid", () => {
               status: "waiting_quota",
               url: null,
               error: null,
+              publishedAt: null,
+              stats: null,
+              early: false,
+              refreshing: false,
             },
           },
         }}

@@ -16,6 +16,8 @@ import { pacificDay } from "./quota"
 import { publishingRepository } from "./repository"
 import type { PublicationStatus, PublishInput } from "./schema"
 import { syncYouTubeChannel } from "./service"
+import { markerRatios, statsEarly } from "./stats"
+import { statsRepository } from "./stats-repository"
 
 export async function getYouTubeChannelCard() {
   await connection()
@@ -67,6 +69,22 @@ export async function getPublishing(projectId: string) {
   const progressById = new Map(
     running.map((j) => [String(j.payload.publicationId), j.progress])
   )
+  const clipsById = new Map(clips.map((c) => [c.id, c]))
+  const statsRepo = statsRepository(db)
+  const publicationIds = [...latest.values()].map((p) => p.id)
+  const snapshots = await statsRepo.latestFor(publicationIds)
+  const refreshingIds = new Set(
+    (
+      await Promise.all(
+        publicationIds.map(
+          async (id) => [id, await statsRepo.syncActive(id)] as const
+        )
+      )
+    )
+      .filter(([, active]) => active)
+      .map(([id]) => id)
+  )
+  const now = new Date()
   const publications: Record<
     string,
     {
@@ -77,10 +95,29 @@ export async function getPublishing(projectId: string) {
       url: string | null
       error: string | null
       progress?: number
+      publishedAt: Date | null
+      stats: {
+        fetchedAt: Date
+        views: number
+        likes: number
+        comments: number
+        averageViewDurationS: number | null
+        averageViewPercentage: number | null
+        retention: number[]
+        markers: number[]
+      } | null
+      early: boolean
+      refreshing: boolean
     }
   > = {}
   for (const [clipId, p] of latest) {
     const progress = progressById.get(p.id)
+    const snapshot = snapshots.get(p.id)
+    const clip = clipsById.get(clipId)
+    const range = {
+      startMs: p.clipStartMs ?? clip?.startMs ?? 0,
+      endMs: p.clipEndMs ?? clip?.endMs ?? 0,
+    }
     publications[clipId] = {
       id: p.id,
       renderAssetId: p.renderAssetId,
@@ -93,6 +130,21 @@ export async function getPublishing(projectId: string) {
       status: p.status,
       url: p.url,
       error: p.error,
+      publishedAt: p.publishedAt,
+      stats: snapshot
+        ? {
+            fetchedAt: snapshot.fetchedAt,
+            views: snapshot.views,
+            likes: snapshot.likes,
+            comments: snapshot.comments,
+            averageViewDurationS: snapshot.averageViewDurationS,
+            averageViewPercentage: snapshot.averageViewPercentage,
+            retention: (snapshot.retention ?? []).map((point) => point.watch),
+            markers: markerRatios(range, clip?.beats ?? []),
+          }
+        : null,
+      early: p.publishedAt ? statsEarly(p.publishedAt, now) : false,
+      refreshing: refreshingIds.has(p.id),
       ...(progress === undefined ? {} : { progress }),
     }
   }
