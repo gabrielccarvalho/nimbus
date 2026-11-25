@@ -1,15 +1,30 @@
 import "server-only"
 
-import type { Db } from "@/lib/db"
+import { withTransaction, type Db } from "@/lib/db"
+import { AppError } from "@/lib/errors"
 
 import { NICHE_PROFILES, resolveNiche } from "../highlights/niches"
 import { transcriptLines } from "../highlights/prompt"
+import type { Workspace } from "../accounts/repository"
+import { claudeAvailable } from "../accounts/usage"
+import { jobQueue } from "../jobs/queue"
 import { projectRepository } from "../projects/repository"
 import { relativePerformance, retentionMoments } from "../publishing/stats"
 import { statsRepository } from "../publishing/stats-repository"
 import { transcriptRepository } from "../transcription/repository"
 import type { InsightClip } from "./prompt"
-import { INSIGHTS_MIN_AGE_DAYS } from "./schema"
+import {
+  insightsRepository,
+  type InsightSuggestion,
+  type PlaybookRule,
+} from "./repository"
+import {
+  INSIGHTS_MIN_AGE_DAYS,
+  INSIGHTS_MIN_CLIPS,
+  PLAYBOOK_RULE_CAP,
+  ruleTextSchema,
+  type RuleTarget,
+} from "./schema"
 
 const DAY_MS = 86_400_000
 
@@ -115,4 +130,211 @@ export async function eligibleInsightClips(
       }
     })
   )
+}
+
+const capMessage = `This list already has ${PLAYBOOK_RULE_CAP} rules. Pick one to retire.`
+
+function parseRuleText(text: string) {
+  const parsed = ruleTextSchema.safeParse(text)
+  if (!parsed.success) {
+    throw new AppError(
+      "VALIDATION",
+      parsed.error.issues[0]?.message ?? "Invalid rule"
+    )
+  }
+  return parsed.data
+}
+
+async function ownedRule(
+  repo: ReturnType<typeof insightsRepository>,
+  channelId: string,
+  ruleId: string
+) {
+  const rule = await repo.getRule(ruleId)
+  if (!rule || rule.channelId !== channelId) {
+    throw new AppError("NOT_FOUND", "Rule not found")
+  }
+  return rule
+}
+
+async function makeRoom(
+  repo: ReturnType<typeof insightsRepository>,
+  channelId: string,
+  target: RuleTarget,
+  retireRuleId: string | undefined
+) {
+  if ((await repo.countActive(channelId, target)) < PLAYBOOK_RULE_CAP) return
+  if (!retireRuleId) throw new AppError("CONFLICT", capMessage)
+  const rule = await repo.getRule(retireRuleId)
+  if (
+    !rule ||
+    rule.channelId !== channelId ||
+    rule.target !== target ||
+    rule.status !== "active"
+  ) {
+    throw new AppError(
+      "VALIDATION",
+      "Pick an active rule from this list to retire"
+    )
+  }
+  await repo.retireRule(rule.id)
+}
+
+async function pendingSuggestion(
+  repo: ReturnType<typeof insightsRepository>,
+  channelId: string,
+  id: string
+): Promise<InsightSuggestion> {
+  const suggestion = await repo.getSuggestion(id)
+  if (!suggestion || suggestion.channelId !== channelId) {
+    throw new AppError("NOT_FOUND", "Suggestion not found")
+  }
+  if (suggestion.status !== "pending") {
+    throw new AppError("CONFLICT", "This suggestion was already decided.")
+  }
+  return suggestion
+}
+
+export function approveSuggestion(
+  db: Db,
+  channelId: string,
+  suggestionId: string,
+  options: { text?: string; retireRuleId?: string }
+): Promise<void> {
+  return withTransaction(db, async (tx) => {
+    const repo = insightsRepository(tx)
+    const suggestion = await pendingSuggestion(repo, channelId, suggestionId)
+    const sourceSuggestionId = suggestion.id
+
+    if (suggestion.kind === "add") {
+      const text = parseRuleText(options.text ?? suggestion.text)
+      await makeRoom(repo, channelId, suggestion.target, options.retireRuleId)
+      await repo.insertRule({
+        channelId,
+        target: suggestion.target,
+        text,
+        sourceSuggestionId,
+      })
+    } else {
+      const rule = suggestion.ruleId
+        ? await repo.getRule(suggestion.ruleId)
+        : undefined
+      if (!rule || rule.channelId !== channelId || rule.status !== "active") {
+        throw new AppError(
+          "CONFLICT",
+          "That rule changed since this suggestion was made. Run Find patterns again."
+        )
+      }
+      if (suggestion.kind === "edit") {
+        const text = parseRuleText(options.text ?? suggestion.text)
+        await repo.retireRule(rule.id)
+        await repo.insertRule({
+          channelId,
+          target: rule.target,
+          text,
+          sourceSuggestionId,
+          supersedesId: rule.id,
+        })
+      } else {
+        await repo.retireRule(rule.id)
+      }
+    }
+    await repo.decideSuggestion(suggestion.id, "approved")
+  })
+}
+
+export function rejectSuggestion(
+  db: Db,
+  channelId: string,
+  suggestionId: string
+): Promise<void> {
+  return withTransaction(db, async (tx) => {
+    const repo = insightsRepository(tx)
+    const suggestion = await pendingSuggestion(repo, channelId, suggestionId)
+    await repo.decideSuggestion(suggestion.id, "rejected")
+  })
+}
+
+export function editRule(
+  db: Db,
+  channelId: string,
+  ruleId: string,
+  text: string
+): Promise<PlaybookRule> {
+  const nextText = parseRuleText(text)
+  return withTransaction(db, async (tx) => {
+    const repo = insightsRepository(tx)
+    const rule = await ownedRule(repo, channelId, ruleId)
+    if (rule.status !== "active") {
+      throw new AppError("CONFLICT", "Only an active rule can be edited.")
+    }
+    await repo.retireRule(rule.id)
+    return repo.insertRule({
+      channelId,
+      target: rule.target,
+      text: nextText,
+      supersedesId: rule.id,
+    })
+  })
+}
+
+export function retireRule(
+  db: Db,
+  channelId: string,
+  ruleId: string
+): Promise<void> {
+  return withTransaction(db, async (tx) => {
+    const repo = insightsRepository(tx)
+    const rule = await ownedRule(repo, channelId, ruleId)
+    if (rule.status !== "active") {
+      throw new AppError("CONFLICT", "This rule is already retired.")
+    }
+    await repo.retireRule(rule.id)
+  })
+}
+
+export function restoreRule(
+  db: Db,
+  channelId: string,
+  ruleId: string,
+  options: { retireRuleId?: string }
+): Promise<void> {
+  return withTransaction(db, async (tx) => {
+    const repo = insightsRepository(tx)
+    const rule = await ownedRule(repo, channelId, ruleId)
+    if (rule.status === "active") {
+      throw new AppError("CONFLICT", "This rule is already active.")
+    }
+    await makeRoom(repo, channelId, rule.target, options.retireRuleId)
+    await repo.restoreRule(rule.id)
+  })
+}
+
+export async function findPatterns(
+  db: Db,
+  workspace: Pick<Workspace, "anthropicKey">,
+  channelId: string
+): Promise<void> {
+  if (!claudeAvailable(workspace)) {
+    throw new AppError(
+      "DEPENDENCY_MISSING",
+      "Add an Anthropic key in Settings to find patterns"
+    )
+  }
+  const eligible = (await eligibleInsightClips(db, channelId)).length
+  if (eligible < INSIGHTS_MIN_CLIPS) {
+    throw new AppError(
+      "CONFLICT",
+      `Finding patterns needs ${INSIGHTS_MIN_CLIPS} clips with stats at least ${INSIGHTS_MIN_AGE_DAYS} days old. You have ${eligible}.`
+    )
+  }
+  if (await insightsRepository(db).analysisActive(channelId)) {
+    throw new AppError("CONFLICT", "Already looking for patterns")
+  }
+  await jobQueue(db).enqueue({
+    type: "analyze_performance",
+    projectId: null,
+    payload: { channelId },
+    maxAttempts: 1,
+  })
 }

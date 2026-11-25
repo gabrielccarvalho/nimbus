@@ -1,9 +1,9 @@
 import "server-only"
 
-import { and, asc, desc, eq } from "drizzle-orm"
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm"
 
 import { newId, now, withTransaction, type Db } from "@/lib/db"
-import { insightSuggestions, playbookRules } from "@/lib/db/schema"
+import { insightSuggestions, jobs, playbookRules } from "@/lib/db/schema"
 
 import { publishingRepository } from "../publishing/repository"
 import type { RuleTarget, SuggestionStatus } from "./schema"
@@ -151,6 +151,37 @@ export function insightsRepository(db: Db) {
         .from(insightSuggestions)
         .where(eq(insightSuggestions.id, id))
       return row
+    },
+
+    async analysisActive(channelId: string): Promise<boolean> {
+      const [row] = await db
+        .select({ id: jobs.id })
+        .from(jobs)
+        .where(
+          and(
+            eq(jobs.type, "analyze_performance"),
+            inArray(jobs.status, ["queued", "running"]),
+            sql`${jobs.payload}->>'channelId' = ${channelId}`
+          )
+        )
+        .limit(1)
+      return row !== undefined
+    },
+
+    async lastAnalysisError(channelId: string): Promise<string | null> {
+      const [row] = await db
+        .select({ status: jobs.status, error: jobs.error })
+        .from(jobs)
+        .where(
+          and(
+            eq(jobs.type, "analyze_performance"),
+            inArray(jobs.status, ["failed", "succeeded"]),
+            sql`${jobs.payload}->>'channelId' = ${channelId}`
+          )
+        )
+        .orderBy(desc(jobs.createdAt))
+        .limit(1)
+      return row?.status === "failed" ? (row.error ?? "Analysis failed") : null
     },
 
     async decideSuggestion(
