@@ -30,10 +30,30 @@ export async function seedYouTubeChannel() {
   }
 }
 
+export async function seedInsightSuggestion() {
+  const client = new Client({ connectionString: process.env.E2E_DATABASE_URL })
+  await client.connect()
+  try {
+    await client.query(
+      `insert into insight_suggestions (id, channel_id, target, kind, text, rationale, evidence_for, evidence_against, confidence)
+       values ('e2e-suggestion', 'e2e-channel', 'selection', 'add', 'Open on the crash, not the build-up', 'Clips that open on the payoff keep more viewers.', '[]'::jsonb, '[]'::jsonb, 0.8)
+       on conflict (id) do nothing`
+    )
+  } finally {
+    await client.end()
+  }
+}
+
 export async function removeYouTubeChannel() {
   const client = new Client({ connectionString: process.env.E2E_DATABASE_URL })
   await client.connect()
   try {
+    await client.query(
+      `delete from insight_suggestions where channel_id = 'e2e-channel'`
+    )
+    await client.query(
+      `delete from playbook_rules where channel_id = 'e2e-channel'`
+    )
     await client.query(`delete from youtube_channels where id = 'e2e-channel'`)
     await client.query(`delete from account where id = 'e2e-google-account'`)
   } finally {
