@@ -89,6 +89,7 @@ const statusForJob: Record<JobType, RunningStatus | null> = {
   sweep: null,
   publish_clip: null,
   sync_stats: null,
+  analyze_performance: null,
 }
 
 export function statusForJobType(type: JobType): RunningStatus | null {

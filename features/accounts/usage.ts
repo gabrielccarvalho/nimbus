@@ -12,7 +12,7 @@ import { planFor, usagePeriod, type UsageKind } from "./schema"
 
 export async function recordUsage(
   db: Db,
-  project: { id: string; workspaceId: string | null },
+  project: { id: string | null; workspaceId: string | null },
   kind: UsageKind,
   amount: number
 ) {

@@ -11,6 +11,7 @@ import { publishingRepository } from "../publishing/repository"
 import { ACTIVE_PUBLICATION_STATUSES } from "../publishing/schema"
 import { releaseRenderAsset } from "../publishing/service"
 import { analyzeStep } from "./steps/analyze"
+import { analyzePerformanceStep } from "./steps/analyze-performance"
 import { downloadStep } from "./steps/download"
 import { settleRendering } from "../render/service"
 import { probeStep } from "./steps/probe"
@@ -33,6 +34,7 @@ export const pipelineHandlers: JobHandlers = {
   sweep: sweepStep,
   publish_clip: publishClipStep,
   sync_stats: syncStatsStep,
+  analyze_performance: analyzePerformanceStep,
 }
 
 const MINUTE = 60_000
@@ -49,6 +51,7 @@ export function jobStallTimeoutMs(job: Job): number {
     case "probe":
     case "analyze":
     case "render_clip":
+    case "analyze_performance":
       return 15 * MINUTE
     case "sweep":
       return 10 * MINUTE

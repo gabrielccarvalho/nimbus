@@ -43,6 +43,14 @@ export function publishingRepository(db: Db) {
       return row
     },
 
+    async getChannelById(id: string): Promise<YouTubeChannel | undefined> {
+      const [row] = await db
+        .select()
+        .from(youtubeChannels)
+        .where(eq(youtubeChannels.id, id))
+      return row
+    },
+
     async upsertChannel(input: NewYouTubeChannel): Promise<YouTubeChannel> {
       const [row] = await db
         .insert(youtubeChannels)
