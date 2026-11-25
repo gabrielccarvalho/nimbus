@@ -30,7 +30,11 @@ export async function enqueueDueStatsSyncs(db: Db, now: Date): Promise<number> {
   for (const { publication, lastFetchedAt } of candidates) {
     if (
       publication.publishedAt &&
-      statsSyncDue(publication.publishedAt, lastFetchedAt, now) &&
+      statsSyncDue(
+        { publishedAt: publication.publishedAt, origin: "nimbus" },
+        lastFetchedAt,
+        now
+      ) &&
       (await enqueueStatsSync(db, publication.id))
     ) {
       enqueued++

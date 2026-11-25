@@ -1,9 +1,11 @@
+import type { PublicationOrigin } from "./schema"
 import type { Beat, Effect } from "@/features/effects/schema"
 import type { Word } from "@/features/transcription/schema"
 
 export type RetentionPoint = { ratio: number; watch: number }
 
 export const STATS_SYNC_AGES_DAYS = [1, 2, 7, 28] as const
+export const STATS_RESYNC_DAYS = 28
 export const STATS_LAG_MS = 72 * 3_600_000
 export const STATS_SCHEDULE_INTERVAL_MS = 30 * 60_000
 
@@ -15,12 +17,20 @@ const CONTEXT_WINDOW_MS = 1_000
 const MIN_PEERS = 3
 
 export function statsSyncDue(
-  publishedAt: Date,
+  publication: { publishedAt: Date; origin: PublicationOrigin },
   lastFetchedAt: Date | null,
   now: Date
 ): boolean {
+  const resyncDue =
+    lastFetchedAt === null ||
+    lastFetchedAt.getTime() <= now.getTime() - STATS_RESYNC_DAYS * DAY_MS
+  if (publication.origin === "imported") return resyncDue
+  const publishedMs = publication.publishedAt.getTime()
+  if (now.getTime() - publishedMs >= STATS_RESYNC_DAYS * DAY_MS && resyncDue) {
+    return true
+  }
   return STATS_SYNC_AGES_DAYS.some((age) => {
-    const dueAt = publishedAt.getTime() + age * DAY_MS
+    const dueAt = publishedMs + age * DAY_MS
     return (
       dueAt <= now.getTime() &&
       (lastFetchedAt === null || lastFetchedAt.getTime() < dueAt)

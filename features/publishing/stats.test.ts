@@ -10,16 +10,24 @@ import {
 
 const day = 86_400_000
 const at = new Date("2026-11-01T12:00:00Z")
+const nimbus = { publishedAt: at, origin: "nimbus" as const }
+const imported = { publishedAt: at, origin: "imported" as const }
 const plus = (ms: number) => new Date(at.getTime() + ms)
 
 describe("stats", () => {
-  it("is due once each sync age passes", () => {
-    expect(statsSyncDue(at, null, plus(day - 1))).toBe(false)
-    expect(statsSyncDue(at, null, plus(day))).toBe(true)
-    expect(statsSyncDue(at, plus(day), plus(day + 1))).toBe(false)
-    expect(statsSyncDue(at, plus(day), plus(2 * day))).toBe(true)
-    expect(statsSyncDue(at, plus(28 * day), plus(90 * day))).toBe(false)
-    expect(statsSyncDue(at, plus(3 * day), plus(40 * day))).toBe(true)
+  it("keeps days 1, 2, 7, 28, then re-syncs every 28 days", () => {
+    expect(statsSyncDue(nimbus, null, plus(day - 1))).toBe(false)
+    expect(statsSyncDue(nimbus, null, plus(day))).toBe(true)
+    expect(statsSyncDue(nimbus, plus(day), plus(day + 1))).toBe(false)
+    expect(statsSyncDue(nimbus, plus(day), plus(2 * day))).toBe(true)
+    expect(statsSyncDue(nimbus, plus(28 * day), plus(56 * day - 1))).toBe(false)
+    expect(statsSyncDue(nimbus, plus(28 * day), plus(56 * day))).toBe(true)
+  })
+
+  it("syncs imported Shorts at once, then every 28 days", () => {
+    expect(statsSyncDue(imported, null, plus(400 * day))).toBe(true)
+    expect(statsSyncDue(imported, plus(400 * day), plus(427 * day))).toBe(false)
+    expect(statsSyncDue(imported, plus(400 * day), plus(428 * day))).toBe(true)
   })
 
   it("labels the first 72 hours as early", () => {
