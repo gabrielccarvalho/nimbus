@@ -1,7 +1,9 @@
 import { z } from "zod"
 
+import { textOverlaySchema } from "../captions/overlay"
 import { clipEffectsSchema } from "../effects/schema"
 import { layoutInputSchema } from "../layout/schema"
+import { audioMixSchema } from "../music/schema"
 
 export const clipStatuses = [
   "candidate",
@@ -44,6 +46,8 @@ export const clipEditSchema = clipTextSchema.extend({
   captionOverrides: captionOverridesSchema,
   layoutOverride: layoutInputSchema.nullable().default(null),
   effects: clipEffectsSchema.nullable().default(null),
+  audioMix: audioMixSchema.nullable().default(null),
+  textOverlay: textOverlaySchema.nullable().default(null),
 })
 export type ClipEdit = z.infer<typeof clipEditSchema>
 

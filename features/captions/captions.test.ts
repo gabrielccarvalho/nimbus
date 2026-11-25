@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest"
 
 import { defaultProjectSettings } from "../projects/schema"
 import { assTime, buildAss, escapeAssText } from "./ass"
-import { defaultOverlayText, overlayEndMs, overlayFontSize } from "./overlay"
+import {
+  defaultOverlayText,
+  overlayEndMs,
+  overlayFontSize,
+  textOverlaySchema,
+} from "./overlay"
 import {
   activeWordIndex,
   applyPageOverrides,
@@ -343,6 +348,28 @@ describe("text overlay", () => {
   const overlay = { text: "Wait for it", position: "top" as const, endMs: 3000 }
   const events = (ass: string) =>
     ass.split("\n").filter((line) => line.startsWith("Dialogue:"))
+
+  it("parses with defaults and bounds", () => {
+    expect(textOverlaySchema.parse({ text: "  Wait for it " })).toEqual({
+      text: "Wait for it",
+      position: "top",
+      untilMs: 3000,
+    })
+    expect(
+      textOverlaySchema.parse({ text: "Go", position: "center", untilMs: null })
+    ).toEqual({ text: "Go", position: "center", untilMs: null })
+    const ok = (input: object) =>
+      textOverlaySchema.safeParse({ text: "Go", ...input }).success
+    expect(ok({ text: "a".repeat(80) })).toBe(true)
+    expect(ok({ text: "a".repeat(81) })).toBe(false)
+    expect(ok({ text: "   " })).toBe(false)
+    expect(ok({ position: "bottom" })).toBe(false)
+    expect(ok({ untilMs: 500 })).toBe(true)
+    expect(ok({ untilMs: 499 })).toBe(false)
+    expect(ok({ untilMs: 180_000 })).toBe(true)
+    expect(ok({ untilMs: 180_001 })).toBe(false)
+    expect(ok({ untilMs: 1500.5 })).toBe(false)
+  })
 
   it("defaults to the hook, then the title, cut at a word boundary", () => {
     expect(defaultOverlayText("Wait for it", "Clip")).toBe("Wait for it")

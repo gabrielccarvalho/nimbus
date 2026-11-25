@@ -2,13 +2,14 @@ import "server-only"
 
 import { isDeepStrictEqual } from "node:util"
 
-import type { Db } from "@/lib/db"
+import { withTransaction, type Db } from "@/lib/db"
 import { AppError } from "@/lib/errors"
 
 import { normalizeEffects, type ClipEffects } from "../effects/schema"
 import { autoEffectsFor } from "../effects/service"
 import { postprocessCandidates } from "../highlights/postprocess"
 import { parseCandidatesJson } from "../highlights/prompt"
+import { musicRepository } from "../music/repository"
 import { assetRepository, projectRepository } from "../projects/repository"
 import { transcriptRepository } from "../transcription/repository"
 import { clipRepository } from "./repository"
@@ -191,7 +192,7 @@ export async function updateClip(
       events: normalizeEffects(edit.effects.events, range),
     }
   }
-  return clips.update(clipId, {
+  const patch = {
     startMs: edit.startMs,
     endMs: edit.endMs,
     title: edit.title,
@@ -202,7 +203,26 @@ export async function updateClip(
     },
     layoutOverride: edit.layoutOverride,
     ...(effects === undefined ? {} : { effects }),
+    audioMix: edit.audioMix,
+    textOverlay: edit.textOverlay,
     status: clip.status === "rendered" ? "approved" : clip.status,
+  }
+  const mix = edit.audioMix
+  if (!mix?.trackId) return clips.update(clipId, patch)
+  const trackId = mix.trackId
+  const { workspaceId } = await projectRepository(db).getOrThrow(projectId)
+  return withTransaction(db, async (tx) => {
+    const track = await musicRepository(tx).lock(trackId, "share")
+    if (!track || track.workspaceId !== workspaceId) {
+      throw new AppError(
+        "VALIDATION",
+        "That music track is no longer in your library"
+      )
+    }
+    if (mix.trackStartMs >= track.durationMs) {
+      throw new AppError("VALIDATION", "Start the music before the track ends")
+    }
+    return clipRepository(tx).update(clipId, patch)
   })
 }
 
