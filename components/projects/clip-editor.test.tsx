@@ -410,6 +410,22 @@ describe("ClipEditor workspace", () => {
     expect(within(drawer).getByLabelText("Title")).toHaveValue("Clip")
   })
 
+  it("resizes the timeline from its top edge and goes back on a double click", () => {
+    renderEditor()
+    const dock = document.querySelector<HTMLElement>("[data-slot=clip-dock]")!
+    Object.defineProperty(dock.parentElement, "clientHeight", { value: 900 })
+    dock.getBoundingClientRect = () => ({ height: 296 }) as DOMRect
+    const edge = screen.getByRole("separator", { name: "Resize timeline" })
+    fireEvent.pointerDown(edge, { button: 0, pointerId: 1, clientY: 600 })
+    fireEvent.pointerMove(edge, { pointerId: 1, clientY: 500 })
+    expect(dock.style.flex).toBe("0 0 396px")
+    fireEvent.pointerMove(edge, { pointerId: 1, clientY: 0 })
+    expect(dock.style.flex).toBe("0 0 540px")
+    fireEvent.pointerUp(edge, { pointerId: 1 })
+    fireEvent.doubleClick(edge)
+    expect(dock.style.minHeight).toBe("296px")
+  })
+
   it("marks what the Shorts interface covers", async () => {
     renderEditor()
     expect(screen.queryByTestId("safe-zones")).not.toBeInTheDocument()

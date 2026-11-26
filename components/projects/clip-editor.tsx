@@ -103,6 +103,12 @@ const MUSIC_POLL_MS = 3000
 const DEFAULT_FPS = 30
 const WIDE_QUERY = "(min-width: 1180px)"
 const PANE_HEIGHT = "min(100cqh - 32px, 452px)"
+const HEADER_PX = 60
+const STAGE_MAX_PX = 568
+const STAGE_MIN_PX = 300
+const DOCK_PX = 296
+const DOCK_MIN_PX = 160
+const DOCK_STEP_PX = 24
 const BADGE =
   "pointer-events-none absolute rounded-[7px] bg-night/72 px-[7px] py-[5px] text-[11px] leading-none font-semibold whitespace-nowrap backdrop-blur-sm"
 const HATCH =
@@ -210,6 +216,21 @@ function Editor({
   )
   const [tab, setTab] = React.useState<InspectorTab>("details")
   const [drawer, setDrawer] = React.useState(false)
+  const [dockHeight, setDockHeight] = React.useState<number | null>(null)
+  const dockRef = React.useRef<HTMLDivElement>(null)
+  const dockDrag = React.useRef<{ y: number; height: number } | null>(null)
+  const resizeDock = (height: number) => {
+    const room = dockRef.current?.parentElement?.clientHeight
+    if (!room) return
+    setDockHeight(
+      Math.round(
+        Math.min(
+          Math.max(height, DOCK_MIN_PX),
+          Math.max(DOCK_MIN_PX, room - HEADER_PX - STAGE_MIN_PX)
+        )
+      )
+    )
+  }
   const [loop, setLoop] = React.useState(true)
   const [safeZones, setSafeZones] = React.useState(false)
   const wide = useWide()
@@ -740,7 +761,12 @@ function Editor({
           )}
         </header>
 
-        <div className="flex min-h-0 flex-1">
+        <div
+          className="flex min-h-0"
+          style={{
+            flex: dockHeight === null ? `0 1 ${STAGE_MAX_PX}px` : "1 1 0",
+          }}
+        >
           <section
             aria-label="Preview"
             className="flex min-w-0 flex-1 flex-col gap-3 px-[18px] pt-4 pb-3"
@@ -919,43 +945,96 @@ function Editor({
           )}
         </div>
 
-        <ClipTimeline
-          src={src}
-          sourceDurationMs={sourceDurationMs}
-          startMs={startMs}
-          endMs={endMs}
-          onTrim={trim}
-          hasWebcam={hasWebcam && Boolean(layout.webcamRect)}
-          effects={effects}
-          onEffectsChange={(next) => patch({ effects: next })}
-          onPlanEffects={planEffects}
-          planning={planning}
-          spokenPages={spokenPages}
-          captions={captions}
-          onCaptionsChange={(next) => patch({ captions: next })}
-          captionsEnabled={captionsEnabled}
-          onCaptionsEnabledChange={(checked) =>
-            patch({
-              captionsOverride:
-                checked === settings.captionsEnabled ? undefined : checked,
-            })
+        <div
+          ref={dockRef}
+          data-slot="clip-dock"
+          className="relative flex min-h-0 flex-col"
+          style={
+            dockHeight === null
+              ? { flex: `1 1 ${DOCK_PX}px`, minHeight: DOCK_PX }
+              : { flex: `0 0 ${dockHeight}px` }
           }
-          captionBaseline={baseline}
-          textOverlays={textOverlays}
-          onTextOverlaysChange={(next) => patch({ textOverlays: next })}
-          hook={hook}
-          title={title}
-          captionsNearTop={captionsNearTop}
-          audioMix={audioMix ?? DEFAULT_AUDIO_MIX}
-          onAudioMixChange={(next) => patch({ audioMix: next })}
-          tracks={musicTracks}
-          trending={trendingMusic}
-          loudness={loudness}
-          previewUnavailable={previewUnavailable}
-          selection={selection}
-          onSelectionChange={setSelection}
-          disabled={busy}
-        />
+        >
+          <div
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="Resize timeline"
+            aria-valuemin={DOCK_MIN_PX}
+            aria-valuenow={dockHeight ?? DOCK_PX}
+            aria-valuetext={
+              dockHeight === null ? "Fills the space" : `${dockHeight} pixels`
+            }
+            tabIndex={0}
+            className="absolute inset-x-0 -top-1 z-10 h-2 cursor-row-resize touch-none outline-none after:absolute after:inset-x-0 after:top-[3px] after:h-0.5 after:bg-lav after:opacity-0 after:transition-opacity after:duration-200 hover:after:opacity-100 focus-visible:after:opacity-100 active:after:opacity-100"
+            onPointerDown={(event) => {
+              const dock = dockRef.current
+              if (event.button !== 0 || !dock) return
+              event.currentTarget.setPointerCapture?.(event.pointerId)
+              dockDrag.current = {
+                y: event.clientY,
+                height: dock.getBoundingClientRect().height,
+              }
+            }}
+            onPointerMove={(event) => {
+              const drag = dockDrag.current
+              if (drag) resizeDock(drag.height + drag.y - event.clientY)
+            }}
+            onPointerUp={() => {
+              dockDrag.current = null
+            }}
+            onPointerCancel={() => {
+              dockDrag.current = null
+            }}
+            onDoubleClick={() => setDockHeight(null)}
+            onKeyDown={(event) => {
+              const dock = dockRef.current
+              if (!dock) return
+              const height = dock.getBoundingClientRect().height
+              if (event.key === "ArrowUp") resizeDock(height + DOCK_STEP_PX)
+              else if (event.key === "ArrowDown")
+                resizeDock(height - DOCK_STEP_PX)
+              else return
+              event.preventDefault()
+            }}
+          />
+          <ClipTimeline
+            src={src}
+            sourceDurationMs={sourceDurationMs}
+            startMs={startMs}
+            endMs={endMs}
+            onTrim={trim}
+            hasWebcam={hasWebcam && Boolean(layout.webcamRect)}
+            effects={effects}
+            onEffectsChange={(next) => patch({ effects: next })}
+            onPlanEffects={planEffects}
+            planning={planning}
+            spokenPages={spokenPages}
+            captions={captions}
+            onCaptionsChange={(next) => patch({ captions: next })}
+            captionsEnabled={captionsEnabled}
+            onCaptionsEnabledChange={(checked) =>
+              patch({
+                captionsOverride:
+                  checked === settings.captionsEnabled ? undefined : checked,
+              })
+            }
+            captionBaseline={baseline}
+            textOverlays={textOverlays}
+            onTextOverlaysChange={(next) => patch({ textOverlays: next })}
+            hook={hook}
+            title={title}
+            captionsNearTop={captionsNearTop}
+            audioMix={audioMix ?? DEFAULT_AUDIO_MIX}
+            onAudioMixChange={(next) => patch({ audioMix: next })}
+            tracks={musicTracks}
+            trending={trendingMusic}
+            loudness={loudness}
+            previewUnavailable={previewUnavailable}
+            selection={selection}
+            onSelectionChange={setSelection}
+            disabled={busy}
+          />
+        </div>
       </div>
     </>
   )

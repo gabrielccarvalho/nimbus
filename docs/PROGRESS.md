@@ -451,6 +451,8 @@ Spec: Claude Design handoff (`~/Downloads/nimbus-clip-editor-v2/design/`). A UI 
 - [x] Inspector tabs Details, Captions (style, on/off, timing) and Layout; a drawer under 1180 px. The caption list and the Effects tab were removed on request: both are edited on the timeline (ADR-0075)
 - [x] Timeline dock: Add menu, split, set in/out, delete, zoom slider and Fit, thumbnails on the video track, the recording's waveform, snapping, the playhead's time, click empty space to seek
 - [x] Timeline navigation (ADR-0075): opens at the clip's start, no scrollbar, wheel zooms around the pointer, a handle above the ruler pans; effects get their popover back and "Reset effects to auto" moves to Add › Effect
+- [x] Hover an empty part of a text, captions or effects track for a one-second ghost; a press adds there (effects ask which kind). The toolbar hint is gone
+- [x] The dock fills the space under the stage and resizes from its top edge
 - [x] Keys: Space, ←/→ (Shift for 1 s), I, O, S, Delete, A, X, [ and ], ⌘Z and ⇧⌘Z, listed in the shortcuts dialog
 - [x] `Segmented` in `components/ui`; `TimelineBlock` tones and snapping; `CropRegion` variants
 - [x] Unit and e2e coverage for the new flow

@@ -7,6 +7,7 @@ import {
   laneGap,
   packLanes,
   placeAtPlayhead,
+  placeInLane,
 } from "./lanes"
 
 const bounds = { startMs: 0, endMs: 10_000 }
@@ -65,6 +66,20 @@ describe("lanes", () => {
         minMs: 100,
       })
     ).toEqual({ startMs: 4500, endMs: 5500 })
+  })
+
+  it("centres a new item on a point and keeps it inside the gap", () => {
+    expect(placeInLane(items, 0, bounds, 7000, 1000, 100, "center")).toEqual({
+      startMs: 6500,
+      endMs: 7500,
+    })
+    expect(placeInLane(items, 0, bounds, 2100, 1000, 100, "center")).toEqual({
+      startMs: 2000,
+      endMs: 3000,
+    })
+    expect(
+      placeInLane(items, 0, bounds, 1500, 1000, 100, "center")
+    ).toBeUndefined()
   })
 
   it("places at the playhead on the first lane with room", () => {

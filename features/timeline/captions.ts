@@ -171,6 +171,15 @@ export function addCaption(
   return appendCaption(state, lane, { ...span, text })
 }
 
+export function addCaptionAt(
+  state: CaptionState,
+  lane: number,
+  span: Span,
+  text = "New caption"
+): { state: CaptionState; ref: CaptionRef } {
+  return appendCaption(state, lane, { ...span, text })
+}
+
 export function deleteCaption(
   state: CaptionState,
   ref: CaptionRef

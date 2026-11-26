@@ -42,7 +42,6 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Kbd } from "@/components/ui/kbd"
 import { Label } from "@/components/ui/label"
 import {
   Popover,
@@ -90,6 +89,7 @@ import {
 import type { SourceLoudness } from "@/features/projects/queries"
 import {
   addCaption,
+  addCaptionAt,
   captionBlocks,
   deleteCaption,
   findCaption,
@@ -103,6 +103,7 @@ import {
   laneCount,
   moveItem,
   placeAtPlayhead,
+  placeInLane,
   type Laned,
   type Span,
 } from "@/features/timeline/lanes"
@@ -133,6 +134,14 @@ export type TimelineSelection =
 
 type LaneGroup = "effects" | "texts" | "music"
 
+type Spot = { group: "texts" | "captions" | "effects"; lane: number } & Span
+
+const SPOT_LABELS: Record<Spot["group"], string> = {
+  texts: "Text",
+  captions: "Caption",
+  effects: "Effect",
+}
+
 const ZOOM_FIT = 0
 const ZOOM_MIN = 5
 const ZOOM_MAX = 320
@@ -141,6 +150,7 @@ const WHEEL_ZOOM = 0.0025
 const WHEEL_LINE_PX = 16
 const VIEW_GUTTER_PX = 32
 const VIEW_STEP = 0.1
+const SPOT_MS = 1000
 const VIEW_GRIP_PX = 44
 const VIEW_ZOOM_MAX_PERCENT = 50
 const AXIS_PADDING_MS = 10_000
@@ -403,6 +413,32 @@ function ClipSpan({
   )
 }
 
+function SpotGhost({
+  spot,
+  durationMs,
+  ref,
+}: {
+  spot: Spot
+  durationMs: number
+  ref?: React.Ref<HTMLDivElement>
+}) {
+  return (
+    <div
+      ref={ref}
+      aria-hidden
+      data-slot="timeline-spot"
+      className="pointer-events-none absolute inset-y-[5px] flex items-center gap-1 overflow-hidden rounded-[7px] border border-dashed border-white/40 bg-white/[0.06] px-1.5 text-[11.5px] leading-none font-semibold whitespace-nowrap text-muted-foreground [&_svg]:size-3 [&_svg]:shrink-0"
+      style={{
+        left: `${(spot.startMs / durationMs) * 100}%`,
+        width: `${((spot.endMs - spot.startMs) / durationMs) * 100}%`,
+      }}
+    >
+      <PlusIcon weight="bold" />
+      {SPOT_LABELS[spot.group]}
+    </div>
+  )
+}
+
 function Outside({
   fromMs,
   toMs,
@@ -443,8 +479,6 @@ function ViewHandle({
   const drag = React.useRef<{ x: number; scrollLeft: number } | null>(null)
   const hidden = 1 - view.size
   const progress = hidden > 0.001 ? clamp(view.start / hidden, 0, 1) : 0
-  const zoomPx = VIEW_GRIP_PX * (1 - zoomLevel)
-  const zoomPercent = VIEW_ZOOM_MAX_PERCENT * zoomLevel
   const panBy = (pages: number) => {
     const scroller = scrollRef.current
     if (scroller) scroller.scrollLeft += pages * scroller.clientWidth
@@ -454,26 +488,14 @@ function ViewHandle({
     <div
       data-slot="timeline-view"
       className="relative h-[18px] shrink-0 touch-none"
-      onPointerDown={(event) => {
-        const scroller = scrollRef.current
-        if (event.button !== 0 || event.target !== event.currentTarget) return
-        if (!scroller) return
-        const rect = event.currentTarget.getBoundingClientRect()
-        const travel = rect.width - VIEW_GRIP_PX
-        if (travel <= 0) return
-        scroller.scrollLeft =
-          clamp((event.clientX - rect.left - VIEW_GRIP_PX / 2) / travel, 0, 1) *
-          (scroller.scrollWidth - scroller.clientWidth)
-      }}
     >
       {hidden > 0.001 && (
         <span
           aria-hidden
           data-slot="timeline-zoom-level"
-          className="pointer-events-none absolute top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-white/15"
+          className="pointer-events-none absolute top-1/2 left-1/2 h-0.5 -translate-1/2 rounded-full bg-white/15"
           style={{
-            width: `calc(${zoomPercent}% + ${zoomPx}px)`,
-            left: `calc(${progress * (100 - zoomPercent)}% - ${progress * zoomPx}px)`,
+            width: `calc(${VIEW_ZOOM_MAX_PERCENT * zoomLevel}% + ${VIEW_GRIP_PX * (1 - zoomLevel)}px)`,
           }}
         />
       )}
@@ -487,11 +509,8 @@ function ViewHandle({
           aria-valuemax={100}
           aria-valuenow={Math.round(progress * 100)}
           tabIndex={0}
-          className="absolute inset-y-0.5 grid cursor-grab place-items-center rounded-md bg-white/25 text-night/80 transition-colors duration-200 outline-none hover:bg-white/45 focus-visible:focus-ring active:cursor-grabbing active:bg-white/60"
-          style={{
-            width: VIEW_GRIP_PX,
-            left: `calc(${progress} * (100% - ${VIEW_GRIP_PX}px))`,
-          }}
+          className="absolute inset-y-0.5 left-1/2 grid -translate-x-1/2 cursor-grab place-items-center rounded-md bg-white/25 text-night/80 transition-colors duration-200 outline-none hover:bg-white/45 focus-visible:focus-ring active:cursor-grabbing active:bg-white/60"
+          style={{ width: VIEW_GRIP_PX }}
           onPointerDown={(event) => {
             const scroller = scrollRef.current
             if (event.button !== 0 || !scroller) return
@@ -505,14 +524,11 @@ function ViewHandle({
             const scroller = scrollRef.current
             const track = event.currentTarget.parentElement
             if (!drag.current || !scroller || !track) return
-            const travel =
-              track.getBoundingClientRect().width -
-              event.currentTarget.getBoundingClientRect().width
-            if (travel <= 0) return
+            const width = track.getBoundingClientRect().width
+            if (width === 0) return
             scroller.scrollLeft =
               drag.current.scrollLeft +
-              ((event.clientX - drag.current.x) / travel) *
-                (scroller.scrollWidth - scroller.clientWidth)
+              ((event.clientX - drag.current.x) / width) * scroller.scrollWidth
           }}
           onPointerUp={() => {
             drag.current = null
@@ -626,6 +642,9 @@ export function ClipTimeline({
   const wantsMusic = React.useRef(false)
   const [uploads, setUploads] = React.useState<MusicTrackSummary[]>([])
   const [draft, setDraft] = React.useState<Span | null>(null)
+  const [hovered, setHovered] = React.useState<Spot | null>(null)
+  const [effectSpot, setEffectSpot] = React.useState<Spot | null>(null)
+  const [spotAnchor, setSpotAnchor] = React.useState<HTMLElement | null>(null)
   const draftRef = React.useRef<Span | null>(null)
 
   const durationMs = endMs - startMs
@@ -845,6 +864,17 @@ export function ClipTimeline({
     setEvents([...events, createEffect(key, placed)])
     select({ type: "effect", index: events.length })
   }
+  const addEffectAt = (key: EffectKey, spot: Spot) => {
+    setEvents([
+      ...events,
+      createEffect(key, {
+        lane: spot.lane,
+        startMs: spot.startMs + startMs,
+        endMs: spot.endMs + startMs,
+      }),
+    ])
+    select({ type: "effect", index: events.length })
+  }
   const moveEffect = (index: number, target: Laned) => {
     const next = moveItem(
       events,
@@ -929,6 +959,99 @@ export function ClipTimeline({
       MIN_OVERLAY_MS
     )
     if (next) onTextOverlaysChange(next)
+  }
+
+  const spotAt = (
+    group: Spot["group"],
+    lane: number,
+    event: React.MouseEvent<HTMLElement>
+  ): Spot | undefined => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    if (rect.width === 0) return undefined
+    const placed = placeInLane(
+      group === "texts"
+        ? textOverlays
+        : group === "effects"
+          ? events.map((effect) => ({
+              lane: effect.lane,
+              startMs: effect.startMs - startMs,
+              endMs: effect.endMs - startMs,
+            }))
+          : blocks.flatMap((laneBlocks, index) =>
+              laneBlocks.map((block) => ({ ...block, lane: index }))
+            ),
+      lane,
+      { startMs: 0, endMs: durationMs },
+      ((event.clientX - rect.left) / rect.width) * durationMs,
+      SPOT_MS,
+      group === "texts"
+        ? MIN_OVERLAY_MS
+        : group === "effects"
+          ? MIN_EFFECT_MS
+          : MIN_CAPTION_MS,
+      "center"
+    )
+    return placed && { group, lane, ...placed }
+  }
+  const addAt = (spot: Spot) => {
+    setHovered(null)
+    if (spot.group === "effects") return setEffectSpot(spot)
+    const { group, lane, ...span } = spot
+    if (group === "texts") {
+      onTextOverlaysChange([
+        ...textOverlays,
+        {
+          ...span,
+          lane,
+          text: defaultOverlayText(hook, title),
+          position: captionsNearTop ? "center" : "top",
+        },
+      ])
+      return select({ type: "text", index: textOverlays.length })
+    }
+    const added = addCaptionAt(captions, lane, span)
+    if (!captionsEnabled) onCaptionsEnabledChange(true)
+    onCaptionsChange(added.state)
+    select({ type: "caption", ref: added.ref })
+  }
+  const spotProps = (group: Spot["group"], lane: number) =>
+    disabled
+      ? undefined
+      : {
+          onPointerMove: (event: React.PointerEvent<HTMLElement>) => {
+            const next =
+              event.target === event.currentTarget && event.buttons === 0
+                ? (spotAt(group, lane, event) ?? null)
+                : null
+            setHovered((current) =>
+              JSON.stringify(current) === JSON.stringify(next) ? current : next
+            )
+          },
+          onPointerLeave: () => setHovered(null),
+          onPointerDown: (event: React.PointerEvent<HTMLElement>) => {
+            if (
+              event.button === 0 &&
+              event.target === event.currentTarget &&
+              spotAt(group, lane, event)
+            )
+              event.stopPropagation()
+          },
+          onClick: (event: React.MouseEvent<HTMLElement>) => {
+            if (event.target !== event.currentTarget) return
+            const spot = spotAt(group, lane, event)
+            if (spot) addAt(spot)
+          },
+        }
+  const spotIn = (group: Spot["group"], lane: number) => {
+    const spot = effectSpot ?? hovered
+    if (spot?.group !== group || spot.lane !== lane) return null
+    return (
+      <SpotGhost
+        ref={spot === effectSpot ? setSpotAnchor : undefined}
+        spot={spot}
+        durationMs={durationMs}
+      />
+    )
   }
 
   const setMusic = (music: MusicClip[]) =>
@@ -1114,7 +1237,7 @@ export function ClipTimeline({
       ref={rootRef}
       aria-label="Timeline"
       data-slot="clip-timeline"
-      className="flex h-[296px] shrink-0 flex-col bg-sheet shadow-[inset_0_1px_0_var(--hair)]"
+      className="flex min-h-0 flex-1 flex-col bg-sheet shadow-[inset_0_1px_0_var(--hair)]"
     >
       <div
         role="toolbar"
@@ -1327,13 +1450,7 @@ export function ClipTimeline({
               <XIcon aria-hidden />
             </Button>
           </span>
-        ) : previewUnavailable ? null : (
-          <span className="ms-2 flex min-w-0 items-center gap-1.5 truncate text-xs text-tertiary max-[1099px]:hidden">
-            Drag the clip edges to trim ·<Kbd>I</Kbd>
-            <Kbd>O</Kbd>
-            set in/out
-          </span>
-        )}
+        ) : null}
         {previewUnavailable && (
           <span className="ms-2 truncate text-xs text-amber">
             This browser can&apos;t play the music preview. The render will
@@ -1545,7 +1662,9 @@ export function ClipTimeline({
                         lane={String(lane)}
                         group={`${id}-texts`}
                         className={TRACK}
+                        {...spotProps("texts", lane)}
                       >
+                        {spotIn("texts", lane)}
                         {textOverlays.map((overlay, index) => {
                           if (overlay.lane !== lane) return null
                           const item = { type: "text", index } as const
@@ -1603,7 +1722,9 @@ export function ClipTimeline({
                         lane={String(lane)}
                         group={`${id}-captions`}
                         className={TRACK}
+                        {...spotProps("captions", lane)}
                       >
+                        {spotIn("captions", lane)}
                         {laneBlocks.map((block) => {
                           const item = {
                             type: "caption",
@@ -1663,7 +1784,9 @@ export function ClipTimeline({
                         lane={String(lane)}
                         group={`${id}-effects`}
                         className={TRACK}
+                        {...spotProps("effects", lane)}
                       >
+                        {spotIn("effects", lane)}
                         {events.map((effect, index) => {
                           if (effect.lane !== lane) return null
                           const item = { type: "effect", index } as const
@@ -1909,6 +2032,27 @@ export function ClipTimeline({
           </div>
         </div>
       </div>
+
+      <DropdownMenu
+        open={effectSpot !== null}
+        onOpenChange={(open) => {
+          if (!open) setEffectSpot(null)
+        }}
+      >
+        <DropdownMenuContent anchor={spotAnchor} side="top" className="w-40">
+          {EFFECT_KINDS.map((kind) => (
+            <DropdownMenuItem
+              key={kind.key}
+              disabled={kind.key === "cam" && !hasWebcam}
+              onClick={() => {
+                if (effectSpot) addEffectAt(kind.key, effectSpot)
+              }}
+            >
+              {kind.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <Popover
         open={inspecting}

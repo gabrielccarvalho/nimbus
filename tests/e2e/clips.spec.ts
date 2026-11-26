@@ -273,6 +273,46 @@ test("starts the timeline at the clip and moves it without a scrollbar", async (
   await expectNoSeriousA11yViolations(page)
 })
 
+test("adds a text where a track is hovered and resizes the timeline", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  const tiles = await uploadAndOpenClips(page)
+  await tiles.first().click()
+
+  const timeline = page.getByRole("region", { name: "Timeline" })
+  const dockHeight = async () => (await timeline.boundingBox())!.height
+  const filled = await dockHeight()
+  expect(filled).toBeGreaterThan(296)
+  const edge = page.getByRole("separator", { name: "Resize timeline" })
+  const grip = (await edge.boundingBox())!
+  await page.mouse.move(grip.x + 300, grip.y + 4)
+  await page.mouse.down()
+  await page.mouse.move(grip.x + 300, grip.y + 64, { steps: 4 })
+  await page.mouse.up()
+  await expect.poll(dockHeight).toBeCloseTo(filled - 60, -1)
+
+  const lane = timeline.getByRole("group", { name: "Text track 1" })
+  const box = (await lane.boundingBox())!
+  await page.mouse.move(box.x + 200, box.y + box.height / 2)
+  await expect(lane.locator("[data-slot=timeline-spot]")).toHaveText("Text")
+  await page.mouse.down()
+  await page.mouse.up()
+  await expect(lane.getByRole("button", { pressed: true })).toHaveCount(1)
+  await expect(page.getByRole("textbox", { name: "Text" })).toBeVisible()
+
+  await page.keyboard.press("Escape")
+  const effects = timeline.getByRole("group", { name: "Effects track 1" })
+  const row = (await effects.boundingBox())!
+  await page.mouse.click(row.x + 8, row.y + row.height / 2)
+  await page.getByRole("menuitem", { name: "Shake" }).click()
+  await expect(
+    effects.getByRole("button", { name: /^Shake light at 0:00/ })
+  ).toHaveAttribute("aria-pressed", "true")
+  await expect(page.getByTestId("save-state")).toHaveText("Saved")
+  await expectNoSeriousA11yViolations(page)
+})
+
 test("moves the gameplay box in the clip editor", async ({ page }) => {
   const tiles = await uploadAndOpenClips(page)
   await tiles.first().click()

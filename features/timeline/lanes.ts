@@ -79,13 +79,18 @@ export function placeInLane(
   bounds: Span,
   atMs: number,
   lengthMs: number,
-  minMs: number
+  minMs: number,
+  anchor: "start" | "center" = "start"
 ): Span | undefined {
   const at = clamp(Math.round(atMs), bounds.startMs, bounds.endMs)
   const gap = laneGap(items, lane, { startMs: at, endMs: at }, bounds)
   if (!gap || gap.endMs - gap.startMs < minMs) return undefined
   const length = Math.min(lengthMs, gap.endMs - gap.startMs)
-  const startMs = clamp(at, gap.startMs, gap.endMs - length)
+  const startMs = clamp(
+    anchor === "center" ? Math.round(at - length / 2) : at,
+    gap.startMs,
+    gap.endMs - length
+  )
   return { startMs, endMs: startMs + length }
 }
 

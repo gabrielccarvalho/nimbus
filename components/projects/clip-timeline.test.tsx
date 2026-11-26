@@ -360,7 +360,7 @@ describe("ClipTimeline", () => {
     expect(axisWidth()).toBe(4000)
   })
 
-  it("moves the view by dragging the handle above the ruler", () => {
+  it("moves the view by dragging the handle, which stays centred above the ruler", () => {
     setup()
     expect(screen.queryByRole("scrollbar")).not.toBeInTheDocument()
     const { scroller } = layOut(1016)
@@ -368,18 +368,15 @@ describe("ClipTimeline", () => {
     expect(handle).toHaveAttribute("aria-valuenow", "0")
     handle.parentElement!.getBoundingClientRect = () =>
       ({ left: 0, width: 1000 }) as DOMRect
-    handle.getBoundingClientRect = () => ({ left: 0, width: 44 }) as DOMRect
-    fireEvent.pointerDown(handle, { button: 0, pointerId: 1, clientX: 20 })
-    fireEvent.pointerMove(handle, { pointerId: 1, clientX: 259 })
-    expect(scroller.scrollLeft).toBe(762)
+    fireEvent.pointerDown(handle, { button: 0, pointerId: 1, clientX: 500 })
+    fireEvent.pointerMove(handle, { pointerId: 1, clientX: 750 })
+    expect(scroller.scrollLeft).toBe(1016)
     fireEvent.scroll(scroller)
-    expect(handle).toHaveAttribute("aria-valuenow", "25")
+    expect(handle).toHaveAttribute("aria-valuenow", "33")
+    expect(handle.style.left).toBe("")
     fireEvent.pointerUp(handle, { pointerId: 1 })
-    fireEvent.pointerMove(handle, { pointerId: 1, clientX: 600 })
-    expect(scroller.scrollLeft).toBe(762)
-
-    fireEvent.pointerDown(handle.parentElement!, { button: 0, clientX: 978 })
-    expect(scroller.scrollLeft).toBe(3048)
+    fireEvent.pointerMove(handle, { pointerId: 1, clientX: 900 })
+    expect(scroller.scrollLeft).toBe(1016)
 
     fireEvent.keyDown(handle, { key: "Home" })
     expect(scroller.scrollLeft).toBe(0)
@@ -397,6 +394,57 @@ describe("ClipTimeline", () => {
     fireEvent.scroll(scroller)
     expect(percent()).toBeGreaterThan(25)
     expect(percent()).toBeLessThan(50)
+  })
+
+  const hoverTrack = (name: string, clientX: number) => {
+    const lane = screen.getByRole("group", { name })
+    lane.getBoundingClientRect = () => ({ left: 0, width: 3000 }) as DOMRect
+    fireEvent.pointerMove(lane, { clientX, buttons: 0 })
+    return lane
+  }
+
+  it("previews a one-second text where a text track is hovered and adds it on a press", async () => {
+    const { latest } = setup()
+    const lane = hoverTrack("Text track 1", 500)
+    const ghost = lane.querySelector<HTMLElement>("[data-slot=timeline-spot]")!
+    expect(ghost).toHaveTextContent("Text")
+    expect(parseFloat(ghost.style.left)).toBeCloseTo(15, 5)
+    expect(latest().textOverlays).toEqual([])
+    fireEvent.click(lane, { clientX: 500 })
+    expect(latest().textOverlays).toMatchObject([
+      { lane: 0, startMs: 4500, endMs: 5500, text: "Wait for it" },
+    ])
+    expect(await screen.findByLabelText("Text")).toHaveValue("Wait for it")
+    fireEvent.pointerLeave(lane)
+    expect(
+      lane.querySelector("[data-slot=timeline-spot]")
+    ).not.toBeInTheDocument()
+  })
+
+  it("adds a caption where the captions track is pressed, beside what is there", async () => {
+    const { latest } = setup()
+    const lane = hoverTrack("Captions track", 220)
+    fireEvent.click(lane, { clientX: 220 })
+    expect(latest().captions.added).toEqual([
+      { startMs: 2000, endMs: 3000, text: "New caption" },
+    ])
+    expect(await screen.findByLabelText("Caption text")).toHaveValue(
+      "New caption"
+    )
+  })
+
+  it("asks which effect to put where an effects track is pressed", async () => {
+    const { latest } = setup()
+    const lane = hoverTrack("Effects track 1", 1000)
+    fireEvent.click(lane, { clientX: 1000 })
+    expect(latest().effects).toBeNull()
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Shake" })
+    )
+    expect(latest().effects?.events).toMatchObject([
+      { kind: "shake", lane: 0, startMs: 19_500, endMs: 20_500 },
+    ])
+    expect(latest().selection).toEqual({ type: "effect", index: 0 })
   })
 
   it("edits an effect from its inspector", async () => {
