@@ -83,7 +83,10 @@ services:
     build: *worker-build
     image: nimbus-worker
     env_file: *app-env-file
-    environment: *app-env
+    environment:
+      <<: *app-env
+      # The image's default fits a Vercel daemon's 600 s grace period.
+      WORKER_SHUTDOWN_GRACE_MS: "25000"
     volumes:
       - scratch:/tmp/nimbus
     depends_on: *app-deps

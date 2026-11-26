@@ -49,29 +49,29 @@ The worker's sweep aborts multipart uploads older than 24 h, the deadline for co
 
 Daemons have no environment of their own: the worker reads the project's variables, so everything goes in the project settings. Scope `DATABASE_URL` per environment (production and preview should not share a database unless you mean them to).
 
-| Variable                                                             | Used by | Purpose                                                                                                  |
-| -------------------------------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                                                       | both    | Postgres connection string; the Neon integration sets it                                                 |
-| `DATABASE_POOL_MAX`                                                  | both    | Connections per process (default 10); keep it low for functions                                          |
-| `STORAGE_DRIVER`                                                     | both    | `s3`                                                                                                     |
-| `S3_ENDPOINT`                                                        | both    | `https://<account>.r2.cloudflarestorage.com` for R2; leave unset on AWS                                  |
-| `S3_REGION`                                                          | both    | `auto` for R2; required on AWS (the bucket's region)                                                     |
-| `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`              | both    | Bucket and credentials                                                                                   |
-| `S3_FORCE_PATH_STYLE`                                                | both    | `true` only for stores that need path-style URLs (MinIO)                                                 |
-| `S3_PUBLIC_ENDPOINT`                                                 | web     | Only when the browser reaches storage on a different host than `S3_ENDPOINT`; used to sign URLs          |
-| `BETTER_AUTH_SECRET`                                                 | web     | 32+ random characters                                                                                    |
-| `BETTER_AUTH_URL`                                                    | web     | The production URL. Preview URLs are trusted through `VERCEL_URL`, which Vercel sets                     |
-| `NIMBUS_SECRET_KEY`                                                  | both    | 32+ random characters; signs upload tokens and encrypts workspace secrets                                |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                           | both    | Google sign-in and YouTube; the worker refreshes tokens when publishing                                  |
-| `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`                           | web     | Twitch sign-in                                                                                           |
-| `ANTHROPIC_API_KEY`                                                  | both    | The `anthropic` highlight selector                                                                       |
-| `HIGHLIGHT_SELECTOR`                                                 | both    | Default selector for new projects                                                                        |
-| `MAX_UPLOAD_BYTES`                                                   | both    | Upload cap (default 20 GiB)                                                                              |
-| `YTDLP_COOKIES_TEXT`                                                 | worker  | Contents of a cookies.txt for link imports; the daemon has no browser to read                            |
-| `WORKER_SHUTDOWN_GRACE_MS`                                           | worker  | `570000`: running jobs get this long after SIGTERM, inside the daemon's 600 s grace period               |
-| `SCRATCH_CACHE_BYTES`                                                | worker  | Bound on the shared input cache under `SCRATCH_DIR/cache` (default 64 GiB); size it to the daemon's disk |
-| `WORKER_CONCURRENCY`, `WORKER_RENDER_CONCURRENCY`, `WHISPER_THREADS` | worker  | Throughput knobs                                                                                         |
-| `NIMBUS_ROLE`                                                        | doctor  | `web` when running `pnpm run doctor` against the web side; the worker image sets `worker`                |
+| Variable                                                             | Used by | Purpose                                                                                                                            |
+| -------------------------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                                       | both    | Postgres connection string; the Neon integration sets it                                                                           |
+| `DATABASE_POOL_MAX`                                                  | both    | Connections per process (default 10); keep it low for functions                                                                    |
+| `STORAGE_DRIVER`                                                     | both    | `s3`                                                                                                                               |
+| `S3_ENDPOINT`                                                        | both    | `https://<account>.r2.cloudflarestorage.com` for R2; leave unset on AWS                                                            |
+| `S3_REGION`                                                          | both    | `auto` for R2; required on AWS (the bucket's region)                                                                               |
+| `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`              | both    | Bucket and credentials                                                                                                             |
+| `S3_FORCE_PATH_STYLE`                                                | both    | `true` only for stores that need path-style URLs (MinIO)                                                                           |
+| `S3_PUBLIC_ENDPOINT`                                                 | web     | Only when the browser reaches storage on a different host than `S3_ENDPOINT`; used to sign URLs                                    |
+| `BETTER_AUTH_SECRET`                                                 | web     | 32+ random characters                                                                                                              |
+| `BETTER_AUTH_URL`                                                    | web     | The production URL. Preview URLs are trusted through `VERCEL_URL`, which Vercel sets                                               |
+| `NIMBUS_SECRET_KEY`                                                  | both    | 32+ random characters; signs upload tokens and encrypts workspace secrets                                                          |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                           | both    | Google sign-in and YouTube; the worker refreshes tokens when publishing                                                            |
+| `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`                           | web     | Twitch sign-in                                                                                                                     |
+| `ANTHROPIC_API_KEY`                                                  | both    | The `anthropic` highlight selector                                                                                                 |
+| `HIGHLIGHT_SELECTOR`                                                 | both    | Default selector for new projects                                                                                                  |
+| `MAX_UPLOAD_BYTES`                                                   | both    | Upload cap (default 20 GiB)                                                                                                        |
+| `YTDLP_COOKIES_TEXT`                                                 | worker  | Contents of a cookies.txt for link imports; the daemon has no browser to read                                                      |
+| `WORKER_SHUTDOWN_GRACE_MS`                                           | worker  | Leave unset: the worker image sets `570000`, which keeps running jobs inside the daemon's 600 s grace period. Change both together |
+| `SCRATCH_CACHE_BYTES`                                                | worker  | Bound on the shared input cache under `SCRATCH_DIR/cache` (default 64 GiB); size it to the daemon's disk                           |
+| `WORKER_CONCURRENCY`, `WORKER_RENDER_CONCURRENCY`, `WHISPER_THREADS` | worker  | Throughput knobs                                                                                                                   |
+| `NIMBUS_ROLE`                                                        | doctor  | `web` when running `pnpm run doctor` against the web side; the worker image sets `worker`                                          |
 
 Don't set `WHISPER_MODEL`, `SCRATCH_DIR` or the binary paths on Vercel. The worker image sets the first two and puts ffmpeg, whisper-cli and yt-dlp on the PATH; a project value would replace them.
 

@@ -54,9 +54,11 @@ COPY --from=whisper /src/build/bin/whisper-cli /usr/local/bin/whisper-cli
 COPY --from=model /models /models
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# 30 s inside the daemon's terminationGracePeriodSeconds (600) in vercel.json.
 ENV NODE_ENV=production \
   NIMBUS_ROLE=worker \
   SCRATCH_DIR=/tmp/nimbus \
+  WORKER_SHUTDOWN_GRACE_MS=570000 \
   WHISPER_MODEL=/models/${WHISPER_MODEL_FILE}
 RUN install -d -o node -g node /tmp/nimbus
 USER node
