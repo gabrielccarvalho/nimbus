@@ -64,7 +64,7 @@ The web process never spawns ffmpeg, ffprobe, whisper or yt-dlp and never checks
 
 ## Uploads and media
 
-- Uploads go from the browser straight to storage. `startUploadAction` signs a target valid for 1 h: a presigned PUT on S3, or `/api/uploads/[token]` on the local driver, which streams the body to `tmp/uploads/*.part`. The browser PUTs the file, then a completion action checks the size and first bytes and creates the project or music track.
+- Uploads go from the browser straight to storage, at the file's final key (`projects/<id>/source.<ext>` or `music/<workspace>/<track>.<ext>`; the id is minted when the upload starts). On S3, `startUploadAction` starts a multipart upload (parts of 64 MiB or more, at most 10,000) and the browser asks `signUploadPartsAction` for part URLs in batches, PUTs up to four parts at a time and retries a failed part twice with a fresh URL. On the local driver the target is `/api/uploads/[token]`, which streams the body to the final key through a `.part` temp. The token's `exp` (1 h) gates the local PUT; its `completeBy` (24 h) gates part signing and completion. `completeUploadAction(token, parts)` assembles the parts, checks the size and that the first bytes match the claimed format, then creates the project or music track; on failure it removes the object or aborts the multipart upload. The sweep removes final keys whose row never appeared after 24 h and aborts multipart uploads older than 24 h.
 - Music tracks stay `processing` until a `probe_music` job has probed them and computed their peaks.
 - `/api/media`, `/api/music` and `/api/avatars` redirect to a signed GET URL (4 h) when the driver has one, and stream with `Range` when it doesn't (local).
 
@@ -132,12 +132,12 @@ interface StorageAdapter {
     opts?: { maxBytes?: number; transforms?: Transform[] }
   ): Promise<{ bytes: number }>
   writeBuffer(key: string, data: Buffer | string): Promise<void>
-  move(fromKey: string, toKey: string): Promise<void>
   stat(key: string): Promise<{ bytes: number; mtimeMs: number } | null>
   read(key: string, range?: ByteRange): Readable
   remove(key: string): Promise<void>
   removePrefix(prefix: string): Promise<void>
   list(prefix: string): Promise<string[]>
+  listWithInfo(prefix: string): Promise<StoredEntry[]> // key, bytes, mtimeMs from the listing
   localCopyCost(bytes: number): number // scratch bytes a localCopy needs (0 on local)
   localCopy(
     key: string,
@@ -149,7 +149,19 @@ interface StorageAdapter {
   uploadTarget(
     key: string,
     opts: { bytes: number; contentType: string }
-  ): Promise<UploadTarget>
+  ): Promise<UploadTarget | null> // S3: starts a multipart upload; local: null (the app's PUT route)
+  signUploadParts(
+    key: string,
+    upload: { uploadId: string; bytes: number; partSize: number },
+    partNumbers: readonly number[]
+  ): Promise<Array<{ partNumber: number; url: string }>>
+  completeUpload(
+    key: string,
+    uploadId: string,
+    parts: readonly UploadedPart[]
+  ): Promise<void>
+  abortUpload(key: string, uploadId: string): Promise<void>
+  abortStaleUploads(before: Date): Promise<number> // no-op on local
   usage(prefix?: string): Promise<{ bytes: number; files: number }>
 }
 

@@ -10,19 +10,27 @@ import {
 } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { Readable } from "node:stream"
 
 import { S3Client } from "@aws-sdk/client-s3"
 import { afterAll, describe, expect, it } from "vitest"
 
 import { sweep } from "@/features/pipeline/steps/sweep"
+import { accountRepository } from "@/features/accounts/repository"
+import { projectRepository } from "@/features/projects/repository"
+import {
+  completeUpload,
+  signUploadParts,
+  startUpload,
+} from "@/features/uploads/service"
+import { verifyUploadToken } from "@/features/uploads/token"
+import { user } from "@/lib/db/schema"
 import { logger } from "@/lib/logger"
 import { storageKeys } from "@/lib/storage"
 import { LocalStorage } from "@/lib/storage/local"
 import { pushStorage } from "@/lib/storage/push"
 import { S3Storage } from "@/lib/storage/s3"
 
-import { testDb } from "../utils/test-env"
+import { createTestEnv, testDb } from "../utils/test-env"
 import { storageContract } from "./storage"
 
 const endpoint = process.env.S3_TEST_ENDPOINT ?? "http://localhost:9010"
@@ -62,7 +70,7 @@ const tmp = await mkdtemp(path.join(os.tmpdir(), "storage-s3-"))
 
 function make(
   options: {
-    maxCopyBytes?: number
+    uploadPartBytes?: number
     cacheBytes?: number
     cacheDir?: string
     bucket?: string
@@ -79,6 +87,39 @@ function make(
     },
     ...options,
   })
+}
+
+const PART = 5 * 1024 ** 2
+
+function pattern(size: number) {
+  const data = Buffer.alloc(size)
+  for (let i = 0; i < size; i += 4096) data[i] = i % 251
+  return data
+}
+
+async function putParts(
+  storage: S3Storage,
+  key: string,
+  target: { uploadId: string; partSize: number; partCount: number },
+  data: Buffer
+) {
+  const numbers = Array.from({ length: target.partCount }, (_, i) => i + 1)
+  const urls = await storage.signUploadParts(
+    key,
+    { ...target, bytes: data.length },
+    numbers
+  )
+  return Promise.all(
+    urls.map(async ({ partNumber, url }) => {
+      const start = (partNumber - 1) * target.partSize
+      const response = await fetch(url, {
+        method: "PUT",
+        body: new Uint8Array(data.subarray(start, start + target.partSize)),
+      })
+      expect(response.status).toBe(200)
+      return { partNumber, etag: response.headers.get("etag")! }
+    })
+  )
 }
 
 function scratchDir() {
@@ -109,21 +150,42 @@ describe.skipIf(!reachable)("S3Storage", () => {
     }
   })
 
-  it("upload target accepts a PUT of the signed size", async () => {
-    const storage = make()
-    const body = Buffer.from("signed body")
-    const target = await storage.uploadTarget("up/ok.bin", {
-      bytes: body.length,
+  it("multipart upload of several parts completes and the object has the full size", async () => {
+    const storage = make({ uploadPartBytes: PART })
+    const data = pattern(2 * PART + 17)
+    const target = await storage.uploadTarget("up/multi.bin", {
+      bytes: data.length,
       contentType: "video/mp4",
     })
-    if (!target.url) throw new Error("expected a signed target")
-    const response = await fetch(target.url, {
-      method: target.method,
-      headers: target.headers,
-      body,
+    expect(target).toMatchObject({
+      kind: "multipart",
+      partSize: PART,
+      partCount: 3,
     })
-    expect(response.status).toBe(200)
-    expect((await storage.stat("up/ok.bin"))?.bytes).toBe(body.length)
+    if (target?.kind !== "multipart") throw new Error("expected multipart")
+    const parts = await putParts(storage, "up/multi.bin", target, data)
+    await storage.completeUpload("up/multi.bin", target.uploadId, parts)
+    expect((await storage.stat("up/multi.bin"))?.bytes).toBe(data.length)
+    const stored = Buffer.concat(await storage.read("up/multi.bin").toArray())
+    expect(stored.equals(data)).toBe(true)
+  })
+
+  it("part size grows to keep a 20 GiB upload within 10,000 parts", async () => {
+    const storage = make()
+    const target = await storage.uploadTarget("up/huge.bin", {
+      bytes: 20 * 1024 ** 3,
+      contentType: "video/mp4",
+    })
+    expect(target).toMatchObject({ partSize: 64 * 1024 ** 2, partCount: 320 })
+    if (target?.kind !== "multipart") throw new Error("expected multipart")
+    await storage.abortUpload("up/huge.bin", target.uploadId)
+    const bigger = await storage.uploadTarget("up/huger.bin", {
+      bytes: 10_001 * 64 * 1024 ** 2,
+      contentType: "video/mp4",
+    })
+    if (bigger?.kind !== "multipart") throw new Error("expected multipart")
+    expect(bigger.partCount).toBeLessThanOrEqual(10_000)
+    await storage.abortUpload("up/huger.bin", bigger.uploadId)
   })
 
   it("sweep removes stale upload temps from S3", async () => {
@@ -142,20 +204,61 @@ describe.skipIf(!reachable)("S3Storage", () => {
     expect(await storage.list("tmp/uploads")).toEqual([])
   })
 
-  it("upload target rejects a larger body", async () => {
-    const storage = make()
+  it("a part URL rejects a body of the wrong size", async () => {
+    const storage = make({ uploadPartBytes: PART })
     const target = await storage.uploadTarget("up/big.bin", {
-      bytes: 4,
+      bytes: PART + 4,
       contentType: "video/mp4",
     })
-    if (!target.url) throw new Error("expected a signed target")
-    const response = await fetch(target.url, {
-      method: target.method,
-      headers: target.headers,
+    if (target?.kind !== "multipart") throw new Error("expected multipart")
+    const [last] = await storage.signUploadParts(
+      "up/big.bin",
+      { uploadId: target.uploadId, bytes: PART + 4, partSize: PART },
+      [2]
+    )
+    const response = await fetch(last!.url, {
+      method: "PUT",
       body: Buffer.from("more than four"),
     })
     expect(response.ok).toBe(false)
-    expect(await storage.stat("up/big.bin")).toBeNull()
+    await storage.abortUpload("up/big.bin", target.uploadId)
+  })
+
+  it("sweep aborts stale multipart uploads", async () => {
+    const storage = make({ uploadPartBytes: PART })
+    const target = await storage.uploadTarget("up/stale.bin", {
+      bytes: 10,
+      contentType: "video/mp4",
+    })
+    if (target?.kind !== "multipart") throw new Error("expected multipart")
+    const putPart = async () => {
+      const [part] = await storage.signUploadParts(
+        "up/stale.bin",
+        { ...target, bytes: 10 },
+        [1]
+      )
+      return fetch(part!.url, { method: "PUT", body: "0123456789" })
+    }
+    const sweepAt = async (nowMs: number) =>
+      sweep(
+        {
+          db: await testDb(),
+          logger,
+          signal: new AbortController().signal,
+          reportProgress: () => {},
+        },
+        storage,
+        nowMs
+      )
+
+    await sweepAt(Date.now())
+    expect((await putPart()).status).toBe(200)
+
+    await sweepAt(Date.now() + 25 * 60 * 60_000)
+    expect((await putPart()).status).toBe(404)
+    expect(await storage.abortStaleUploads(new Date(Date.now() + 60_000))).toBe(
+      0
+    )
   })
 
   it("signed GET honours Range", async () => {
@@ -184,12 +287,19 @@ describe.skipIf(!reachable)("S3Storage", () => {
       signer: clientFor("http://media.example.test:9010"),
     })
     const read = await storage.readUrl("g/public.txt")
-    const upload = await storage.uploadTarget("up/public.bin", {
+    const target = await storage.uploadTarget("up/public.bin", {
       bytes: 1,
       contentType: "application/octet-stream",
     })
+    if (target?.kind !== "multipart") throw new Error("expected multipart")
+    const [part] = await storage.signUploadParts(
+      "up/public.bin",
+      { uploadId: target.uploadId, bytes: 1, partSize: target.partSize },
+      [1]
+    )
     expect(new URL(read!).host).toBe("media.example.test:9010")
-    expect(new URL(upload.url!).host).toBe("media.example.test:9010")
+    expect(new URL(part!.url).host).toBe("media.example.test:9010")
+    await storage.abortUpload("up/public.bin", target.uploadId)
   })
 
   it("localCopy reuses a cached download across scratch dirs", async () => {
@@ -311,19 +421,6 @@ describe.skipIf(!reachable)("S3Storage", () => {
     expect(await storage.list(".")).toEqual([])
   })
 
-  it("move copies in parts above maxCopyBytes", async () => {
-    const storage = make({ maxCopyBytes: 6 * 1024 ** 2 })
-    const size = 15 * 1024 ** 2
-    const data = Buffer.alloc(size)
-    for (let i = 0; i < size; i += 4096) data[i] = i % 251
-    await storage.writeBuffer("m/src.bin", data)
-    await storage.move("m/src.bin", "m/dst.bin")
-    expect(await storage.stat("m/src.bin")).toBeNull()
-    const copied = Buffer.concat(await storage.read("m/dst.bin").toArray())
-    expect(copied.equals(data)).toBe(true)
-    await storage.removePrefix(".")
-  })
-
   it("storage push copies new files and skips matching ones", async () => {
     const root = await mkdtemp(path.join(tmp, "data-"))
     const local = new LocalStorage(root)
@@ -351,26 +448,94 @@ describe.skipIf(!reachable)("S3Storage", () => {
     await storage.removePrefix(".")
   })
 
-  it.skipIf(process.env.S3_TEST_LARGE !== "1")(
-    "move copies objects over 5 GB",
-    { timeout: 3_600_000 },
-    async () => {
-      const storage = make()
-      const size = 5 * 1024 ** 3 + 1024 ** 2
-      const chunk = Buffer.alloc(16 * 1024 ** 2, 1)
-      async function* body() {
-        for (let sent = 0; sent < size; sent += chunk.length) {
-          yield chunk.subarray(0, Math.min(chunk.length, size - sent))
-        }
-      }
-      try {
-        await storage.write("l/src.bin", Readable.from(body()))
-        await storage.move("l/src.bin", "l/dst.bin")
-        expect(await storage.stat("l/src.bin")).toBeNull()
-        expect((await storage.stat("l/dst.bin"))?.bytes).toBe(size)
-      } finally {
-        await storage.removePrefix(".")
-      }
+  describe("direct uploads", () => {
+    const actor = { userId: randomUUID(), workspaceId: "" }
+    const mp4Head = Buffer.from("\0\0\0\x18ftypmp42", "latin1")
+
+    async function uploadVideo(data: Buffer) {
+      const { token, target } = await startUpload(
+        {
+          kind: "video",
+          fileName: "stream.mp4",
+          mime: "video/mp4",
+          bytes: data.length,
+        },
+        actor
+      )
+      if (target.kind !== "multipart") throw new Error("expected multipart")
+      const signed = await signUploadParts(
+        token,
+        Array.from({ length: target.partCount }, (_, i) => i + 1),
+        actor
+      )
+      const parts = await Promise.all(
+        signed.map(async ({ partNumber, url }) => {
+          const start = (partNumber - 1) * target.partSize
+          const response = await fetch(url, {
+            method: "PUT",
+            body: new Uint8Array(data.subarray(start, start + target.partSize)),
+          })
+          expect(response.status).toBe(200)
+          return { partNumber, etag: response.headers.get("etag")! }
+        })
+      )
+      return { token, target, parts }
     }
-  )
+
+    it("a multipart video upload lands at the source key and creates the project", async () => {
+      const env = await createS3Env()
+      try {
+        const data = Buffer.concat([mp4Head, pattern(2 * 64 * 1024 ** 2 + 1)])
+        const { token, target, parts } = await uploadVideo(data)
+        expect(target.partCount).toBe(3)
+        const { projectId } = (await completeUpload(token, parts, actor)) as {
+          projectId: string
+        }
+        const project = await projectRepository(env.db).getOrThrow(projectId)
+        expect(project.workspaceId).toBe(actor.workspaceId)
+        const key = storageKeys.source(projectId, "mp4")
+        expect((await env.storage.stat(key))?.bytes).toBe(data.length)
+        await env.storage.removePrefix(storageKeys.projectPrefix(projectId))
+      } finally {
+        env.cleanup()
+      }
+    })
+
+    it("completeUpload rejects when the sniffed format doesn't match the claim", async () => {
+      const env = await createS3Env()
+      try {
+        const mkv = Buffer.concat([
+          Buffer.from([0x1a, 0x45, 0xdf, 0xa3]),
+          Buffer.alloc(60),
+        ])
+        const { token, parts } = await uploadVideo(mkv)
+        await expect(completeUpload(token, parts, actor)).rejects.toMatchObject(
+          { code: "UNSUPPORTED_MEDIA" }
+        )
+        expect(await projectRepository(env.db).list()).toEqual([])
+        expect(await env.storage.stat(verifyUploadToken(token).key)).toBeNull()
+      } finally {
+        env.cleanup()
+      }
+    })
+
+    async function createS3Env() {
+      const env = await createTestEnv({
+        STORAGE_DRIVER: "s3",
+        S3_ENDPOINT: endpoint,
+        S3_BUCKET: bucket,
+        S3_ACCESS_KEY_ID: process.env.S3_TEST_ACCESS_KEY_ID ?? "nimbus",
+        S3_SECRET_ACCESS_KEY:
+          process.env.S3_TEST_SECRET_ACCESS_KEY ?? "nimbus-secret",
+        S3_FORCE_PATH_STYLE: "true",
+      })
+      const owner = { id: actor.userId, name: "Owner", email: "o@example.com" }
+      await env.db.insert(user).values(owner)
+      actor.workspaceId = (
+        await accountRepository(env.db).createPersonalWorkspace(owner)
+      ).id
+      const { getStorage } = await import("@/lib/storage")
+      return { ...env, storage: getStorage() }
+    }
+  })
 })

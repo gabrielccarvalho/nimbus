@@ -400,7 +400,7 @@ Plan: `docs/superpowers/plans/2026-11-25-vercel-ready.md`.
 - [x] 9. Containers: `Dockerfile.worker`, `Dockerfile.web`, compose `selfhost` profile, worker health endpoint, `vercel.json` daemon
 - [x] 10. `pnpm storage:push`, docs and phase close
 
-Not verified: Daemon CPU time for a whisper large-v3-turbo transcription and a 1080p render; whether a function can stream an export zip over 4.5 MB; R2 presigned PUT with a signed `Content-Length`; CORS on a real R2 or S3 bucket (MinIO has no bucket CORS); how the liveness probe behaves while a daemon terminates; whether the daemon's `root: "./"` affects the web build's static assets; the 5 GB multipart move (`S3_TEST_LARGE=1`, not run); a real browser upload on the S3 driver against hosted storage.
+Not verified: Daemon CPU time for a whisper large-v3-turbo transcription and a 1080p render; whether a function can stream an export zip over 4.5 MB; R2 presigned PUT with a signed `Content-Length`; CORS on a real R2 or S3 bucket (MinIO has no bucket CORS); how the liveness probe behaves while a daemon terminates; whether the daemon's `root: "./"` affects the web build's static assets; a multipart upload over 5 GiB against hosted storage (MinIO tested with 64 MiB and 5 MiB parts); a real browser upload on the S3 driver against hosted storage.
 
 ### Not verified
 

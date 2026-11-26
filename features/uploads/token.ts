@@ -10,6 +10,7 @@ import type { UploadKind } from "./schema"
 
 export type UploadClaim = {
   kind: UploadKind
+  id: string
   key: string
   workspaceId: string
   userId: string
@@ -17,7 +18,9 @@ export type UploadClaim = {
   mime: string
   bytes: number
   options?: ImportOptions
+  multipart?: { uploadId: string; partSize: number; partCount: number }
   exp: number
+  completeBy: number
 }
 
 const expired = () => new AppError("VALIDATION", "This upload link has expired")
@@ -33,7 +36,11 @@ export function signUploadToken(claim: UploadClaim) {
   return `${payload}.${sign(payload).toString("base64url")}`
 }
 
-export function verifyUploadToken(token: string, now = Date.now()) {
+export function verifyUploadToken(
+  token: string,
+  deadline: "exp" | "completeBy" = "exp",
+  now = Date.now()
+) {
   const [payload, signature, ...rest] = token.split(".")
   if (!payload || !signature || rest.length > 0) throw expired()
   const expected = sign(payload)
@@ -44,6 +51,6 @@ export function verifyUploadToken(token: string, now = Date.now()) {
   const claim = JSON.parse(
     Buffer.from(payload, "base64url").toString("utf8")
   ) as UploadClaim
-  if (claim.exp < now) throw expired()
+  if (claim[deadline] < now) throw expired()
   return claim
 }

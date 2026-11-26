@@ -75,12 +75,25 @@ export function storageContract(name: string, make: Factory) {
       expect(await storage.list(".")).toEqual(["keep/c.txt"])
     })
 
-    it("move replaces the target", async () => {
-      await storage.writeBuffer("tmp/one.bin", Buffer.alloc(5))
-      await storage.writeBuffer("final/one.bin", Buffer.alloc(9))
-      await storage.move("tmp/one.bin", "final/one.bin")
-      expect(await storage.stat("tmp/one.bin")).toBeNull()
-      expect((await storage.stat("final/one.bin"))?.bytes).toBe(5)
+    it("listWithInfo returns sizes and modification times", async () => {
+      const before = Date.now() - 60_000
+      await storage.writeBuffer("i/b.bin", Buffer.alloc(9))
+      await storage.writeBuffer("i/a.bin", Buffer.alloc(5))
+      await storage.writeBuffer("other/c.bin", Buffer.alloc(1))
+      const entries = await storage.listWithInfo("i")
+      expect(entries).toEqual([
+        { key: "i/a.bin", bytes: 5, mtimeMs: expect.any(Number) },
+        { key: "i/b.bin", bytes: 9, mtimeMs: expect.any(Number) },
+      ])
+      for (const { key, mtimeMs } of entries) {
+        expect(mtimeMs).toBeGreaterThan(before)
+        const info = await storage.stat(key)
+        expect(Math.abs(mtimeMs - info!.mtimeMs)).toBeLessThan(1000)
+      }
+    })
+
+    it("aborting stale uploads is safe with none in flight", async () => {
+      expect(await storage.abortStaleUploads(new Date())).toBe(0)
     })
 
     it("localCopy returns a readable file with the same bytes", async () => {

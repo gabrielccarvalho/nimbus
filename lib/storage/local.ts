@@ -18,7 +18,10 @@ import { pipeline } from "node:stream/promises"
 import { AppError } from "@/lib/errors"
 
 import { byteLimit, KEY_PATTERN } from "./common"
-import type { ByteRange, StorageAdapter, UploadTarget } from "./types"
+import type { ByteRange, StorageAdapter, StoredEntry } from "./types"
+
+const multipartUnsupported = () =>
+  new AppError("STORAGE", "The local driver has no multipart uploads")
 
 export class LocalStorage implements StorageAdapter {
   readonly root: string
@@ -82,12 +85,6 @@ export class LocalStorage implements StorageAdapter {
     await rename(temp, target)
   }
 
-  async move(fromKey: string, toKey: string) {
-    const to = this.path(toKey)
-    await mkdir(path.dirname(to), { recursive: true })
-    await rename(this.path(fromKey), to)
-  }
-
   async stat(key: string) {
     try {
       const info = await stat(this.path(key))
@@ -136,6 +133,15 @@ export class LocalStorage implements StorageAdapter {
     }
   }
 
+  async listWithInfo(prefix: string): Promise<StoredEntry[]> {
+    const entries: StoredEntry[] = []
+    for (const key of await this.list(prefix)) {
+      const info = await this.stat(key)
+      if (info) entries.push({ key, ...info })
+    }
+    return entries
+  }
+
   localCopyCost() {
     return 0
   }
@@ -175,14 +181,27 @@ export class LocalStorage implements StorageAdapter {
     return null
   }
 
-  async uploadTarget(): Promise<UploadTarget> {
-    return { url: null }
+  async uploadTarget(): Promise<null> {
+    return null
+  }
+
+  async signUploadParts(): Promise<never> {
+    throw multipartUnsupported()
+  }
+
+  async completeUpload(): Promise<never> {
+    throw multipartUnsupported()
+  }
+
+  async abortUpload() {}
+
+  async abortStaleUploads() {
+    return 0
   }
 
   async usage(prefix?: string) {
-    const keys = await this.list(prefix ?? ".")
-    let bytes = 0
-    for (const key of keys) bytes += (await this.stat(key))?.bytes ?? 0
-    return { bytes, files: keys.length }
+    const entries = await this.listWithInfo(prefix ?? ".")
+    const bytes = entries.reduce((sum, entry) => sum + entry.bytes, 0)
+    return { bytes, files: entries.length }
   }
 }

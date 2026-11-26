@@ -33,19 +33,30 @@ export function sniffMusic(head: Uint8Array): MusicFormat {
   return format
 }
 
-export function audioCheck() {
-  return headCheck(AUDIO_MAGIC_BYTES, sniffMusic)
+export function assertMusicFormat(head: Uint8Array, format: MusicFormat) {
+  if (sniffMusic(head) !== format) {
+    throw new AppError(
+      "UNSUPPORTED_MEDIA",
+      `This file isn't the ${format.toUpperCase()} its name says it is`
+    )
+  }
 }
 
-export function musicUploadMime(upload: {
+export function audioCheck(format: MusicFormat) {
+  return headCheck(AUDIO_MAGIC_BYTES, (head) => assertMusicFormat(head, format))
+}
+
+export function musicUploadFormat(upload: {
   fileName: string
   mime: string
   bytes: number
-}) {
+}): MusicFormat {
   if (upload.bytes > MUSIC_MAX_BYTES) throw tooLarge()
-  if (upload.mime.startsWith("audio/")) return upload.mime
   const ext = upload.fileName.split(".").pop()?.toLowerCase() ?? ""
-  if (ext in MUSIC_FORMATS) return MUSIC_FORMATS[ext as MusicFormat]
+  if (Object.hasOwn(MUSIC_FORMATS, ext)) return ext as MusicFormat
+  const mime = upload.mime.split(";")[0]!.trim().toLowerCase()
+  const format = Object.entries(MUSIC_FORMATS).find(([, m]) => m === mime)
+  if (format) return format[0] as MusicFormat
   throw notAudio()
 }
 

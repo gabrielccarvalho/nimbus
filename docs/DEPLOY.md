@@ -15,7 +15,7 @@ You need:
 
 ### Bucket CORS
 
-Browsers upload straight to the bucket with presigned PUTs and play media from signed GET URLs, so the bucket must allow the app's origin and any preview origins you use. Methods `PUT`, `GET`, `HEAD`; allowed headers `Content-Type` and `Range`; exposed headers `Content-Range`, `Accept-Ranges`, `ETag`, `Content-Length`.
+Browsers upload straight to the bucket as multipart uploads (one presigned PUT per part) and play media from signed GET URLs, so the bucket must allow the app's origin and any preview origins you use. Methods `PUT`, `GET`, `HEAD`; allowed headers `Content-Type` and `Range`; exposed headers `Content-Range`, `Accept-Ranges`, `ETag`, `Content-Length`. The browser reads each part's `ETag`, so an upload fails without it.
 
 R2 (dashboard › bucket › Settings › CORS policy) and the S3 console take this JSON:
 
@@ -40,6 +40,10 @@ R2 (dashboard › bucket › Settings › CORS policy) and the S3 console take t
 ```
 
 With `aws s3api put-bucket-cors`, wrap the array as `{ "CORSRules": [...] }`. `pnpm run doctor` warns when the `BETTER_AUTH_URL` origin is missing from the rules.
+
+### Abandoned uploads
+
+The worker's sweep aborts multipart uploads older than 24 h, the deadline for completing one. As a backstop, add a lifecycle rule to the bucket that aborts incomplete multipart uploads after 1 day (S3: `AbortIncompleteMultipartUpload` with `DaysAfterInitiation: 1`; R2 has the same rule under the bucket's object lifecycle settings), so parts don't pile up if the worker is down.
 
 ### Environment variables
 

@@ -58,6 +58,7 @@ function pick(file: File) {
 }
 
 const target = {
+  kind: "single",
   url: "https://bucket.example/tmp/uploads/u1.part?sig=1",
   method: "PUT",
   headers: { "Content-Type": "audio/mpeg" },
@@ -119,7 +120,7 @@ describe("MusicUploadButton", () => {
     xhr.status = 200
     xhr.onload?.()
     await waitFor(() => expect(onUploaded).toHaveBeenCalledWith(track))
-    expect(completeUpload).toHaveBeenCalledWith("tok")
+    expect(completeUpload).toHaveBeenCalledWith("tok", undefined)
     expect(toastSuccess).toHaveBeenCalledWith("Added “Summer loop”")
     expect(refresh).toHaveBeenCalled()
     expect(screen.getByRole("button", { name: "Upload a track" })).toBeEnabled()

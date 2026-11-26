@@ -31,10 +31,9 @@ export async function directUpload(
     bytes: data.length,
   })
   if (!started.ok) return started
-  const response = await putUpload(
-    started.value.target.url,
-    new Uint8Array(data)
-  )
+  const { target } = started.value
+  if (target.kind !== "single") throw new Error("expected a local target")
+  const response = await putUpload(target.url, new Uint8Array(data))
   if (!response.ok) {
     const body = (await response.json()) as {
       error: { code: string; message: string }

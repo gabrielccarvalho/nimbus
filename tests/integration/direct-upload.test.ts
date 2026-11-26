@@ -64,11 +64,13 @@ async function start(input: Record<string, unknown>) {
     ...input,
   })
   if (!result.ok) throw new Error(result.error.message)
-  return result.value
+  const { token, target } = result.value
+  if (target.kind !== "single") throw new Error("expected a local target")
+  return { token, target }
 }
 
-async function tempFiles() {
-  return getStorage().list("tmp")
+async function storedFiles() {
+  return getStorage().list("projects")
 }
 
 describe("direct uploads", () => {
@@ -80,6 +82,7 @@ describe("direct uploads", () => {
       options: { language: "pt" },
     })
     expect(target).toEqual({
+      kind: "single",
       url: `/api/uploads/${token}`,
       method: "PUT",
       headers: { "Content-Type": "video/mp4" },
@@ -101,13 +104,14 @@ describe("direct uploads", () => {
     const source = await assetRepository(env.db).findByKind(projectId, "source")
     expect(source).toMatchObject({ bytes: data.length, mime: "video/mp4" })
     expect(project.sourceAssetId).toBe(source?.id)
+    expect(source?.storageKey).toBe(verifyUploadToken(token).key)
     expect((await getStorage().stat(source!.storageKey))?.bytes).toBe(
       data.length
     )
     expect(
       (await jobQueue(env.db).listForProject(projectId)).map((j) => j.type)
     ).toEqual(["probe"])
-    expect(await tempFiles()).toEqual([])
+    expect(await storedFiles()).toEqual([source!.storageKey])
   })
 
   it("completing twice fails the second time", async () => {
@@ -136,7 +140,7 @@ describe("direct uploads", () => {
       error: { code: "NOT_FOUND", message: "The upload didn't arrive" },
     })
     expect(await projectRepository(env.db).list()).toEqual([])
-    expect(await tempFiles()).toEqual([verifyUploadToken(token).key])
+    expect(await storedFiles()).toEqual([verifyUploadToken(token).key])
   })
 
   it("local PUT rejects bytes over the signed size", async () => {
@@ -145,7 +149,7 @@ describe("direct uploads", () => {
     const { target } = await start({ bytes: 1024 })
     const response = await putUpload(target.url, data)
     expect(response.status).toBe(413)
-    expect(await tempFiles()).toEqual([])
+    expect(await storedFiles()).toEqual([])
   })
 
   it("a non-video body is rejected at complete with UNSUPPORTED_MEDIA", async () => {
@@ -159,11 +163,11 @@ describe("direct uploads", () => {
       ok: false,
       error: { code: "UNSUPPORTED_MEDIA" },
     })
-    expect(await tempFiles()).toEqual([])
+    expect(await storedFiles()).toEqual([])
     expect(await projectRepository(env.db).list()).toEqual([])
   })
 
-  it("sweep removes stale upload temps", async () => {
+  it("sweep removes uploads that were never completed", async () => {
     await signIn("Owner")
     const data = await readFile(fixtures.wide)
     const stale = await start({ bytes: data.length })
@@ -177,7 +181,50 @@ describe("direct uploads", () => {
     await jobQueue(env.db).enqueue({ type: "sweep", projectId: null })
     await runJobs(env.db, ["sweep"])
 
-    expect(await tempFiles()).toEqual([verifyUploadToken(fresh.token).key])
+    expect(await storedFiles()).toEqual([verifyUploadToken(fresh.token).key])
+  })
+
+  it("completeUpload succeeds after the PUT window but before the completion deadline", async () => {
+    await signIn("Owner")
+    const data = await readFile(fixtures.wide)
+    const { token, target } = await start({ bytes: data.length })
+    await putUpload(target.url, data)
+    vi.useFakeTimers({ toFake: ["Date"] })
+    try {
+      vi.setSystemTime(Date.now() + 2 * 60 * 60_000)
+      expect(await completeUploadAction(token)).toMatchObject({ ok: true })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("completeUpload rejects after the completion deadline", async () => {
+    await signIn("Owner")
+    const data = await readFile(fixtures.wide)
+    const { token, target } = await start({ bytes: data.length })
+    await putUpload(target.url, data)
+    vi.useFakeTimers({ toFake: ["Date"] })
+    try {
+      vi.setSystemTime(Date.now() + 25 * 60 * 60_000)
+      expect(await completeUploadAction(token)).toEqual({
+        ok: false,
+        error: { code: "VALIDATION", message: "This upload link has expired" },
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+    expect(await projectRepository(env.db).list()).toEqual([])
+  })
+
+  it("refuses a PUT once the upload is complete", async () => {
+    await signIn("Owner")
+    const data = await readFile(fixtures.wide)
+    const { token, target } = await start({ bytes: data.length })
+    await putUpload(target.url, data)
+    expect((await completeUploadAction(token)).ok).toBe(true)
+    const response = await putUpload(target.url, data)
+    expect(response.status).toBe(409)
+    expect(await storedFiles()).toEqual([verifyUploadToken(token).key])
   })
 
   it("rejects files over the limit before anything is sent", async () => {
@@ -258,13 +305,13 @@ describe("direct uploads", () => {
     expect(response.status).toBe(415)
     const body = (await response.json()) as { error: { message: string } }
     expect(body.error.message).toMatch(/supported video/)
-    expect(await tempFiles()).toEqual([])
+    expect(await storedFiles()).toEqual([])
   })
 
   it("rejects a PUT with a bad token", async () => {
     const response = await putUpload("/api/uploads/forged.token", "x")
     expect(response.status).toBe(400)
-    expect(await tempFiles()).toEqual([])
+    expect(await storedFiles()).toEqual([])
   })
 
   it("cleans up after an aborted PUT", async () => {
@@ -284,7 +331,7 @@ describe("direct uploads", () => {
     })
     const response = await putUpload(target.url, stream)
     expect(response.status).toBeGreaterThanOrEqual(400)
-    expect(await tempFiles()).toEqual([])
+    expect(await storedFiles()).toEqual([])
     expect((await completeUploadAction(token)).ok).toBe(false)
   })
 

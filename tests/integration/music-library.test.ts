@@ -118,13 +118,16 @@ describe("music uploads", () => {
     expect(await getStorage().list("tmp")).toEqual([])
   })
 
-  it("stores the extension it sniffed, not the one in the name", async () => {
-    const { owner, actor } = await account("Owner")
+  it("rejects a file whose contents don't match its extension", async () => {
+    const { owner } = await account("Owner")
     signedIn.user = owner
-    const { id } = (await upload("loop.mp3")).track!
-    expect((await musicRepository(env.db).get(id))?.storageKey).toBe(
-      `music/${actor.workspaceId}/${id}.m4a`
-    )
+    expect(await upload("loop.mp3")).toEqual({
+      error: {
+        code: "UNSUPPORTED_MEDIA",
+        message: "This file isn't the MP3 its name says it is",
+      },
+    })
+    expect(await getStorage().list("music")).toEqual([])
   })
 
   it("lists a file without audio as failed until it's deleted", async () => {

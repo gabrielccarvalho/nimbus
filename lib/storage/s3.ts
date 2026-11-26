@@ -20,17 +20,16 @@ import { pipeline } from "node:stream/promises"
 import {
   AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
-  CopyObjectCommand,
   CreateMultipartUploadCommand,
   DeleteObjectCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
   HeadBucketCommand,
   HeadObjectCommand,
+  ListMultipartUploadsCommand,
   paginateListObjectsV2,
   PutObjectCommand,
-  UploadPartCopyCommand,
-  type CompletedPart,
+  UploadPartCommand,
   type S3Client,
 } from "@aws-sdk/client-s3"
 import { Upload } from "@aws-sdk/lib-storage"
@@ -40,11 +39,16 @@ import { AppError } from "@/lib/errors"
 import { mimeForKey } from "@/lib/http/range"
 
 import { byteLimit, KEY_PATTERN } from "./common"
-import type { ByteRange, StorageAdapter, UploadTarget } from "./types"
+import type {
+  ByteRange,
+  StorageAdapter,
+  StoredEntry,
+  UploadedPart,
+  UploadTarget,
+} from "./types"
 
 const PART_BYTES = 16 * 1024 ** 2
-const MAX_COPY_BYTES = 5 * 1024 ** 3
-const COPY_PART_BYTES = 1024 ** 3
+const UPLOAD_PART_BYTES = 64 * 1024 ** 2
 const MAX_PARTS = 10_000
 const READ_URL_SECONDS = 4 * 60 * 60
 const UPLOAD_URL_SECONDS = 60 * 60
@@ -88,7 +92,7 @@ export class S3Storage implements StorageAdapter {
   private readonly signer: S3Client
   private readonly bucket: string
   private readonly prefix: string
-  private readonly maxCopyBytes: number
+  private readonly uploadPartBytes: number
   private readonly cache: { dir: string; maxBytes: number }
   private readonly downloads = new Map<string, Promise<string>>()
   private bucketFound = false
@@ -99,14 +103,14 @@ export class S3Storage implements StorageAdapter {
     bucket: string
     cache: { dir: string; maxBytes: number }
     prefix?: string
-    maxCopyBytes?: number
+    uploadPartBytes?: number
   }) {
     this.client = options.client
     this.signer = options.signer ?? options.client
     this.bucket = options.bucket
     this.cache = options.cache
     this.prefix = options.prefix ? `${options.prefix}/` : ""
-    this.maxCopyBytes = options.maxCopyBytes ?? MAX_COPY_BYTES
+    this.uploadPartBytes = options.uploadPartBytes ?? UPLOAD_PART_BYTES
   }
 
   private objectKey(key: string) {
@@ -189,84 +193,6 @@ export class S3Storage implements StorageAdapter {
         ContentType: mimeForKey(key),
       })
     )
-  }
-
-  async move(fromKey: string, toKey: string) {
-    const from = this.objectKey(fromKey)
-    const to = this.objectKey(toKey)
-    const info = await this.stat(fromKey)
-    if (!info) throw notFound(fromKey)
-    const source = { Bucket: this.bucket, CopySource: `${this.bucket}/${from}` }
-    if (info.bytes <= this.maxCopyBytes) {
-      await this.client.send(
-        new CopyObjectCommand({
-          ...source,
-          Key: to,
-          MetadataDirective: "REPLACE",
-          ContentType: mimeForKey(toKey),
-        })
-      )
-    } else {
-      await this.copyInParts(source, to, toKey, info.bytes)
-    }
-    await this.client.send(
-      new DeleteObjectCommand({ Bucket: this.bucket, Key: from })
-    )
-  }
-
-  private async copyInParts(
-    source: { Bucket: string; CopySource: string },
-    to: string,
-    toKey: string,
-    bytes: number
-  ) {
-    const { UploadId } = await this.client.send(
-      new CreateMultipartUploadCommand({
-        Bucket: this.bucket,
-        Key: to,
-        ContentType: mimeForKey(toKey),
-      })
-    )
-    const partBytes = Math.max(
-      Math.min(this.maxCopyBytes, COPY_PART_BYTES),
-      Math.ceil(bytes / MAX_PARTS)
-    )
-    try {
-      const parts: CompletedPart[] = []
-      for (let start = 0; start < bytes; start += partBytes) {
-        const PartNumber = parts.length + 1
-        const end = Math.min(start + partBytes, bytes) - 1
-        const { CopyPartResult } = await this.client.send(
-          new UploadPartCopyCommand({
-            ...source,
-            Key: to,
-            UploadId,
-            PartNumber,
-            CopySourceRange: `bytes=${start}-${end}`,
-          })
-        )
-        parts.push({ ETag: CopyPartResult?.ETag, PartNumber })
-      }
-      await this.client.send(
-        new CompleteMultipartUploadCommand({
-          Bucket: this.bucket,
-          Key: to,
-          UploadId,
-          MultipartUpload: { Parts: parts },
-        })
-      )
-    } catch (error) {
-      await this.client
-        .send(
-          new AbortMultipartUploadCommand({
-            Bucket: this.bucket,
-            Key: to,
-            UploadId,
-          })
-        )
-        .catch(() => {})
-      throw error
-    }
   }
 
   async stat(key: string) {
@@ -355,6 +281,20 @@ export class S3Storage implements StorageAdapter {
         keys.push(object.Key!.slice(this.prefix.length))
     }
     return keys.sort()
+  }
+
+  async listWithInfo(prefix: string): Promise<StoredEntry[]> {
+    const entries: StoredEntry[] = []
+    for await (const page of this.objects(prefix)) {
+      for (const object of page) {
+        entries.push({
+          key: object.Key!.slice(this.prefix.length),
+          bytes: object.Size ?? 0,
+          mtimeMs: object.LastModified?.getTime() ?? 0,
+        })
+      }
+    }
+    return entries.sort((a, b) => (a.key < b.key ? -1 : 1))
   }
 
   localCopyCost(bytes: number) {
@@ -504,24 +444,114 @@ export class S3Storage implements StorageAdapter {
     key: string,
     options: { bytes: number; contentType: string }
   ): Promise<UploadTarget> {
-    const url = await getSignedUrl(
-      this.signer,
-      new PutObjectCommand({
+    const { UploadId } = await this.client.send(
+      new CreateMultipartUploadCommand({
         Bucket: this.bucket,
         Key: this.objectKey(key),
-        ContentLength: options.bytes,
         ContentType: options.contentType,
-      }),
-      {
-        expiresIn: UPLOAD_URL_SECONDS,
-        signableHeaders: new Set(["content-length", "content-type"]),
-      }
+      })
+    )
+    const partSize = Math.max(
+      this.uploadPartBytes,
+      Math.ceil(options.bytes / MAX_PARTS)
     )
     return {
-      url,
-      method: "PUT",
-      headers: { "Content-Type": options.contentType },
+      kind: "multipart",
+      uploadId: UploadId!,
+      partSize,
+      partCount: Math.max(1, Math.ceil(options.bytes / partSize)),
     }
+  }
+
+  async signUploadParts(
+    key: string,
+    upload: { uploadId: string; bytes: number; partSize: number },
+    partNumbers: readonly number[]
+  ) {
+    const partCount = Math.max(1, Math.ceil(upload.bytes / upload.partSize))
+    return Promise.all(
+      partNumbers.map(async (partNumber) => ({
+        partNumber,
+        url: await getSignedUrl(
+          this.signer,
+          new UploadPartCommand({
+            Bucket: this.bucket,
+            Key: this.objectKey(key),
+            UploadId: upload.uploadId,
+            PartNumber: partNumber,
+            ContentLength:
+              partNumber < partCount
+                ? upload.partSize
+                : upload.bytes - (partCount - 1) * upload.partSize,
+          }),
+          {
+            expiresIn: UPLOAD_URL_SECONDS,
+            signableHeaders: new Set(["content-length"]),
+          }
+        ),
+      }))
+    )
+  }
+
+  async completeUpload(
+    key: string,
+    uploadId: string,
+    parts: readonly UploadedPart[]
+  ) {
+    await this.client.send(
+      new CompleteMultipartUploadCommand({
+        Bucket: this.bucket,
+        Key: this.objectKey(key),
+        UploadId: uploadId,
+        MultipartUpload: {
+          Parts: parts.map((part) => ({
+            ETag: part.etag,
+            PartNumber: part.partNumber,
+          })),
+        },
+      })
+    )
+  }
+
+  async abortUpload(key: string, uploadId: string) {
+    await this.client.send(
+      new AbortMultipartUploadCommand({
+        Bucket: this.bucket,
+        Key: this.objectKey(key),
+        UploadId: uploadId,
+      })
+    )
+  }
+
+  async abortStaleUploads(before: Date) {
+    let aborted = 0
+    let KeyMarker: string | undefined
+    let UploadIdMarker: string | undefined
+    do {
+      // MinIO matches Prefix against whole keys only, so filter here.
+      const page = await this.client.send(
+        new ListMultipartUploadsCommand({
+          Bucket: this.bucket,
+          KeyMarker,
+          UploadIdMarker,
+        })
+      )
+      for (const upload of page.Uploads ?? []) {
+        if (!upload.Key?.startsWith(this.prefix)) continue
+        if (!upload.Initiated || upload.Initiated >= before) continue
+        await this.client.send(
+          new AbortMultipartUploadCommand({
+            Bucket: this.bucket,
+            Key: upload.Key,
+            UploadId: upload.UploadId,
+          })
+        )
+        aborted++
+      }
+      KeyMarker = page.IsTruncated ? page.NextKeyMarker : undefined
+      UploadIdMarker = page.IsTruncated ? page.NextUploadIdMarker : undefined
+    } while (KeyMarker)
+    return aborted
   }
 
   async usage(prefix?: string) {
