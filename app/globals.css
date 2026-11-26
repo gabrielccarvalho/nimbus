@@ -12,6 +12,7 @@
   --graphite: #101218;
   --graphite-2: #15171d;
   --graphite-3: #1d2027;
+  --sheet: #090a0f;
   --text: #f5f5f7;
   --text-secondary: #a1a1a6;
   --text-tertiary: #86868b;
@@ -81,6 +82,7 @@
   --color-graphite: var(--graphite);
   --color-graphite-2: var(--graphite-2);
   --color-graphite-3: var(--graphite-3);
+  --color-sheet: var(--sheet);
   --color-glass: var(--glass);
   --color-glass-2: var(--glass-2);
   --color-glass-3: var(--glass-3);

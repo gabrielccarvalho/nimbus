@@ -16,15 +16,17 @@ test("turns a 4:3 recording into a full-screen short", async ({ page }) => {
   await page.getByRole("link", { name: /^Clips/ }).click()
   const first = page
     .getByRole("list", { name: "Clips" })
-    .getByRole("button")
+    .locator("[data-clip-id]")
     .first()
   await first.click()
-  await page.getByRole("dialog").getByRole("link", { name: /Edit/ }).click()
   await page.getByRole("tab", { name: "Layout" }).click()
   await expect(page.getByRole("button", { name: "Find webcam" })).toBeEnabled({
     timeout: 30_000,
   })
-  await page.getByRole("button", { name: /^Fill, no webcam/ }).click()
+  await page
+    .getByRole("group", { name: "Mode" })
+    .getByRole("button", { name: "Fill" })
+    .click()
   await expect(
     page.getByRole("group", { name: "Gameplay region" })
   ).toBeVisible()
@@ -36,7 +38,7 @@ test("turns a 4:3 recording into a full-screen short", async ({ page }) => {
   )
   await expectNoSeriousA11yViolations(page)
   await expect(page.getByTestId("save-state")).toHaveText("Saved")
-  await page.getByRole("link", { name: "Back to all clips" }).click()
+  await page.getByRole("link", { name: "Back to clips" }).click()
 
   await page.getByRole("button", { name: /Approve all/ }).click()
   await expect(first).toHaveAccessibleDescription(/Approved/)
@@ -45,9 +47,9 @@ test("turns a 4:3 recording into a full-screen short", async ({ page }) => {
     timeout: 120_000,
   })
   await first.click()
+  await page.getByRole("button", { name: "More export options" }).click()
   const href = await page
-    .getByRole("dialog")
-    .getByRole("link", { name: /Download/ })
+    .getByRole("menuitem", { name: "Download last render" })
     .getAttribute("href")
   const clip = await page.request.get(href!)
   expect(clip.status()).toBe(200)

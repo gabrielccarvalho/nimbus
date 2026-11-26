@@ -52,14 +52,15 @@ test("puts a track and a hook title under a clip and renders it", async ({
     .locator("[data-clip-id]")
     .first()
     .click()
-  await page.getByRole("dialog").getByRole("link", { name: /Edit/ }).click()
   await expect(page.getByLabel("Title")).toBeVisible()
   const editor = page.url()
   const title = await page.getByLabel("Title").inputValue()
   const hook = await page.getByLabel("Hook").inputValue()
 
   const timeline = page.getByRole("region", { name: "Timeline" })
-  await timeline.getByRole("button", { name: "Music", exact: true }).click()
+  const add = timeline.getByRole("button", { name: "Add", exact: true })
+  await add.click()
+  await page.getByRole("menuitem", { name: "Music…" }).click()
   await page.getByRole("combobox", { name: "Track" }).click()
   await page.getByRole("option", { name: /^tone-880hz/ }).click()
   const song = page
@@ -68,7 +69,8 @@ test("puts a track and a hook title under a clip and renders it", async ({
   await expect(song).toHaveAttribute("aria-pressed", "true")
   await expect(page.getByTestId("music-waveform")).toBeVisible()
   await page.keyboard.press("Escape")
-  await timeline.getByRole("button", { name: "Text", exact: true }).click()
+  await add.click()
+  await page.getByRole("menuitem", { name: "Text", exact: true }).click()
   await expect(page.getByLabel("Text", { exact: true })).toHaveValue(
     defaultOverlayText(hook, title)
   )
@@ -90,12 +92,14 @@ test("puts a track and a hook title under a clip and renders it", async ({
   ).toHaveValue("tone-880hz")
 
   await page.goto(editor)
-  await page.getByRole("button", { name: "Render this clip" }).click()
+  await page.getByRole("button", { name: "Render", exact: true }).click()
   await expect(page.getByRole("main").getByTestId("clip-status")).toHaveText(
-    "Up to date",
+    "Rendered",
     { timeout: 120_000 }
   )
-  const publish = page.getByRole("button", { name: "Publish", exact: true })
+  const more = page.getByRole("button", { name: "More export options" })
+  const publish = page.getByRole("menuitem", { name: /^Publish to YouTube…/ })
+  await more.click()
   await expect(publish).toBeEnabled()
   await publish.click()
   const form = page.getByRole("dialog", { name: "Publish to YouTube" })
@@ -111,6 +115,11 @@ test("puts a track and a hook title under a clip and renders it", async ({
   await page.getByRole("slider", { name: "Music volume" }).focus()
   await page.keyboard.press("ArrowRight")
   await expect(saveState).toHaveText("Saved")
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("main").getByTestId("clip-status")).toHaveText(
+    "Edited since last render"
+  )
+  await more.click()
   await expect(publish).toBeDisabled()
-  await expect(page.getByText("Render the latest edit first")).toBeVisible()
+  await expect(publish).toContainText("Render the latest edit first")
 })

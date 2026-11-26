@@ -33,8 +33,8 @@ test("publishes a rendered clip to YouTube", async ({ page }) => {
   const tile = await renderFirstClip(page)
 
   await tile.click()
-  const player = page.getByRole("dialog")
-  await player.getByRole("button", { name: "Publish", exact: true }).click()
+  await page.getByRole("button", { name: "More export options" }).click()
+  await page.getByRole("menuitem", { name: /^Publish to YouTube…/ }).click()
   const form = page.getByRole("dialog", { name: "Publish to YouTube" })
   await expect(form).toBeVisible()
   await expectNoSeriousA11yViolations(page)
@@ -42,8 +42,7 @@ test("publishes a rendered clip to YouTube", async ({ page }) => {
   await form.getByLabel("Title").fill("E2E published short")
   await form.getByRole("button", { name: "Publish to YouTube" }).click()
   await expect(form).toBeHidden()
-  await page.keyboard.press("Escape")
-  await expect(player).toBeHidden()
+  await page.getByRole("link", { name: "Back to clips" }).click()
 
   const link = page.getByRole("link", { name: /^Published/ })
   await expect(link).toHaveAttribute(
@@ -53,7 +52,15 @@ test("publishes a rendered clip to YouTube", async ({ page }) => {
   )
 
   await tile.click()
-  const stats = page.getByRole("dialog").getByLabel("YouTube stats")
+  await page.getByRole("button", { name: "More export options" }).click()
+  await expect(
+    page.getByRole("menuitem", { name: /^Published on YouTube/ })
+  ).toHaveAttribute("href", /^https:\/\/youtube\.com\/shorts\/fake-\d+$/)
+  await expect(
+    page.getByRole("menuitem", { name: /^Publish (again|to YouTube)…/ })
+  ).toHaveCount(0)
+  await page.keyboard.press("Escape")
+  const stats = page.getByLabel("YouTube stats")
   await stats.getByRole("button", { name: "Refresh stats" }).click()
   await expect(stats.getByText("1,234 views")).toBeVisible({ timeout: 60_000 })
   await expectNoSeriousA11yViolations(page)
@@ -75,16 +82,23 @@ test("an edited clip can't be published until it is rendered again", async ({
   const tile = await renderFirstClip(page)
 
   await tile.click()
-  await page.getByRole("dialog").getByRole("link", { name: /Edit/ }).click()
-  const publish = page.getByRole("button", { name: "Publish", exact: true })
+  const more = page.getByRole("button", { name: "More export options" })
+  const publish = page.getByRole("menuitem", { name: /^Publish to YouTube…/ })
+  await more.click()
   await expect(publish).toBeEnabled()
+  await page.keyboard.press("Escape")
 
   await page
     .getByRole("region", { name: "Timeline" })
-    .getByRole("button", { name: "Effect", exact: true })
+    .getByRole("button", { name: "Add", exact: true })
     .click()
+  await page.getByRole("menuitem", { name: "Effect", exact: true }).click()
   await page.getByRole("menuitem", { name: "Zoom", exact: true }).click()
   await expect(page.getByTestId("save-state")).toHaveText("Saved")
+  await expect(page.getByRole("main").getByTestId("clip-status")).toHaveText(
+    "Edited since last render"
+  )
+  await more.click()
   await expect(publish).toBeDisabled()
-  await expect(page.getByText("Render the latest edit first")).toBeVisible()
+  await expect(publish).toContainText("Render the latest edit first")
 })

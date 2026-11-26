@@ -110,6 +110,32 @@ function setup(frameW: number, frameH: number, ui: React.ReactElement) {
   return view
 }
 
+describe("CropRegion variants", () => {
+  it("marks the variant and keeps the four corner handles", () => {
+    render(
+      <CropRegionEditor defaultValue={rect}>
+        <CropRegion aria-label="Webcam" variant="ring" />
+        <CropRegion
+          aria-label="Gameplay"
+          variant="dashed"
+          value={rect}
+          onValueChange={() => {}}
+        />
+      </CropRegionEditor>
+    )
+    const webcam = screen.getByRole("group", { name: "Webcam" })
+    const gameplay = screen.getByRole("group", { name: "Gameplay" })
+    expect(webcam).toHaveAttribute("data-variant", "ring")
+    expect(gameplay).toHaveAttribute("data-variant", "dashed")
+    expect(
+      webcam.querySelectorAll("[data-slot=crop-region-handle]")
+    ).toHaveLength(4)
+    expect(
+      gameplay.querySelectorAll("[data-slot=crop-region-handle]")
+    ).toHaveLength(4)
+  })
+})
+
 describe("multi-region and aspect lock", () => {
   const start = { x: 0.3, y: 0.3, w: 0.2, h: 0.4 }
   const aspect = 1

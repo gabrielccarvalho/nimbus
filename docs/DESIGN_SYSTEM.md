@@ -12,6 +12,7 @@ Raw tokens live in `:root`; the shadcn variables point at them, so `bg-card`, `t
 | `graphite` (`card`)        | `#101218`                  | Cards, dialogs, sheets                         |
 | `graphite-2` (`muted`)     | `#15171d`                  | Insets, fields, option cards                   |
 | `graphite-3`               | `#1d2027`                  | Hovered or selected option cards, tooltips     |
+| `sheet`                    | `#090a0f`                  | Docked panels: the clip editor's timeline      |
 | `foreground`               | `#f5f5f7`                  | Primary text                                   |
 | `muted-foreground`         | `#a1a1a6`                  | Secondary text                                 |
 | `tertiary`                 | `#86868b`                  | Tertiary text, placeholders, mono labels       |

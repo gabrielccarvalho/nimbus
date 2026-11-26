@@ -43,6 +43,7 @@ Vitest's integration global setup and Playwright's global setup both call the ge
 - The real-ffmpeg music checks live in `tests/integration/render.test.ts` ("render_clip with music and on-screen text"), so `pnpm test` runs them; `pnpm test:heavy` only covers whisper.cpp. `bandLevelDb(file, hz, fromS, durationS)` band-passes the render around one frequency and reads `volumedetect`'s mean level, which proves the 880 Hz track is mixed in, ducked under speech at clip time (the clip is moved 3 s later into the recording, so ducking in source time would land in the wrong place) and gone after the track runs out, while the 440 Hz source keeps playing.
 - The music preview tests (`components/projects/music-preview.test.tsx`) stub `window.AudioContext` with a fake that records gain values and starts `suspended`, so they cover routing only once the context runs. Nothing plays real audio, and e2e Chromium plays no sound either.
 - `tests/e2e/music.spec.ts` uploads the tone in Settings › Music, puts it under a clip with the hook as on-screen text, checks that a used track can't be deleted, renders, and runs axe on the publish dialog showing the Content ID warning.
+- `tests/e2e/clips.spec.ts` drives the clip editor from the keyboard (approve, reject, play, undo, redo, delete) and opens the inspector drawer at 1100 px. Play and pause are only checked by the button's name; nothing asserts that frames advance. The wide fixture yields one clip, so `[` and `]` are covered in `clip-editor.test.tsx` only.
 
 ## Coverage
 

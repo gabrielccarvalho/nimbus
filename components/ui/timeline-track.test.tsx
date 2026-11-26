@@ -110,6 +110,41 @@ describe("TimelineTrack", () => {
   })
 })
 
+describe("TimelineBlock snapping and tones", () => {
+  it("snaps a moved block's edges to the given times", () => {
+    const { block, onChange } = setup({ snapMs: [5000] })
+    fireEvent.pointerDown(block, { button: 0, clientX: 300 })
+    fireEvent.pointerMove(block, { clientX: 397 })
+    expect(onChange).toHaveBeenLastCalledWith(3000, 5000)
+    fireEvent.pointerMove(block, { clientX: 604 })
+    expect(onChange).toHaveBeenLastCalledWith(5000, 7000)
+    fireEvent.pointerMove(block, { clientX: 450 })
+    expect(onChange).toHaveBeenLastCalledWith(3500, 5500)
+  })
+
+  it("snaps a resized edge and ignores the block's own edges", () => {
+    const { block, onChange } = setup({ snapMs: [2000, 4000, 6000] })
+    const end = block.querySelector<HTMLElement>("[data-edge=end]")!
+    fireEvent.pointerDown(end, { button: 0, clientX: 400 })
+    fireEvent.pointerMove(end, { clientX: 403 })
+    expect(onChange).toHaveBeenLastCalledWith(2000, 4030)
+    fireEvent.pointerMove(end, { clientX: 596 })
+    expect(onChange).toHaveBeenLastCalledWith(2000, 6000)
+  })
+
+  it("takes its colour from the tone", () => {
+    const { block } = setup({ variant: "tone", tone: "mint" })
+    expect(block).toHaveAttribute("data-variant", "tone")
+    expect(block.className).toContain("--tone")
+  })
+
+  it("shows grab handles on the clip range", () => {
+    const { block } = setup({ variant: "clip" })
+    expect(block).toHaveAttribute("data-variant", "clip")
+    expect(block.querySelectorAll("[data-edge]")).toHaveLength(2)
+  })
+})
+
 describe("TimelineBlock across lanes", () => {
   function lanes() {
     const onChange = vi.fn()

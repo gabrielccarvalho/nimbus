@@ -1,10 +1,4 @@
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { toast } from "sonner"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -21,9 +15,10 @@ import { ClipsGrid } from "./clips-grid"
 import { ClipsReview } from "./clips-review"
 
 const refresh = vi.fn()
+const push = vi.fn()
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh }),
+  useRouter: () => ({ refresh, push }),
 }))
 
 vi.mock("sonner", () => ({
@@ -122,6 +117,7 @@ const data = {
 
 beforeEach(() => {
   refresh.mockClear()
+  push.mockClear()
   vi.mocked(toast).mockClear()
   vi.mocked(setClipStatusAction).mockReset()
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null)
@@ -134,17 +130,24 @@ describe("ClipsGrid", () => {
     render(<ClipsGrid clips={clips} {...data} />)
     const list = screen.getByRole("list", { name: "Clips" })
     expect(within(list).getAllByRole("listitem")).toHaveLength(3)
-    expect(screen.getByRole("button", { name: "Clip B" })).toBeVisible()
+    expect(screen.getByRole("link", { name: "Clip B" })).toBeVisible()
   })
 
-  it("clicking a tile opens the player for that clip", async () => {
+  it("links every tile straight to that clip's editor", () => {
     render(<ClipsGrid clips={clips} {...data} />)
-    await userEvent.click(screen.getByRole("button", { name: "Clip B" }))
-    const dialog = await screen.findByRole("dialog", { name: "Clip B" })
-    expect(dialog.querySelector("video")).toHaveAttribute("src", "/media/b.mp4")
-    expect(
-      within(dialog).getByRole("link", { name: /Download/ })
-    ).toHaveAttribute("href", renders.b.downloadUrl)
+    expect(screen.getByRole("link", { name: "Clip B" })).toHaveAttribute(
+      "href",
+      "/projects/p1/clips/b"
+    )
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+  })
+
+  it("previews the render on a rendered tile and the source otherwise", () => {
+    render(<ClipsGrid clips={clips} {...data} />)
+    const video = (name: string) =>
+      screen.getByRole("link", { name }).querySelector("video")
+    expect(video("Clip B")).toHaveAttribute("src", "/media/b.mp4")
+    expect(video("Clip C")).toHaveAttribute("src", "/media/proxy.mp4#t=10.0")
   })
 
   it("shows a published clip as a link to the video", () => {
@@ -218,63 +221,13 @@ describe("ClipsGrid", () => {
     expect(screen.getByText("Waiting for YouTube's daily limit")).toBeVisible()
   })
 
-  it("offers Publish next to Download in the player for a rendered clip", async () => {
-    render(<ClipsGrid clips={clips} {...data} />)
-    await userEvent.click(screen.getByRole("button", { name: "Clip B" }))
-    const dialog = await screen.findByRole("dialog", { name: "Clip B" })
-    expect(
-      within(dialog).getByRole("button", { name: "Publish" })
-    ).toBeEnabled()
-  })
-
-  it("arrow keys move to the next clip", async () => {
-    render(<ClipsGrid clips={clips} {...data} />)
-    await userEvent.click(screen.getByRole("button", { name: "Clip A" }))
-    fireEvent.keyDown(await screen.findByRole("dialog", { name: "Clip A" }), {
-      key: "ArrowRight",
-    })
-    expect(
-      await screen.findByRole("dialog", { name: "Clip B" })
-    ).toBeInTheDocument()
-    fireEvent.keyDown(screen.getByRole("dialog"), { key: "ArrowLeft" })
-    expect(
-      await screen.findByRole("dialog", { name: "Clip A" })
-    ).toBeInTheDocument()
-  })
-
-  it("an approved clip with an old render plays the live preview, not the MP4", async () => {
-    render(<ClipsGrid clips={clips} {...data} />)
-    await userEvent.click(screen.getByRole("button", { name: "Clip C" }))
-    const dialog = await screen.findByRole("dialog", { name: "Clip C" })
-    expect(
-      within(dialog).getByRole("img", {
-        name: "Vertical preview with captions",
-      })
-    ).toBeInTheDocument()
-    const sources = [...document.querySelectorAll("video")].map((v) =>
-      v.getAttribute("src")
-    )
-    expect(sources).not.toContain("/media/c-old.mp4")
-    expect(dialog.querySelector("video")).toHaveAttribute(
-      "src",
-      "/media/proxy.mp4"
-    )
-    expect(
-      within(dialog).queryByRole("link", { name: /Download/ })
-    ).not.toBeInTheDocument()
-  })
-
   it("reject shows an undo toast", async () => {
     vi.mocked(setClipStatusAction).mockResolvedValue({
       ok: true,
       value: undefined,
     })
-    render(<ClipsGrid clips={clips} {...data} />)
-    await userEvent.click(screen.getByRole("button", { name: "Clip A" }))
-    const dialog = await screen.findByRole("dialog", { name: "Clip A" })
-    const reject = within(dialog).getByRole("button", { name: "Reject" })
-    expect(reject).toHaveAttribute("aria-pressed", "false")
-    await userEvent.click(reject)
+    render(<ClipsGrid clips={[clips[0]!]} {...data} />)
+    await userEvent.click(screen.getByRole("button", { name: /Reject/ }))
     expect(setClipStatusAction).toHaveBeenCalledWith("p1", "a", "rejected")
     expect(toast).toHaveBeenCalledWith(
       "Rejected “Clip A”",
@@ -295,49 +248,35 @@ describe("ClipsGrid", () => {
     render(<ClipsGrid clips={withD} {...data} renders={{ ...renders, d }} />)
     const play = vi.mocked(HTMLMediaElement.prototype.play)
     const pause = vi.mocked(HTMLMediaElement.prototype.pause)
-    fireEvent.pointerEnter(screen.getByRole("button", { name: "Clip A" }), {
+    fireEvent.pointerEnter(screen.getByRole("link", { name: "Clip A" }), {
       pointerType: "mouse",
     })
     expect(play).not.toHaveBeenCalled()
-    const b = screen.getByRole("button", { name: "Clip B" })
+    const b = screen.getByRole("link", { name: "Clip B" })
     const bVideo = b.querySelector("video")!
     expect(bVideo).toHaveAttribute("src", "/media/b.mp4")
     fireEvent.pointerEnter(b, { pointerType: "mouse" })
     expect(play.mock.contexts).toEqual([bVideo])
     bVideo.currentTime = 3
     pause.mockClear()
-    fireEvent.pointerEnter(screen.getByRole("button", { name: "Clip D" }), {
+    fireEvent.pointerEnter(screen.getByRole("link", { name: "Clip D" }), {
       pointerType: "mouse",
     })
     expect(pause.mock.contexts).toContain(bVideo)
     expect(play.mock.contexts.at(-1)).toBe(
-      screen.getByRole("button", { name: "Clip D" }).querySelector("video")
+      screen.getByRole("link", { name: "Clip D" }).querySelector("video")
     )
     expect(bVideo.currentTime).toBe(0)
   })
 
-  it("arrow keys move clips from the initial focus of a rendered clip", async () => {
+  it("arrow keys move focus between tiles", async () => {
     render(<ClipsGrid clips={clips} {...data} />)
-    await userEvent.click(screen.getByRole("button", { name: "Clip B" }))
-    const dialog = await screen.findByRole("dialog", { name: "Clip B" })
-    await waitFor(() => expect(dialog).toHaveFocus())
+    const first = screen.getByRole("link", { name: "Clip A" })
+    first.focus()
     await userEvent.keyboard("{ArrowRight}")
-    expect(
-      await screen.findByRole("dialog", { name: "Clip C" })
-    ).toBeInTheDocument()
-  })
-
-  it("closing pauses the player and returns focus to the clip's tile", async () => {
-    render(<ClipsGrid clips={clips} {...data} />)
-    const tile = screen.getByRole("button", { name: "Clip B" })
-    await userEvent.click(tile)
-    const dialog = await screen.findByRole("dialog", { name: "Clip B" })
-    const video = dialog.querySelector("video")!
-    const pause = vi.mocked(HTMLMediaElement.prototype.pause)
-    pause.mockClear()
-    await userEvent.click(within(dialog).getByRole("button", { name: "Close" }))
-    expect(pause.mock.contexts).toContain(video)
-    await waitFor(() => expect(tile).toHaveFocus())
+    expect(screen.getByRole("link", { name: "Clip B" })).toHaveFocus()
+    await userEvent.keyboard("{ArrowLeft}")
+    expect(first).toHaveFocus()
   })
 })
 
@@ -356,8 +295,6 @@ describe("ClipsReview", () => {
     const strip = screen.getByRole("img", { name: "Clips in the recording" })
     const ranges = strip.querySelectorAll("[data-slot=timeline-range]")
     await userEvent.click(ranges[1]!)
-    expect(
-      await screen.findByRole("dialog", { name: "Clip B" })
-    ).toBeInTheDocument()
+    expect(push).toHaveBeenCalledWith("/projects/p1/clips/b")
   })
 })

@@ -20,7 +20,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -42,7 +41,6 @@ import {
 import { defaultPublishInput } from "@/features/publishing/metadata"
 import type { getPublishing } from "@/features/publishing/queries"
 import {
-  ACTIVE_PUBLICATION_STATUSES,
   privacyStatuses,
   publishInputSchema,
   type PrivacyStatus,
@@ -66,7 +64,10 @@ const PRIVACY_ITEMS: Array<{ value: PrivacyStatus; label: string }> = [
   { value: "private", label: "Private" },
 ]
 
-function disabledReason(clip: PublishClip, publishing: PublishingState) {
+export function publishBlockedReason(
+  clip: PublishClip,
+  publishing: PublishingState
+) {
   if (clip.status !== "rendered") return "Render the latest edit first"
   if (!publishing.channel)
     return "Connect YouTube in Settings › Connected channels"
@@ -270,49 +271,34 @@ export function PublishDialog({
   clip,
   publishing,
   previous,
+  open,
+  onOpenChange,
 }: {
   clip: PublishClip
   publishing: PublishingState
   previous?: PublicationState["metadata"]
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }) {
-  const [open, setOpen] = React.useState(false)
-  const reasonId = React.useId()
-  const reason = disabledReason(clip, publishing)
-
   return (
-    <div className="grid gap-1">
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger
-          disabled={Boolean(reason)}
-          aria-describedby={reason ? reasonId : undefined}
-          render={<Button size="sm" variant="ghost" />}
-        >
-          <UploadSimpleIcon data-icon="inline-start" aria-hidden />
-          Publish
-        </DialogTrigger>
-        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Publish to YouTube</DialogTitle>
-            <DialogDescription>
-              {publishing.channel?.title
-                ? `Uploads to ${publishing.channel.title}.`
-                : "Uploads the rendered clip."}
-            </DialogDescription>
-          </DialogHeader>
-          <PublishForm
-            clip={clip}
-            publishing={publishing}
-            previous={previous}
-            onDone={() => setOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
-      {reason && (
-        <p id={reasonId} className="text-xs text-tertiary">
-          {reason}
-        </p>
-      )}
-    </div>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Publish to YouTube</DialogTitle>
+          <DialogDescription>
+            {publishing.channel?.title
+              ? `Uploads to ${publishing.channel.title}.`
+              : "Uploads the rendered clip."}
+          </DialogDescription>
+        </DialogHeader>
+        <PublishForm
+          clip={clip}
+          publishing={publishing}
+          previous={previous}
+          onDone={() => onOpenChange(false)}
+        />
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -390,40 +376,5 @@ export function PublicationStatusView({
       Publishing…
       {publication.progress === undefined ? "" : ` ${publication.progress}%`}
     </span>
-  )
-}
-
-export function PublishControl({
-  clip,
-  publishing,
-  live,
-}: {
-  clip: PublishClip
-  publishing: PublishingState
-  live?: boolean
-}) {
-  const publication = publishing.publications[clip.id]
-  if (!publication || publication.status === "removed") {
-    return <PublishDialog clip={clip} publishing={publishing} />
-  }
-  if (ACTIVE_PUBLICATION_STATUSES.has(publication.status)) {
-    return <PublicationStatusView publication={publication} live={live} />
-  }
-  const edited = publication.renderAssetId !== clip.renderAssetId
-  if (publication.status === "published" && !edited) {
-    return <PublicationStatusView publication={publication} />
-  }
-  return (
-    <div className="grid gap-1">
-      <PublicationStatusView publication={publication} />
-      {publication.status === "published" && (
-        <span className="text-xs text-tertiary">Edited since publish</span>
-      )}
-      <PublishDialog
-        clip={clip}
-        publishing={publishing}
-        previous={publication.metadata}
-      />
-    </div>
   )
 }

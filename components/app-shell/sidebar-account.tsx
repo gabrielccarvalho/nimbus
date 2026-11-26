@@ -50,12 +50,14 @@ export type SidebarWorkspace = {
   planName: string
 }
 
-export const SHORTCUTS = [
+export type Shortcut = { keys: readonly string[]; label: string }
+
+export const SHORTCUTS: readonly Shortcut[] = [
   { keys: ["⌘", "K"], label: "Search recordings and clips" },
   { keys: ["N"], label: "New project" },
   { keys: [","], label: "Settings" },
   { keys: ["?"], label: "Keyboard shortcuts" },
-] as const
+]
 
 export function WorkspaceButton({
   workspace,
@@ -126,13 +128,15 @@ export function WorkspaceButton({
 export function ShortcutsDialog({
   open,
   onOpenChange,
+  shortcuts = SHORTCUTS,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
+  shortcuts?: readonly Shortcut[]
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Keyboard shortcuts</DialogTitle>
           <DialogDescription>
@@ -140,7 +144,7 @@ export function ShortcutsDialog({
           </DialogDescription>
         </DialogHeader>
         <dl className="grid gap-1">
-          {SHORTCUTS.map((shortcut) => (
+          {shortcuts.map((shortcut) => (
             <div
               key={shortcut.label}
               className="flex items-center justify-between gap-4 py-1.5 text-sm"
@@ -162,9 +166,13 @@ export function ShortcutsDialog({
 export function AccountMenu({
   account,
   collapsed,
+  iconOnly = false,
+  shortcuts: shortcutList,
 }: {
   account: SidebarAccount
   collapsed: boolean
+  iconOnly?: boolean
+  shortcuts?: readonly Shortcut[]
 }) {
   const router = useRouter()
   const [shortcuts, setShortcuts] = React.useState(false)
@@ -184,18 +192,20 @@ export function AccountMenu({
         <DropdownMenuTrigger
           className={cn(
             "mt-2 flex w-full items-center gap-2.5 rounded-[14px] p-2 text-start transition-colors hover:bg-glass aria-expanded:bg-glass",
-            collapsed && "md:justify-center md:p-1"
+            collapsed && "md:justify-center md:p-1",
+            iconOnly && "mt-1.5 w-auto justify-center rounded-full p-[3px]"
           )}
         >
           <EntityAvatar
             image={account.image}
             initials={account.initials}
-            className="size-8 text-[13px]"
+            className={iconOnly ? "size-[30px] text-xs" : "size-8 text-[13px]"}
           />
           <span
             className={cn(
               "grid min-w-0 flex-1 gap-px",
-              collapsed && "md:sr-only"
+              collapsed && "md:sr-only",
+              iconOnly && "sr-only"
             )}
           >
             <span className="truncate text-sm font-semibold">
@@ -208,7 +218,8 @@ export function AccountMenu({
           <CaretUpDownIcon
             className={cn(
               "size-4 shrink-0 text-tertiary",
-              collapsed && "md:hidden"
+              collapsed && "md:hidden",
+              iconOnly && "hidden"
             )}
             aria-hidden
           />
@@ -250,7 +261,11 @@ export function AccountMenu({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <ShortcutsDialog open={shortcuts} onOpenChange={setShortcuts} />
+      <ShortcutsDialog
+        open={shortcuts}
+        onOpenChange={setShortcuts}
+        shortcuts={shortcutList}
+      />
     </>
   )
 }

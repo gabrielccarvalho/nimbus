@@ -18,21 +18,20 @@ test("upload, find the webcam, render, download and edit a clip", async ({
   await page.getByRole("link", { name: /^Clips/ }).click()
   const first = page
     .getByRole("list", { name: "Clips" })
-    .getByRole("button")
+    .locator("[data-clip-id]")
     .first()
   await first.click()
-  const dialog = page.getByRole("dialog")
-  await dialog.getByRole("link", { name: /Edit/ }).click()
   await expect(page.getByText(/Webcam found/)).toBeVisible({ timeout: 30_000 })
   await expect(page.getByTestId("save-state")).toHaveText("Saved")
-  await page.getByRole("link", { name: "Back to all clips" }).click()
-  await first.click()
-  await dialog.getByRole("button", { name: "Approve" }).click()
-  await expect(dialog.getByRole("button", { name: "Approve" })).toHaveAttribute(
-    "aria-pressed",
-    "true"
+  await expect(page.getByRole("main").getByTestId("clip-status")).toHaveText(
+    "Not rendered"
   )
-  await page.keyboard.press("Escape")
+  const decision = page.getByRole("group", { name: "Review decision" })
+  await decision.getByRole("button", { name: "Approve" }).click()
+  await expect(
+    decision.getByRole("button", { name: "Approved" })
+  ).toHaveAttribute("aria-pressed", "true")
+  await page.getByRole("link", { name: "Back to clips" }).click()
   await expect(first).toHaveAccessibleDescription(/Approved/)
   await page.getByRole("button", { name: "Render approved clips" }).click()
   await expect(first).toHaveAccessibleDescription(/Rendered/, {
@@ -40,7 +39,11 @@ test("upload, find the webcam, render, download and edit a clip", async ({
   })
 
   await first.click()
-  const download = dialog.getByRole("link", { name: /Download/ })
+  await expect(page.getByRole("main").getByTestId("clip-status")).toHaveText(
+    "Rendered"
+  )
+  await page.getByRole("button", { name: "More export options" }).click()
+  const download = page.getByRole("menuitem", { name: "Download last render" })
   const clipResponse = await page.request.get(
     (await download.getAttribute("href"))!
   )
@@ -50,7 +53,7 @@ test("upload, find the webcam, render, download and edit a clip", async ({
   expect((await clipResponse.body()).length).toBeGreaterThan(100_000)
 
   await page.keyboard.press("Escape")
-  await expect(dialog).toBeHidden()
+  await page.getByRole("link", { name: "Back to clips" }).click()
 
   const zip = await page.request.get(`/api${projectPath}/export`)
   expect(zip.status()).toBe(200)
@@ -59,11 +62,11 @@ test("upload, find the webcam, render, download and edit a clip", async ({
   await expectNoSeriousA11yViolations(page)
 
   await first.click()
-  await dialog.getByRole("link", { name: /Edit/ }).click()
   await expect(page.getByLabel("Title")).toBeVisible()
   await expect(page.getByRole("main").getByTestId("clip-status")).toHaveText(
-    "Up to date"
+    "Rendered"
   )
+  await expect(page.getByRole("button", { name: "Re-render" })).toBeEnabled()
   await expect(
     page.getByRole("group", { name: "Vertical preview with captions" })
   ).toBeVisible()
@@ -71,7 +74,7 @@ test("upload, find the webcam, render, download and edit a clip", async ({
   await page.getByLabel("Title").fill("My best moment")
   await page.getByRole("tab", { name: "Layout" }).click()
   const layoutMode = page.getByRole("group", { name: "Mode" })
-  await layoutMode.getByRole("button", { name: /^Even split/ }).click()
+  await layoutMode.getByRole("button", { name: "Split" }).click()
   await expect(page.getByRole("group", { name: "Webcam region" })).toBeVisible()
   await page
     .getByRole("group", { name: "Webcam goes" })
@@ -88,10 +91,13 @@ test("upload, find the webcam, render, download and edit a clip", async ({
       .getByRole("group", { name: "Captions track", exact: true })
       .getByRole("button", { name: /^Caption Edited caption at / })
   ).toBeVisible()
-  await page.getByRole("button", { name: "Caption timing" }).click()
-  await page.getByRole("button", { name: "Show captions later" }).click()
   await page.keyboard.press("Escape")
   await page.getByRole("tab", { name: "Captions" }).click()
+  await expect(
+    page.getByRole("textbox", { name: /^Caption at / }).first()
+  ).toHaveValue("Edited caption")
+  await page.getByRole("button", { name: "Show captions later" }).click()
+  await page.getByRole("button", { name: "Edit style" }).click()
   await page
     .getByRole("group", { name: "Position", exact: true })
     .getByRole("button", { name: "Top" })
@@ -99,6 +105,7 @@ test("upload, find the webcam, render, download and edit a clip", async ({
   await expect(saveState).toHaveText("Saved")
   await page.reload()
   await page.getByRole("tab", { name: "Captions" }).click()
+  await page.getByRole("button", { name: "Edit style" }).click()
   await expect(
     page
       .getByRole("group", { name: "Position", exact: true })
@@ -111,7 +118,7 @@ test("upload, find the webcam, render, download and edit a clip", async ({
       .getByRole("button", { name: "At the bottom" })
   ).toHaveAttribute("aria-pressed", "true")
   await expect(page.getByRole("main").getByTestId("clip-status")).toHaveText(
-    "Out of date"
+    "Edited since last render"
   )
   await expect(
     page.getByRole("heading", { name: "My best moment" })

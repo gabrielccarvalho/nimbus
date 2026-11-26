@@ -22,10 +22,9 @@ test("finds the webcam the first time a clip opens", async ({ page }) => {
   await page.getByRole("link", { name: /^Clips/ }).click()
   await page
     .getByRole("list", { name: "Clips" })
-    .getByRole("button")
+    .locator("[data-clip-id]")
     .first()
     .click()
-  await page.getByRole("dialog").getByRole("link", { name: /Edit/ }).click()
   await expect(page.getByText(/Webcam found/)).toBeVisible({ timeout: 30_000 })
   expect(warnings.filter((w) => w.includes("Face detection"))).toEqual([])
   const region = page.getByRole("group", { name: "Webcam region" })
@@ -75,15 +74,14 @@ test("new clips start from the workspace default layout", async ({ page }) => {
   await page.getByRole("link", { name: /^Clips/ }).click()
   await page
     .getByRole("list", { name: "Clips" })
-    .getByRole("button")
+    .locator("[data-clip-id]")
     .first()
     .click()
-  await page.getByRole("dialog").getByRole("link", { name: /Edit/ }).click()
   await expect(page.getByText(/Webcam found/)).toBeVisible({ timeout: 30_000 })
   await page.getByRole("tab", { name: "Layout" }).click()
   await expect(
     page.getByRole("group", { name: "Mode" }).getByRole("button", {
-      name: /^Even split/,
+      name: "Split",
     })
   ).toHaveAttribute("aria-pressed", "true")
   await expect(

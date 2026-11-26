@@ -9,7 +9,10 @@ import userEvent from "@testing-library/user-event"
 import * as React from "react"
 import { describe, expect, it, vi } from "vitest"
 
-import { VideoPlayerProvider } from "@/components/ui/video-player"
+import {
+  VideoPlayerProvider,
+  VideoPlayerVideo,
+} from "@/components/ui/video-player"
 import type { TextOverlay } from "@/features/captions/overlay"
 import type { CaptionPage } from "@/features/captions/pages"
 import type { ClipEffects } from "@/features/effects/schema"
@@ -26,10 +29,6 @@ import {
   rulerTicks,
   type TimelineSelection,
 } from "./clip-timeline"
-
-vi.mock("@/features/clips/actions", () => ({
-  planClipEffectsAction: vi.fn(),
-}))
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
@@ -88,20 +87,13 @@ function setup(initial: Partial<State> = {}, hasWebcam = true) {
       setState((current) => ({ ...current, ...patch }))
     return (
       <VideoPlayerProvider>
+        <VideoPlayerVideo data-testid="source" />
         <ClipTimeline
-          projectId="p1"
-          clipId="c1"
+          src="/media/proxy.mp4"
           sourceDurationMs={120_000}
           startMs={state.startMs}
           endMs={state.endMs}
           onTrim={(startMs, endMs) => set({ startMs, endMs })}
-          layout={{
-            webcamRect: null,
-            gameplayRect: { x: 0, y: 0, w: 1, h: 1 },
-            gameplayFocusX: 0.5,
-            mode: "no-cam-fill",
-            camPosition: "top",
-          }}
           hasWebcam={hasWebcam}
           effects={state.effects}
           onEffectsChange={(effects) => set({ effects })}
@@ -147,9 +139,19 @@ const barHeight = (svg: Element) => {
   return Math.round((50 - Math.min(...ys)) * 2)
 }
 
-async function addEffect(name: string) {
-  await userEvent.click(screen.getByRole("button", { name: "Effect" }))
-  await userEvent.click(await screen.findByRole("menuitem", { name }))
+async function add(...path: string[]) {
+  await userEvent.click(screen.getByRole("button", { name: "Add" }))
+  for (const name of path) {
+    await userEvent.click(await screen.findByRole("menuitem", { name }))
+  }
+}
+
+const addEffect = (name: string) => add("Effect", name)
+
+function playTo(ms: number) {
+  const video = screen.getByTestId<HTMLVideoElement>("source")
+  video.currentTime = ms / 1000
+  fireEvent.timeUpdate(video)
 }
 
 describe("ClipTimeline", () => {
@@ -168,7 +170,10 @@ describe("ClipTimeline", () => {
 
   it("can't add a full cam without a webcam", async () => {
     setup({}, false)
-    await userEvent.click(screen.getByRole("button", { name: "Effect" }))
+    await userEvent.click(screen.getByRole("button", { name: "Add" }))
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Effect" })
+    )
     expect(
       await screen.findByRole("menuitem", { name: "Full cam" })
     ).toHaveAttribute("aria-disabled", "true")
@@ -183,10 +188,7 @@ describe("ClipTimeline", () => {
         ],
       },
     })
-    await userEvent.click(screen.getByRole("button", { name: "Track" }))
-    await userEvent.click(
-      await screen.findByRole("menuitem", { name: "Effects track" })
-    )
+    await add("Track", "Effects track")
     const block = screen.getByRole("button", { name: "Shake light at 0:02.0" })
     block.focus()
     await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}")
@@ -210,7 +212,7 @@ describe("ClipTimeline", () => {
     await userEvent.type(text, "Hi")
     expect(latest().captions.pageEdits).toEqual({ 0: { text: "Hi" } })
 
-    await userEvent.click(screen.getByRole("button", { name: "Caption" }))
+    await add("Caption")
     expect(latest().captions.added).toEqual([
       { startMs: 0, endMs: 1000, text: "New caption" },
     ])
@@ -221,8 +223,8 @@ describe("ClipTimeline", () => {
 
   it("puts a caption on a new captions track when the first is busy", async () => {
     const { latest } = setup()
-    await userEvent.click(screen.getByRole("button", { name: "Caption" }))
-    await userEvent.click(screen.getByRole("button", { name: "Caption" }))
+    await add("Caption")
+    await add("Caption")
     expect(latest().captions.added).toHaveLength(1)
     expect(latest().captions.lanes).toEqual([
       {
@@ -237,7 +239,7 @@ describe("ClipTimeline", () => {
 
   it("adds a text and places it on another track", async () => {
     const { latest } = setup()
-    await userEvent.click(screen.getByRole("button", { name: "Text" }))
+    await add("Text")
     expect(latest().textOverlays).toEqual([
       {
         text: "Wait for it",
@@ -247,13 +249,16 @@ describe("ClipTimeline", () => {
         lane: 0,
       },
     ])
-    await userEvent.click(screen.getByRole("button", { name: "Text" }))
+    await add("Text")
     expect(latest().textOverlays[1]).toMatchObject({ startMs: 0, lane: 1 })
   })
 
   it("adds a library track as music and scales its wave with the volume", async () => {
     const { latest } = setup()
-    await userEvent.click(screen.getByRole("button", { name: "Music" }))
+    expect(
+      screen.queryByRole("group", { name: "Music track 1" })
+    ).not.toBeInTheDocument()
+    await add("Music…")
     await userEvent.click(await screen.findByRole("combobox"))
     await userEvent.click(
       await screen.findByRole("option", { name: /Synthwave/ })
@@ -326,6 +331,88 @@ describe("ClipTimeline", () => {
       screen.getByRole("button", { name: "Remove captions track 2" })
     )
     expect(latest().captions.lanes).toEqual([])
+  })
+})
+
+describe("ClipTimeline editing keys", () => {
+  const zoom = {
+    kind: "zoom" as const,
+    startMs: 12_000,
+    endMs: 13_500,
+    scale: 1.4,
+    focus: { x: 0.5, y: 0.5 },
+    lane: 0,
+  }
+
+  it("splits the selected effect at the playhead", async () => {
+    const { latest } = setup({
+      effects: { edited: true, events: [zoom] },
+      selection: { type: "effect", index: 0 },
+    })
+    const split = screen.getByRole("button", { name: "Split at playhead (S)" })
+    expect(split).toBeDisabled()
+    playTo(12_600)
+    expect(split).toBeEnabled()
+    fireEvent.keyDown(document.body, { key: "s" })
+    expect(latest().effects?.events).toMatchObject([
+      { kind: "zoom", startMs: 12_000, endMs: 12_600, scale: 1.4 },
+      { kind: "zoom", startMs: 12_600, endMs: 13_500, scale: 1.4 },
+    ])
+  })
+
+  it("won't split a spoken caption", () => {
+    setup({ selection: { type: "caption", ref: { lane: 0, index: 0 } } })
+    playTo(11_500)
+    expect(
+      screen.getByRole("button", { name: "Split at playhead (S)" })
+    ).toBeDisabled()
+  })
+
+  it("starts and ends the clip at the playhead with I and O", () => {
+    const { latest } = setup()
+    playTo(15_000)
+    fireEvent.keyDown(document.body, { key: "i" })
+    expect(latest()).toMatchObject({ startMs: 15_000, endMs: 40_000 })
+    playTo(30_000)
+    fireEvent.keyDown(document.body, { key: "o" })
+    expect(latest()).toMatchObject({ startMs: 15_000, endMs: 30_000 })
+  })
+
+  it("refuses a trim shorter than a clip can be", () => {
+    const { latest } = setup()
+    playTo(39_000)
+    fireEvent.keyDown(document.body, { key: "i" })
+    expect(latest()).toMatchObject({ startMs: 10_000, endMs: 40_000 })
+  })
+
+  it("removes the selected item with Delete from anywhere", () => {
+    const { latest } = setup({
+      effects: { edited: true, events: [zoom] },
+      selection: { type: "effect", index: 0 },
+    })
+    fireEvent.keyDown(document.body, { key: "Delete" })
+    expect(latest().effects?.events).toEqual([])
+    expect(latest().selection).toBeNull()
+  })
+
+  it("seeks and clears the selection when an empty part of a track is pressed", () => {
+    const { latest } = setup({
+      effects: { edited: true, events: [zoom] },
+      selection: { type: "effect", index: 0 },
+    })
+    const axis = screen.getByTestId("timeline-scroller")
+      .firstElementChild as HTMLElement
+    axis.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, width: 500, height: 220 }) as DOMRect
+    fireEvent.pointerDown(axis, { button: 0, clientX: 250 })
+    expect(latest().selection).toBeNull()
+    expect(screen.getByTestId<HTMLVideoElement>("source").currentTime).toBe(25)
+  })
+
+  it("shows the playhead time over the tracks", () => {
+    setup()
+    playTo(22_400)
+    expect(screen.getByTestId("timeline-playhead")).toHaveTextContent("0:12.4")
   })
 })
 

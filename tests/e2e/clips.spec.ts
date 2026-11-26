@@ -18,31 +18,30 @@ test("reviews highlight candidates", async ({ page }) => {
   const tiles = await uploadAndOpenClips(page)
   await expect(tiles.first()).toHaveAccessibleDescription(/To review/)
   const first = (await tiles.nth(0).getAttribute("data-clip-id"))!
+  const title = (await tiles
+    .first()
+    .evaluate(
+      (el) =>
+        document.getElementById(el.getAttribute("aria-labelledby")!)!
+          .textContent
+    ))!
   await expectNoSeriousA11yViolations(page)
 
   await tiles.first().focus()
   await page.keyboard.press("Enter")
-  const dialog = page.getByRole("dialog")
-  await expect(dialog.getByRole("heading")).toBeVisible()
-  const title = (await dialog.getByRole("heading").textContent())!
-  await expect(page.getByRole("dialog", { name: title })).toBeVisible()
+  await expect(page).toHaveURL(new RegExp(`/clips/${first}$`))
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(title)
+  await expect(page.getByRole("dialog")).toHaveCount(0)
 
-  const approve = dialog.getByRole("button", { name: "Approve" })
-  await expect(approve).toHaveAttribute("aria-pressed", "false")
-  await approve.click()
-  await expect(approve).toHaveAttribute("aria-pressed", "true")
-  await expect(dialog.getByRole("link", { name: /Edit/ })).toHaveAttribute(
-    "href",
-    new RegExp(`/clips/${first}$`)
-  )
+  const decision = page.getByRole("group", { name: "Review decision" })
+  await decision.getByRole("button", { name: "Approve" }).click()
+  await expect(
+    decision.getByRole("button", { name: "Approved" })
+  ).toHaveAttribute("aria-pressed", "true")
   await expectNoSeriousA11yViolations(page)
 
-  await page.keyboard.press("Escape")
-  await expect(dialog).toBeHidden()
-  await expect(tiles.first()).toBeFocused()
+  await page.getByRole("link", { name: "Back to clips" }).click()
   await expect(tiles.first()).toHaveAccessibleName(title)
-
-  await page.reload()
   await expect(tiles.first()).toHaveAccessibleDescription(/Approved/)
 
   // A hidden copy streamed in after the reload can briefly share the title.
@@ -50,7 +49,64 @@ test("reviews highlight candidates", async ({ page }) => {
     .getByRole("img", { name: "Clips in the recording" })
     .getByTitle(title)
     .click()
-  await expect(page.getByRole("dialog", { name: title })).toBeVisible()
+  await expect(page).toHaveURL(new RegExp(`/clips/${first}$`))
+})
+
+test("drives the editor from the keyboard", async ({ page }) => {
+  const tiles = await uploadAndOpenClips(page)
+  await tiles.first().click()
+  await expect(page.getByText(/Webcam found/)).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByTestId("save-state")).toHaveText("Saved")
+
+  const decision = page.getByRole("group", { name: "Review decision" })
+  await page.keyboard.press("a")
+  await expect(
+    decision.getByRole("button", { name: "Approved" })
+  ).toHaveAttribute("aria-pressed", "true")
+  await expect(decision.getByRole("button", { name: "Approved" })).toBeEnabled()
+  await page.keyboard.press("x")
+  await expect(
+    decision.getByRole("button", { name: "Rejected" })
+  ).toHaveAttribute("aria-pressed", "true")
+  await expect(decision.getByRole("button", { name: "Rejected" })).toBeEnabled()
+  await page.keyboard.press("x")
+  await expect(
+    decision.getByRole("button", { name: "Reject", exact: true })
+  ).toHaveAttribute("aria-pressed", "false")
+
+  const playback = page.getByRole("group", { name: "Playback" })
+  await page.keyboard.press("Space")
+  await expect(playback.getByRole("button", { name: /^Pause/ })).toBeVisible()
+  await page.keyboard.press("Space")
+  await expect(playback.getByRole("button", { name: /^Play/ })).toBeVisible()
+
+  const timeline = page.getByRole("region", { name: "Timeline" })
+  const texts = timeline
+    .getByRole("group", { name: "Text track 1" })
+    .getByRole("button")
+  await timeline.getByRole("button", { name: "Add", exact: true }).click()
+  await page.getByRole("menuitem", { name: "Text", exact: true }).click()
+  await expect(texts).toHaveCount(1)
+  await page.keyboard.press("Escape")
+  await page.keyboard.press("ControlOrMeta+z")
+  await expect(texts).toHaveCount(0)
+  await page.keyboard.press("ControlOrMeta+Shift+z")
+  await expect(texts).toHaveCount(1)
+  await texts.first().click()
+  await page.keyboard.press("Escape")
+  await page.keyboard.press("Delete")
+  await expect(texts).toHaveCount(0)
+
+  await page.getByRole("switch", { name: "Safe zones" }).click()
+  await expect(page.getByTestId("safe-zones")).toBeVisible()
+  await expectNoSeriousA11yViolations(page)
+
+  await page.setViewportSize({ width: 1100, height: 900 })
+  await expect(page.getByRole("tab", { name: "Details" })).toHaveCount(0)
+  await page.getByRole("button", { name: "Clip settings" }).click()
+  const drawer = page.getByRole("dialog", { name: "Clip settings" })
+  await expect(drawer.getByRole("tab", { name: "Details" })).toBeVisible()
+  await expectNoSeriousA11yViolations(page)
 })
 
 test("filters, rejects and approves from the keyboard, then finds more highlights", async ({
@@ -60,20 +116,25 @@ test("filters, rejects and approves from the keyboard, then finds more highlight
   await expect(tiles.first()).toBeVisible()
   const count = await tiles.count()
 
-  await tiles.first().click()
-  const dialog = page.getByRole("dialog")
-  const title = (await dialog.getByRole("heading").textContent())!
-  const reject = dialog.getByRole("button", { name: "Reject" })
-  await reject.click()
-  await expect(reject).toHaveAttribute("aria-pressed", "true")
-  await page.keyboard.press("Escape")
-  await expect(dialog).toBeHidden()
+  const title = (await tiles
+    .first()
+    .evaluate(
+      (el) =>
+        document.getElementById(el.getAttribute("aria-labelledby")!)!
+          .textContent
+    ))!
+  await page
+    .getByRole("list", { name: "Clips" })
+    .getByRole("listitem")
+    .first()
+    .getByRole("button", { name: "Reject clip" })
+    .click()
   const filters = page.getByRole("group", { name: "Filter clips" })
   await expect(
     filters.getByRole("button", { name: "Rejected 1" })
   ).toBeVisible()
   await expect(
-    page.getByRole("button", { name: title, exact: true })
+    page.getByRole("link", { name: title, exact: true })
   ).toHaveAccessibleDescription(/Rejected/)
   await filters.getByRole("button", { name: /^To review/ }).click()
   await expect(tiles).toHaveCount(count - 1)
@@ -82,7 +143,7 @@ test("filters, rejects and approves from the keyboard, then finds more highlight
   await filters.getByRole("button", { name: /^All/ }).click()
   await expect(tiles).toHaveCount(count)
 
-  const rejected = page.getByRole("button", { name: title, exact: true })
+  const rejected = page.getByRole("link", { name: title, exact: true })
   await rejected.focus()
   await page.keyboard.press("x")
   await expect(rejected).toHaveAccessibleDescription(/To review/)
@@ -109,17 +170,17 @@ test("filters, rejects and approves from the keyboard, then finds more highlight
 test("adds a zoom effect in the clip editor", async ({ page }) => {
   const tiles = await uploadAndOpenClips(page)
   await tiles.first().click()
-  await page.getByRole("dialog").getByRole("link", { name: /Edit/ }).click()
   await expect(page.getByText(/Webcam found/)).toBeVisible({ timeout: 30_000 })
 
   const timeline = page.getByRole("region", { name: "Timeline" })
-  const addEffect = async (name: string) => {
-    await timeline.getByRole("button", { name: "Effect", exact: true }).click()
-    await page.getByRole("menuitem", { name, exact: true }).click()
+  const add = async (...path: string[]) => {
+    await timeline.getByRole("button", { name: "Add", exact: true }).click()
+    for (const name of path)
+      await page.getByRole("menuitem", { name, exact: true }).click()
   }
   const zoomBlocks = timeline.getByRole("button", { name: /^Zoom 1\.4× at / })
   const before = await zoomBlocks.count()
-  await addEffect("Zoom")
+  await add("Effect", "Zoom")
   await expect(zoomBlocks).toHaveCount(before + 1)
 
   const name = (await timeline
@@ -127,44 +188,36 @@ test("adds a zoom effect in the clip editor", async ({ page }) => {
     .getAttribute("aria-label"))!
   expect(name).toMatch(/^Zoom 1\.4× at /)
   const added = timeline.getByRole("button", { name, exact: true })
-  const scale = page.getByRole("slider", { name: "Scale" })
-  await added.focus()
-  await page.keyboard.press("Tab")
-  await expect(scale).toBeFocused()
-  await expectNoSeriousA11yViolations(page)
-  await page.keyboard.press("Shift+Tab")
-  await expect(added).toBeFocused()
-  await expect(scale).toBeVisible()
-  await page.keyboard.press("Tab")
-  await page.keyboard.press("Tab")
+  await expect(page.getByRole("tab", { name: "Effects" })).toHaveAttribute(
+    "aria-selected",
+    "true"
+  )
+  const card = page
+    .getByRole("list", { name: "Effects" })
+    .locator("[data-selected]")
+  await expect(card).toBeInViewport()
+  await card.getByRole("slider", { name: "Strength" }).focus()
+  await page.keyboard.press("ArrowRight")
   await expect(
-    page.getByRole("button", { name: "Delete", exact: true })
-  ).toBeFocused()
-  await page.keyboard.press("Tab")
-  expect(
-    await page.evaluate(() =>
-      Boolean(document.activeElement?.closest('[data-slot="clip-timeline"]'))
-    )
-  ).toBe(true)
-  await added.focus()
-  await page.keyboard.press("Tab")
-  await page.keyboard.press("Escape")
-  await expect(added).toBeFocused()
-  await expect(scale).toBeHidden()
+    timeline.getByRole("button", { name: /^Zoom 1\.5× at /, pressed: true })
+  ).toBeVisible()
+  await expectNoSeriousA11yViolations(page)
+  await page.keyboard.press("ArrowLeft")
+  await expect(added.first()).toHaveAttribute("aria-pressed", "true")
 
   const gameBlocks = timeline.getByRole("button", { name: /^Full game at / })
   const gamesBefore = await gameBlocks.count()
-  await addEffect("Full game")
+  await add("Effect", "Full game")
   await expect(gameBlocks).toHaveCount(gamesBefore + 1)
 
   const lanes = timeline.getByRole("group", { name: /^Effects track / })
   const lanesBefore = await lanes.count()
-  await timeline.getByRole("button", { name: "Track", exact: true }).click()
-  await page.getByRole("menuitem", { name: "Effects track" }).click()
+  await add("Track", "Effects track")
   await expect(lanes).toHaveCount(lanesBefore + 1)
   const newLane = timeline.getByRole("group", {
     name: `Effects track ${lanesBefore + 1}`,
   })
+  await newLane.scrollIntoViewIfNeeded()
   const from = (await added.boundingBox())!
   const to = (await newLane.boundingBox())!
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2)
@@ -190,7 +243,6 @@ test("adds a zoom effect in the clip editor", async ({ page }) => {
 test("moves the gameplay box in the clip editor", async ({ page }) => {
   const tiles = await uploadAndOpenClips(page)
   await tiles.first().click()
-  await page.getByRole("dialog").getByRole("link", { name: /Edit/ }).click()
   await expect(page.getByText(/Webcam found/)).toBeVisible({ timeout: 30_000 })
 
   const region = page.getByRole("group", { name: "Gameplay region" })
@@ -221,7 +273,6 @@ test("moves the gameplay box in the clip editor", async ({ page }) => {
 test("places this clip's captions by hand", async ({ page }) => {
   const tiles = await uploadAndOpenClips(page)
   await tiles.first().click()
-  await page.getByRole("dialog").getByRole("link", { name: /Edit/ }).click()
   await expect(page.getByText(/Webcam found/)).toBeVisible({ timeout: 30_000 })
 
   const caption = page.getByRole("slider", { name: "Caption position" })
@@ -233,6 +284,7 @@ test("places this clip's captions by hand", async ({ page }) => {
   await page.reload()
   await expect(caption).toHaveAttribute("aria-valuenow", String(before - 5))
   await page.getByRole("tab", { name: "Captions" }).click()
+  await page.getByRole("button", { name: "Edit style" }).click()
   await expect(
     page
       .getByRole("group", { name: "Position", exact: true })

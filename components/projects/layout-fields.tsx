@@ -151,11 +151,13 @@ export function GameplayRegion({
   width,
   height,
   onLayoutChange,
+  children,
 }: {
   layout: LayoutInput
   width: number
   height: number
   onLayoutChange: (patch: Partial<LayoutInput>) => void
+  children?: React.ReactNode
 }) {
   const box = gameplayBox(layout, width, height)
   const aspect = gameplaySlotAspect(layout.mode)
@@ -163,13 +165,15 @@ export function GameplayRegion({
   return (
     <CropRegion
       aria-label="Gameplay region"
+      variant="dashed"
       value={box}
       aspectRatio={aspect}
       onValueChange={(gameplayRect) =>
         onLayoutChange({ gameplayRect, gameplayFocusX: 0.5 })
       }
-      className="border-dashed border-white/70 shadow-none"
-    />
+    >
+      {children}
+    </CropRegion>
   )
 }
 

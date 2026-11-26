@@ -11,13 +11,13 @@ import {
 
 import {
   PublicationStatusView,
-  type PublicationState,
-  PublishControl,
+  publishBlockedReason,
   PublishDialog,
   type PublishingState,
 } from "./publish-dialog"
 
 const refresh = vi.fn()
+const close = vi.fn()
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh }),
@@ -76,8 +76,14 @@ beforeEach(() => {
 
 describe("PublishDialog", () => {
   it("prefills the title and a description ending with the hashtags line", async () => {
-    render(<PublishDialog clip={clip} publishing={publishing} />)
-    await userEvent.click(screen.getByRole("button", { name: "Publish" }))
+    render(
+      <PublishDialog
+        open
+        onOpenChange={close}
+        clip={clip}
+        publishing={publishing}
+      />
+    )
     const dialog = await screen.findByRole("dialog")
     expect(dialog).toBeInTheDocument()
     expect(screen.getByLabelText("Title")).toHaveValue("Clutch ace")
@@ -88,8 +94,14 @@ describe("PublishDialog", () => {
   })
 
   it("scheduling a public video switches privacy to private and says why", async () => {
-    render(<PublishDialog clip={clip} publishing={publishing} />)
-    await userEvent.click(screen.getByRole("button", { name: "Publish" }))
+    render(
+      <PublishDialog
+        open
+        onOpenChange={close}
+        clip={clip}
+        publishing={publishing}
+      />
+    )
     expect(await screen.findByLabelText("Privacy")).toHaveTextContent("Public")
     await userEvent.click(
       screen.getByRole("switch", { name: "Schedule for later" })
@@ -103,11 +115,12 @@ describe("PublishDialog", () => {
   it("warns about music rights when the clip has a track", async () => {
     render(
       <PublishDialog
+        open
+        onOpenChange={close}
         clip={{ ...clip, audioMix: mix }}
         publishing={publishing}
       />
     )
-    await userEvent.click(screen.getByRole("button", { name: "Publish" }))
     expect(await screen.findByText("Check the music rights")).toBeVisible()
     expect(
       screen.getByText(
@@ -119,6 +132,8 @@ describe("PublishDialog", () => {
   it("says a YouTube sound won't be in the upload", async () => {
     render(
       <PublishDialog
+        open
+        onOpenChange={close}
         clip={{
           ...clip,
           audioMix: {
@@ -135,7 +150,6 @@ describe("PublishDialog", () => {
         publishing={publishing}
       />
     )
-    await userEvent.click(screen.getByRole("button", { name: "Publish" }))
     expect(
       await screen.findByText("This clip has a sound to add")
     ).toBeVisible()
@@ -148,9 +162,13 @@ describe("PublishDialog", () => {
     ["source volume only", { ...mix, music: [], sourceDb: -6 }],
   ])("shows no music warning with %s", async (_, audioMix) => {
     render(
-      <PublishDialog clip={{ ...clip, audioMix }} publishing={publishing} />
+      <PublishDialog
+        open
+        onOpenChange={close}
+        clip={{ ...clip, audioMix }}
+        publishing={publishing}
+      />
     )
-    await userEvent.click(screen.getByRole("button", { name: "Publish" }))
     await screen.findByLabelText("Title")
     expect(screen.queryByText("Check the music rights")).not.toBeInTheDocument()
   })
@@ -160,8 +178,14 @@ describe("PublishDialog", () => {
       ok: true,
       value: { publicationId: "pub1" },
     })
-    render(<PublishDialog clip={clip} publishing={publishing} />)
-    await userEvent.click(screen.getByRole("button", { name: "Publish" }))
+    render(
+      <PublishDialog
+        open
+        onOpenChange={close}
+        clip={clip}
+        publishing={publishing}
+      />
+    )
     await userEvent.click(
       await screen.findByRole("button", { name: "Publish to YouTube" })
     )
@@ -181,8 +205,14 @@ describe("PublishDialog", () => {
       ok: true,
       value: { publicationId: "pub1" },
     })
-    render(<PublishDialog clip={clip} publishing={publishing} />)
-    await userEvent.click(screen.getByRole("button", { name: "Publish" }))
+    render(
+      <PublishDialog
+        open
+        onOpenChange={close}
+        clip={clip}
+        publishing={publishing}
+      />
+    )
     await userEvent.click(
       await screen.findByRole("switch", { name: "Schedule for later" })
     )
@@ -210,8 +240,14 @@ describe("PublishDialog", () => {
         message: "Your plan allows 3 publishes a day",
       },
     })
-    render(<PublishDialog clip={clip} publishing={publishing} />)
-    await userEvent.click(screen.getByRole("button", { name: "Publish" }))
+    render(
+      <PublishDialog
+        open
+        onOpenChange={close}
+        clip={clip}
+        publishing={publishing}
+      />
+    )
     await userEvent.click(
       await screen.findByRole("button", { name: "Publish to YouTube" })
     )
@@ -222,19 +258,11 @@ describe("PublishDialog", () => {
     )
     expect(screen.getByRole("dialog")).toBeInTheDocument()
   })
+})
 
-  it.each([
-    ["approved clip", { ...clip, status: "approved" as const }, publishing],
-    ["no channel", clip, { ...publishing, channel: null }],
-    [
-      "channel needing reconnect",
-      clip,
-      { ...publishing, channel: { title: "x", status: "needs_reconnect" } },
-    ],
-    ["plan limit reached", clip, { ...publishing, publishesLeftToday: 0 }],
-  ] as const)("is disabled for %s", (_, c, p) => {
-    render(<PublishDialog clip={c} publishing={p as PublishingState} />)
-    expect(screen.getByRole("button", { name: "Publish" })).toBeDisabled()
+describe("publishBlockedReason", () => {
+  it("lets a rendered clip with a connected channel through", () => {
+    expect(publishBlockedReason(clip, publishing)).toBeNull()
   })
 
   it.each([
@@ -259,93 +287,7 @@ describe("PublishDialog", () => {
       { ...publishing, publishesLeftToday: 0 },
     ],
   ] as const)("explains why: %s", (reason, c, p) => {
-    render(<PublishDialog clip={c} publishing={p as PublishingState} />)
-    expect(screen.getByText(reason)).toBeVisible()
-    expect(
-      screen.getByRole("button", { name: "Publish" })
-    ).toHaveAccessibleDescription(reason)
-  })
-})
-
-describe("PublishControl", () => {
-  it("shows the publication status instead of the button while one is active", () => {
-    render(
-      <PublishControl
-        clip={clip}
-        publishing={{
-          ...publishing,
-          publications: {
-            c1: {
-              ...base,
-              id: "p1",
-              status: "uploading",
-              url: null,
-              error: null,
-            },
-          },
-        }}
-      />
-    )
-    expect(screen.queryByRole("button", { name: "Publish" })).toBeNull()
-    expect(screen.getByText("Publishing…")).toBeVisible()
-  })
-
-  it("offers the dialog when there is no publication", () => {
-    render(<PublishControl clip={clip} publishing={publishing} />)
-    expect(screen.getByRole("button", { name: "Publish" })).toBeEnabled()
-  })
-})
-
-describe("PublishControl republishing", () => {
-  const failed = {
-    ...base,
-    id: "p1",
-    status: "failed" as const,
-    url: null,
-    error: "Upload rejected",
-  }
-  const withPublication = (publication: typeof failed | PublicationState) => ({
-    ...publishing,
-    publications: { c1: publication },
-  })
-
-  it("keeps Retry and a Publish button prefilled from the failed metadata", async () => {
-    render(<PublishControl clip={clip} publishing={withPublication(failed)} />)
-    expect(screen.getByRole("button", { name: "Retry" })).toBeVisible()
-    await userEvent.click(screen.getByRole("button", { name: "Publish" }))
-    expect(await screen.findByLabelText("Title")).toHaveValue("Old title")
-    expect(screen.getByLabelText("Description")).toHaveValue("Old description")
-  })
-
-  it("offers no second upload of the same published render", () => {
-    render(
-      <PublishControl
-        clip={clip}
-        publishing={withPublication({
-          ...failed,
-          status: "published",
-          url: "https://youtu.be/abc",
-        })}
-      />
-    )
-    expect(screen.getByRole("link", { name: /Published/ })).toBeVisible()
-    expect(screen.queryByRole("button", { name: "Publish" })).toBeNull()
-    expect(screen.queryByText("Edited since publish")).toBeNull()
-  })
-
-  it("flags a published clip that was re-rendered and offers Publish", () => {
-    render(
-      <PublishControl
-        clip={{ ...clip, renderAssetId: "r2" }}
-        publishing={withPublication({
-          ...failed,
-          status: "published",
-          url: "https://youtu.be/abc",
-        })}
-      />
-    )
-    expect(screen.getByText("Edited since publish")).toBeVisible()
-    expect(screen.getByRole("button", { name: "Publish" })).toBeEnabled()
+    expect(publishBlockedReason(c, p as PublishingState)).toBe(reason)
   })
 })
 

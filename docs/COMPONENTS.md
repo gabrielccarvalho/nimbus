@@ -55,6 +55,26 @@ Ten round dots lit in proportion to `value / max` (`max` defaults to 10), clampe
 <DotMeter value={142} max={300} aria-label="Render minutes" />
 ```
 
+### Segmented (`components/ui/segmented.tsx`)
+
+A pill of toggle buttons where one choice is pressed (heycamps `seg`), on Base UI `ToggleGroup` + `Toggle`. Use it for a short set of modes or a two-way decision; tabs stay `Tabs`.
+
+- Parts: `Segmented` (the group; `value` / `defaultValue` / `onValueChange` are arrays like `ToggleGroup`, controlled or uncontrolled; give it an `aria-label`), `SegmentedItem` (`value`, a `<button>` with `aria-pressed`).
+- Variants: `layout` = `inline` (hugs its items) | `fill` (full width, equal items).
+- Clicking the pressed item reports `[]`. Ignore that in `onValueChange` when one choice must stay pressed, or use it to clear (the clip editor's Reject | Approve does).
+- A11y: arrow keys move between items (roving focus), Space/Enter press.
+
+```tsx
+<Segmented
+  aria-label="Mode"
+  value={[mode]}
+  onValueChange={([next]) => next && setMode(next)}
+>
+  <SegmentedItem value="split">Split</SegmentedItem>
+  <SegmentedItem value="fill">Fill</SegmentedItem>
+</Segmented>
+```
+
 ### StatCard (`components/ui/stat-card.tsx`)
 
 Labeled metric tile, rendered as a `<dl>` group so label/value pairs are announced as term/definition.
@@ -145,7 +165,7 @@ Horizontal time strip for a whole recording: loudness, silences, clip ranges and
 
 A lane of draggable blocks positioned by milliseconds, for editing time ranges (for example the clip timeline's tracks).
 
-- Parts: `TimelineTrack` (`durationMs`; `lane` and `group` to let blocks move between tracks of the same group; a `role="group"`, so give it an `aria-label`), `TimelineBlock` (`startMs`, `endMs`, `variant` = `default` | `muted`, `selected`, `resizable` (default true), `minMs` (default 100), `stepMs` (default 100), `onChange(startMs, endMs)`, `onCommit()`, `onLaneChange(lane, startMs, endMs)`, `onSelect`, `onDelete`). `useTimelineTrack()` exposes `{ durationMs, trackRef }`.
+- Parts: `TimelineTrack` (`durationMs`; `lane` and `group` to let blocks move between tracks of the same group; a `role="group"`, so give it an `aria-label`), `TimelineBlock` (`startMs`, `endMs`, `variant` = `default` | `muted` | `tone` (tinted with `tone`, one of the crew colours) | `clip` (a 2 px white ring with grab handles, for a range over other content), `snapMs` (times a dragged or resized edge sticks to within 6 px; the block's own edges are ignored), `selected`, `resizable` (default true), `minMs` (default 100), `stepMs` (default 100), `onChange(startMs, endMs)`, `onCommit()`, `onLaneChange(lane, startMs, endMs)`, `onSelect`, `onDelete`). `useTimelineTrack()` exposes `{ durationMs, trackRef }`.
 - Blocks are controlled only: the parent owns the ranges and applies `onChange`. Ranges are clamped to `[0, durationMs]` and kept at least `minMs` long. Same-lane overlap rules belong to the parent.
 - Pointer: dragging the body moves, dragging either edge resizes (pointer capture, like `CropRegionEditor`). Pointer down also calls `onSelect`, and pointer up calls `onCommit`. With `onLaneChange`, dragging over another track of the same `group` previews the drop there (`data-dragging`) and dropping reports that track's `lane` and the time under the pointer.
 - A11y: each block is a focusable `role="button"` with `aria-pressed` for selection, so give it an `aria-label` that contains its visible text. ←/→ move by `stepMs`, Shift+←/→ resize the end (each calls `onCommit`), Alt+↑/↓ move to the track above or below in the group, Enter/Space select, Delete/Backspace call `onDelete`.
@@ -192,13 +212,13 @@ A movable, resizable rectangle over an image or video, in normalized 0–1 frame
 
 - Parts: `CropRegionEditor` (root/frame; put the media inside it), `CropRegion` (the rectangle with corner handles). `useCropRegionEditor()` exposes `{ value, commit, disabled }`. `moveRect`/`resizeRect`/`resizeRectLocked` are the pure clamping helpers.
 - Props: `value` / `defaultValue` / `onValueChange` (`{ x, y, w, h }`, controlled or uncontrolled), `disabled`. Minimum size is 5% of the frame and the rect never leaves it.
-- Several `CropRegion`s can share one editor. A region given its own `value` + `onValueChange` is controlled independently of the editor's value; with a `value` and no `onValueChange` it is read-only (no handles, no focus stop, keys and drags ignored), like a disabled region. `aspectRatio` (pixel width / height) locks corner drags and Alt+arrow resizes to that ratio, converted with the frame's pixel size at interaction time. Style secondary regions with `className` (e.g. dashed border, no shadow).
+- Several `CropRegion`s can share one editor. A region given its own `value` + `onValueChange` is controlled independently of the editor's value; with a `value` and no `onValueChange` it is read-only (no handles, no focus stop, keys and drags ignored), like a disabled region. `aspectRatio` (pixel width / height) locks corner drags and Alt+arrow resizes to that ratio, converted with the frame's pixel size at interaction time. `variant` = `default` | `ring` (2 px lav ring, square handles, the frame dimmed outside it) | `dashed` (1.5 px dashed white, handles on hover or focus) for a second region. Children render inside the region (a badge, say).
 - A11y: the region is a focusable `role="group"` with `aria-roledescription="crop region"` and a description of its position ("Left 78%, top 77%, 20% wide, 20% tall"). Arrow keys move by 0.5% of the frame, Shift+arrow by 5%, Alt+arrow resizes from the bottom-right corner. Corner handles are pointer-only.
 
 ```tsx
 <CropRegionEditor value={rect} onValueChange={setRect} className="aspect-video">
   <video src={src} className="size-full" />
-  <CropRegion aria-label="Webcam region" />
+  <CropRegion aria-label="Webcam region" variant="ring" />
 </CropRegionEditor>
 ```
 
@@ -229,14 +249,15 @@ App composites, not primitives; they read app data and routes.
 - `CommandPaletteProvider` / `SearchTrigger`: the ⌘K palette over recordings, clips and pages. It loads the index from `getSearchIndexAction` each time it opens. `SearchTrigger` is the search field in the top bar.
 - `AppBreadcrumbs` / `BreadcrumbLabel`: crumbs from the path; project tabs are not crumbs, a clip is. Pages register dynamic labels with `BreadcrumbLabel`.
 - `Page`, `PageHeader`, `PageTitle`, `PageLede`: the 1240 px page column and its heading.
-- `useHotkey(key, handler, { meta })`: single-key shortcuts that ignore fields and open dialogs; `meta` for ⌘/Ctrl chords.
+- `useHotkey(key, handler, { meta })`: single-key shortcuts that ignore fields and open dialogs; `meta` for ⌘/Ctrl chords. It skips events another handler already prevented.
+- `EditorRail`: the 56 px icon rail the clip editor uses instead of the sidebar (logo, Projects, Analytics, Channels, Keyboard shortcuts, account menu), every item a tooltipped link or button with an `aria-label`. `AccountMenu` takes `iconOnly` for it, and `ShortcutsDialog` takes the list to show, so the rail puts the editor's shortcuts first.
 - `WorkspaceButton`, `UsageCard`, `AccountMenu`, `ShortcutsDialog` (`sidebar-account.tsx`): the sidebar's workspace menu, render-minute `DotMeter`, and account menu (Account, Plan & usage, Settings `,`, Keyboard shortcuts `?`, Sign out).
 
 `components/auth/` holds the sign-in screens: `AuthForm` (sign in and create account, social buttons only for configured providers), `AuthHeading` (the only gradient text), the two-step, forgot and reset forms, and the decorative `AuthGlimpse`. `components/settings/section.tsx` has `SettingsSection`, `SettingsSectionHeader` and `SettingRow`, the graphite cards and hairline rows the settings pages are built from; `SettingsNav` is the settings sub-nav.
 
 Projects home: `ImportCard` (a `clickable={false}` `Dropzone` holding the link form, Browse files and the per-import language and highlights overrides), `NeedsYouBanner` and `ProjectGrid` (filter pills from `projectFilter`, sort menu, 16:9 tiles, refreshes every 3 s while something is processing). Overview: `ProjectOverview` (the next-step card and the vertical `PipelineStepper` with per-step details and times from `stepDetails`/`stepTimes`), `SourcePreview`, and `AudioOverview` as "Where the clips are".
 
-Layout fields (`components/projects/layout-fields.tsx`, used by the clip editor's Layout tab and Settings › Layout): `LayoutModeOptions` (mode cards with a slot diagram), `CamPositionField` ("Webcam goes": On top / At the bottom), `GameplayRegion` (the dashed gameplay box on the source) and `withLayoutMode`. `CaptionStyleFields` has preset cards that draw a sample in the preset's font and colours.
+Layout fields (`components/projects/layout-fields.tsx`, used by the clip editor's Layout tab and Settings › Layout): `LayoutModeOptions` (mode cards with a slot diagram, in Settings; the editor shows the same `LAYOUT_MODES` as a `Segmented`), `CamPositionField` ("Webcam goes": On top / At the bottom), `GameplayRegion` (the dashed gameplay box on the source) and `withLayoutMode`. `CaptionStyleFields` has preset cards that draw a sample in the preset's font and colours.
 
 `ProjectHeader` (`components/projects/`) is the project title, `StatusPill` from `projectSignal`, one-line meta, open source, the ⋯ menu (Project settings sheet, Delete) and the tabs, with the clip count on Clips.
 
@@ -246,7 +267,7 @@ Layout fields (`components/projects/layout-fields.tsx`, used by the clip editor'
 
 - `components/ui/slider.tsx`: `Slider` forwards `getAriaValueText` to its thumbs, so a value can be read as "-16 dB".
 
-- `components/ui/popover.tsx`: `PopoverContent` forwards `anchor` to the positioner, so a controlled popover can open next to an element that isn't its trigger (the clip editor's effects lane anchors it to the selected block).
+- `components/ui/popover.tsx`: `PopoverContent` forwards `anchor` to the positioner, so a controlled popover can open next to an element that isn't its trigger (the clip timeline anchors it to the selected block, or to Add for the track picker).
 
 - `components/ui/combobox.tsx`: `ComboboxInput` names its dropdown and clear buttons "Show options" and "Clear selection"; the registry leaves them unnamed, which axe flags.
 
@@ -286,9 +307,20 @@ The Settings › Music page: a `SettingsSection` with the `MusicUploadButton` in
 
 A mirrored area of 0–1 `values` drawn to fill its box (`preserveAspectRatio="none"`), each value times `gain` and capped at the box, with a sliver kept for silence. Colour comes from `currentColor`. Decorative (`aria-hidden`); the clip timeline puts it inside audio blocks with `gain` following the volume.
 
+### Clip editor (`components/projects/clip-editor.tsx`)
+
+The full-screen editor at `/projects/[id]/clips/[clipId]` (ADR-0074): a 60 px top bar, the stage, a 340 px inspector and the timeline dock, with no page scroll. It owns the edit state and hands each part what it needs.
+
+- `useClipEdit` (`use-clip-edit.ts`): the editable clip as one state with undo and redo. `patch(next, history)` records a step by default (changes within 500 ms merge into one, 100 steps kept); `"skip"` changes the present only (the server's stored effects after a save) and `"rebase"` applies to every step (the detected webcam), so neither can be undone into a stale state.
+- `useClipHotkeys` (`use-clip-hotkeys.ts`): the editor's keys on `window`, off while typing or while a dialog, menu or listbox is open. A popover marked `data-hotkeys-through` (the timeline's inspector) lets them through. `EDITOR_SHORTCUTS` in `clip-shortcuts.ts` is the list the shortcuts dialog shows.
+- `ClipTransport`, `ClipPlayback`, `useClipTransport` (`clip-transport.tsx`): time, back and forward 1 s, play, loop and mute over the shared `VideoPlayerProvider`; playback is held inside the clip and loops or stops at its end.
+- `ClipExportMenu` (`clip-export-menu.tsx`): the render status dot and label, the white Render / Re-render button and its menu (last render, watch, download, the publication's state, publish, render quality opening the project settings sheet).
+- `ClipInspector` with `DetailsPanel`, `CaptionsPanel`, `LayoutPanel`, `EffectsPanel` (`clip-inspector.tsx`): the four tabs. Under 1180 px the editor puts the same inspector in a `Sheet`.
+- `IconAction` (`icon-action.tsx`): an icon `Button` with a tooltip, named `label (shortcut)`.
+
 ### ClipTimeline (`components/projects/clip-timeline.tsx`)
 
-The clip editor's one timeline under the video (ADR-0072), fully controlled: trim, effects, caption state, texts, audio mix and the selection come in as props with a change callback each. A toolbar adds an effect (menu), a caption, a text or music (a popover with the `TrackPicker` and upload) at the playhead, adds a track of any type (menu), sets the clip's start or end at the playhead, deletes the selection, and plans or resets auto effects. The ruler (labels relative to the clip start, seek by click or drag), the playhead and the zoom (Fit plus five px/s levels) are shared by every track, and the track headers stay put while the tracks scroll. Tracks from top: texts, captions (the first header hides captions and opens Caption timing: shift all and reset), effects, the video (drag the edges or the body to trim, committed on release, with 10 s of the recording on each side), the original audio (mute in the header, wave from the recording's loudness), music. Effects, captions, texts and music move between their tracks by drag or Alt+↑/↓. Selecting a block opens one inspector popover from `timeline-inspector.tsx` (effect scale or intensity, caption text, text and position, music volume/in-point/fades/ducking, original volume and mute, clip start and end). Audio waves scale with the volume. The lane rules are pure, in `features/timeline/`.
+The editor's timeline dock (ADR-0072, restyled in ADR-0074), fully controlled: trim, effects, caption state, texts, audio mix and the selection come in as props with a change callback each. The toolbar has Add (a text, a caption, music through a popover with the `TrackPicker` and upload, an effect, or a track of any type), split at the playhead (S), start and end at the playhead (I, O), delete (Delete) and the zoom (a slider over Fit plus five px/s levels). The ruler (labels relative to the clip start), the amber playhead with its time and the zoom are shared by every track; the 96 px track labels stay put while the tracks scroll, and pressing an empty part of a track seeks there. Tracks from top: texts, captions (the label hides or shows them), effects, the video (thumbnails drawn from the recording, the clip as a white-ringed range to drag or resize, committed on release, with 10 s of the recording on each side), the original audio (its loudness as a wave, mute in the label) and music once there is some. Blocks snap to the playhead, the clip's ends and each other's edges, and move between tracks of their type by drag or Alt+↑/↓. Selecting an effect opens its card in the inspector's Effects tab; any other block opens one popover from `timeline-inspector.tsx` (caption text, text and position, music volume/in-point/fades/ducking, original volume and mute, clip start and end). The lane and split rules are pure, in `features/timeline/`.
 
 ### TrackPicker (`components/music/track-picker.tsx`)
 

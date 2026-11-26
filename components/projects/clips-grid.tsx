@@ -1,23 +1,30 @@
 "use client"
 
 import { CheckIcon, XIcon } from "@phosphor-icons/react"
+import Link from "next/link"
 import * as React from "react"
 
 import { Button } from "@/components/ui/button"
 import { DotMeter } from "@/components/ui/dot-meter"
+import type { CaptionLane } from "@/features/captions/pages"
 import type { Clip } from "@/features/clips/repository"
 import { formatDuration } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 import {
-  ClipPlayerDialog,
-  currentRender,
-  useClipStatus,
-  type ClipPlayerData,
-  type RenderLinks,
-} from "./clip-player-dialog"
-import { PublicationStatusView, type PublicationState } from "./publish-dialog"
+  PublicationStatusView,
+  type PublicationState,
+  type PublishingState,
+} from "./publish-dialog"
 import { clipStatusLabel } from "./status-badge"
+import { useClipStatus } from "./use-clip-status"
+
+export type RenderLinks = { url: string; downloadUrl: string }
+
+export type ClipCaptions = Record<
+  string,
+  { lanes: CaptionLane<number | null>[]; enabled: boolean }
+>
 
 function ClipTile({
   projectId,
@@ -29,7 +36,6 @@ function ClipTile({
   caption,
   playing,
   onHoverChange,
-  onOpen,
 }: {
   projectId: string
   clip: Clip
@@ -40,7 +46,6 @@ function ClipTile({
   caption: string
   playing: boolean
   onHoverChange: (hovered: boolean) => void
-  onOpen: () => void
 }) {
   const videoRef = React.useRef<HTMLVideoElement>(null)
   const id = React.useId()
@@ -77,13 +82,12 @@ function ClipTile({
       }}
     >
       <div className="relative transition-opacity group-data-[status=rejected]/clip:opacity-42">
-        <button
-          type="button"
+        <Link
+          href={`/projects/${projectId}/clips/${clip.id}`}
           data-clip-id={clip.id}
           aria-labelledby={`${id}-title`}
           aria-describedby={`${id}-status ${id}-meta`}
           className="relative block aspect-[9/16] w-full overflow-hidden rounded-[14px] bg-graphite-2 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lav"
-          onClick={onOpen}
           onPointerEnter={(event) => {
             if (event.pointerType === "mouse") onHoverChange(true)
           }}
@@ -99,7 +103,7 @@ function ClipTile({
             src={render?.url ?? `${src}#t=${(clip.startMs / 1000).toFixed(1)}`}
             className="absolute inset-0 -z-0 size-full object-cover"
           />
-        </button>
+        </Link>
         <span
           aria-hidden
           className="pointer-events-none absolute start-2 top-2 rounded-[7px] bg-night/72 px-[7px] py-[5px] font-mono text-[11px] leading-none font-semibold backdrop-blur-sm"
@@ -195,33 +199,26 @@ function ClipTile({
 }
 
 export function ClipsGrid({
+  projectId,
+  src,
   clips,
   ranks,
-  openClipId,
-  onOpenClipIdChange,
+  renders,
+  captions,
+  publishing,
   className,
-  ...data
-}: ClipPlayerData & {
+}: {
+  projectId: string
+  src: string
   clips: Clip[]
   ranks?: Record<string, number>
-  openClipId?: string | null
-  onOpenClipIdChange?: (id: string | null) => void
+  renders: Record<string, RenderLinks>
+  captions: ClipCaptions
+  publishing: PublishingState
   className?: string
 }) {
-  const [openState, setOpenState] = React.useState<string | null>(null)
-  const openId = openClipId === undefined ? openState : openClipId
-  const [shownId, setShownId] = React.useState(openId)
   const [hoveredId, setHoveredId] = React.useState<string | null>(null)
   const listRef = React.useRef<HTMLOListElement>(null)
-
-  if (openId && openId !== shownId) setShownId(openId)
-
-  const setOpenId = (id: string | null) => {
-    if (openClipId === undefined) setOpenState(id)
-    onOpenClipIdChange?.(id)
-  }
-  const index = clips.findIndex((clip) => clip.id === shownId)
-  const open = Boolean(openId) && index >= 0
 
   const moveFocus = (event: React.KeyboardEvent<HTMLOListElement>) => {
     const step = { ArrowLeft: -1, ArrowRight: 1 }[event.key]
@@ -239,58 +236,40 @@ export function ClipsGrid({
   }
 
   return (
-    <>
-      <ol
-        ref={listRef}
-        aria-label="Clips"
-        tabIndex={-1}
-        onKeyDown={moveFocus}
-        className={cn(
-          "grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-[18px] outline-none",
-          className
-        )}
-      >
-        {clips.map((clip, i) => (
-          <ClipTile
-            key={clip.id}
-            projectId={data.projectId}
-            clip={clip}
-            rank={ranks?.[clip.id] ?? i + 1}
-            src={data.src}
-            render={currentRender(clip, data.renders)}
-            publication={data.publishing.publications[clip.id]}
-            caption={
-              data.captions[clip.id]?.enabled
-                ? (data.captions[clip.id]?.lanes[0]?.pages[0]?.words
-                    .map((w) => w.text)
-                    .join(" ") ?? "")
-                : ""
-            }
-            playing={hoveredId === clip.id && !open}
-            onHoverChange={(hovered) =>
-              setHoveredId((current) =>
-                hovered ? clip.id : current === clip.id ? null : current
-              )
-            }
-            onOpen={() => setOpenId(clip.id)}
-          />
-        ))}
-      </ol>
-      <ClipPlayerDialog
-        open={open}
-        onOpenChange={(open) => {
-          if (!open) setOpenId(null)
-        }}
-        clips={clips}
-        index={Math.max(0, index)}
-        onIndexChange={(next) => setOpenId(clips[next]?.id ?? null)}
-        finalFocus={() =>
-          listRef.current?.querySelector<HTMLElement>(
-            `[data-clip-id="${shownId}"]`
-          ) ?? listRef.current
-        }
-        {...data}
-      />
-    </>
+    <ol
+      ref={listRef}
+      aria-label="Clips"
+      tabIndex={-1}
+      onKeyDown={moveFocus}
+      className={cn(
+        "grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-[18px] outline-none",
+        className
+      )}
+    >
+      {clips.map((clip, i) => (
+        <ClipTile
+          key={clip.id}
+          projectId={projectId}
+          clip={clip}
+          rank={ranks?.[clip.id] ?? i + 1}
+          src={src}
+          render={clip.status === "rendered" ? renders[clip.id] : undefined}
+          publication={publishing.publications[clip.id]}
+          caption={
+            captions[clip.id]?.enabled
+              ? (captions[clip.id]?.lanes[0]?.pages[0]?.words
+                  .map((w) => w.text)
+                  .join(" ") ?? "")
+              : ""
+          }
+          playing={hoveredId === clip.id}
+          onHoverChange={(hovered) =>
+            setHoveredId((current) =>
+              hovered ? clip.id : current === clip.id ? null : current
+            )
+          }
+        />
+      ))}
+    </ol>
   )
 }

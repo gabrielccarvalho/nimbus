@@ -1,5 +1,6 @@
 "use client"
 
+import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
 import * as React from "react"
 
@@ -144,12 +145,64 @@ function CropRegionEditor({
   )
 }
 
-const HANDLES: { corner: Corner; className: string }[] = [
-  { corner: "nw", className: "-top-1.5 -left-1.5 cursor-nwse-resize" },
-  { corner: "ne", className: "-top-1.5 -right-1.5 cursor-nesw-resize" },
-  { corner: "sw", className: "-bottom-1.5 -left-1.5 cursor-nesw-resize" },
-  { corner: "se", className: "-right-1.5 -bottom-1.5 cursor-nwse-resize" },
-]
+const cropRegionVariants = cva(
+  "group/crop-region absolute z-10 cursor-move outline-none focus-visible:ring-3 focus-visible:ring-ring/70 data-[disabled]:cursor-default",
+  {
+    variants: {
+      variant: {
+        default: "border-2 border-primary shadow-[0_0_0_9999px_rgb(0_0_0/0.5)]",
+        ring: "rounded-[6px] shadow-[0_0_0_2px_var(--lav),0_0_0_9999px_rgb(6_7_11/0.32)]",
+        dashed: "rounded-[6px] border-[1.5px] border-dashed border-white/55",
+      },
+    },
+    defaultVariants: { variant: "default" },
+  }
+)
+
+const cropHandleVariants = cva("absolute", {
+  variants: {
+    variant: {
+      default: "size-3 rounded-full border-2 border-primary bg-background",
+      ring: "size-[9px] rounded-[2px] bg-lav",
+      dashed:
+        "size-[9px] rounded-[2px] bg-white opacity-0 transition-opacity group-hover/crop-region:opacity-100 group-focus-visible/crop-region:opacity-100",
+    },
+    corner: {
+      nw: "cursor-nwse-resize",
+      ne: "cursor-nesw-resize",
+      sw: "cursor-nesw-resize",
+      se: "cursor-nwse-resize",
+    },
+  },
+  compoundVariants: [
+    { variant: "default", corner: "nw", className: "-top-1.5 -left-1.5" },
+    { variant: "default", corner: "ne", className: "-top-1.5 -right-1.5" },
+    { variant: "default", corner: "sw", className: "-bottom-1.5 -left-1.5" },
+    { variant: "default", corner: "se", className: "-right-1.5 -bottom-1.5" },
+    {
+      variant: ["ring", "dashed"],
+      corner: "nw",
+      className: "-top-[4.5px] -left-[4.5px]",
+    },
+    {
+      variant: ["ring", "dashed"],
+      corner: "ne",
+      className: "-top-[4.5px] -right-[4.5px]",
+    },
+    {
+      variant: ["ring", "dashed"],
+      corner: "sw",
+      className: "-bottom-[4.5px] -left-[4.5px]",
+    },
+    {
+      variant: ["ring", "dashed"],
+      corner: "se",
+      className: "-right-[4.5px] -bottom-[4.5px]",
+    },
+  ],
+})
+
+const CORNERS: Corner[] = ["nw", "ne", "sw", "se"]
 
 function CropRegion({
   className,
@@ -159,13 +212,15 @@ function CropRegion({
   value: valueProp,
   onValueChange,
   aspectRatio,
+  variant = "default",
   "aria-label": ariaLabel = "Crop region",
   ...props
-}: Omit<React.ComponentProps<"div">, "defaultValue"> & {
-  value?: CropRect
-  onValueChange?: (rect: CropRect) => void
-  aspectRatio?: number
-}) {
+}: Omit<React.ComponentProps<"div">, "defaultValue"> &
+  VariantProps<typeof cropRegionVariants> & {
+    value?: CropRect
+    onValueChange?: (rect: CropRect) => void
+    aspectRatio?: number
+  }) {
   const editor = useCropRegionEditor()
   const { frameRef } = editor
   const value = valueProp ?? editor.value
@@ -238,10 +293,8 @@ function CropRegion({
       aria-describedby={descriptionId}
       aria-disabled={editor.disabled || undefined}
       tabIndex={inert ? -1 : 0}
-      className={cn(
-        "absolute z-10 cursor-move border-2 border-primary shadow-[0_0_0_9999px_rgb(0_0_0/0.5)] outline-none focus-visible:ring-3 focus-visible:ring-ring/70 data-[disabled]:cursor-default",
-        className
-      )}
+      data-variant={variant}
+      className={cn(cropRegionVariants({ variant }), className)}
       data-disabled={inert || undefined}
       style={{
         left: `${value.x * 100}%`,
@@ -279,16 +332,13 @@ function CropRegion({
         {`Left ${percent(value.x)}, top ${percent(value.y)}, ${percent(value.w)} wide, ${percent(value.h)} tall. Arrow keys move, Alt+arrow keys resize, hold Shift for bigger steps.`}
       </span>
       {!inert &&
-        HANDLES.map(({ corner, className: handleClass }) => (
+        CORNERS.map((corner) => (
           <span
             key={corner}
             aria-hidden
             data-slot="crop-region-handle"
             data-corner={corner}
-            className={cn(
-              "absolute size-3 rounded-full border-2 border-primary bg-background",
-              handleClass
-            )}
+            className={cropHandleVariants({ variant, corner })}
             onPointerDown={(event) => startDrag(event, corner)}
             onPointerMove={onDrag}
             onPointerUp={endDrag}
@@ -303,6 +353,7 @@ function CropRegion({
 export {
   CropRegion,
   CropRegionEditor,
+  cropRegionVariants,
   moveRect,
   resizeRect,
   resizeRectLocked,

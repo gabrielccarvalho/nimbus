@@ -441,7 +441,25 @@ The project layout step and the "Layout & captions" page are gone. Every clip ke
 - [x] Render, effects planning and clip review no longer wait on a confirmed layout
 - [x] Unit, integration and e2e coverage
 
+### Phase 40: Clip editor v2 (ADR-0074)
+
+Spec: Claude Design handoff (`~/Downloads/nimbus-clip-editor-v2/design/`). A UI rewrite over the same data, autosave, render and publish calls.
+
+- [x] Full-screen `(editor)` route group with the 56 px icon rail; clip tiles and the source strip open the editor directly, and the player dialog is removed
+- [x] Top bar: back, project · clip n of m · in → out, title with the save state, previous/next, Reject | Approve, render status, Render / Re-render with the export menu (last render, watch, download, publish, render quality)
+- [x] Stage: source pane with the restyled webcam and gameplay boxes and Reset crop, 9:16 output pane with Shorts safe zones, transport (back/forward 1 s, play, loop, mute)
+- [x] Inspector tabs Details, Captions (style summary, caption list following the playhead), Layout, Effects (a card per effect; picking one on the timeline opens its card); a drawer under 1180 px
+- [x] Timeline dock: Add menu, split, set in/out, delete, zoom slider and Fit, thumbnails on the video track, the recording's waveform, snapping, the playhead's time, click empty space to seek
+- [x] Keys: Space, ←/→ (Shift for 1 s), I, O, S, Delete, A, X, [ and ], ⌘Z and ⇧⌘Z, listed in the shortcuts dialog
+- [x] `Segmented` in `components/ui`; `TimelineBlock` tones and snapping; `CropRegion` variants
+- [x] Unit and e2e coverage for the new flow
+
+Left out because nothing stores them (ADR-0074): hashtags, effect ease, "Use project layout", webcam height, publishing to another channel.
+
 ### Not verified
+
+- The v2 editor next to the rendered design: it was built from the handoff's markup and CSS and checked on Playwright screenshots at 1440 × 900 with the e2e colour-bar fixture, not side by side with the design open in a browser or on a real recording.
+- Video thumbnails on the timeline with a long recording (each tile is a seek on a hidden video; only the 20 s fixture was tried).
 
 - The clip timeline on a long real recording (checked on the 20 s e2e fixture only, so autosave didn't touch real clips).
 - Opening a clip of a real recording: detection now runs per clip, so on a long recording it seeks inside a 15–60 s range instead of the whole video (only the 20 s fixture was tried).

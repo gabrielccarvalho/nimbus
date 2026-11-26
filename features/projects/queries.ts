@@ -329,6 +329,11 @@ export async function getClipEditor(projectId: string, clipId: string) {
           downloadUrl: mediaUrl(render.storageKey, {
             download: `${slugify(clip.title)}.mp4`,
           }),
+          createdAt: render.createdAt,
+          bytes: render.bytes,
+          width: render.width,
+          height: render.height,
+          durationMs: render.durationMs,
         }
       : undefined,
     snapshot: snapshot!,

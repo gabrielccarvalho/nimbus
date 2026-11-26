@@ -1,19 +1,28 @@
-import { render, screen, waitFor, within } from "@testing-library/react"
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { updateClipAction } from "@/features/clips/actions"
+import { setClipStatusAction, updateClipAction } from "@/features/clips/actions"
 import type { Clip } from "@/features/clips/repository"
 import { detectWebcam } from "@/features/layout/detect-webcam"
 import { gameplayBox, refitGameplay } from "@/features/layout/geometry"
 import type { LayoutInput } from "@/features/layout/schema"
 import type { ProjectSnapshot } from "@/features/pipeline/snapshot"
+import type { ProjectSettingsData } from "@/features/projects/queries"
 import type { ProjectSettings } from "@/features/projects/schema"
 
 import { ClipEditor } from "./clip-editor"
 
+const push = vi.fn()
+
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: vi.fn() }),
+  useRouter: () => ({ refresh: vi.fn(), push }),
 }))
 
 vi.mock("sonner", () => ({
@@ -79,6 +88,7 @@ const clip = {
 const settings = {
   captionStyle: { presetId: "punch", overrides: {} },
   captionsEnabled: true,
+  renderQuality: "standard",
 } as unknown as ProjectSettings
 
 const snapshot: ProjectSnapshot = {
@@ -92,17 +102,30 @@ const snapshot: ProjectSnapshot = {
   clips: [{ id: "c1", status: "candidate" }],
 }
 
-function renderEditor(edit: Partial<Clip> = {}) {
+async function add(...path: string[]) {
+  await userEvent.click(screen.getByRole("button", { name: "Add" }))
+  for (const name of path) {
+    await userEvent.click(await screen.findByRole("menuitem", { name }))
+  }
+}
+
+function renderEditor(
+  edit: Partial<Clip> = {},
+  props: Partial<React.ComponentProps<typeof ClipEditor>> = {}
+) {
   return render(
     <ClipEditor
       projectId="p1"
+      projectName="Friday stream"
       clip={{ ...clip, ...edit }}
       src="/media/proxy.mp4"
       sourceDurationMs={120_000}
       sourceWidth={W}
       sourceHeight={H}
+      fps={30}
       words={[]}
       settings={settings}
+      settingsData={{} as ProjectSettingsData}
       installedFonts={[]}
       snapshot={snapshot}
       publishing={{
@@ -115,11 +138,21 @@ function renderEditor(edit: Partial<Clip> = {}) {
       musicTracks={[]}
       trendingMusic={Promise.resolve({ status: "no_channel" })}
       loudness={null}
+      {...props}
     />
   )
 }
 
+function setViewport(wide: boolean) {
+  window.matchMedia = vi.fn().mockReturnValue({
+    matches: wide,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  })
+}
+
 beforeEach(() => {
+  setViewport(true)
   vi.mocked(updateClipAction).mockReset()
   vi.mocked(detectWebcam).mockReset()
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null)
@@ -134,12 +167,10 @@ describe("ClipEditor", () => {
     renderEditor()
     expect(screen.getByTestId("save-state")).toHaveTextContent("Saved")
     await userEvent.type(screen.getByLabelText("Title"), "!")
-    expect(screen.getByTestId("save-state")).toHaveTextContent(
-      "Unsaved changes"
-    )
+    expect(screen.getByTestId("save-state")).toHaveTextContent("Saving…")
     await waitFor(() =>
       expect(screen.getByTestId("save-state")).toHaveTextContent(
-        "Not saved: Title is too long"
+        "Failed: Title is too long"
       )
     )
     expect(updateClipAction).toHaveBeenCalledTimes(1)
@@ -172,6 +203,7 @@ describe("ClipEditor", () => {
         screen.getByRole("group", { name: "Effects track 1" })
       ).getAllByRole("button")
     ).toHaveLength(1)
+    await userEvent.click(screen.getByRole("tab", { name: "Effects" }))
     expect(
       screen.getByRole("button", { name: "Reset effects to auto" })
     ).toBeInTheDocument()
@@ -199,8 +231,7 @@ describe("ClipEditor", () => {
     renderEditor({
       effects: { edited: false, events: [zoom(20_000), zoom(30_000)] },
     })
-    await userEvent.click(screen.getByRole("button", { name: "Effect" }))
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Zoom" }))
+    await add("Effect", "Zoom")
     const zoomTrack = screen.getByRole("group", { name: "Effects track 1" })
     const added = within(zoomTrack).getByRole("button", {
       name: "Zoom 1.4× at 0:00.0",
@@ -225,6 +256,202 @@ describe("ClipEditor", () => {
   })
 })
 
+describe("ClipEditor workspace", () => {
+  const zoom = {
+    kind: "zoom" as const,
+    startMs: 12_000,
+    endMs: 13_500,
+    scale: 1.4,
+    focus: { x: 0.5, y: 0.5 },
+    lane: 0,
+  }
+
+  beforeEach(() => {
+    vi.mocked(setClipStatusAction).mockReset()
+    vi.mocked(updateClipAction).mockResolvedValue({
+      ok: true,
+      value: { effects: null },
+    } as never)
+  })
+
+  it("names the project, the clip and its place among the others", () => {
+    renderEditor()
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Clip")
+    expect(screen.getByText(/Friday stream · Clip 1 of 2/)).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Back to clips" })).toHaveAttribute(
+      "href",
+      "/projects/p1/clips"
+    )
+  })
+
+  it("opens the effect's card when an effect is picked on the timeline", async () => {
+    renderEditor({ effects: { edited: true, events: [zoom] } })
+    expect(screen.getByRole("tab", { name: "Details" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    )
+    fireEvent.pointerDown(
+      screen.getByRole("button", { name: "Zoom 1.4× at 0:02.0" })
+    )
+    expect(screen.getByRole("tab", { name: "Effects" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    )
+    const card = within(screen.getByRole("list", { name: "Effects" }))
+    expect(card.getByText("Zoom 1.4×")).toBeInTheDocument()
+    expect(card.getByText("0:02.0 → 0:03.5")).toBeInTheDocument()
+    expect(
+      within(card.getByRole("group", { name: "Strength" })).getByRole(
+        "slider",
+        { hidden: true }
+      )
+    ).toHaveValue("1.4")
+  })
+
+  it("undoes and redoes an edit from the keyboard", async () => {
+    renderEditor()
+    await add("Text")
+    const track = screen.getByRole("group", { name: "Text track 1" })
+    expect(within(track).getAllByRole("button")).toHaveLength(1)
+    fireEvent.keyDown(document.body, { key: "z", metaKey: true })
+    expect(within(track).queryAllByRole("button")).toHaveLength(0)
+    fireEvent.keyDown(document.body, {
+      key: "z",
+      metaKey: true,
+      shiftKey: true,
+    })
+    expect(within(track).getAllByRole("button")).toHaveLength(1)
+  })
+
+  it("leaves typing alone when a shortcut key is pressed in a field", async () => {
+    renderEditor()
+    await userEvent.type(screen.getByLabelText("Title"), "ax")
+    expect(screen.getByLabelText("Title")).toHaveValue("Clipax")
+    expect(setClipStatusAction).not.toHaveBeenCalled()
+  })
+
+  it("approves and rejects from the keyboard", async () => {
+    vi.mocked(setClipStatusAction).mockResolvedValue({ ok: true } as never)
+    renderEditor()
+    fireEvent.keyDown(document.body, { key: "a" })
+    await waitFor(() =>
+      expect(setClipStatusAction).toHaveBeenCalledWith("p1", "c1", "approved")
+    )
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Reject" })).toBeEnabled()
+    )
+    fireEvent.keyDown(document.body, { key: "x" })
+    await waitFor(() =>
+      expect(setClipStatusAction).toHaveBeenCalledWith("p1", "c1", "rejected")
+    )
+  })
+
+  it("moves to the neighbouring clips with the bracket keys", () => {
+    push.mockClear()
+    renderEditor()
+    fireEvent.keyDown(document.body, { key: "[" })
+    expect(push).not.toHaveBeenCalled()
+    fireEvent.keyDown(document.body, { key: "]" })
+    expect(push).toHaveBeenCalledWith("/projects/p1/clips/c2")
+  })
+
+  it("clears the decision when the active choice is clicked again", async () => {
+    vi.mocked(setClipStatusAction).mockResolvedValue({ ok: true } as never)
+    renderEditor(
+      { status: "approved" },
+      {
+        snapshot: { ...snapshot, clips: [{ id: "c1", status: "approved" }] },
+      }
+    )
+    const approved = screen.getByRole("button", { name: "Approved" })
+    expect(approved).toHaveAttribute("aria-pressed", "true")
+    await userEvent.click(approved)
+    await waitFor(() =>
+      expect(setClipStatusAction).toHaveBeenCalledWith("p1", "c1", "candidate")
+    )
+  })
+
+  it("says the render is out of date once the clip changes", async () => {
+    renderEditor(
+      { status: "rendered", renderAssetId: "a1" },
+      {
+        snapshot: { ...snapshot, clips: [{ id: "c1", status: "rendered" }] },
+        render: {
+          url: "/media/render.mp4",
+          downloadUrl: "/media/render.mp4?download=clip.mp4",
+          createdAt: new Date(),
+          bytes: 41_000_000,
+          width: 1080,
+          height: 1920,
+          durationMs: 30_000,
+        },
+      }
+    )
+    expect(screen.getByTestId("clip-status")).toHaveTextContent("Rendered")
+    expect(screen.getByRole("button", { name: "Re-render" })).toBeEnabled()
+    await userEvent.type(screen.getByLabelText("Title"), "!")
+    expect(screen.getByTestId("clip-status")).toHaveTextContent(
+      "Edited since last render"
+    )
+  })
+
+  it("offers Render when the clip has never been rendered", () => {
+    renderEditor()
+    expect(screen.getByTestId("clip-status")).toHaveTextContent("Not rendered")
+    expect(screen.getByRole("button", { name: "Render" })).toBeEnabled()
+  })
+
+  it("moves the inspector into a drawer on a narrow window", async () => {
+    setViewport(false)
+    renderEditor()
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole("button", { name: "Clip settings" }))
+    const drawer = await screen.findByRole("dialog", { name: "Clip settings" })
+    expect(within(drawer).getAllByRole("tab")).toHaveLength(4)
+    expect(within(drawer).getByLabelText("Title")).toHaveValue("Clip")
+  })
+
+  it("marks what the Shorts interface covers", async () => {
+    renderEditor()
+    expect(screen.queryByTestId("safe-zones")).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole("switch", { name: "Safe zones" }))
+    expect(screen.getByTestId("safe-zones")).toHaveTextContent(
+      "Covered by Shorts UI"
+    )
+  })
+
+  it("puts the crop boxes back where they were", async () => {
+    renderEditor()
+    const reset = screen.getByRole("button", { name: "Reset crop" })
+    expect(reset).toBeDisabled()
+    const webcam = screen.getByRole("group", { name: "Webcam region" })
+    const before = webcam.style.left
+    webcam.focus()
+    await userEvent.keyboard("{ArrowLeft}")
+    expect(webcam.style.left).not.toBe(before)
+    await userEvent.click(reset)
+    expect(webcam.style.left).toBe(before)
+  })
+
+  it("rewrites a caption from the list and keeps its timing", async () => {
+    renderEditor({
+      captionOverrides: {
+        added: [{ startMs: 1000, endMs: 2500, text: "hello" }],
+      },
+    } as Partial<Clip>)
+    await userEvent.click(screen.getByRole("tab", { name: "Captions" }))
+    const row = screen.getByRole("textbox", { name: "Caption at 0:01.0" })
+    await userEvent.type(row, " there")
+    await waitFor(() => expect(updateClipAction).toHaveBeenCalled())
+    const [, , edit] = vi.mocked(updateClipAction).mock.calls.at(-1)!
+    expect(edit).toMatchObject({
+      captionOverrides: {
+        added: [{ startMs: 1000, endMs: 2500, text: "hello there" }],
+      },
+    })
+  })
+})
+
 describe("ClipEditor audio and text", () => {
   beforeEach(() => {
     vi.mocked(updateClipAction).mockResolvedValue({
@@ -237,8 +464,9 @@ describe("ClipEditor audio and text", () => {
     renderEditor()
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       "Details",
-      "Layout",
       "Captions",
+      "Layout",
+      "Effects",
     ])
     const timeline = screen.getByRole("region", { name: "Timeline" })
     for (const name of [
@@ -246,7 +474,6 @@ describe("ClipEditor audio and text", () => {
       "Captions track",
       "Effects track 1",
       "Video track",
-      "Music track 1",
     ]) {
       expect(within(timeline).getByRole("group", { name })).toBeInTheDocument()
     }
@@ -254,7 +481,7 @@ describe("ClipEditor audio and text", () => {
 
   it("adds a text at the playhead and autosaves it", async () => {
     renderEditor({ hook: "Wait for the jump" })
-    await userEvent.click(screen.getByRole("button", { name: "Text" }))
+    await add("Text")
     await waitFor(() => expect(updateClipAction).toHaveBeenCalled())
     const [, , edit] = vi.mocked(updateClipAction).mock.calls.at(-1)!
     expect(edit).toMatchObject({
@@ -272,7 +499,7 @@ describe("ClipEditor audio and text", () => {
 
   it("adds a written caption at the playhead", async () => {
     renderEditor()
-    await userEvent.click(screen.getByRole("button", { name: "Caption" }))
+    await add("Caption")
     await waitFor(() => expect(updateClipAction).toHaveBeenCalled())
     const [, , edit] = vi.mocked(updateClipAction).mock.calls.at(-1)!
     expect(edit).toMatchObject({
@@ -284,10 +511,7 @@ describe("ClipEditor audio and text", () => {
 
   it("adds a captions track placed apart from the first", async () => {
     renderEditor()
-    await userEvent.click(screen.getByRole("button", { name: "Track" }))
-    await userEvent.click(
-      await screen.findByRole("menuitem", { name: "Captions track" })
-    )
+    await add("Track", "Captions track")
     expect(
       screen.getByRole("group", { name: "Captions track 2" })
     ).toBeInTheDocument()
@@ -395,7 +619,7 @@ describe("ClipEditor gameplay box", () => {
   it("refits the gameplay box when the mode changes", async () => {
     renderEditor()
     await userEvent.click(screen.getByRole("tab", { name: "Layout" }))
-    await userEvent.click(screen.getByRole("button", { name: /^Even split/ }))
+    await userEvent.click(screen.getByRole("button", { name: "Split" }))
     const region = screen.getByRole("group", { name: "Gameplay region" })
     const expected = gameplayBox(
       {

@@ -4,6 +4,8 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
 import * as React from "react"
 
+import { toneVariants, type Tone } from "@/components/ui/tone"
+
 type TimelineTrackContextValue = {
   durationMs: number
   trackRef: React.RefObject<HTMLDivElement | null>
@@ -58,19 +60,44 @@ function TimelineTrack({
 }
 
 const timelineBlockVariants = cva(
-  "absolute inset-y-1 flex touch-none items-center overflow-hidden rounded-md border px-2 text-[10px] leading-none font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/50 data-[selected]:ring-2 data-[selected]:ring-ring",
+  "absolute flex touch-none items-center overflow-hidden text-[11.5px] leading-none font-semibold outline-none focus-visible:focus-ring",
   {
     variants: {
       variant: {
-        default: "border-primary bg-primary/30 text-foreground",
-        muted: "border-border bg-foreground/10 text-muted-foreground",
+        default:
+          "inset-y-[5px] rounded-[7px] bg-white/10 px-2 text-foreground inset-ring-1 inset-ring-white/22 data-[selected]:inset-ring-[1.5px] data-[selected]:inset-ring-lav",
+        muted:
+          "inset-y-[5px] rounded-[7px] bg-white/5 px-2 text-muted-foreground inset-ring-1 inset-ring-hair data-[selected]:inset-ring-[1.5px] data-[selected]:inset-ring-lav",
+        tone: "inset-y-[5px] rounded-[7px] bg-[rgb(var(--tone)/0.16)] px-2 text-[rgb(var(--tone))] inset-ring-1 inset-ring-[rgb(var(--tone)/0.55)] data-[selected]:bg-[rgb(var(--tone)/0.24)] data-[selected]:inset-ring-[1.5px] data-[selected]:inset-ring-[rgb(var(--tone))]",
+        clip: "inset-y-0.5 rounded-[9px] px-4 text-foreground inset-ring-2 inset-ring-foreground",
       },
     },
     defaultVariants: { variant: "default" },
   }
 )
 
+const SNAP_PX = 6
+
+function snapTo(value: number, points: readonly number[], withinMs: number) {
+  let best: number | null = null
+  for (const point of points) {
+    const distance = Math.abs(point - value)
+    if (
+      distance <= withinMs &&
+      (best === null || distance < Math.abs(best - value))
+    )
+      best = point
+  }
+  return best
+}
+
 type DragMode = "move" | "start" | "end"
+
+function Grip() {
+  return (
+    <i className="pointer-events-none h-3.5 w-0.5 rounded-[1px] bg-night" />
+  )
+}
 
 function lanesOf(track: HTMLElement | null) {
   const group = track?.dataset.laneGroup
@@ -103,6 +130,8 @@ function TimelineBlock({
   selected = false,
   resizable = true,
   variant = "default",
+  tone,
+  snapMs,
   style,
   children,
   onPointerDown,
@@ -124,6 +153,8 @@ function TimelineBlock({
     stepMs?: number
     selected?: boolean
     resizable?: boolean
+    tone?: Tone
+    snapMs?: readonly number[]
   }) {
   const { durationMs, trackRef } = useTimelineTrack()
   const drag = React.useRef<{
@@ -131,6 +162,7 @@ function TimelineBlock({
     startX: number
     startMs: number
     endMs: number
+    snaps: readonly number[]
   } | null>(null)
   const [drop, setDrop] = React.useState<{
     lane: HTMLElement
@@ -176,6 +208,7 @@ function TimelineBlock({
       tabIndex={0}
       aria-pressed={selected}
       className={cn(
+        tone && toneVariants({ tone }),
         timelineBlockVariants({ variant }),
         "cursor-grab active:cursor-grabbing",
         className
@@ -203,6 +236,9 @@ function TimelineBlock({
           startX: event.clientX,
           startMs,
           endMs,
+          snaps: (snapMs ?? []).filter(
+            (point) => point !== startMs && point !== endMs
+          ),
         }
         onSelect?.()
       }}
@@ -213,18 +249,26 @@ function TimelineBlock({
         if (!current || !rect || rect.width === 0) return
         const delta =
           ((event.clientX - current.startX) / rect.width) * durationMs
+        const withinMs = (SNAP_PX / rect.width) * durationMs
+        const length = current.endMs - current.startMs
         if (current.mode === "move") {
-          moveTo(current.startMs + delta, current.endMs - current.startMs)
+          const raw = current.startMs + delta
+          const atStart = snapTo(raw, current.snaps, withinMs)
+          const atEnd = snapTo(raw + length, current.snaps, withinMs)
+          const snapped =
+            atStart !== null &&
+            (atEnd === null ||
+              Math.abs(atStart - raw) <= Math.abs(atEnd - raw - length))
+              ? atStart
+              : atEnd !== null
+                ? atEnd - length
+                : raw
+          moveTo(snapped, length)
           if (onLaneChange) {
             const lane = laneAt(trackRef.current, event.clientY)
             const own = trackRef.current!.getBoundingClientRect()
-            const length = current.endMs - current.startMs
             const dropStart = Math.round(
-              clamp(
-                current.startMs + delta,
-                0,
-                Math.max(0, durationMs - length)
-              )
+              clamp(snapped, 0, Math.max(0, durationMs - length))
             )
             setDrop(
               lane && lane !== trackRef.current
@@ -238,9 +282,17 @@ function TimelineBlock({
             )
           }
         } else if (current.mode === "start") {
-          resizeStart(current.startMs + delta, current.endMs)
+          const raw = current.startMs + delta
+          resizeStart(
+            snapTo(raw, current.snaps, withinMs) ?? raw,
+            current.endMs
+          )
         } else {
-          resizeEnd(current.startMs, current.endMs + delta)
+          const raw = current.endMs + delta
+          resizeEnd(
+            current.startMs,
+            snapTo(raw, current.snaps, withinMs) ?? raw
+          )
         }
       }}
       onPointerUp={(event) => {
@@ -290,16 +342,30 @@ function TimelineBlock({
         <span
           data-edge="start"
           aria-hidden
-          className="absolute inset-y-0 left-0 w-1.5 cursor-ew-resize"
-        />
+          className={cn(
+            "absolute inset-y-0 left-0 cursor-ew-resize",
+            variant === "clip"
+              ? "grid w-2.5 place-items-center rounded-l-[9px] bg-foreground"
+              : "w-1.5"
+          )}
+        >
+          {variant === "clip" && <Grip />}
+        </span>
       )}
       <span className="pointer-events-none truncate">{children}</span>
       {resizable && (
         <span
           data-edge="end"
           aria-hidden
-          className="absolute inset-y-0 right-0 w-1.5 cursor-ew-resize"
-        />
+          className={cn(
+            "absolute inset-y-0 right-0 cursor-ew-resize",
+            variant === "clip"
+              ? "grid w-2.5 place-items-center rounded-r-[9px] bg-foreground"
+              : "w-1.5"
+          )}
+        >
+          {variant === "clip" && <Grip />}
+        </span>
       )}
     </div>
   )

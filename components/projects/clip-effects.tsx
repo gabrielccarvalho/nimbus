@@ -6,6 +6,7 @@ import { useVideoPlayer } from "@/components/ui/video-player"
 import { zoomFocusAt } from "@/features/effects/frame"
 import type { ClipEffects } from "@/features/effects/schema"
 import { OUTPUT_HEIGHT, OUTPUT_WIDTH } from "@/features/layout/geometry"
+import { cn } from "@/lib/utils"
 
 import { ClipPreview } from "./clip-preview"
 
@@ -14,12 +15,19 @@ export function ClipEffectsPreview({
   effects,
   selected,
   onEffectsChange,
+  className,
+  previewClassName,
+  style,
+  children,
   ...props
 }: Omit<React.ComponentProps<typeof ClipPreview>, "effects"> & {
   source: { width: number; height: number }
   effects: ClipEffects | null
   selected: number | null
   onEffectsChange(effects: ClipEffects): void
+  previewClassName?: string
+  style?: React.CSSProperties
+  children?: React.ReactNode
 }) {
   const { currentMs } = useVideoPlayer()
   const selectedEffect =
@@ -42,14 +50,22 @@ export function ClipEffectsPreview({
   }
 
   return (
-    <div className="relative mx-auto w-full max-w-[260px]">
-      <ClipPreview effects={effects?.events} {...props} />
+    <div
+      className={cn("relative mx-auto w-full max-w-[260px]", className)}
+      style={style}
+    >
+      <ClipPreview
+        effects={effects?.events}
+        className={previewClassName}
+        {...props}
+      />
+      {children}
       {selectedEffect?.kind === "zoom" && (
         <button
           type="button"
           aria-label="Set zoom focus"
           data-effect-focus-picker
-          className="absolute inset-0 cursor-crosshair rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="absolute inset-0 cursor-crosshair rounded-[inherit] outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           onClick={setFocus}
         />
       )}

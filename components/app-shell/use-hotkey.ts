@@ -17,6 +17,7 @@ export function useHotkey(
   { meta = false }: { meta?: boolean } = {}
 ) {
   const onKey = React.useEffectEvent((event: KeyboardEvent) => {
+    if (event.defaultPrevented) return
     if (event.key.toLowerCase() !== key || event.altKey) return
     if (meta) {
       if (!(event.metaKey || event.ctrlKey)) return

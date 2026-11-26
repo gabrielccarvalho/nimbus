@@ -43,8 +43,7 @@ import type { Result } from "@/lib/errors"
 import { formatDuration } from "@/lib/format"
 
 import { AudioTimelineLayers } from "./audio-timeline"
-import type { ClipPlayerData, RenderLinks } from "./clip-player-dialog"
-import { ClipsGrid } from "./clips-grid"
+import { ClipsGrid, type ClipCaptions, type RenderLinks } from "./clips-grid"
 import type { PublishingState } from "./publish-dialog"
 import { useProjectEvents } from "./use-project-events"
 
@@ -56,7 +55,7 @@ type ClipsReviewProps = {
   audio?: AudioSummary
   renders: Record<string, RenderLinks>
   edit?: RenderLinks & { durationMs: number }
-  captions: ClipPlayerData["captions"]
+  captions: ClipCaptions
   snapshot: ProjectSnapshot
   publishing: PublishingState
 }
@@ -281,7 +280,6 @@ export function ClipsReview({
   publishing,
 }: ClipsReviewProps) {
   const snapshot = useProjectEvents(initialSnapshot)
-  const [openId, setOpenId] = React.useState<string | null>(null)
   const [filter, setFilter] = React.useState<Filter>("all")
   const [sort, setSort] = React.useState<"best" | "time">("best")
   const router = useRouter()
@@ -299,8 +297,7 @@ export function ClipsReview({
   const counts = { all: clips.length, todo: 0, approved: 0, rejected: 0 }
   for (const clip of clips) counts[clipFilter(clip)] += 1
   const visible = (sort === "best" ? byScore : clips).filter(
-    (clip) =>
-      filter === "all" || clipFilter(clip) === filter || clip.id === openId
+    (clip) => filter === "all" || clipFilter(clip) === filter
   )
   return (
     <>
@@ -314,9 +311,8 @@ export function ClipsReview({
       <ClipsTimeline
         durationMs={durationMs}
         clips={clips.filter((clip) => clip.status !== "rejected")}
-        openId={openId}
         audio={audio}
-        onOpen={setOpenId}
+        onOpen={(id) => router.push(`/projects/${projectId}/clips/${id}`)}
       />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div
@@ -378,13 +374,11 @@ export function ClipsReview({
           renders={renders}
           captions={captions}
           publishing={publishing}
-          openClipId={openId}
-          onOpenClipIdChange={setOpenId}
         />
       )}
       <p className="text-center text-[13px] text-tertiary">
-        Open a clip to review it full size. <Kbd>A</Kbd> approve · <Kbd>X</Kbd>{" "}
-        reject · <Kbd>←</Kbd> <Kbd>→</Kbd> next
+        Click a clip to open it in the editor. <Kbd>A</Kbd> approve ·{" "}
+        <Kbd>X</Kbd> reject · <Kbd>←</Kbd> <Kbd>→</Kbd> next
       </p>
     </>
   )
@@ -393,13 +387,11 @@ export function ClipsReview({
 function ClipsTimeline({
   durationMs,
   clips,
-  openId,
   audio,
   onOpen,
 }: {
   durationMs: number
   clips: Clip[]
-  openId: string | null
   audio?: AudioSummary
   onOpen: (id: string) => void
 }) {
@@ -416,7 +408,7 @@ function ClipsTimeline({
           key={clip.id}
           startMs={clip.startMs}
           endMs={clip.endMs}
-          variant={clip.id === openId ? "selected" : "clip"}
+          variant="clip"
           title={clip.title}
           className="pointer-events-auto cursor-pointer"
           onClick={() => onOpen(clip.id)}

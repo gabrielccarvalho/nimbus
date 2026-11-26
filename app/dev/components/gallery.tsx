@@ -11,6 +11,7 @@ import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { DotMeter } from "@/components/ui/dot-meter"
+import { Segmented, SegmentedItem } from "@/components/ui/segmented"
 import { SignalDot } from "@/components/ui/signal-dot"
 import { StatusPill } from "@/components/ui/status-pill"
 import {
@@ -131,7 +132,8 @@ function TimelineTrackExample() {
           resizable={false}
           startMs={5000}
           endMs={50_000}
-          className="border-mint bg-mint/10"
+          variant="tone"
+          tone="mint"
           onChange={() => {}}
         >
           <Waveform
@@ -234,13 +236,13 @@ function CropRegionExample() {
       defaultValue={{ x: 0.7, y: 0.65, w: 0.25, h: 0.28 }}
       className="aspect-video max-w-xl bg-[repeating-linear-gradient(45deg,var(--color-muted)_0_12px,var(--color-background)_12px_24px)]"
     >
-      <CropRegion aria-label="Example region" />
+      <CropRegion aria-label="Example region" variant="ring" />
       <CropRegion
         aria-label="Aspect-locked region"
         value={locked}
         onValueChange={setLocked}
         aspectRatio={1080 / 960}
-        className="border-dashed shadow-none"
+        variant="dashed"
       />
     </CropRegionEditor>
   )
@@ -284,6 +286,24 @@ export function ComponentGallery() {
           <DotMeter value={4} tone="lav" aria-label="Storage" />
           <DotMeter value={9} tone="amber" aria-label="Claude runs" />
         </div>
+      </Section>
+
+      <Section title="Segmented">
+        <Segmented aria-label="Review decision" defaultValue={["approve"]}>
+          <SegmentedItem value="reject">Reject</SegmentedItem>
+          <SegmentedItem value="approve">Approve</SegmentedItem>
+        </Segmented>
+        <Segmented
+          aria-label="Layout mode"
+          layout="fill"
+          defaultValue={["split"]}
+          className="max-w-sm"
+        >
+          <SegmentedItem value="top">Webcam top</SegmentedItem>
+          <SegmentedItem value="split">Split</SegmentedItem>
+          <SegmentedItem value="fill">Fill</SegmentedItem>
+          <SegmentedItem value="fit">Fit</SegmentedItem>
+        </Segmented>
       </Section>
 
       <Section title="Dropzone">

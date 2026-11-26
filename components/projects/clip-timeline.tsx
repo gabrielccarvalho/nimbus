@@ -1,7 +1,6 @@
 "use client"
 
 import {
-  ArrowCounterClockwiseIcon,
   ArrowLineLeftIcon,
   ArrowLineRightIcon,
   ArrowSquareOutIcon,
@@ -9,17 +8,15 @@ import {
   ClosedCaptioningIcon,
   EyeIcon,
   EyeSlashIcon,
-  MagicWandIcon,
+  FilmStripIcon,
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,
-  MinusIcon,
   MusicNotesIcon,
   PlusIcon,
-  SlidersHorizontalIcon,
+  ScissorsIcon,
   SparkleIcon,
   SpeakerHighIcon,
   SpeakerSlashIcon,
-  StackPlusIcon,
   TextTIcon,
   TrashIcon,
   XIcon,
@@ -36,16 +33,13 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemDescription,
-  ItemMedia,
-  ItemTitle,
-} from "@/components/ui/item"
+import { Kbd } from "@/components/ui/kbd"
 import { Label } from "@/components/ui/label"
 import {
   Popover,
@@ -53,9 +47,10 @@ import {
   PopoverDescription,
   PopoverHeader,
   PopoverTitle,
-  PopoverTrigger,
 } from "@/components/ui/popover"
+import { Slider } from "@/components/ui/slider"
 import { TimelineBlock, TimelineTrack } from "@/components/ui/timeline-track"
+import type { Tone } from "@/components/ui/tone"
 import { useVideoPlayer } from "@/components/ui/video-player"
 import { Waveform } from "@/components/ui/waveform"
 import {
@@ -67,9 +62,7 @@ import {
 } from "@/features/captions/overlay"
 import type { CaptionPage } from "@/features/captions/pages"
 import { CAPTION_BASELINE_RANGE } from "@/features/captions/styles"
-import { planClipEffectsAction } from "@/features/clips/actions"
 import {
-  CAPTION_MAX_OFFSET_MS,
   CLIP_MAX_EDIT_MS,
   CLIP_MIN_EDIT_MS,
   MAX_CAPTION_LANES,
@@ -80,7 +73,6 @@ import {
   type ClipEffects,
   type Effect,
 } from "@/features/effects/schema"
-import type { LayoutInput } from "@/features/layout/schema"
 import {
   MAX_MUSIC_LANES,
   MIN_MUSIC_MS,
@@ -112,17 +104,19 @@ import {
   type Span,
 } from "@/features/timeline/lanes"
 import { retimeMusic } from "@/features/timeline/music"
+import { splitCaption, splitItem, splitMusic } from "@/features/timeline/split"
 import { formatTimestamp } from "@/lib/format"
 
+import { IconAction } from "./icon-action"
 import {
   CaptionInspector,
-  EffectInspector,
   effectLabel,
   MusicInspector,
   SourceInspector,
   TextInspector,
   VideoInspector,
 } from "./timeline-inspector"
+import { useClipHotkeys } from "./use-clip-hotkeys"
 
 export type TimelineSelection =
   | { type: "video" }
@@ -134,17 +128,19 @@ export type TimelineSelection =
 
 type LaneGroup = "effects" | "texts" | "music"
 
-const HEADER_PX = 128
 const ZOOM_LEVELS = [0, 20, 40, 80, 160, 320] as const
 const DEFAULT_ZOOM = 3
 const AXIS_PADDING_MS = 10_000
 const TICK_STEPS_MS = [500, 1000, 2000, 5000, 10_000, 30_000, 60_000]
 const MIN_TICK_PX = 64
-const OFFSET_STEP_MS = 100
 const LANE_BASELINE_STEP = 0.15
 const LEVEL_FLOOR_DB = -40
+const THUMB_WIDTH = 96
+const THUMB_HEIGHT = 54
+const THUMB_STEPS_MS = [2000, 5000, 10_000]
+const MAX_THUMBS = 40
 
-const EFFECT_KINDS = [
+export const EFFECT_KINDS = [
   { key: "cam", label: "Full cam", lengthMs: 2000 },
   { key: "game", label: "Full game", lengthMs: 2000 },
   { key: "zoom", label: "Zoom", lengthMs: 1500 },
@@ -161,15 +157,13 @@ function createEffect(key: EffectKey, placed: Laned): Effect {
   return { kind: "focus", ...placed, target: key }
 }
 
-function effectClass(effect: Effect) {
-  if (effect.kind === "zoom") return undefined
-  if (effect.kind === "shake") return "border-chart-5 bg-chart-5/30"
-  return effect.target === "game"
-    ? "border-effect-game bg-effect-game/30"
-    : "border-chart-4 bg-chart-4/30"
+export function effectTone(effect: Effect): Tone {
+  if (effect.kind === "zoom") return "lav"
+  if (effect.kind === "shake") return "pink"
+  return effect.target === "game" ? "sky" : "amber"
 }
 
-function effectText(effect: Effect) {
+export function effectText(effect: Effect) {
   if (effect.kind === "zoom") return `Zoom ${effect.scale}×`
   if (effect.kind === "shake") return `Shake ${effect.intensity}`
   return effectLabel(effect)
@@ -179,11 +173,6 @@ const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value))
 
 const level = (db: number) => Math.max(0, 1 - db / LEVEL_FLOOR_DB)
-
-function formatOffset(ms: number) {
-  const sign = ms > 0 ? "+" : ms < 0 ? "−" : ""
-  return `${sign}${(Math.abs(ms) / 1000).toFixed(1)} s`
-}
 
 const formatTick = (ms: number) =>
   ms < 0 ? `−${formatTimestamp(-ms)}` : formatTimestamp(ms)
@@ -215,12 +204,24 @@ function peaksFor(track: ReadyMusicTrack, clip: MusicClip) {
 }
 
 function loudnessFor(loudness: SourceLoudness | null, span: Span) {
-  if (!loudness) return []
-  const from = Math.floor(
-    (span.startMs - loudness.fromMs) / loudness.intervalMs
+  if (!loudness) return null
+  const { fromMs, intervalMs, values } = loudness
+  const from = clamp(
+    Math.floor((span.startMs - fromMs) / intervalMs),
+    0,
+    values.length
   )
-  const to = Math.ceil((span.endMs - loudness.fromMs) / loudness.intervalMs)
-  return loudness.values.slice(Math.max(0, from), Math.max(0, to))
+  const to = clamp(
+    Math.ceil((span.endMs - fromMs) / intervalMs),
+    from,
+    values.length
+  )
+  if (to === from) return null
+  return {
+    values: values.slice(from, to),
+    startMs: fromMs + from * intervalMs,
+    endMs: fromMs + to * intervalMs,
+  }
 }
 
 function nextBaseline(current: readonly number[], first: number) {
@@ -253,27 +254,113 @@ function tabbables(root: HTMLElement | null) {
   )
 }
 
-function TrackRow({
-  header,
+function thumbTiles(fromMs: number, toMs: number) {
+  const step =
+    THUMB_STEPS_MS.find((ms) => (toMs - fromMs) / ms <= MAX_THUMBS) ??
+    THUMB_STEPS_MS.at(-1)!
+  const first = Math.floor(fromMs / step)
+  const last = Math.ceil(toMs / step)
+  return Array.from({ length: Math.max(0, last - first) }, (_, i) => {
+    const atMs = (first + i) * step
+    return {
+      atMs,
+      sampleMs: atMs + step / 2,
+      lengthMs: Math.min(toMs, atMs + step) - Math.max(fromMs, atMs),
+    }
+  })
+}
+
+function useThumbnails(
+  src: string,
+  tiles: readonly { atMs: number; sampleMs: number }[]
+) {
+  const [frames, setFrames] = React.useState<ReadonlyMap<number, string>>(
+    () => new Map()
+  )
+  const known = React.useRef(new Set<number>())
+  const wanted = React.useRef(tiles)
+  React.useEffect(() => {
+    wanted.current = tiles
+  })
+  const key = tiles.map((tile) => tile.atMs).join(",")
+
+  React.useEffect(() => {
+    const queue = wanted.current.filter((tile) => !known.current.has(tile.atMs))
+    if (queue.length === 0) return
+    const video = document.createElement("video")
+    video.muted = true
+    video.preload = "auto"
+    video.playsInline = true
+    video.crossOrigin = "anonymous"
+    const canvas = document.createElement("canvas")
+    canvas.width = THUMB_WIDTH
+    canvas.height = THUMB_HEIGHT
+    let current: (typeof queue)[number] | undefined
+    const next = () => {
+      current = queue.shift()
+      if (current) video.currentTime = current.sampleMs / 1000
+    }
+    const capture = () => {
+      const tile = current
+      if (!tile) return
+      try {
+        const context = canvas.getContext("2d")
+        if (!context) return
+        context.drawImage(video, 0, 0, THUMB_WIDTH, THUMB_HEIGHT)
+        const url = canvas.toDataURL("image/jpeg", 0.6)
+        known.current.add(tile.atMs)
+        setFrames((frames) => new Map(frames).set(tile.atMs, url))
+      } catch {
+        return
+      }
+      next()
+    }
+    video.addEventListener("loadedmetadata", next, { once: true })
+    video.addEventListener("seeked", capture)
+    video.src = src
+    return () => {
+      video.removeEventListener("loadedmetadata", next)
+      video.removeEventListener("seeked", capture)
+      video.removeAttribute("src")
+      if (video.networkState !== HTMLMediaElement.NETWORK_EMPTY) video.load()
+    }
+  }, [src, key])
+
+  return frames
+}
+
+const LANE = "relative h-[34px]"
+const TRACK = "h-full overflow-visible rounded-none bg-transparent"
+
+function TrackLabel({
   className,
   children,
 }: {
-  header?: React.ReactNode
   className?: string
   children: React.ReactNode
 }) {
   return (
-    <div className={cn("flex h-9", className)}>
-      <div
-        className="sticky left-0 z-20 flex shrink-0 items-center gap-1 bg-graphite pr-2 text-xs text-muted-foreground"
-        style={{ width: HEADER_PX }}
-      >
-        {header}
-      </div>
-      <div className="relative min-w-0 flex-1 rounded-md bg-muted/40">
-        {children}
-      </div>
+    <div
+      className={cn(
+        "flex h-[34px] items-center gap-[7px] ps-3.5 pe-1.5 text-xs text-tertiary [&_svg]:size-[13px] [&_svg]:shrink-0",
+        className
+      )}
+    >
+      {children}
     </div>
+  )
+}
+
+function LabelToggle({ className, ...props }: React.ComponentProps<"button">) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "-mx-[3.5px] grid size-5 shrink-0 place-items-center rounded-full transition-colors duration-200 outline-none hover:bg-glass hover:text-foreground focus-visible:focus-ring disabled:pointer-events-none disabled:opacity-45",
+        className
+      )}
+      {...props}
+    />
   )
 }
 
@@ -281,16 +368,18 @@ function ClipSpan({
   leadMs,
   durationMs,
   axisMs,
+  className,
   children,
 }: {
   leadMs: number
   durationMs: number
   axisMs: number
-  children: React.ReactNode
+  className?: string
+  children?: React.ReactNode
 }) {
   return (
     <div
-      className="absolute inset-y-0"
+      className={cn("absolute inset-y-0", className)}
       style={{
         left: `${(leadMs / axisMs) * 100}%`,
         width: `${(durationMs / axisMs) * 100}%`,
@@ -301,14 +390,36 @@ function ClipSpan({
   )
 }
 
+function Outside({
+  fromMs,
+  toMs,
+  axisMs,
+  className,
+}: {
+  fromMs: number
+  toMs: number
+  axisMs: number
+  className: string
+}) {
+  if (toMs <= fromMs) return null
+  return (
+    <span
+      aria-hidden
+      className={cn("pointer-events-none absolute", className)}
+      style={{
+        left: `${(fromMs / axisMs) * 100}%`,
+        width: `${((toMs - fromMs) / axisMs) * 100}%`,
+      }}
+    />
+  )
+}
+
 export function ClipTimeline({
-  projectId,
-  clipId,
+  src,
   sourceDurationMs,
   startMs,
   endMs,
   onTrim,
-  layout,
   hasWebcam,
   effects,
   onEffectsChange,
@@ -333,13 +444,11 @@ export function ClipTimeline({
   onSelectionChange,
   disabled,
 }: {
-  projectId: string
-  clipId: string
+  src: string
   sourceDurationMs: number
   startMs: number
   endMs: number
   onTrim(startMs: number, endMs: number): void
-  layout: LayoutInput
   hasWebcam: boolean
   effects: ClipEffects | null
   onEffectsChange(effects: ClipEffects): void
@@ -368,19 +477,20 @@ export function ClipTimeline({
   const { currentMs, seek } = useVideoPlayer()
   const rootRef = React.useRef<HTMLDivElement>(null)
   const scrollRef = React.useRef<HTMLDivElement>(null)
-  const rulerRef = React.useRef<HTMLDivElement>(null)
+  const axisRef = React.useRef<HTMLDivElement>(null)
+  const addRef = React.useRef<HTMLButtonElement>(null)
   const [anchor, setAnchor] = React.useState<HTMLElement | null>(null)
   const popupRef = React.useRef<HTMLDivElement>(null)
   const [zoom, setZoom] = React.useState(DEFAULT_ZOOM)
-  const [rulerWidth, setRulerWidth] = React.useState(0)
+  const [axisWidth, setAxisWidth] = React.useState(0)
   const [minLanes, setMinLanes] = React.useState<Record<LaneGroup, number>>({
     effects: 1,
     texts: 1,
-    music: 1,
+    music: 0,
   })
   const [musicOpen, setMusicOpen] = React.useState(false)
+  const wantsMusic = React.useRef(false)
   const [uploads, setUploads] = React.useState<MusicTrackSummary[]>([])
-  const [planning, startPlanning] = React.useTransition()
   const [draft, setDraft] = React.useState<Span | null>(null)
   const draftRef = React.useRef<Span | null>(null)
 
@@ -392,7 +502,13 @@ export function ClipTimeline({
   const pxPerSecond = ZOOM_LEVELS[zoom]!
   const playheadMs = currentMs - startMs
   const atMs = clamp(playheadMs, 0, durationMs)
-  const ticks = rulerTicks(-leadMs, axisMs - leadMs, rulerWidth)
+  const ticks = rulerTicks(-leadMs, axisMs - leadMs, axisWidth)
+
+  const tiles = React.useMemo(
+    () => thumbTiles(axisStartMs, axisEndMs),
+    [axisStartMs, axisEndMs]
+  )
+  const frames = useThumbnails(src, tiles)
 
   const library = React.useMemo(
     () => [
@@ -433,28 +549,43 @@ export function ClipTimeline({
   )
   const musicLanes = Math.min(
     MAX_MUSIC_LANES,
-    Math.max(minLanes.music, laneCount(audioMix.music))
+    Math.max(minLanes.music, laneCount(audioMix.music, 0))
+  )
+
+  const snapMs = React.useMemo(
+    () => [
+      ...new Set([
+        0,
+        durationMs,
+        ...(playheadMs > 0 && playheadMs < durationMs ? [playheadMs] : []),
+        ...textOverlays.flatMap((o) => [o.startMs, o.endMs]),
+        ...blocks.flat().flatMap((b) => [b.startMs, b.endMs]),
+        ...events.flatMap((e) => [e.startMs - startMs, e.endMs - startMs]),
+        ...audioMix.music.flatMap((m) => [m.startMs, m.endMs]),
+      ]),
+    ],
+    [durationMs, playheadMs, textOverlays, blocks, events, startMs, audioMix]
   )
 
   React.useEffect(() => {
-    const ruler = rulerRef.current
-    if (!ruler) return
+    const axis = axisRef.current
+    if (!axis) return
     const observer = new ResizeObserver(() =>
-      setRulerWidth(ruler.getBoundingClientRect().width)
+      setAxisWidth(axis.getBoundingClientRect().width)
     )
-    observer.observe(ruler)
+    observer.observe(axis)
     return () => observer.disconnect()
   }, [])
 
   React.useEffect(() => {
     const scroller = scrollRef.current
-    if (!scroller || pxPerSecond === 0) return
+    const axis = axisRef.current
+    if (!scroller || !axis || pxPerSecond === 0) return
     const x =
-      HEADER_PX +
-      ((currentMs - axisStartMs) / axisMs) * (scroller.scrollWidth - HEADER_PX)
+      axis.offsetLeft + ((currentMs - axisStartMs) / axisMs) * axis.offsetWidth
     const { scrollLeft, clientWidth } = scroller
-    if (x < scrollLeft + HEADER_PX || x > scrollLeft + clientWidth - 24) {
-      scroller.scrollLeft = x - HEADER_PX - (clientWidth - HEADER_PX) / 4
+    if (x < scrollLeft || x > scrollLeft + clientWidth - 24) {
+      scroller.scrollLeft = x - clientWidth / 4
     }
   }, [currentMs, axisStartMs, axisMs, pxPerSecond])
 
@@ -495,20 +626,6 @@ export function ClipTimeline({
     )
     if (next) setEvents(next)
   }
-  const planEffects = () =>
-    startPlanning(async () => {
-      const planned = await planClipEffectsAction(projectId, clipId, {
-        startMs,
-        endMs,
-        layout,
-      })
-      if (!planned.ok) {
-        toast.error(planned.error.message)
-        return
-      }
-      select(null)
-      onEffectsChange(planned.value)
-    })
 
   const withSpareLane = (state: CaptionState): CaptionState =>
     state.lanes.length + 1 < MAX_CAPTION_LANES
@@ -550,17 +667,6 @@ export function ClipTimeline({
     if (moved.ref.lane !== ref.lane || moved.ref.index !== ref.index)
       select({ type: "caption", ref: moved.ref })
   }
-  const shiftCaptions = (delta: number) =>
-    onCaptionsChange({
-      ...captions,
-      offsetMs: clamp(
-        captions.offsetMs + delta,
-        -CAPTION_MAX_OFFSET_MS,
-        CAPTION_MAX_OFFSET_MS
-      ),
-    })
-  const captionsEdited =
-    captions.offsetMs !== 0 || Object.keys(captions.pageEdits).length > 0
 
   const addText = () => {
     const placed = placeAtPlayhead(
@@ -655,6 +761,67 @@ export function ClipTimeline({
     selection.type !== "video" &&
     selection.type !== "source"
 
+  const splitSelected = (): (() => void) | undefined => {
+    if (selection?.type === "effect") {
+      const next = splitItem(
+        events,
+        selection.index,
+        startMs + atMs,
+        MIN_EFFECT_MS
+      )
+      return next && (() => setEvents(next))
+    }
+    if (selection?.type === "text") {
+      const next = splitItem(
+        textOverlays,
+        selection.index,
+        atMs,
+        MIN_OVERLAY_MS
+      )
+      return next && (() => onTextOverlaysChange(next))
+    }
+    if (selection?.type === "music") {
+      const next = splitMusic(
+        audioMix.music,
+        selection.index,
+        atMs,
+        MIN_MUSIC_MS
+      )
+      return next && (() => setMusic(next))
+    }
+    if (selection?.type === "caption") {
+      const next = splitCaption(captions, selection.ref, atMs, MIN_CAPTION_MS)
+      return next && (() => onCaptionsChange(next))
+    }
+    return undefined
+  }
+  const split = splitSelected()
+
+  const trimTo = (nextStart: number, nextEnd: number) => {
+    const length = nextEnd - nextStart
+    if (length < CLIP_MIN_EDIT_MS || length > CLIP_MAX_EDIT_MS) {
+      toast.error(
+        `Keep the clip between ${CLIP_MIN_EDIT_MS / 1000} s and ${CLIP_MAX_EDIT_MS / 60_000} min.`
+      )
+      return
+    }
+    onTrim(nextStart, nextEnd)
+  }
+  const setIn = () => trimTo(currentMs, endMs)
+  const setOut = () => trimTo(startMs, currentMs)
+
+  useClipHotkeys(
+    disabled
+      ? {}
+      : {
+          s: () => split?.(),
+          i: setIn,
+          o: setOut,
+          delete: deleteSelected,
+          backspace: deleteSelected,
+        }
+  )
+
   const commitTrim = () => {
     const next = draftRef.current
     draftRef.current = null
@@ -684,8 +851,6 @@ export function ClipTimeline({
     first.focus()
   }
 
-  const selectedEffect =
-    selection?.type === "effect" ? events[selection.index] : undefined
   const selectedCaption =
     selection?.type === "caption"
       ? findCaption(blocks, selection.ref)
@@ -695,7 +860,6 @@ export function ClipTimeline({
   const selectedMusic =
     selection?.type === "music" ? audioMix.music[selection.index] : undefined
   const inspecting =
-    selectedEffect !== undefined ||
     selectedCaption !== undefined ||
     selectedText !== undefined ||
     selectedMusic !== undefined ||
@@ -705,60 +869,120 @@ export function ClipTimeline({
   const sound = audioMix.youtubeSound ?? null
   const span = { leadMs, durationMs, axisMs }
   const sourceLevel = audioMix.sourceMuted ? 0 : level(audioMix.sourceDb)
+  const wave = loudnessFor(loudness, { startMs: axisStartMs, endMs: axisEndMs })
+  const laneName = (name: string, lane: number) =>
+    lane === 0 ? name : `${name} ${lane + 1}`
 
   return (
     <section
       ref={rootRef}
       aria-label="Timeline"
       data-slot="clip-timeline"
-      className="grid gap-3 rounded-[18px] bg-graphite px-[18px] py-4"
+      className="flex h-[296px] shrink-0 flex-col bg-sheet shadow-[inset_0_1px_0_var(--hair)]"
     >
       <div
         role="toolbar"
         aria-label="Timeline tools"
-        className="flex flex-wrap items-center gap-1.5"
+        className="flex h-[46px] shrink-0 items-center gap-1.5 px-3.5 shadow-[inset_0_-1px_0_var(--hair)]"
       >
-        <DropdownMenu>
+        <DropdownMenu
+          onOpenChangeComplete={(open) => {
+            if (open || !wantsMusic.current) return
+            wantsMusic.current = false
+            setMusicOpen(true)
+          }}
+        >
           <DropdownMenuTrigger
-            render={<Button type="button" size="sm" disabled={disabled} />}
+            render={
+              <Button
+                ref={addRef}
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={disabled}
+              />
+            }
           >
-            <SparkleIcon data-icon="inline-start" aria-hidden />
-            Effect
+            <PlusIcon data-icon="inline-start" aria-hidden />
+            Add
             <CaretDownIcon data-icon="inline-end" aria-hidden />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            {EFFECT_KINDS.map((kind) => (
-              <DropdownMenuItem
-                key={kind.key}
-                disabled={kind.key === "cam" && !hasWebcam}
-                onClick={() => addEffect(kind.key)}
-              >
-                {kind.label}
-              </DropdownMenuItem>
-            ))}
+          <DropdownMenuContent align="start" className="min-w-44">
+            <DropdownMenuItem onClick={addText}>
+              <TextTIcon aria-hidden />
+              Text
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={addCaptionAtPlayhead}>
+              <ClosedCaptioningIcon aria-hidden />
+              Caption
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                wantsMusic.current = true
+              }}
+            >
+              <MusicNotesIcon aria-hidden />
+              Music…
+            </DropdownMenuItem>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <SparkleIcon aria-hidden />
+                Effect
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                {EFFECT_KINDS.map((kind) => (
+                  <DropdownMenuItem
+                    key={kind.key}
+                    disabled={kind.key === "cam" && !hasWebcam}
+                    onClick={() => addEffect(kind.key)}
+                  >
+                    {kind.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+            <DropdownMenuSeparator />
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <PlusIcon aria-hidden />
+                Track
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuItem
+                  disabled={textLanes >= MAX_TEXT_LANES}
+                  onClick={() => addLane("texts")}
+                >
+                  Text track
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={captions.lanes.length + 1 >= MAX_CAPTION_LANES}
+                  onClick={() => addLane("captions")}
+                >
+                  Captions track
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={effectLanes >= MAX_EFFECT_LANES}
+                  onClick={() => addLane("effects")}
+                >
+                  Effects track
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={musicLanes >= MAX_MUSIC_LANES}
+                  onClick={() => addLane("music")}
+                >
+                  Music track
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
           </DropdownMenuContent>
         </DropdownMenu>
-        <Button
-          type="button"
-          size="sm"
-          disabled={disabled}
-          onClick={addCaptionAtPlayhead}
-        >
-          <ClosedCaptioningIcon data-icon="inline-start" aria-hidden />
-          Caption
-        </Button>
-        <Button type="button" size="sm" disabled={disabled} onClick={addText}>
-          <TextTIcon data-icon="inline-start" aria-hidden />
-          Text
-        </Button>
         <Popover open={musicOpen} onOpenChange={setMusicOpen}>
-          <PopoverTrigger
-            render={<Button type="button" size="sm" disabled={disabled} />}
+          <PopoverContent
+            anchor={addRef}
+            side="top"
+            align="start"
+            className="w-80"
           >
-            <MusicNotesIcon data-icon="inline-start" aria-hidden />
-            Music
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-80">
             <PopoverHeader>
               <PopoverTitle>Add music</PopoverTitle>
               <PopoverDescription>
@@ -792,154 +1016,62 @@ export function ClipTimeline({
             />
           </PopoverContent>
         </Popover>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={<Button type="button" size="sm" disabled={disabled} />}
-          >
-            <StackPlusIcon data-icon="inline-start" aria-hidden />
-            Track
-            <CaretDownIcon data-icon="inline-end" aria-hidden />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuItem
-              disabled={effectLanes >= MAX_EFFECT_LANES}
-              onClick={() => addLane("effects")}
-            >
-              Effects track
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={captions.lanes.length + 1 >= MAX_CAPTION_LANES}
-              onClick={() => addLane("captions")}
-            >
-              Captions track
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={textLanes >= MAX_TEXT_LANES}
-              onClick={() => addLane("texts")}
-            >
-              Text track
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={musicLanes >= MAX_MUSIC_LANES}
-              onClick={() => addLane("music")}
-            >
-              Music track
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <span aria-hidden className="mx-1 h-5 w-px bg-hair" />
-        <Button
-          type="button"
+        <span aria-hidden className="mx-1.5 h-5 w-px shrink-0 bg-hair" />
+        <IconAction
+          label="Split at playhead"
+          shortcut="S"
           size="icon-sm"
-          variant="ghost"
-          aria-label="Start the clip at the playhead"
+          disabled={disabled || !split}
+          onClick={() => split?.()}
+        >
+          <ScissorsIcon aria-hidden />
+        </IconAction>
+        <IconAction
+          label="Set start at playhead"
+          shortcut="I"
+          size="icon-sm"
           disabled={disabled}
-          onClick={() => onTrim(currentMs, endMs)}
+          onClick={setIn}
         >
           <ArrowLineLeftIcon aria-hidden />
-        </Button>
-        <Button
-          type="button"
+        </IconAction>
+        <IconAction
+          label="Set end at playhead"
+          shortcut="O"
           size="icon-sm"
-          variant="ghost"
-          aria-label="End the clip at the playhead"
           disabled={disabled}
-          onClick={() => onTrim(startMs, currentMs)}
+          onClick={setOut}
         >
           <ArrowLineRightIcon aria-hidden />
-        </Button>
-        <Button
-          type="button"
+        </IconAction>
+        <IconAction
+          label="Delete selected"
+          shortcut="Delete"
           size="icon-sm"
-          variant="ghost"
-          aria-label="Delete selected"
           disabled={disabled || !deletable}
           onClick={deleteSelected}
         >
           <TrashIcon aria-hidden />
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          disabled={disabled || planning}
-          onClick={planEffects}
-        >
-          {effects === null ? (
-            <MagicWandIcon data-icon="inline-start" aria-hidden />
-          ) : (
-            <ArrowCounterClockwiseIcon data-icon="inline-start" aria-hidden />
-          )}
-          {effects === null ? "Auto effects" : "Reset effects to auto"}
-        </Button>
-        <div
-          role="group"
-          aria-label="Timeline zoom"
-          className="ms-auto flex items-center gap-1"
-        >
-          <Button
-            type="button"
-            size="icon-sm"
-            variant="ghost"
-            aria-label="Zoom out"
-            disabled={zoom === 0}
-            onClick={() => setZoom(zoom - 1)}
-          >
-            <MagnifyingGlassMinusIcon aria-hidden />
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            aria-pressed={zoom === 0}
-            onClick={() => setZoom(0)}
-          >
-            Fit
-          </Button>
-          <Button
-            type="button"
-            size="icon-sm"
-            variant="ghost"
-            aria-label="Zoom in"
-            disabled={zoom === ZOOM_LEVELS.length - 1}
-            onClick={() => setZoom(zoom + 1)}
-          >
-            <MagnifyingGlassPlusIcon aria-hidden />
-          </Button>
-        </div>
-      </div>
-
-      {sound && (
-        <Item variant="outline" size="sm">
-          <ItemMedia variant="image">
-            {sound.thumbnailUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element -- remote YouTube thumbnail
-              <img src={sound.thumbnailUrl} alt="" />
-            ) : (
-              <YoutubeLogoIcon aria-hidden />
-            )}
-          </ItemMedia>
-          <ItemContent className="min-w-0">
-            <ItemTitle className="line-clamp-1">
-              <a
-                href={youtubeWatchUrl(sound.videoId)}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 hover:underline"
-              >
-                {sound.title}
-                <ArrowSquareOutIcon aria-label="Opens YouTube" />
-              </a>
-            </ItemTitle>
-            <ItemDescription className="line-clamp-1">
-              {sound.channelTitle} · add it with Add sound after you upload from
-              the YouTube app.
-            </ItemDescription>
-          </ItemContent>
-          <ItemActions>
+        </IconAction>
+        {sound ? (
+          <span className="ms-2 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+            <YoutubeLogoIcon aria-hidden className="size-3.5 shrink-0" />
+            <a
+              href={youtubeWatchUrl(sound.videoId)}
+              target="_blank"
+              rel="noreferrer"
+              title={`${sound.channelTitle} · add it with Add sound after you upload from the YouTube app.`}
+              className="inline-flex min-w-0 items-center gap-1 hover:text-foreground hover:underline"
+            >
+              <span className="truncate">{sound.title}</span>
+              <ArrowSquareOutIcon
+                aria-label="Opens YouTube"
+                className="size-3 shrink-0"
+              />
+            </a>
             <Button
               type="button"
-              size="icon-sm"
+              size="icon-xs"
               variant="ghost"
               aria-label="Remove the YouTube song"
               disabled={disabled}
@@ -949,562 +1081,565 @@ export function ClipTimeline({
             >
               <XIcon aria-hidden />
             </Button>
-          </ItemActions>
-        </Item>
-      )}
-      {previewUnavailable && (
-        <p className="text-[13px] text-amber">
-          This browser can&apos;t play the music preview. The render will still
-          include it.
-        </p>
-      )}
-
-      <div
-        ref={scrollRef}
-        data-testid="timeline-scroller"
-        className="overflow-x-auto overscroll-x-contain pb-1"
-      >
+          </span>
+        ) : previewUnavailable ? null : (
+          <span className="ms-2 flex min-w-0 items-center gap-1.5 truncate text-xs text-tertiary max-[1099px]:hidden">
+            Drag the clip edges to trim ·<Kbd>I</Kbd>
+            <Kbd>O</Kbd>
+            set in/out
+          </span>
+        )}
+        {previewUnavailable && (
+          <span className="ms-2 truncate text-xs text-amber">
+            This browser can&apos;t play the music preview. The render will
+            still include it.
+          </span>
+        )}
+        <span className="flex-1" />
         <div
-          className="relative grid gap-1"
-          style={{
-            width:
-              pxPerSecond === 0
-                ? "100%"
-                : `max(100%, ${HEADER_PX + (axisMs / 1000) * pxPerSecond}px)`,
-          }}
+          role="group"
+          aria-labelledby={`${id}-zoom`}
+          className="flex shrink-0 items-center gap-1.5"
         >
-          <div className="flex h-5">
+          <span id={`${id}-zoom`} className="sr-only">
+            Timeline zoom
+          </span>
+          <IconAction
+            label="Zoom out"
+            size="icon-sm"
+            disabled={zoom === 0}
+            onClick={() => setZoom(zoom - 1)}
+          >
+            <MagnifyingGlassMinusIcon aria-hidden />
+          </IconAction>
+          <Slider
+            aria-labelledby={`${id}-zoom`}
+            min={0}
+            max={ZOOM_LEVELS.length - 1}
+            step={1}
+            value={[zoom]}
+            getAriaValueText={(_, value) =>
+              value === 0 ? "Fit" : `${ZOOM_LEVELS[value]} pixels per second`
+            }
+            onValueChange={(next) => {
+              const value = Array.isArray(next) ? next[0] : next
+              if (typeof value === "number") setZoom(value)
+            }}
+            className="data-horizontal:w-[110px]"
+          />
+          <IconAction
+            label="Zoom in"
+            size="icon-sm"
+            disabled={zoom === ZOOM_LEVELS.length - 1}
+            onClick={() => setZoom(zoom + 1)}
+          >
+            <MagnifyingGlassPlusIcon aria-hidden />
+          </IconAction>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            aria-pressed={zoom === 0}
+            className="px-2.5 font-medium aria-pressed:text-foreground"
+            onClick={() => setZoom(0)}
+          >
+            Fit
+          </Button>
+        </div>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="flex min-h-full">
+          <div className="w-24 shrink-0 shadow-[inset_-1px_0_0_var(--hair)]">
+            <div className="h-[26px]" />
+            {Array.from({ length: textLanes }, (_, lane) => (
+              <TrackLabel key={`text-${lane}`}>
+                <TextTIcon aria-hidden />
+                <span className="truncate">{laneName("Text", lane)}</span>
+              </TrackLabel>
+            ))}
+            {blocks.map((laneBlocks, lane) => (
+              <TrackLabel
+                key={`caption-${lane}`}
+                className={captionsEnabled ? undefined : "opacity-60"}
+              >
+                {lane === 0 ? (
+                  <LabelToggle
+                    aria-label={
+                      captionsEnabled ? "Hide captions" : "Show captions"
+                    }
+                    aria-pressed={!captionsEnabled}
+                    disabled={disabled}
+                    onClick={() => {
+                      onCaptionsEnabledChange(!captionsEnabled)
+                      if (selection?.type === "caption") select(null)
+                    }}
+                  >
+                    {captionsEnabled ? (
+                      <EyeIcon aria-hidden />
+                    ) : (
+                      <EyeSlashIcon aria-hidden />
+                    )}
+                  </LabelToggle>
+                ) : (
+                  <ClosedCaptioningIcon aria-hidden />
+                )}
+                <span className="truncate">{laneName("Captions", lane)}</span>
+                {lane > 0 && laneBlocks.length === 0 && (
+                  <LabelToggle
+                    aria-label={`Remove captions track ${lane + 1}`}
+                    className="ms-auto"
+                    disabled={disabled}
+                    onClick={() => removeCaptionLane(lane)}
+                  >
+                    <XIcon aria-hidden />
+                  </LabelToggle>
+                )}
+              </TrackLabel>
+            ))}
+            {Array.from({ length: effectLanes }, (_, lane) => (
+              <TrackLabel key={`effect-${lane}`}>
+                <SparkleIcon aria-hidden />
+                <span className="truncate">{laneName("Effects", lane)}</span>
+              </TrackLabel>
+            ))}
+            <TrackLabel className="h-[52px]">
+              <FilmStripIcon aria-hidden />
+              Video
+            </TrackLabel>
+            <TrackLabel className="h-10">
+              <LabelToggle
+                aria-label={
+                  audioMix.sourceMuted
+                    ? "Unmute original audio"
+                    : "Mute original audio"
+                }
+                aria-pressed={audioMix.sourceMuted}
+                disabled={disabled}
+                onClick={() =>
+                  onAudioMixChange({
+                    ...audioMix,
+                    sourceMuted: !audioMix.sourceMuted,
+                  })
+                }
+              >
+                {audioMix.sourceMuted ? (
+                  <SpeakerSlashIcon aria-hidden />
+                ) : (
+                  <SpeakerHighIcon aria-hidden />
+                )}
+              </LabelToggle>
+              Audio
+            </TrackLabel>
+            {Array.from({ length: musicLanes }, (_, lane) => (
+              <TrackLabel key={`music-${lane}`}>
+                <MusicNotesIcon aria-hidden />
+                <span className="truncate">{laneName("Music", lane)}</span>
+              </TrackLabel>
+            ))}
+          </div>
+
+          <div
+            ref={scrollRef}
+            data-testid="timeline-scroller"
+            className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden overscroll-x-contain px-4"
+          >
             <div
-              className="sticky left-0 z-20 shrink-0 bg-graphite"
-              style={{ width: HEADER_PX }}
-            />
-            <div
-              ref={rulerRef}
+              ref={axisRef}
               role="presentation"
-              className="relative min-w-0 flex-1 cursor-pointer touch-none select-none"
+              className="relative min-h-full touch-none select-none"
+              style={{
+                width:
+                  pxPerSecond === 0
+                    ? "100%"
+                    : `max(100%, ${(axisMs / 1000) * pxPerSecond}px)`,
+              }}
               onPointerDown={(event) => {
+                if (event.button !== 0) return
                 event.currentTarget.setPointerCapture?.(event.pointerId)
                 seekFrom(event)
+                if (selection) select(null)
               }}
               onPointerMove={(event) => {
                 if (event.currentTarget.hasPointerCapture?.(event.pointerId))
                   seekFrom(event)
               }}
             >
-              {ticks.map((ms) => (
-                <span
-                  key={ms}
-                  aria-hidden
-                  className="absolute inset-y-0 border-l border-hair pl-1 font-mono text-[10px] leading-5 text-muted-foreground tabular-nums"
-                  style={{ left: `${((ms + leadMs) / axisMs) * 100}%` }}
-                >
-                  {formatTick(ms)}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {Array.from({ length: textLanes }, (_, lane) => (
-            <TrackRow
-              key={`text-${lane}`}
-              header={
-                <>
-                  <TextTIcon aria-hidden />
-                  Text {lane + 1}
-                </>
-              }
-            >
-              <ClipSpan {...span}>
-                <TimelineTrack
-                  aria-label={`Text track ${lane + 1}`}
-                  durationMs={durationMs}
-                  lane={String(lane)}
-                  group={`${id}-texts`}
-                  className="h-full"
-                >
-                  {textOverlays.map((overlay, index) => {
-                    if (overlay.lane !== lane) return null
-                    const item = { type: "text", index } as const
-                    return (
-                      <TimelineBlock
-                        key={index}
-                        ref={anchorFor(item)}
-                        aria-label={`Text ${overlay.text} at ${formatTimestamp(overlay.startMs)}`}
-                        startMs={overlay.startMs}
-                        endMs={overlay.endMs}
-                        minMs={MIN_OVERLAY_MS}
-                        className="border-amber bg-amber/20"
-                        selected={isSelected(item)}
-                        onSelect={() => select(item)}
-                        onDelete={() => {
-                          onTextOverlaysChange(
-                            textOverlays.filter((_, i) => i !== index)
-                          )
-                          select(null)
-                        }}
-                        onKeyDown={(event) => focusInspector(item, event)}
-                        onChange={(s, e) =>
-                          moveText(index, { lane, startMs: s, endMs: e })
-                        }
-                        onLaneChange={(to, s, e) =>
-                          moveText(index, {
-                            lane: Number(to),
-                            startMs: s,
-                            endMs: e,
-                          })
-                        }
-                      >
-                        {overlay.text}
-                      </TimelineBlock>
-                    )
-                  })}
-                </TimelineTrack>
-              </ClipSpan>
-            </TrackRow>
-          ))}
-
-          {blocks.map((laneBlocks, lane) => (
-            <TrackRow
-              key={`caption-${lane}`}
-              className={captionsEnabled ? undefined : "opacity-50"}
-              header={
-                lane === 0 ? (
-                  <>
-                    <Button
-                      type="button"
-                      size="icon-xs"
-                      variant="ghost"
-                      aria-label={
-                        captionsEnabled ? "Hide captions" : "Show captions"
-                      }
-                      aria-pressed={!captionsEnabled}
-                      disabled={disabled}
-                      onClick={() => {
-                        onCaptionsEnabledChange(!captionsEnabled)
-                        if (selection?.type === "caption") select(null)
-                      }}
-                    >
-                      {captionsEnabled ? (
-                        <EyeIcon aria-hidden />
-                      ) : (
-                        <EyeSlashIcon aria-hidden />
-                      )}
-                    </Button>
-                    <span className="truncate">Captions</span>
-                    <Popover>
-                      <PopoverTrigger
-                        render={
-                          <Button
-                            type="button"
-                            size="icon-xs"
-                            variant="ghost"
-                            aria-label="Caption timing"
-                            className="ms-auto"
-                          />
-                        }
-                      >
-                        <SlidersHorizontalIcon aria-hidden />
-                      </PopoverTrigger>
-                      <PopoverContent align="start" className="w-72">
-                        <PopoverHeader>
-                          <PopoverTitle>Caption timing</PopoverTitle>
-                          <PopoverDescription>
-                            Moves every spoken caption. Trimming resets edits to
-                            spoken captions.
-                          </PopoverDescription>
-                        </PopoverHeader>
-                        <div
-                          role="group"
-                          aria-label="Shift all captions"
-                          className="flex items-center gap-1"
-                        >
-                          <Button
-                            type="button"
-                            size="icon-sm"
-                            aria-label="Show captions earlier"
-                            disabled={
-                              disabled ||
-                              captions.offsetMs <= -CAPTION_MAX_OFFSET_MS
-                            }
-                            onClick={() => shiftCaptions(-OFFSET_STEP_MS)}
-                          >
-                            <MinusIcon aria-hidden />
-                          </Button>
-                          <output
-                            aria-live="polite"
-                            className="w-14 text-center font-mono text-xs tabular-nums"
-                          >
-                            {formatOffset(captions.offsetMs)}
-                          </output>
-                          <Button
-                            type="button"
-                            size="icon-sm"
-                            aria-label="Show captions later"
-                            disabled={
-                              disabled ||
-                              captions.offsetMs >= CAPTION_MAX_OFFSET_MS
-                            }
-                            onClick={() => shiftCaptions(OFFSET_STEP_MS)}
-                          >
-                            <PlusIcon aria-hidden />
-                          </Button>
-                        </div>
-                        {captionsEdited && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            disabled={disabled}
-                            onClick={() => {
-                              if (selection?.type === "caption") select(null)
-                              onCaptionsChange({
-                                ...captions,
-                                pageEdits: {},
-                                offsetMs: 0,
-                              })
-                            }}
-                          >
-                            <ArrowCounterClockwiseIcon
-                              data-icon="inline-start"
-                              aria-hidden
-                            />
-                            Reset spoken captions
-                          </Button>
-                        )}
-                      </PopoverContent>
-                    </Popover>
-                  </>
-                ) : (
-                  <>
-                    <ClosedCaptioningIcon aria-hidden />
-                    <span className="truncate">Captions {lane + 1}</span>
-                    {laneBlocks.length === 0 && (
-                      <Button
-                        type="button"
-                        size="icon-xs"
-                        variant="ghost"
-                        aria-label={`Remove captions track ${lane + 1}`}
-                        className="ms-auto"
-                        disabled={disabled}
-                        onClick={() => removeCaptionLane(lane)}
-                      >
-                        <XIcon aria-hidden />
-                      </Button>
-                    )}
-                  </>
-                )
-              }
-            >
-              <ClipSpan {...span}>
-                <TimelineTrack
-                  aria-label={
-                    lane === 0 ? "Captions track" : `Captions track ${lane + 1}`
-                  }
-                  durationMs={durationMs}
-                  lane={String(lane)}
-                  group={`${id}-captions`}
-                  className="h-full"
-                >
-                  {laneBlocks.map((block) => {
-                    const item = {
-                      type: "caption",
-                      ref: { lane, index: block.index },
-                    } as const
-                    const edited =
-                      block.index >= 0 &&
-                      Boolean(captions.pageEdits[block.index])
-                    return (
-                      <TimelineBlock
-                        key={block.index}
-                        ref={anchorFor(item)}
-                        aria-label={`Caption ${block.text} at ${formatTimestamp(block.startMs)}`}
-                        startMs={block.startMs}
-                        endMs={block.endMs}
-                        minMs={MIN_CAPTION_MS}
-                        className={
-                          block.index < 0
-                            ? "border-sky bg-sky/20"
-                            : edited
-                              ? "border-lav bg-lav/25"
-                              : "border-chart-2 bg-chart-2/25"
-                        }
-                        selected={isSelected(item)}
-                        onSelect={() => select(item)}
-                        onDelete={() => {
-                          onCaptionsChange(deleteCaption(captions, item.ref))
-                          select(null)
-                        }}
-                        onKeyDown={(event) => focusInspector(item, event)}
-                        onChange={(s, e) =>
-                          placeCaption(item.ref, { lane, startMs: s, endMs: e })
-                        }
-                        onLaneChange={(to, s, e) =>
-                          placeCaption(item.ref, {
-                            lane: Number(to),
-                            startMs: s,
-                            endMs: e,
-                          })
-                        }
-                      >
-                        {block.text}
-                      </TimelineBlock>
-                    )
-                  })}
-                </TimelineTrack>
-              </ClipSpan>
-            </TrackRow>
-          ))}
-
-          {Array.from({ length: effectLanes }, (_, lane) => (
-            <TrackRow
-              key={`effect-${lane}`}
-              header={
-                <>
-                  <SparkleIcon aria-hidden />
-                  Effects {lane + 1}
-                </>
-              }
-            >
-              <ClipSpan {...span}>
-                <TimelineTrack
-                  aria-label={`Effects track ${lane + 1}`}
-                  durationMs={durationMs}
-                  lane={String(lane)}
-                  group={`${id}-effects`}
-                  className="h-full"
-                >
-                  {events.map((effect, index) => {
-                    if (effect.lane !== lane) return null
-                    const item = { type: "effect", index } as const
-                    const text = effectText(effect)
-                    return (
-                      <TimelineBlock
-                        key={index}
-                        ref={anchorFor(item)}
-                        aria-label={`${text} at ${formatTimestamp(effect.startMs - startMs)}`}
-                        startMs={effect.startMs - startMs}
-                        endMs={effect.endMs - startMs}
-                        minMs={MIN_EFFECT_MS}
-                        variant={
-                          effect.kind === "focus" && !hasWebcam
-                            ? "muted"
-                            : "default"
-                        }
-                        className={
-                          effect.kind === "focus" && !hasWebcam
-                            ? undefined
-                            : effectClass(effect)
-                        }
-                        selected={isSelected(item)}
-                        onSelect={() => select(item)}
-                        onDelete={() => {
-                          setEvents(events.filter((_, i) => i !== index))
-                          select(null)
-                        }}
-                        onKeyDown={(event) => focusInspector(item, event)}
-                        onChange={(s, e) =>
-                          moveEffect(index, { lane, startMs: s, endMs: e })
-                        }
-                        onLaneChange={(to, s, e) =>
-                          moveEffect(index, {
-                            lane: Number(to),
-                            startMs: s,
-                            endMs: e,
-                          })
-                        }
-                      >
-                        {text}
-                      </TimelineBlock>
-                    )
-                  })}
-                </TimelineTrack>
-              </ClipSpan>
-            </TrackRow>
-          ))}
-
-          <TrackRow
-            header={
-              <>
-                <span
-                  aria-hidden
-                  className="size-3.5 rounded-sm bg-foreground/40"
-                />
-                Video
-              </>
-            }
-          >
-            <TimelineTrack
-              aria-label="Video track"
-              durationMs={axisMs}
-              className="h-full bg-transparent"
-            >
-              <TimelineBlock
-                ref={anchorFor({ type: "video" })}
-                aria-label={`Clip ${formatTimestamp(shown.startMs)} → ${formatTimestamp(shown.endMs)}`}
-                startMs={shown.startMs - axisStartMs}
-                endMs={shown.endMs - axisStartMs}
-                minMs={CLIP_MIN_EDIT_MS}
-                variant="muted"
-                className="border-foreground/40 bg-foreground/15 text-foreground"
-                selected={isSelected({ type: "video" })}
-                onSelect={() => select({ type: "video" })}
-                onKeyDown={(event) => focusInspector({ type: "video" }, event)}
-                onChange={(s, e) => {
-                  if (e - s > CLIP_MAX_EDIT_MS) return
-                  const next = {
-                    startMs: s + axisStartMs,
-                    endMs: e + axisStartMs,
-                  }
-                  draftRef.current = next
-                  setDraft(next)
-                }}
-                onCommit={commitTrim}
-              >
-                {formatTimestamp(shown.startMs)} →{" "}
-                {formatTimestamp(shown.endMs)}
-              </TimelineBlock>
-            </TimelineTrack>
-          </TrackRow>
-
-          <TrackRow
-            header={
-              <>
-                <Button
-                  type="button"
-                  size="icon-xs"
-                  variant="ghost"
-                  aria-label={
-                    audioMix.sourceMuted
-                      ? "Unmute original audio"
-                      : "Mute original audio"
-                  }
-                  aria-pressed={audioMix.sourceMuted}
-                  disabled={disabled}
-                  onClick={() =>
-                    onAudioMixChange({
-                      ...audioMix,
-                      sourceMuted: !audioMix.sourceMuted,
-                    })
-                  }
-                >
-                  {audioMix.sourceMuted ? (
-                    <SpeakerSlashIcon aria-hidden />
-                  ) : (
-                    <SpeakerHighIcon aria-hidden />
-                  )}
-                </Button>
-                <span className="truncate">Original</span>
-              </>
-            }
-          >
-            <ClipSpan {...span}>
-              <div
-                ref={anchorFor({ type: "source" })}
-                role="button"
-                tabIndex={0}
-                aria-label={`Original audio ${audioMix.sourceMuted ? "muted" : `${audioMix.sourceDb} dB`}`}
-                aria-pressed={isSelected({ type: "source" })}
-                data-selected={isSelected({ type: "source" }) || undefined}
-                className="absolute inset-x-0 inset-y-1 flex items-center overflow-hidden rounded-md border border-chart-3 bg-chart-3/15 px-2 text-[10px] font-medium text-chart-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 data-[selected]:ring-2 data-[selected]:ring-ring"
-                onClick={() => select({ type: "source" })}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault()
-                    select({ type: "source" })
-                  }
-                  focusInspector({ type: "source" }, event)
-                }}
-              >
-                <Waveform
-                  data-testid="source-waveform"
-                  values={loudnessFor(loudness, { startMs, endMs })}
-                  gain={sourceLevel * 0.85}
-                  className="absolute inset-0 size-full text-chart-3/50"
-                />
-              </div>
-            </ClipSpan>
-          </TrackRow>
-
-          {Array.from({ length: musicLanes }, (_, lane) => (
-            <TrackRow
-              key={`music-${lane}`}
-              header={
-                <>
-                  <MusicNotesIcon aria-hidden />
-                  Music {lane + 1}
-                </>
-              }
-            >
-              <ClipSpan {...span}>
-                <TimelineTrack
-                  aria-label={`Music track ${lane + 1}`}
-                  durationMs={durationMs}
-                  lane={String(lane)}
-                  group={`${id}-music`}
-                  className="h-full"
-                >
-                  {audioMix.music.map((clip, index) => {
-                    if (clip.lane !== lane) return null
-                    const item = { type: "music", index } as const
-                    const track = readyTracks.get(clip.trackId)
-                    const name = track?.title ?? "Missing track"
-                    return (
-                      <TimelineBlock
-                        key={index}
-                        ref={anchorFor(item)}
-                        aria-label={`Music ${name} at ${formatTimestamp(clip.startMs)}`}
-                        startMs={clip.startMs}
-                        endMs={clip.endMs}
-                        minMs={MIN_MUSIC_MS}
-                        className="border-mint bg-mint/10 text-foreground"
-                        selected={isSelected(item)}
-                        onSelect={() => select(item)}
-                        onDelete={() => {
-                          setMusic(audioMix.music.filter((_, i) => i !== index))
-                          select(null)
-                        }}
-                        onKeyDown={(event) => focusInspector(item, event)}
-                        onChange={(s, e) =>
-                          moveMusic(index, { lane, startMs: s, endMs: e })
-                        }
-                        onLaneChange={(to, s, e) =>
-                          moveMusic(index, {
-                            lane: Number(to),
-                            startMs: s,
-                            endMs: e,
-                          })
-                        }
-                      >
-                        {track && (
-                          <Waveform
-                            data-testid="music-waveform"
-                            values={peaksFor(track, clip)}
-                            gain={level(clip.db)}
-                            className="absolute inset-0 size-full text-mint/45"
-                          />
-                        )}
-                        <span className="relative">{name}</span>
-                      </TimelineBlock>
-                    )
-                  })}
-                </TimelineTrack>
-              </ClipSpan>
-            </TrackRow>
-          ))}
-
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-y-0 right-0 z-10"
-            style={{ left: HEADER_PX }}
-          >
-            {currentMs >= axisStartMs && currentMs <= axisEndMs && (
-              <div
-                className="absolute inset-y-0 w-px bg-foreground"
-                style={{
-                  left: `${((currentMs - axisStartMs) / axisMs) * 100}%`,
-                }}
+              <ClipSpan
+                {...span}
+                className="pointer-events-none top-[26px] bg-white/[0.03]"
               />
-            )}
+              <div aria-hidden className="relative h-[26px] cursor-pointer">
+                {ticks.map((ms) => (
+                  <span
+                    key={ms}
+                    className="absolute top-[7px] -translate-x-1/2 font-mono text-[10.5px] leading-none text-tertiary tabular-nums"
+                    style={{ left: `${((ms + leadMs) / axisMs) * 100}%` }}
+                  >
+                    {formatTick(ms)}
+                  </span>
+                ))}
+              </div>
+
+              {Array.from({ length: textLanes }, (_, lane) => (
+                <div key={`text-${lane}`} className={LANE}>
+                  <ClipSpan {...span}>
+                    <TimelineTrack
+                      aria-label={`Text track ${lane + 1}`}
+                      durationMs={durationMs}
+                      lane={String(lane)}
+                      group={`${id}-texts`}
+                      className={TRACK}
+                    >
+                      {textOverlays.map((overlay, index) => {
+                        if (overlay.lane !== lane) return null
+                        const item = { type: "text", index } as const
+                        return (
+                          <TimelineBlock
+                            key={index}
+                            ref={anchorFor(item)}
+                            aria-label={`Text ${overlay.text} at ${formatTimestamp(overlay.startMs)}`}
+                            startMs={overlay.startMs}
+                            endMs={overlay.endMs}
+                            minMs={MIN_OVERLAY_MS}
+                            snapMs={snapMs}
+                            selected={isSelected(item)}
+                            onSelect={() => select(item)}
+                            onDelete={() => {
+                              onTextOverlaysChange(
+                                textOverlays.filter((_, i) => i !== index)
+                              )
+                              select(null)
+                            }}
+                            onKeyDown={(event) => focusInspector(item, event)}
+                            onChange={(s, e) =>
+                              moveText(index, { lane, startMs: s, endMs: e })
+                            }
+                            onLaneChange={(to, s, e) =>
+                              moveText(index, {
+                                lane: Number(to),
+                                startMs: s,
+                                endMs: e,
+                              })
+                            }
+                          >
+                            {overlay.text}
+                          </TimelineBlock>
+                        )
+                      })}
+                    </TimelineTrack>
+                  </ClipSpan>
+                </div>
+              ))}
+
+              {blocks.map((laneBlocks, lane) => (
+                <div
+                  key={`caption-${lane}`}
+                  className={cn(LANE, !captionsEnabled && "opacity-50")}
+                >
+                  <ClipSpan {...span}>
+                    <TimelineTrack
+                      aria-label={
+                        lane === 0
+                          ? "Captions track"
+                          : `Captions track ${lane + 1}`
+                      }
+                      durationMs={durationMs}
+                      lane={String(lane)}
+                      group={`${id}-captions`}
+                      className={TRACK}
+                    >
+                      {laneBlocks.map((block) => {
+                        const item = {
+                          type: "caption",
+                          ref: { lane, index: block.index },
+                        } as const
+                        return (
+                          <TimelineBlock
+                            key={block.index}
+                            ref={anchorFor(item)}
+                            aria-label={`Caption ${block.text} at ${formatTimestamp(block.startMs)}`}
+                            startMs={block.startMs}
+                            endMs={block.endMs}
+                            minMs={MIN_CAPTION_MS}
+                            snapMs={snapMs}
+                            variant="tone"
+                            tone={block.index < 0 ? "sky" : "mint"}
+                            className="px-[7px] font-normal text-foreground"
+                            selected={isSelected(item)}
+                            onSelect={() => select(item)}
+                            onDelete={() => {
+                              onCaptionsChange(
+                                deleteCaption(captions, item.ref)
+                              )
+                              select(null)
+                            }}
+                            onKeyDown={(event) => focusInspector(item, event)}
+                            onChange={(s, e) =>
+                              placeCaption(item.ref, {
+                                lane,
+                                startMs: s,
+                                endMs: e,
+                              })
+                            }
+                            onLaneChange={(to, s, e) =>
+                              placeCaption(item.ref, {
+                                lane: Number(to),
+                                startMs: s,
+                                endMs: e,
+                              })
+                            }
+                          >
+                            {block.text}
+                          </TimelineBlock>
+                        )
+                      })}
+                    </TimelineTrack>
+                  </ClipSpan>
+                </div>
+              ))}
+
+              {Array.from({ length: effectLanes }, (_, lane) => (
+                <div key={`effect-${lane}`} className={LANE}>
+                  <ClipSpan {...span}>
+                    <TimelineTrack
+                      aria-label={`Effects track ${lane + 1}`}
+                      durationMs={durationMs}
+                      lane={String(lane)}
+                      group={`${id}-effects`}
+                      className={TRACK}
+                    >
+                      {events.map((effect, index) => {
+                        if (effect.lane !== lane) return null
+                        const item = { type: "effect", index } as const
+                        const text = effectText(effect)
+                        const inert = effect.kind === "focus" && !hasWebcam
+                        return (
+                          <TimelineBlock
+                            key={index}
+                            aria-label={`${text} at ${formatTimestamp(effect.startMs - startMs)}`}
+                            startMs={effect.startMs - startMs}
+                            endMs={effect.endMs - startMs}
+                            minMs={MIN_EFFECT_MS}
+                            snapMs={snapMs}
+                            variant={inert ? "muted" : "tone"}
+                            tone={inert ? undefined : effectTone(effect)}
+                            selected={isSelected(item)}
+                            onSelect={() => select(item)}
+                            onDelete={() => {
+                              setEvents(events.filter((_, i) => i !== index))
+                              select(null)
+                            }}
+                            onChange={(s, e) =>
+                              moveEffect(index, { lane, startMs: s, endMs: e })
+                            }
+                            onLaneChange={(to, s, e) =>
+                              moveEffect(index, {
+                                lane: Number(to),
+                                startMs: s,
+                                endMs: e,
+                              })
+                            }
+                          >
+                            {text}
+                          </TimelineBlock>
+                        )
+                      })}
+                    </TimelineTrack>
+                  </ClipSpan>
+                </div>
+              ))}
+
+              <div className="relative h-[52px]">
+                <div
+                  aria-hidden
+                  data-testid="video-thumbnails"
+                  className="pointer-events-none absolute inset-x-0 inset-y-1 flex gap-0.5 overflow-hidden rounded-lg"
+                >
+                  {tiles.map((tile) => {
+                    const frame = frames.get(tile.atMs)
+                    return (
+                      <span
+                        key={tile.atMs}
+                        className="min-w-0 basis-0 bg-graphite-2 bg-[length:auto_100%] bg-repeat-x"
+                        style={{
+                          flexGrow: tile.lengthMs,
+                          backgroundImage: frame ? `url(${frame})` : undefined,
+                        }}
+                      />
+                    )
+                  })}
+                </div>
+                <Outside
+                  fromMs={0}
+                  toMs={shown.startMs - axisStartMs}
+                  axisMs={axisMs}
+                  className="inset-y-1 rounded-l-lg bg-sheet/78"
+                />
+                <Outside
+                  fromMs={shown.endMs - axisStartMs}
+                  toMs={axisMs}
+                  axisMs={axisMs}
+                  className="inset-y-1 rounded-r-lg bg-sheet/78"
+                />
+                <TimelineTrack
+                  aria-label="Video track"
+                  durationMs={axisMs}
+                  className={TRACK}
+                >
+                  <TimelineBlock
+                    ref={anchorFor({ type: "video" })}
+                    aria-label={`Clip ${formatTimestamp(shown.startMs)} → ${formatTimestamp(shown.endMs)}`}
+                    startMs={shown.startMs - axisStartMs}
+                    endMs={shown.endMs - axisStartMs}
+                    minMs={CLIP_MIN_EDIT_MS}
+                    snapMs={[currentMs - axisStartMs]}
+                    variant="clip"
+                    selected={isSelected({ type: "video" })}
+                    onSelect={() => select({ type: "video" })}
+                    onKeyDown={(event) =>
+                      focusInspector({ type: "video" }, event)
+                    }
+                    onChange={(s, e) => {
+                      if (e - s > CLIP_MAX_EDIT_MS) return
+                      const next = {
+                        startMs: s + axisStartMs,
+                        endMs: e + axisStartMs,
+                      }
+                      draftRef.current = next
+                      setDraft(next)
+                    }}
+                    onCommit={commitTrim}
+                  />
+                </TimelineTrack>
+              </div>
+
+              <div className="relative h-10">
+                {wave && (
+                  <Waveform
+                    data-testid="source-waveform"
+                    values={wave.values}
+                    gain={sourceLevel * 0.85}
+                    className="absolute top-1.5 h-[calc(100%-0.75rem)] text-amber/45"
+                    style={{
+                      left: `${((wave.startMs - axisStartMs) / axisMs) * 100}%`,
+                      width: `${((wave.endMs - wave.startMs) / axisMs) * 100}%`,
+                    }}
+                  />
+                )}
+                <Outside
+                  fromMs={0}
+                  toMs={leadMs}
+                  axisMs={axisMs}
+                  className="inset-y-0 bg-sheet/70"
+                />
+                <Outside
+                  fromMs={leadMs + durationMs}
+                  toMs={axisMs}
+                  axisMs={axisMs}
+                  className="inset-y-0 bg-sheet/70"
+                />
+                <ClipSpan {...span}>
+                  <div
+                    ref={anchorFor({ type: "source" })}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Original audio ${audioMix.sourceMuted ? "muted" : `${audioMix.sourceDb} dB`}`}
+                    aria-pressed={isSelected({ type: "source" })}
+                    data-selected={isSelected({ type: "source" }) || undefined}
+                    className="absolute inset-x-0 inset-y-[5px] cursor-pointer rounded-[7px] outline-none hover:bg-white/[0.04] focus-visible:focus-ring data-[selected]:inset-ring-[1.5px] data-[selected]:inset-ring-lav"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={() => select({ type: "source" })}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault()
+                        select({ type: "source" })
+                      }
+                      focusInspector({ type: "source" }, event)
+                    }}
+                  />
+                </ClipSpan>
+              </div>
+
+              {Array.from({ length: musicLanes }, (_, lane) => (
+                <div key={`music-${lane}`} className={LANE}>
+                  <ClipSpan {...span}>
+                    <TimelineTrack
+                      aria-label={`Music track ${lane + 1}`}
+                      durationMs={durationMs}
+                      lane={String(lane)}
+                      group={`${id}-music`}
+                      className={TRACK}
+                    >
+                      {audioMix.music.map((clip, index) => {
+                        if (clip.lane !== lane) return null
+                        const item = { type: "music", index } as const
+                        const track = readyTracks.get(clip.trackId)
+                        const name = track?.title ?? "Missing track"
+                        return (
+                          <TimelineBlock
+                            key={index}
+                            ref={anchorFor(item)}
+                            aria-label={`Music ${name} at ${formatTimestamp(clip.startMs)}`}
+                            startMs={clip.startMs}
+                            endMs={clip.endMs}
+                            minMs={MIN_MUSIC_MS}
+                            snapMs={snapMs}
+                            variant="tone"
+                            tone="mint"
+                            className="text-foreground"
+                            selected={isSelected(item)}
+                            onSelect={() => select(item)}
+                            onDelete={() => {
+                              setMusic(
+                                audioMix.music.filter((_, i) => i !== index)
+                              )
+                              select(null)
+                            }}
+                            onKeyDown={(event) => focusInspector(item, event)}
+                            onChange={(s, e) =>
+                              moveMusic(index, { lane, startMs: s, endMs: e })
+                            }
+                            onLaneChange={(to, s, e) =>
+                              moveMusic(index, {
+                                lane: Number(to),
+                                startMs: s,
+                                endMs: e,
+                              })
+                            }
+                          >
+                            {track && (
+                              <Waveform
+                                data-testid="music-waveform"
+                                values={peaksFor(track, clip)}
+                                gain={level(clip.db)}
+                                className="absolute inset-0 size-full text-mint/45"
+                              />
+                            )}
+                            <span className="relative">{name}</span>
+                          </TimelineBlock>
+                        )
+                      })}
+                    </TimelineTrack>
+                  </ClipSpan>
+                </div>
+              ))}
+
+              {currentMs >= axisStartMs && currentMs <= axisEndMs && (
+                <div
+                  aria-hidden
+                  data-testid="timeline-playhead"
+                  className="pointer-events-none absolute inset-y-0 z-10 w-0.5 -translate-x-1/2 bg-amber"
+                  style={{
+                    left: `${((currentMs - axisStartMs) / axisMs) * 100}%`,
+                  }}
+                >
+                  <span className="absolute top-0.5 left-1/2 -translate-x-1/2 rounded-md bg-amber px-1.5 py-[3px] font-mono text-[10.5px] leading-none font-semibold whitespace-nowrap text-night tabular-nums">
+                    {formatTick(Math.round(playheadMs))}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -1532,8 +1667,10 @@ export function ClipTimeline({
           <PopoverContent
             ref={popupRef}
             anchor={anchor}
+            side="top"
             initialFocus={false}
             finalFocus={false}
+            data-hotkeys-through=""
             className="w-80"
             onKeyDown={(event) => {
               if (!anchor) return
@@ -1549,19 +1686,6 @@ export function ClipTimeline({
               anchor.focus()
             }}
           >
-            {selection?.type === "effect" && selectedEffect && (
-              <EffectInspector
-                effect={selectedEffect}
-                clipStartMs={startMs}
-                hasWebcam={hasWebcam}
-                onChange={(effect) =>
-                  setEvents(
-                    events.map((e, i) => (i === selection.index ? effect : e))
-                  )
-                }
-                onDelete={deleteSelected}
-              />
-            )}
             {selection?.type === "caption" && selectedCaption && (
               <CaptionInspector
                 key={`${selection.ref.lane}:${selection.ref.index}`}
