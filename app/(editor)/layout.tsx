@@ -1,15 +1,25 @@
+import { cookies } from "next/headers"
+
+import { AppSidebar } from "@/components/app-shell/app-sidebar"
 import { CommandPaletteProvider } from "@/components/app-shell/command-palette"
-import { EditorRail } from "@/components/app-shell/editor-rail"
+import { SIDEBAR_COOKIE } from "@/components/app-shell/sidebar-cookie"
 import { EDITOR_SHORTCUTS } from "@/components/projects/clip-shortcuts"
-import { initials } from "@/features/accounts/schema"
+import { initials, PLANS } from "@/features/accounts/schema"
 import { requireViewer } from "@/features/accounts/session"
+import { countProjects, listRecentProjects } from "@/features/projects/queries"
 
 export default async function EditorLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const { user } = await requireViewer()
+  const { user, workspace } = await requireViewer()
+  const cookieStore = await cookies()
+  const collapsed = cookieStore.get(SIDEBAR_COOKIE)?.value === "false"
+  const [recent, projectCount] = await Promise.all([
+    listRecentProjects(3),
+    countProjects(),
+  ])
 
   return (
     <CommandPaletteProvider>
@@ -19,8 +29,11 @@ export default async function EditorLayout({
       >
         Skip to content
       </a>
-      <div className="flex h-dvh min-h-[880px] overflow-hidden text-sm leading-[1.45]">
-        <EditorRail
+      <div className="flex min-h-svh flex-col md:flex-row">
+        <AppSidebar
+          recent={recent}
+          projectCount={projectCount}
+          defaultCollapsed={collapsed}
           shortcuts={EDITOR_SHORTCUTS}
           account={{
             name: user.name,
@@ -28,11 +41,17 @@ export default async function EditorLayout({
             initials: initials(user.name),
             image: user.image ?? null,
           }}
+          workspace={{
+            name: workspace.name,
+            initials: initials(workspace.name),
+            image: workspace.image,
+            planName: PLANS[workspace.plan].name,
+          }}
         />
         <main
           id="main"
           tabIndex={-1}
-          className="flex min-w-0 flex-1 flex-col outline-none"
+          className="flex h-dvh min-h-[880px] min-w-0 flex-1 flex-col overflow-hidden text-sm leading-[1.45] outline-none"
         >
           {children}
         </main>

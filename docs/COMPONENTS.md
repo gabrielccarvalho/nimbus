@@ -250,7 +250,7 @@ App composites, not primitives; they read app data and routes.
 - `AppBreadcrumbs` / `BreadcrumbLabel`: crumbs from the path; project tabs are not crumbs, a clip is. Pages register dynamic labels with `BreadcrumbLabel`.
 - `Page`, `PageHeader`, `PageTitle`, `PageLede`: the 1240 px page column and its heading.
 - `useHotkey(key, handler, { meta })`: single-key shortcuts that ignore fields and open dialogs; `meta` for ⌘/Ctrl chords. It skips events another handler already prevented.
-- `EditorRail`: the 56 px icon rail the clip editor uses instead of the sidebar (logo, Projects, Analytics, Channels, Keyboard shortcuts, account menu), every item a tooltipped link or button with an `aria-label`. `AccountMenu` takes `iconOnly` for it, and `ShortcutsDialog` takes the list to show, so the rail puts the editor's shortcuts first.
+- `AppSidebar` takes `shortcuts`, a page's own keys to list before the app's in the shortcuts dialog; the clip editor's layout passes `EDITOR_SHORTCUTS`.
 - `WorkspaceButton`, `UsageCard`, `AccountMenu`, `ShortcutsDialog` (`sidebar-account.tsx`): the sidebar's workspace menu, render-minute `DotMeter`, and account menu (Account, Plan & usage, Settings `,`, Keyboard shortcuts `?`, Sign out).
 
 `components/auth/` holds the sign-in screens: `AuthForm` (sign in and create account, social buttons only for configured providers), `AuthHeading` (the only gradient text), the two-step, forgot and reset forms, and the decorative `AuthGlimpse`. `components/settings/section.tsx` has `SettingsSection`, `SettingsSectionHeader` and `SettingRow`, the graphite cards and hairline rows the settings pages are built from; `SettingsNav` is the settings sub-nav.

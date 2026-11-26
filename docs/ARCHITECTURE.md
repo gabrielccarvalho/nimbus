@@ -102,7 +102,7 @@ Each step handler is responsible for: reading its inputs, doing the work, writin
 ```
 app/                 routes only: pages, layouts, route handlers, loading/error UI
   (app)/             app shell with sidebar
-  (editor)/          full-screen clip editor with the icon rail
+  (editor)/          full-height clip editor: the sidebar without the header
   dev/components/    component gallery (404 in production)
   api/               uploads, media, SSE
 components/

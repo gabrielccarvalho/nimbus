@@ -445,7 +445,7 @@ The project layout step and the "Layout & captions" page are gone. Every clip ke
 
 Spec: Claude Design handoff (`~/Downloads/nimbus-clip-editor-v2/design/`). A UI rewrite over the same data, autosave, render and publish calls.
 
-- [x] Full-screen `(editor)` route group with the 56 px icon rail; clip tiles and the source strip open the editor directly, and the player dialog is removed
+- [x] Full-height `(editor)` route group next to the usual sidebar (expanded or collapsed as the person left it; the design's fixed 56 px rail was dropped on request); clip tiles and the source strip open the editor directly, and the player dialog is removed
 - [x] Top bar: back, project · clip n of m · in → out, title with the save state, previous/next, Reject | Approve, render status, Render / Re-render with the export menu (last render, watch, download, publish, render quality)
 - [x] Stage: source pane with the restyled webcam and gameplay boxes and Reset crop, 9:16 output pane with Shorts safe zones, transport (back/forward 1 s, play, loop, mute)
 - [x] Inspector tabs Details, Captions (style summary, caption list following the playhead), Layout, Effects (a card per effect; picking one on the timeline opens its card); a drawer under 1180 px

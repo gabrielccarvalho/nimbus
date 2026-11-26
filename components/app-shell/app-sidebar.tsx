@@ -26,7 +26,9 @@ import { cn } from "@/lib/utils"
 import { Logo, LogoMark } from "./logo"
 import {
   AccountMenu,
+  SHORTCUTS,
   WorkspaceButton,
+  type Shortcut,
   type SidebarAccount,
   type SidebarWorkspace,
 } from "./sidebar-account"
@@ -93,12 +95,14 @@ export function AppSidebar({
   account,
   workspace,
   defaultCollapsed = false,
+  shortcuts,
 }: {
   recent: RecentProject[]
   projectCount: number
   account: SidebarAccount
   workspace: SidebarWorkspace
   defaultCollapsed?: boolean
+  shortcuts?: readonly Shortcut[]
 }) {
   const pathname = usePathname()
   const router = useRouter()
@@ -237,7 +241,11 @@ export function AppSidebar({
         )}
 
         <div className="min-h-6 flex-1" />
-        <AccountMenu account={account} collapsed={collapsed} />
+        <AccountMenu
+          account={account}
+          collapsed={collapsed}
+          shortcuts={shortcuts && [...shortcuts, ...SHORTCUTS]}
+        />
       </div>
     </aside>
   )

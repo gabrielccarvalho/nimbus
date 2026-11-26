@@ -155,6 +155,27 @@ describe("AppSidebar", () => {
     expect(screen.getByRole("button", { name: /g@example.com/ })).toBeVisible()
   })
 
+  it("lists a page's own shortcuts before the app's", async () => {
+    render(
+      <TooltipProvider>
+        <AppSidebar
+          {...shell}
+          shortcuts={[{ keys: ["S"], label: "Split at the playhead" }]}
+        />
+      </TooltipProvider>
+    )
+    await userEvent.keyboard("?")
+    const dialog = await screen.findByRole("dialog", {
+      name: "Keyboard shortcuts",
+    })
+    expect(
+      within(dialog)
+        .getAllByRole("term")
+        .map((term) => term.textContent)
+        .slice(0, 2)
+    ).toEqual(["Split at the playhead", "Search recordings and clips"])
+  })
+
   it("opens a new project with N", async () => {
     render(
       <TooltipProvider>

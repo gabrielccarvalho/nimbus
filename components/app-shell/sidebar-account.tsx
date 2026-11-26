@@ -166,12 +166,10 @@ export function ShortcutsDialog({
 export function AccountMenu({
   account,
   collapsed,
-  iconOnly = false,
   shortcuts: shortcutList,
 }: {
   account: SidebarAccount
   collapsed: boolean
-  iconOnly?: boolean
   shortcuts?: readonly Shortcut[]
 }) {
   const router = useRouter()
@@ -192,20 +190,18 @@ export function AccountMenu({
         <DropdownMenuTrigger
           className={cn(
             "mt-2 flex w-full items-center gap-2.5 rounded-[14px] p-2 text-start transition-colors hover:bg-glass aria-expanded:bg-glass",
-            collapsed && "md:justify-center md:p-1",
-            iconOnly && "mt-1.5 w-auto justify-center rounded-full p-[3px]"
+            collapsed && "md:justify-center md:p-1"
           )}
         >
           <EntityAvatar
             image={account.image}
             initials={account.initials}
-            className={iconOnly ? "size-[30px] text-xs" : "size-8 text-[13px]"}
+            className="size-8 text-[13px]"
           />
           <span
             className={cn(
               "grid min-w-0 flex-1 gap-px",
-              collapsed && "md:sr-only",
-              iconOnly && "sr-only"
+              collapsed && "md:sr-only"
             )}
           >
             <span className="truncate text-sm font-semibold">
@@ -218,8 +214,7 @@ export function AccountMenu({
           <CaretUpDownIcon
             className={cn(
               "size-4 shrink-0 text-tertiary",
-              collapsed && "md:hidden",
-              iconOnly && "hidden"
+              collapsed && "md:hidden"
             )}
             aria-hidden
           />
