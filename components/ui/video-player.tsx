@@ -237,6 +237,7 @@ function VideoPlayerVideo({
       ref={videoRef}
       data-slot="video-player-video"
       playsInline
+      crossOrigin="anonymous"
       preload="metadata"
       className={cn("block w-full bg-black object-contain", className)}
       onClick={toggle}

@@ -1,7 +1,10 @@
 import { NextRequest } from "next/server"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { GET as mediaGET } from "@/app/api/media/[...path]/route"
+import {
+  GET as mediaGET,
+  HEAD as mediaHEAD,
+} from "@/app/api/media/[...path]/route"
 import { projectRepository } from "@/features/projects/repository"
 import { defaultProjectSettings } from "@/features/projects/schema"
 import { getStorage } from "@/lib/storage"
@@ -98,6 +101,61 @@ describe("GET /api/media/[...path]", () => {
       ctx(["projects", "p1", "nope.mp4"])
     )
     expect(response.status).toBe(404)
+  })
+
+  describe("with signed read URLs", () => {
+    const SIGNED = "https://bucket.test/k?sig"
+    let readUrl: ReturnType<typeof vi.spyOn>
+
+    beforeEach(() => {
+      readUrl = vi.spyOn(getStorage(), "readUrl").mockResolvedValue(SIGNED)
+    })
+
+    it("media route redirects to the signed URL after the access check", async () => {
+      const response = await mediaGET(
+        new NextRequest("http://localhost/api/media/projects/p1/file.mp4"),
+        ctx(["projects", "p1", "file.mp4"])
+      )
+      expect(response.status).toBe(302)
+      expect(response.headers.get("location")).toBe(SIGNED)
+      expect(response.headers.get("cache-control")).toBe("private, max-age=0")
+      expect(readUrl).toHaveBeenCalledWith("projects/p1/file.mp4", {
+        download: undefined,
+      })
+    })
+
+    it("redirects HEAD requests the same way", async () => {
+      const response = await mediaHEAD(
+        new NextRequest("http://localhost/api/media/projects/p1/file.mp4", {
+          method: "HEAD",
+        }),
+        ctx(["projects", "p1", "file.mp4"])
+      )
+      expect(response.status).toBe(302)
+      expect(response.headers.get("location")).toBe(SIGNED)
+    })
+
+    it("media route returns 404 for another workspace without signing", async () => {
+      testViewer.workspaceId = "someone-else"
+      const response = await mediaGET(
+        new NextRequest("http://localhost/api/media/projects/p1/file.mp4"),
+        ctx(["projects", "p1", "file.mp4"])
+      )
+      expect(response.status).toBe(404)
+      expect(readUrl).not.toHaveBeenCalled()
+    })
+
+    it("download sets the content disposition on the signed URL", async () => {
+      await mediaGET(
+        new NextRequest(
+          "http://localhost/api/media/projects/p1/file.mp4?download=My%20Clip.mp4"
+        ),
+        ctx(["projects", "p1", "file.mp4"])
+      )
+      expect(readUrl).toHaveBeenCalledWith("projects/p1/file.mp4", {
+        download: "My Clip.mp4",
+      })
+    })
   })
 
   it.each([

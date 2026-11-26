@@ -203,6 +203,7 @@ export function MusicPreview({
       key={src}
       ref={audioRef}
       src={src ?? undefined}
+      crossOrigin="anonymous"
       preload="auto"
       hidden
     />
