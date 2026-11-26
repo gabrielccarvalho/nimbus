@@ -2,15 +2,17 @@ import "@/lib/load-env"
 
 import os from "node:os"
 
+import { pollingFresh, startHealthServer } from "@/features/jobs/health"
 import {
   deleteHeartbeat,
   HEARTBEAT_INTERVAL_MS,
+  pruneHeartbeats,
   recordHeartbeat,
   serializeCapabilities,
   type SerializedCapabilities,
 } from "@/features/jobs/heartbeat"
 import { jobQueue } from "@/features/jobs/queue"
-import { createWorker } from "@/features/jobs/worker-loop"
+import { createWorker, MAX_RUNTIME_MS } from "@/features/jobs/worker-loop"
 import {
   jobStallTimeoutMs,
   onJobCancelled,
@@ -32,10 +34,23 @@ import { closeDb, getDb } from "@/lib/db"
 import { getEnv } from "@/lib/env"
 import { getFfmpegCapabilities } from "@/lib/media/capabilities"
 import { logger } from "@/lib/logger"
+import { removeStaleScratch } from "@/lib/storage/scratch"
 
 const env = getEnv()
 const db = getDb()
 const owner = `${os.hostname()}:${process.pid}`
+const SCRATCH_MARGIN_MS = 60 * 60_000
+
+await removeStaleScratch(MAX_RUNTIME_MS + SCRATCH_MARGIN_MS)
+  .then((removed) => {
+    if (removed) logger.info({ removed }, "removed stale scratch directories")
+  })
+  .catch((error: unknown) =>
+    logger.error({ err: error }, "couldn't clean the scratch directory")
+  )
+void pruneHeartbeats(db).catch((error: unknown) =>
+  logger.error({ err: error }, "couldn't prune old worker heartbeats")
+)
 
 const worker = createWorker({
   db,
@@ -109,6 +124,14 @@ const heartbeatReady = detectCapabilities()
   .then(beat)
 
 worker.start()
+const health = env.WORKER_HEALTH_PORT
+  ? startHealthServer(env.WORKER_HEALTH_PORT, () =>
+      pollingFresh(worker.lastPolledAt, env.WORKER_POLL_MS)
+    )
+  : undefined
+health?.on("error", (error) =>
+  logger.error({ err: error }, "couldn't serve the health check")
+)
 void sweep()
 void scheduleStats()
 const sweepTimer = setInterval(() => void sweep(), SWEEP_INTERVAL_MS)
@@ -132,11 +155,10 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     clearInterval(sweepTimer)
     clearInterval(statsTimer)
     clearInterval(heartbeatTimer)
+    health?.close()
     logger.info({ signal }, "worker stopping")
-    // tsx watch SIGKILLs after 5 s, which would orphan running ffmpeg children;
-    // abort early enough for runProcess to terminate them first.
     void worker
-      .stop({ graceMs: 1_000 })
+      .stop({ graceMs: env.WORKER_SHUTDOWN_GRACE_MS })
       .then(() => deleteHeartbeat(db, owner))
       .catch((error: unknown) =>
         logger.error({ err: error }, "couldn't remove the worker heartbeat")

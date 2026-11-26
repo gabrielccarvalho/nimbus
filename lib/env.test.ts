@@ -76,4 +76,25 @@ describe("parseEnv hosted settings", () => {
     })
     expect(() => parseEnv({ DATABASE_POOL_MAX: "0" })).toThrow()
   })
+
+  it("defaults the worker shutdown deadline and health port", () => {
+    expect(parseEnv({})).toMatchObject({
+      WORKER_SHUTDOWN_GRACE_MS: 25_000,
+      WORKER_HEALTH_PORT: 8787,
+    })
+    expect(
+      parseEnv({ WORKER_SHUTDOWN_GRACE_MS: "570000", WORKER_HEALTH_PORT: "0" })
+    ).toMatchObject({
+      WORKER_SHUTDOWN_GRACE_MS: 570_000,
+      WORKER_HEALTH_PORT: 0,
+    })
+  })
+
+  it("reads an optional public S3 endpoint", () => {
+    expect(parseEnv(s3).S3_PUBLIC_ENDPOINT).toBeUndefined()
+    expect(
+      parseEnv({ ...s3, S3_PUBLIC_ENDPOINT: "http://localhost:9010" })
+        .S3_PUBLIC_ENDPOINT
+    ).toBe("http://localhost:9010")
+  })
 })

@@ -22,6 +22,7 @@ const envFields = z.object({
     .default(64 * 1024 ** 3),
   STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),
   S3_ENDPOINT: z.url().optional(),
+  S3_PUBLIC_ENDPOINT: z.url().optional(),
   S3_REGION: z.string().min(1).default("auto"),
   S3_BUCKET: z.string().min(1).optional(),
   S3_ACCESS_KEY_ID: z.string().min(1).optional(),
@@ -67,6 +68,12 @@ const envFields = z.object({
   WORKER_CONCURRENCY: z.coerce.number().int().positive().default(2),
   WORKER_RENDER_CONCURRENCY: z.coerce.number().int().positive().default(1),
   WORKER_POLL_MS: z.coerce.number().int().positive().default(1000),
+  WORKER_SHUTDOWN_GRACE_MS: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(25_000),
+  WORKER_HEALTH_PORT: z.coerce.number().int().min(0).max(65_535).default(8787),
   LOG_LEVEL: z
     .enum(["trace", "debug", "info", "warn", "error", "fatal", "silent"])
     .optional(),

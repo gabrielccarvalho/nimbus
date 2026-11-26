@@ -27,17 +27,19 @@ const endpoint = process.env.S3_TEST_ENDPOINT ?? "http://localhost:9010"
 const bucket = process.env.S3_TEST_BUCKET ?? "nimbus"
 const run = `nimbus-test/${randomUUID()}`
 
-const client = new S3Client({
-  endpoint,
-  region: "auto",
-  forcePathStyle: true,
-  credentials: {
-    accessKeyId: process.env.S3_TEST_ACCESS_KEY_ID ?? "nimbus",
-    secretAccessKey: process.env.S3_TEST_SECRET_ACCESS_KEY ?? "nimbus-secret",
-  },
-  requestChecksumCalculation: "WHEN_REQUIRED",
-  responseChecksumValidation: "WHEN_REQUIRED",
-})
+const clientFor = (url: string) =>
+  new S3Client({
+    endpoint: url,
+    region: "auto",
+    forcePathStyle: true,
+    credentials: {
+      accessKeyId: process.env.S3_TEST_ACCESS_KEY_ID ?? "nimbus",
+      secretAccessKey: process.env.S3_TEST_SECRET_ACCESS_KEY ?? "nimbus-secret",
+    },
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
+  })
+const client = clientFor(endpoint)
 
 const reachable = await fetch(`${endpoint}/minio/health/live`, {
   signal: AbortSignal.timeout(2000),
@@ -62,6 +64,7 @@ function make(
     cacheBytes?: number
     cacheDir?: string
     bucket?: string
+    signer?: S3Client
   } = {}
 ) {
   return new S3Storage({
@@ -172,6 +175,19 @@ describe.skipIf(!reachable)("S3Storage", () => {
     expect(response.headers.get("content-disposition")).toBe(
       "attachment; filename*=UTF-8''My%20clip.mp4"
     )
+  })
+
+  it("a signed URL uses the public host", async () => {
+    const storage = make({
+      signer: clientFor("http://media.example.test:9010"),
+    })
+    const read = await storage.readUrl("g/public.txt")
+    const upload = await storage.uploadTarget("up/public.bin", {
+      bytes: 1,
+      contentType: "application/octet-stream",
+    })
+    expect(new URL(read!).host).toBe("media.example.test:9010")
+    expect(new URL(upload.url!).host).toBe("media.example.test:9010")
   })
 
   it("localCopy reuses a cached download across scratch dirs", async () => {

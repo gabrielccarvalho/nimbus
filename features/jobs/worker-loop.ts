@@ -46,6 +46,7 @@ export type WorkerOptions = {
 }
 
 const PROGRESS_WRITE_MS = 500
+export const MAX_RUNTIME_MS = 24 * 60 * 60_000
 
 function formatLimit(ms: number) {
   if (ms >= 60 * 60_000 && ms % (60 * 60_000) === 0) {
@@ -75,12 +76,13 @@ export function createWorker(options: WorkerOptions) {
     pollMs,
     leaseMs = 30_000,
     stallTimeoutMs = () => 30 * 60_000,
-    maxRuntimeMs = 24 * 60 * 60_000,
+    maxRuntimeMs = MAX_RUNTIME_MS,
   } = options
   const queue = jobQueue(db)
   const controllers = new Map<string, AbortController>()
   let running = false
   let wake: (() => void) | undefined
+  let lastPolledAt = Date.now()
 
   const handled = (Object.keys(handlers) as JobType[]).filter(
     (type) => handlers[type]
@@ -200,7 +202,11 @@ export function createWorker(options: WorkerOptions) {
       log.info("job succeeded")
       await options.onSucceeded?.(job)
     } catch (caught) {
-      const error = abortReason ?? toAppError(caught)
+      const error =
+        abortReason ??
+        (shuttingDown(controller.signal)
+          ? new AppError("TIMEOUT", "Worker stopped while running this job")
+          : toAppError(caught))
       if (error.code === "CANCELLED") {
         await queue.cancel(job.id)
         log.info("job cancelled")
@@ -265,6 +271,7 @@ export function createWorker(options: WorkerOptions) {
 
   async function loop() {
     while (running) {
+      lastPolledAt = Date.now()
       if (Date.now() - lastRecovery >= leaseMs) {
         await recover().catch((error: unknown) =>
           logger.error({ err: error }, "couldn't recover expired leases")
@@ -329,6 +336,10 @@ export function createWorker(options: WorkerOptions) {
       controllers
         .get(jobId)
         ?.abort(new AppError("CANCELLED", "Job was cancelled"))
+    },
+
+    get lastPolledAt() {
+      return lastPolledAt
     },
 
     get activeCount() {

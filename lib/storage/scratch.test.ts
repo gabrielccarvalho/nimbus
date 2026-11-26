@@ -1,5 +1,5 @@
 import { existsSync, mkdtempSync, rmSync } from "node:fs"
-import { writeFile } from "node:fs/promises"
+import { mkdir, readdir, utimes, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { resetEnvCache } from "@/lib/env"
 
-import { withScratch } from "./scratch"
+import { removeStaleScratch, withScratch } from "./scratch"
 
 let root: string
 
@@ -47,5 +47,27 @@ describe("withScratch", () => {
     ).rejects.toThrow("ffmpeg died")
 
     expect(existsSync(seen)).toBe(false)
+  })
+})
+
+describe("removeStaleScratch", () => {
+  it("removes entries older than the cutoff but keeps the cache", async () => {
+    const now = Date.now()
+    const old = new Date(now - 2 * 60 * 60_000)
+    for (const name of ["crashed-1", "cache", "fresh-1"]) {
+      await mkdir(path.join(root, name), { recursive: true })
+    }
+    await writeFile(path.join(root, "ytdlp-cookies.txt"), "cookies")
+    await utimes(path.join(root, "crashed-1"), old, old)
+    await utimes(path.join(root, "cache"), old, old)
+    await utimes(path.join(root, "ytdlp-cookies.txt"), old, old)
+
+    await removeStaleScratch(60 * 60_000, now)
+
+    expect((await readdir(root)).sort()).toEqual(["cache", "fresh-1"])
+  })
+
+  it("does nothing when the scratch directory doesn't exist", async () => {
+    await expect(removeStaleScratch(1, Date.now())).resolves.toBe(0)
   })
 })

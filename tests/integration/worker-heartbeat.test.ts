@@ -3,11 +3,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import {
   deleteHeartbeat,
   latestWorker,
+  pruneHeartbeats,
   recordHeartbeat,
   serializeCapabilities,
   type SerializedCapabilities,
 } from "@/features/jobs/heartbeat"
 import { getRenderingCapabilities } from "@/features/settings/queries"
+import { workerHeartbeats } from "@/lib/db/schema"
 
 import { createTestEnv, type TestEnv } from "../utils/test-env"
 
@@ -64,6 +66,16 @@ describe("worker heartbeat", () => {
     expect((await latestWorker(env.db, NOW))?.seenAt).toEqual(ago(1_000))
     await deleteHeartbeat(env.db, "w")
     expect(await latestWorker(env.db, NOW)).toBeNull()
+  })
+
+  it("prunes heartbeats older than a day", async () => {
+    await recordHeartbeat(env.db, "dead", capabilities(), ago(25 * 60 * 60_000))
+    await recordHeartbeat(env.db, "idle", capabilities(), ago(23 * 60 * 60_000))
+    await pruneHeartbeats(env.db, NOW)
+    const rows = await env.db
+      .select({ owner: workerHeartbeats.owner })
+      .from(workerHeartbeats)
+    expect(rows).toEqual([{ owner: "idle" }])
   })
 
   it("latestWorker is null when every heartbeat is stale", async () => {

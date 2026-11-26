@@ -376,4 +376,62 @@ describe("worker loop", () => {
     await w.stop()
     expect((await queue.get(job.id))?.status).toBe("succeeded")
   })
+
+  it("SIGTERM lets a running job finish within the deadline", async () => {
+    const queue = jobQueue(env.db)
+    const job = await queue.enqueue({
+      type: "probe",
+      projectId: (await project()).id,
+    })
+    let aborted = false
+    const w = worker({
+      probe: ({ signal }) =>
+        new Promise<void>((resolve) => {
+          signal.addEventListener("abort", () => (aborted = true))
+          setTimeout(resolve, 200)
+        }),
+    })
+    w.start()
+    await vi.waitFor(() => expect(w.activeCount).toBe(1))
+    await w.stop({ graceMs: 2_000 })
+    expect(aborted).toBe(false)
+    expect((await queue.get(job.id))?.status).toBe("succeeded")
+  })
+
+  it("aborts jobs still running at the deadline so they retry", async () => {
+    const queue = jobQueue(env.db)
+    const job = await queue.enqueue({
+      type: "probe",
+      projectId: (await project()).id,
+      maxAttempts: 3,
+    })
+    const onCancelled = vi.fn()
+    const w = worker(
+      {
+        probe: ({ signal }) =>
+          new Promise<void>((_, reject) => {
+            signal.addEventListener("abort", () => reject(signal.reason))
+          }),
+      },
+      { onCancelled }
+    )
+    w.start()
+    await vi.waitFor(() => expect(w.activeCount).toBe(1))
+    await w.stop({ graceMs: 100 })
+    expect(await queue.get(job.id)).toMatchObject({
+      status: "queued",
+      attempts: 1,
+      error: "Worker stopped while running this job",
+    })
+    expect(onCancelled).not.toHaveBeenCalled()
+  })
+
+  it("records when it last polled for jobs", async () => {
+    const w = worker({ probe: async () => {} })
+    const before = w.lastPolledAt
+    await new Promise((r) => setTimeout(r, 5))
+    w.start()
+    await vi.waitFor(() => expect(w.lastPolledAt).toBeGreaterThan(before))
+    await w.stop()
+  })
 })

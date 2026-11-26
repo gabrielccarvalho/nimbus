@@ -85,6 +85,7 @@ function notFound(key: string) {
 
 export class S3Storage implements StorageAdapter {
   private readonly client: S3Client
+  private readonly signer: S3Client
   private readonly bucket: string
   private readonly prefix: string
   private readonly maxCopyBytes: number
@@ -94,12 +95,14 @@ export class S3Storage implements StorageAdapter {
 
   constructor(options: {
     client: S3Client
+    signer?: S3Client
     bucket: string
     cache: { dir: string; maxBytes: number }
     prefix?: string
     maxCopyBytes?: number
   }) {
     this.client = options.client
+    this.signer = options.signer ?? options.client
     this.bucket = options.bucket
     this.cache = options.cache
     this.prefix = options.prefix ? `${options.prefix}/` : ""
@@ -485,7 +488,7 @@ export class S3Storage implements StorageAdapter {
 
   async readUrl(key: string, options: { download?: string } = {}) {
     return getSignedUrl(
-      this.client,
+      this.signer,
       new GetObjectCommand({
         Bucket: this.bucket,
         Key: this.objectKey(key),
@@ -502,7 +505,7 @@ export class S3Storage implements StorageAdapter {
     options: { bytes: number; contentType: string }
   ): Promise<UploadTarget> {
     const url = await getSignedUrl(
-      this.client,
+      this.signer,
       new PutObjectCommand({
         Bucket: this.bucket,
         Key: this.objectKey(key),

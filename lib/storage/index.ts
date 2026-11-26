@@ -22,9 +22,9 @@ export function getStorage(): StorageAdapter {
   return instance.storage
 }
 
-export function createS3Client(env: Env) {
+export function createS3Client(env: Env, endpoint = env.S3_ENDPOINT) {
   return new S3Client({
-    endpoint: env.S3_ENDPOINT,
+    endpoint,
     region: env.S3_REGION,
     forcePathStyle: env.S3_FORCE_PATH_STYLE,
     credentials: {
@@ -45,6 +45,9 @@ function createStorage(env: Env): StorageAdapter {
   }
   return new S3Storage({
     client: createS3Client(env),
+    signer: env.S3_PUBLIC_ENDPOINT
+      ? createS3Client(env, env.S3_PUBLIC_ENDPOINT)
+      : undefined,
     bucket: env.S3_BUCKET!,
     cache: {
       dir: path.join(env.SCRATCH_DIR, "cache"),

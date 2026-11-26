@@ -1,6 +1,6 @@
 import "server-only"
 
-import { desc, eq } from "drizzle-orm"
+import { desc, eq, lt } from "drizzle-orm"
 
 import type { Db } from "@/lib/db"
 import { workerHeartbeats } from "@/lib/db/schema"
@@ -8,6 +8,7 @@ import type { FfmpegCapabilities } from "@/lib/media/capabilities"
 
 export const HEARTBEAT_INTERVAL_MS = 60_000
 const HEARTBEAT_STALE_MS = 3 * 60_000
+const HEARTBEAT_PRUNE_MS = 24 * 60 * 60_000
 
 export type SerializedCapabilities = Omit<
   FfmpegCapabilities,
@@ -41,6 +42,14 @@ export async function recordHeartbeat(
 
 export async function deleteHeartbeat(db: Db, owner: string) {
   await db.delete(workerHeartbeats).where(eq(workerHeartbeats.owner, owner))
+}
+
+export async function pruneHeartbeats(db: Db, now = new Date()) {
+  await db
+    .delete(workerHeartbeats)
+    .where(
+      lt(workerHeartbeats.seenAt, new Date(now.getTime() - HEARTBEAT_PRUNE_MS))
+    )
 }
 
 export async function latestWorker(db: Db, now = new Date()) {
