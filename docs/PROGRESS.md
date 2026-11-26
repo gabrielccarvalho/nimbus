@@ -459,6 +459,22 @@ Spec: Claude Design handoff (`~/Downloads/nimbus-clip-editor-v2/design/`). A UI 
 
 Left out because nothing stores them (ADR-0074): hashtags, effect ease, "Use project layout", webcam height, publishing to another channel.
 
+### Phase 41: One page frame (ADR-0077)
+
+Spec: `docs/UX_PATTERNS.md` and the "Nimbus pages redesign" canvas. The clip editor is the reference; each page below moves to its frame.
+
+- [x] `docs/UX_PATTERNS.md`, Invariants in `docs/BUSINESS_LOGIC.md`, page rule and non-negotiables in `CLAUDE.md`
+- [x] `pnpm check:guidelines` with a unit test, in pre-commit and CI
+- [ ] Shared page header (context line, title, state, `Segmented` tabs, one primary action) in `components/app-shell/`, replacing the breadcrumb bar and `PageTitle`
+- [ ] Clips review: select into a 340 px inspector, `StatusPill` on every tile, "Horizontal edit" as a button, timeline in a dock
+- [ ] Transcript: "Make a clip" in the header, timeline dock with a legend that matches its colours
+- [ ] Project overview: pipeline and project settings as inspector tabs, real thumbnails in Top picks
+- [ ] Projects home: one-row import once projects exist, a "Failed" filter, "Done" instead of "Exported"
+- [ ] Analytics and Insights: period in the header, sparkline and comparison on stat cards, Reject | Approve on suggestions, playbook in the inspector
+- [ ] Channels: merge with Settings › Connected channels
+- [ ] Settings: one header Save with "Unsaved changes", the 9:16 preview beside caption and layout forms
+- [ ] Migrate the `track-picker` footer rule off `border-t` and drop its exception
+
 ### Not verified
 
 - The v2 editor next to the rendered design: it was built from the handoff's markup and CSS and checked on Playwright screenshots at 1440 × 900 with the e2e colour-bar fixture, not side by side with the design open in a browser or on a real recording.

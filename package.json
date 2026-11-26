@@ -15,6 +15,7 @@
     "docker:worker": "docker build --platform linux/amd64 -f Dockerfile.worker -t nimbus-worker .",
     "worker:dev": "WORKER_SHUTDOWN_GRACE_MS=1000 tsx watch --conditions=react-server worker/index.ts",
     "lint": "eslint",
+    "check:guidelines": "tsx scripts/guidelines.ts",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx}\"",
     "typecheck": "next typegen && tsc --noEmit",

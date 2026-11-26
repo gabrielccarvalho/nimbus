@@ -1,5 +1,7 @@
 # Design system
 
+Where things go and how pages behave is in [UX patterns](UX_PATTERNS.md); this file is what they look like.
+
 Heycamps on top of the shadcn preset (`base-nova`), ADR-0057. One dark theme: the page is always `night`, surfaces step up through `graphite`, `graphite-2` and `graphite-3`, and colour is reserved for status. The reference is the Claude Design handoff (`nimbus-redesign-handoff/design/`: `heycamps/tokens.json`, `heycamps/bundle.css`, `nimbus.css`, one `.dc.html` per screen). Don't invent tokens. If one is genuinely needed, add it to `:root` in `globals.css`, map it in `@theme inline` and document it here.
 
 ## Colour

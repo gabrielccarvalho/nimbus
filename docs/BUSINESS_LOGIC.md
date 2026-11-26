@@ -2,24 +2,48 @@
 
 The product creates **drafts for human review**. Nothing is auto-published. Rendering finals always requires explicit clip approval. YouTube demonetizes templated, mass-produced content, so the review step and per-clip titles/hooks keep output varied.
 
+## Invariants
+
+These hold everywhere. A change that breaks one is a product decision, not a refactor: it needs an ADR first. Each names where it is enforced, so a change to the rule and a change to the code land together.
+
+1. **Nothing leaves without a person.** No render, publish or playbook change happens without an explicit approval in the UI. Only `approved` clips render; only `rendered` clips publish; Claude's suggestions stay `pending` until decided. (`features/clips/service.ts`, `features/publishing/service.ts`, `features/insights/service.ts`)
+2. **A stale render can't be published.** Any edit to a rendered clip returns it to `approved`; publishing refuses with "Render the latest edit first". (`features/clips/service.ts`, `features/publishing/service.ts`)
+3. **Every clip is its own.** Each clip has its own title, hook, layout, captions and effects, and the UI shows them before export. No template is stamped across clips.
+4. **The project moves only through the state machine.** Every status change goes through `assertTransition`; an illegal one throws `INVALID_TRANSITION`. (`features/pipeline/state-machine.ts`)
+5. **Long work runs in the worker.** A request validates, writes and enqueues a job; it never runs ffmpeg, whisper, a download or an upload to YouTube. (`features/jobs/queue.ts`, checked by `pnpm check:guidelines`)
+6. **A workspace sees only its own data.** Every read and write of a project, clip, track, channel or publication is scoped to the viewer's workspace; a foreign id answers `NOT_FOUND`, never `FORBIDDEN`. (`features/accounts/session.ts`: `assertProjectAccess`, `forProject`; `tests/e2e/isolation.spec.ts`)
+7. **Input is parsed at the edge.** Every Server Action and route parses its input with zod and returns `Result<T, AppError>`; nothing throws to the client. (`lib/server-action.ts`)
+8. **Secrets stay on the server.** The Claude key is stored encrypted and only its last four characters are shown again; OAuth tokens never reach the client. (`features/accounts/crypto.ts`)
+9. **The preview is the render.** Captions, layout, text and effects are computed by the same pure functions for the browser preview and for the ffmpeg filtergraph. A look that exists only in one of them is a bug. (`features/captions`, `features/layout`, `features/effects`)
+10. **Only your own videos.** Imports and music are the user's responsibility and the UI says so where they are added; Nimbus doesn't check rights.
+
 ## Entities
 
-| Entity       | Key fields                                                                                                                                                                                          |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Project      | id, name, sourceAssetId, status, failedStep, error, settings snapshot (captionStyle, clipMinMs, clipMaxMs, selectorMode, targetClipCount), createdAt, updatedAt                                     |
-| Asset        | id, projectId, kind (`source` · `audio` · `thumbnail` · `proxy` · `render` · `subtitle`), storageKey, mime, bytes, durationMs, width, height, fps, codec                                            |
-| Transcript   | projectId, language, words[] `{text, startMs, endMs, confidence}`, segments[] `{text, startMs, endMs, firstWord, lastWord}`                                                                         |
-| Signals      | projectId, silences[] `{startMs, endMs}`, loudness[] (LUFS, 1 sample / 250 ms), speechDensity[] (words per second per 10 s window)                                                                  |
-| Clip         | id, projectId, startMs, endMs, title, hook, reason, score 0–1, status (`candidate` · `approved` · `rejected` · `rendering` · `rendered` · `failed`), layout, captionOverrides, renderAssetId, error |
-| CaptionStyle | presetId + overrides (font, fontSize, primary/highlight color token, outline, position, maxWordsPerPage, maxCharsPerLine, uppercase)                                                                |
-| Job          | id, projectId, type, payload, status (`queued` · `running` · `succeeded` · `failed` · `cancelled`), attempts, maxAttempts, runAfter, leasedUntil, leaseOwner, progress 0–100, error, timestamps     |
-| Setting      | key, value (JSON, zod-validated per key)                                                                                                                                                            |
+| Entity       | Key fields                                                                                                                                                                                                                                            |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Project      | id, workspaceId, name, sourceAssetId, sourceUrl, sourceLanguage, awaitingManualSelection, status, failedStep, error, settings snapshot (captionStyle, clipMinMs, clipMaxMs, selectorMode, targetClipCount), createdAt, updatedAt                      |
+| Asset        | id, projectId, kind (`source` · `audio` · `thumbnail` · `proxy` · `render` · `subtitle`), storageKey, mime, bytes, durationMs, width, height, fps, codec                                                                                              |
+| Transcript   | projectId, language, words[] `{text, startMs, endMs, confidence}`, segments[] `{text, startMs, endMs, firstWord, lastWord}`                                                                                                                           |
+| Signals      | projectId, silences[] `{startMs, endMs}`, loudness[] (LUFS, 1 sample / 250 ms), speechDensity[] (words per second per 10 s window)                                                                                                                    |
+| Clip         | id, projectId, startMs, endMs, title, hook, reason, score 0–1, status (`candidate` · `approved` · `rejected` · `rendering` · `rendered` · `failed`), layout, captionOverrides, effects, audioMix, textOverlays, playbookRuleIds, renderAssetId, error |
+| CaptionStyle | presetId + overrides (font, fontSize, primary/highlight color token, outline, position, maxWordsPerPage, maxCharsPerLine, uppercase)                                                                                                                  |
+| Job          | id, projectId, type, payload, status (`queued` · `running` · `succeeded` · `failed` · `cancelled`), attempts, maxAttempts, runAfter, leasedUntil, leaseOwner, progress 0–100, error, timestamps                                                       |
+| Setting      | key, value (JSON, zod-validated per key)                                                                                                                                                                                                              |
+| Workspace    | id, name, plan (`free` · `creator` · `studio` · `admin`), image, anthropicKey (encrypted) + hint; members `{userId, role: owner · member}`. Owns projects, music tracks and one YouTube channel                                                       |
+| MusicTrack   | id, workspaceId, title, storageKey, mime, bytes, status, durationMs, peaks[], error                                                                                                                                                                   |
+| Channel      | id, workspaceId (unique: one channel per workspace), channelId, title, status (`ok` · `needs_reconnect`), uploadsSyncedAt, analyticsSyncedAt                                                                                                          |
+| Publication  | id, clipId, channelId, origin (`nimbus` · `imported`), renderAssetId, metadata, status (`queued` · `waiting_quota` · `uploading` · `processing` · `published` · `failed` · `removed`), videoId, url                                                   |
+| PlaybookRule | id, channelId, target (`selection` · `review`), text, status (`active` · `retired`), supersedesId, sourceSuggestionId                                                                                                                                 |
+| Suggestion   | id, channelId, target, kind, ruleId, text, rationale, evidenceFor[], evidenceAgainst[], confidence 0–1, status (`pending` · `approved` · `rejected`)                                                                                                  |
+| UsageEvent   | id, workspaceId, projectId, kind (`render_seconds` · `claude_run`), amount                                                                                                                                                                            |
 
 ## Project state machine
 
 ```mermaid
 stateDiagram-v2
-  [*] --> uploaded
+  [*] --> downloading: link import
+  [*] --> uploaded: file upload
+  downloading --> uploaded
   uploaded --> probing
   probing --> transcribing
   transcribing --> analyzing
@@ -30,28 +54,40 @@ stateDiagram-v2
   rendering --> ready_for_review: re-review after renders
   done --> rendering: re-render
   done --> ready_for_review: edit clips
+  downloading --> failed
   probing --> failed
   transcribing --> failed
   analyzing --> failed
   selecting --> failed
   rendering --> failed
+  downloading --> cancelled
   probing --> cancelled
   transcribing --> cancelled
   analyzing --> cancelled
   selecting --> cancelled
   rendering --> cancelled
-  failed --> probing: retry
-  failed --> transcribing: retry
-  failed --> analyzing: retry
-  failed --> selecting: retry
-  failed --> rendering: retry
+  failed --> transcribing: re-run
+  failed --> selecting: re-run
+  cancelled --> transcribing: re-run
+  cancelled --> selecting: re-run
+  ready_for_review --> transcribing: settings changed
+  ready_for_review --> selecting: settings changed
+  done --> transcribing: settings changed
+  done --> selecting: settings changed
 ```
 
+The source of truth is `features/pipeline/state-machine.ts` (`forward`, `RUNNING_STATUSES`, `RERUN_FROM`); its unit test covers every pair. Change the code, the test and this diagram together.
+
 - Illegal transitions throw `AppError("INVALID_TRANSITION")`.
-- "Running" states: `probing`, `transcribing`, `analyzing`, `selecting`, `rendering`. Only these can go to `failed` or `cancelled`.
-- On failure the project stores `failedStep`. `retry` is legal only from `failed` and returns to exactly `failedStep`.
-- `cancelled` is terminal except for deletion.
+- "Running" states: `downloading`, `probing`, `transcribing`, `analyzing`, `selecting`, `rendering`. Only these can go to `failed` or `cancelled`.
+- On failure the project stores `failedStep`. Retry is legal only from `failed` and returns to `failedStep`.
+- Re-run: from `ready_for_review`, `done`, `failed` or `cancelled` a project can go back to `transcribing` or `selecting`, which is how a settings change ("Transcribe again?", "Find highlights again?") takes effect.
 - `done → rendering` covers re-rendering an edited clip. `done → ready_for_review` covers approving more clips.
+- A manual selection pauses in `selecting` with `awaitingManualSelection` set; the UI shows it as "Needs you".
+
+### Clip status
+
+`candidate` (shown as "To review") → `approved` or `rejected` by the person, and back. `approved` → `rendering` → `rendered` or `failed` by the worker. Editing a `rendered` clip returns it to `approved`. A `rejected` clip never renders.
 
 ## Rules and defaults
 
@@ -248,6 +284,21 @@ Tracks belong to the workspace's music library: MP3, M4A/AAC, WAV, OGG or FLAC u
 - Top Shorts this period come from YouTube's 50 most viewed videos of the period, keeping the channel's published Shorts, five at most.
 - Periods are 7, 28 or 90 days. Each total is compared with the previous period of the same length; the change is empty when the previous period has no data.
 - A private or deleted imported Short is `removed`. A Nimbus upload that turns private stays `published`.
+
+### Accounts, workspaces and plans
+
+- Signing up creates a personal workspace with the user as `owner`. Everything a person makes belongs to the workspace, not the user.
+- Plans: Free (60 render minutes, 25 GB, 10 Claude runs a month, 2 publishes a day), Creator (300, 100 GB, 40, 5), Studio (1200, 500 GB, 200, 15), Admin (no limits; given to `@nimbus.dev` addresses at sign-up).
+- Usage (`render_seconds`, `claude_run`) is recorded per workspace and summed per calendar month in UTC. Render minutes, storage and Claude runs are shown against the plan but not enforced yet; publishes per day are enforced.
+- Claude features use the workspace's own API key and are unavailable without one. The heuristic and manual selectors need no key.
+
+### Publishing
+
+- Preconditions, checked in one transaction with the clip row locked: the clip is `rendered` and has a render; the workspace has a channel and its status is `ok` (otherwise "Reconnect YouTube"); the clip has no publication already in flight ("This clip is already publishing"); the workspace is under its plan's publishes for the Pacific day.
+- Publishing creates a `queued` publication with a snapshot of the title, description, tags and privacy, and enqueues `publish_clip`. The upload runs in the worker.
+- Days are counted in Pacific time because YouTube's quota resets at Pacific midnight. A publish that hits the quota waits as `waiting_quota` and resumes after the reset; it isn't failed.
+- Only a `failed` publication can be retried.
+- Privacy starts from the workspace default (Settings › Project defaults › Publishing) and can be changed per publish. A scheduled video stays private until it goes live.
 
 ### Originality guardrail
 
