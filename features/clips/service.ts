@@ -219,6 +219,18 @@ export async function updateClip(
         "That music track is no longer in your library"
       )
     }
+    if (track.status === "processing") {
+      throw new AppError(
+        "VALIDATION",
+        "That music track is still processing. Pick it once it's ready."
+      )
+    }
+    if (track.status === "failed" || track.durationMs === null) {
+      throw new AppError(
+        "VALIDATION",
+        "That music track couldn't be read. Pick another track."
+      )
+    }
     if (mix.trackStartMs >= track.durationMs) {
       throw new AppError("VALIDATION", "Start the music before the track ends")
     }

@@ -24,6 +24,7 @@ export const selectStep: JobHandler = async ({
   job,
   db,
   signal,
+  scratch,
   reportProgress,
   reportDetail,
   logger,
@@ -53,7 +54,9 @@ export const selectStep: JobHandler = async ({
   const playbook = await loadPlaybook(db, project.workspaceId)
   const proxy = await assetRepository(db).findByKind(project.id, "proxy")
   const frames = proxy
-    ? proxyFrameSource(getStorage().resolve(proxy.storageKey))
+    ? proxyFrameSource(
+        await getStorage().localCopy(proxy.storageKey, scratch, signal)
+      )
     : undefined
   const reviewing = settings.selectorMode === "anthropic" && Boolean(frames)
   const firstPassShare = reviewing ? 50 : 80

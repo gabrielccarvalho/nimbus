@@ -369,6 +369,7 @@ describe("sync_uploads", () => {
       db: env.db,
       logger,
       signal: controller.signal,
+      scratch: env.scratchDir,
       reportProgress: () => {},
       reportDetail: () => {},
     })

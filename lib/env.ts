@@ -1,5 +1,6 @@
 import "server-only"
 
+import os from "node:os"
 import path from "node:path"
 import { z } from "zod"
 
@@ -8,11 +9,27 @@ const booleanish = z
   .default("false")
   .transform((v) => v === "true" || v === "1")
 
-const envSchema = z.object({
+const envFields = z.object({
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
   DATA_DIR: z.string().min(1).default("./data"),
+  SCRATCH_DIR: z.string().min(1).default(path.join(os.tmpdir(), "nimbus")),
+  SCRATCH_CACHE_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(64 * 1024 ** 3),
+  STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),
+  S3_ENDPOINT: z.url().optional(),
+  S3_PUBLIC_ENDPOINT: z.url().optional(),
+  S3_REGION: z.string().min(1).default("auto"),
+  S3_BUCKET: z.string().min(1).optional(),
+  S3_ACCESS_KEY_ID: z.string().min(1).optional(),
+  S3_SECRET_ACCESS_KEY: z.string().min(1).optional(),
+  S3_FORCE_PATH_STYLE: booleanish,
+  NIMBUS_ROLE: z.enum(["web", "worker", "all"]).default("all"),
+  DATABASE_POOL_MAX: z.coerce.number().int().positive().default(10),
   DATABASE_URL: z
     .string()
     .min(1)
@@ -33,6 +50,7 @@ const envSchema = z.object({
   YTDLP_PATH: z.string().min(1).default("yt-dlp"),
   YTDLP_COOKIES_FROM_BROWSER: z.string().min(1).optional(),
   YTDLP_COOKIES: z.string().min(1).optional(),
+  YTDLP_COOKIES_TEXT: z.string().min(1).optional(),
   DOWNLOADER: z.enum(["yt-dlp", "fake"]).default("yt-dlp"),
   FAKE_DOWNLOAD_FILE: z.string().min(1).optional(),
   HIGHLIGHT_SELECTOR: z
@@ -50,12 +68,20 @@ const envSchema = z.object({
   WORKER_CONCURRENCY: z.coerce.number().int().positive().default(2),
   WORKER_RENDER_CONCURRENCY: z.coerce.number().int().positive().default(1),
   WORKER_POLL_MS: z.coerce.number().int().positive().default(1000),
+  WORKER_SHUTDOWN_GRACE_MS: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(25_000),
+  WORKER_HEALTH_PORT: z.coerce.number().int().min(0).max(65_535).default(8787),
   LOG_LEVEL: z
     .enum(["trace", "debug", "info", "warn", "error", "fatal", "silent"])
     .optional(),
   E2E: booleanish,
   BETTER_AUTH_SECRET: z.string().min(32).optional(),
   BETTER_AUTH_URL: z.url().default("http://localhost:3000"),
+  VERCEL_URL: z.string().min(1).optional(),
+  VERCEL_BRANCH_URL: z.string().min(1).optional(),
   NIMBUS_SECRET_KEY: z.string().min(32).optional(),
   GOOGLE_CLIENT_ID: z.string().min(1).optional(),
   GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
@@ -64,6 +90,33 @@ const envSchema = z.object({
   YOUTUBE_DAILY_UPLOADS: z.coerce.number().int().positive().default(100),
   TWITCH_CLIENT_ID: z.string().min(1).optional(),
   TWITCH_CLIENT_SECRET: z.string().min(1).optional(),
+})
+
+const S3_REQUIRED = [
+  "S3_BUCKET",
+  "S3_ACCESS_KEY_ID",
+  "S3_SECRET_ACCESS_KEY",
+] as const
+
+const envSchema = envFields.superRefine((env, ctx) => {
+  if (env.STORAGE_DRIVER !== "s3") return
+  for (const name of S3_REQUIRED) {
+    if (!env[name]) {
+      ctx.addIssue({
+        code: "custom",
+        path: [name],
+        message: `${name} is required when STORAGE_DRIVER=s3`,
+      })
+    }
+  }
+  if (!env.S3_ENDPOINT && env.S3_REGION === "auto") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["S3_REGION"],
+      message:
+        "S3_REGION is required when STORAGE_DRIVER=s3 has no S3_ENDPOINT (AWS needs a real region, e.g. us-east-1)",
+    })
+  }
 })
 
 type RawEnv = z.infer<typeof envSchema>
@@ -93,6 +146,7 @@ export function parseEnv(source: Record<string, string | undefined>): Env {
   return {
     ...raw,
     DATA_DIR: path.resolve(/* turbopackIgnore: true */ raw.DATA_DIR),
+    SCRATCH_DIR: path.resolve(/* turbopackIgnore: true */ raw.SCRATCH_DIR),
     BETTER_AUTH_SECRET: secret(
       "BETTER_AUTH_SECRET",
       raw.BETTER_AUTH_SECRET,

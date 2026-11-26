@@ -26,6 +26,7 @@ const testEnv = {
   HIGHLIGHT_SELECTOR: "heuristic",
   E2E: "1",
   WORKER_POLL_MS: "250",
+  WORKER_HEALTH_PORT: "0",
   LOG_LEVEL: "warn",
   ANTHROPIC_API_KEY: "",
   BETTER_AUTH_URL: `http://127.0.0.1:${PORT}`,

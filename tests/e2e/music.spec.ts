@@ -24,7 +24,7 @@ test("puts a track and a hook title under a clip and renders it", async ({
   await expect(
     library.getByRole("textbox", { name: "Track title" })
   ).toHaveValue("tone-880hz")
-  await expect(library.getByText(/^0:30 · /)).toBeVisible()
+  await expect(library.getByText(/^0:30 · /)).toBeVisible({ timeout: 30_000 })
   await expectNoSeriousA11yViolations(page)
 
   const rejected = page.waitForEvent("filechooser")

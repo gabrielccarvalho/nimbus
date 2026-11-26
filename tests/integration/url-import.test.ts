@@ -1,6 +1,16 @@
+import {
+  existsSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs"
+import path from "node:path"
+
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import { getDownloader } from "@/features/downloads"
 import { importFromUrl } from "@/features/downloads/service"
 import { jobQueue } from "@/features/jobs/queue"
 import { getProjectSnapshot } from "@/features/pipeline/snapshot"
@@ -10,6 +20,7 @@ import {
 } from "@/features/projects/repository"
 import { retryProject } from "@/features/projects/service"
 import { projects as projectsTable } from "@/lib/db/schema"
+import { resetEnvCache } from "@/lib/env"
 import { getStorage } from "@/lib/storage"
 
 import { fixtures } from "../../scripts/make-fixtures"
@@ -151,5 +162,52 @@ describe("YouTube replay heatmap", () => {
     const project = await projectRepository(env.db).getOrThrow(projectId)
     expect(project.audienceHeatmap).toBeNull()
     expect(project.status).toBe("awaiting_layout")
+  })
+})
+
+describe("yt-dlp cookies text", () => {
+  const cookiesFile = () =>
+    (getDownloader() as unknown as { options: { cookiesFile?: string } })
+      .options.cookiesFile
+
+  function setEnv(values: Record<string, string>) {
+    Object.assign(process.env, { DOWNLOADER: "yt-dlp", ...values })
+    resetEnvCache()
+  }
+
+  it("cookies text is written once and used as the cookies file", () => {
+    setEnv({ YTDLP_COOKIES_TEXT: "# Netscape HTTP Cookie File\n" })
+    const file = cookiesFile()
+    expect(file).toBe(path.join(env.scratchDir, "ytdlp-cookies.txt"))
+    expect(readFileSync(file!, "utf8")).toBe("# Netscape HTTP Cookie File\n")
+    expect(statSync(file!).mode & 0o777).toBe(0o600)
+
+    writeFileSync(file!, "marker")
+    expect(cookiesFile()).toBe(file)
+    expect(readFileSync(file!, "utf8")).toBe("marker")
+  })
+
+  it("rewrites the cookies file when it has been deleted", () => {
+    setEnv({ YTDLP_COOKIES_TEXT: "cookies" })
+    const file = cookiesFile()!
+    rmSync(file)
+    expect(cookiesFile()).toBe(file)
+    expect(readFileSync(file, "utf8")).toBe("cookies")
+  })
+
+  it("browser cookies win over cookies text", () => {
+    setEnv({
+      YTDLP_COOKIES_TEXT: "cookies",
+      YTDLP_COOKIES_FROM_BROWSER: "firefox",
+    })
+    expect(cookiesFile()).toBeUndefined()
+    expect(existsSync(path.join(env.scratchDir, "ytdlp-cookies.txt"))).toBe(
+      false
+    )
+  })
+
+  it("a cookies path wins over cookies text", () => {
+    setEnv({ YTDLP_COOKIES_TEXT: "cookies", YTDLP_COOKIES: "/tmp/c.txt" })
+    expect(cookiesFile()).toBe("/tmp/c.txt")
   })
 })

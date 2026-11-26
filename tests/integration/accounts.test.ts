@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs"
 
 import { eq, sql } from "drizzle-orm"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { decryptSecret, encryptSecret } from "@/features/accounts/crypto"
 import { accountRepository } from "@/features/accounts/repository"
@@ -254,5 +254,33 @@ describe("account helpers", () => {
       start: new Date("2026-11-01T00:00:00Z"),
       end: new Date("2026-12-01T00:00:00Z"),
     })
+  })
+})
+
+describe("trusted origins", () => {
+  async function trusted() {
+    vi.resetModules()
+    const { getAuth } = await import("@/features/accounts/auth")
+    return (await getAuth().$context).trustedOrigins
+  }
+
+  it("VERCEL_URL is a trusted origin", async () => {
+    process.env.VERCEL_URL = "nimbus-git-feat-team.vercel.app"
+    const { resetEnvCache } = await import("@/lib/env")
+    resetEnvCache()
+    expect(await trusted()).toContain("https://nimbus-git-feat-team.vercel.app")
+  })
+
+  it("VERCEL_BRANCH_URL is a trusted origin", async () => {
+    process.env.VERCEL_URL = "nimbus-abc123-team.vercel.app"
+    process.env.VERCEL_BRANCH_URL = "nimbus-git-feat-team.vercel.app"
+    const { resetEnvCache } = await import("@/lib/env")
+    resetEnvCache()
+    expect(await trusted()).toEqual(
+      expect.arrayContaining([
+        "https://nimbus-abc123-team.vercel.app",
+        "https://nimbus-git-feat-team.vercel.app",
+      ])
+    )
   })
 })

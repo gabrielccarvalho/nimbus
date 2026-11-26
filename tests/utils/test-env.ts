@@ -12,6 +12,7 @@ import { resetEnvCache } from "@/lib/env"
 
 export type TestEnv = {
   dataDir: string
+  scratchDir: string
   db: Db
   cleanup: () => void
 }
@@ -36,9 +37,11 @@ export async function createTestEnv(
   overrides: Record<string, string> = {}
 ): Promise<TestEnv> {
   const dataDir = mkdtempSync(path.join(os.tmpdir(), "nimbus-test-"))
+  const scratchDir = mkdtempSync(path.join(os.tmpdir(), "nimbus-scratch-"))
   const previous = { ...process.env }
   Object.assign(process.env, {
     DATA_DIR: dataDir,
+    SCRATCH_DIR: scratchDir,
     TRANSCRIBER: "fake",
     HIGHLIGHT_SELECTOR: "heuristic",
     ...overrides,
@@ -49,12 +52,14 @@ export async function createTestEnv(
   setDb(db)
   return {
     dataDir,
+    scratchDir,
     db,
     cleanup() {
       setDb(undefined)
       process.env = previous
       resetEnvCache()
       rmSync(dataDir, { recursive: true, force: true })
+      rmSync(scratchDir, { recursive: true, force: true })
     },
   }
 }

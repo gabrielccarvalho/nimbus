@@ -84,6 +84,7 @@ import {
 
 const WINDOW_PADDING_MS = 10_000
 const AUTOSAVE_MS = 600
+const MUSIC_POLL_MS = 3000
 const QUALITY_LABELS = { draft: "Draft", standard: "Standard", high: "High" }
 
 type ClipEditorProps = {
@@ -229,7 +230,15 @@ export function ClipEditor({
       }),
     [clipWords, durationMs, style.maxWordsPerPage, style.maxCharsPerLine]
   )
-  const track = musicTracks.find((t) => t.id === audioMix?.trackId) ?? null
+  const selectedTrack = musicTracks.find((t) => t.id === audioMix?.trackId)
+  const track = selectedTrack?.status === "ready" ? selectedTrack : null
+  const musicProcessing = musicTracks.some((t) => t.status === "processing")
+
+  React.useEffect(() => {
+    if (!musicProcessing) return
+    const timer = setInterval(() => router.refresh(), MUSIC_POLL_MS)
+    return () => clearInterval(timer)
+  }, [musicProcessing, router])
   const audioPlan = React.useMemo(
     () => planAudio(audioMix, track, durationMs, clipWords),
     [audioMix, track, durationMs, clipWords]

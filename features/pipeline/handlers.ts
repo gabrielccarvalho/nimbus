@@ -6,6 +6,7 @@ import { AppError, toUserMessage } from "@/lib/errors"
 import { clipRepository } from "../clips/repository"
 import { jobQueue, type Job } from "../jobs/queue"
 import type { JobHandlers } from "../jobs/worker-loop"
+import { failMusicProbe, probeMusicStep } from "../music/probe-step"
 import { projectRepository } from "../projects/repository"
 import { publishingRepository } from "../publishing/repository"
 import { ACTIVE_PUBLICATION_STATUSES } from "../publishing/schema"
@@ -41,6 +42,7 @@ export const pipelineHandlers: JobHandlers = {
   sync_uploads: syncUploadsStep,
   sync_channel: syncChannelStep,
   sync_stats_batch: syncStatsBatchStep,
+  probe_music: probeMusicStep,
 }
 
 const MINUTE = 60_000
@@ -65,6 +67,7 @@ export function jobStallTimeoutMs(job: Job): number {
       return 10 * MINUTE
     case "sync_stats":
     case "sync_channel":
+    case "probe_music":
       return 5 * MINUTE
   }
 }
@@ -95,6 +98,10 @@ async function failPublication(db: Db, job: Job, message: string) {
 export async function onJobFinalFailure(db: Db, job: Job, error: AppError) {
   if (job.type === "publish_clip") {
     await failPublication(db, job, toUserMessage(error))
+    return
+  }
+  if (job.type === "probe_music") {
+    await failMusicProbe(db, job, error)
     return
   }
   if (!job.projectId) return

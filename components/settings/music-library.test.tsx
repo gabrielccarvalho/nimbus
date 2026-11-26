@@ -24,14 +24,32 @@ vi.mock("@/features/music/actions", () => ({
   deleteMusicTrackAction: remove,
 }))
 
-const track = (over: Partial<MusicTrackSummary> = {}): MusicTrackSummary => ({
+const track = (
+  over: Partial<Pick<MusicTrackSummary, "id" | "title" | "usedBy">> = {}
+): MusicTrackSummary => ({
   id: "t1",
   title: "Summer loop",
+  status: "ready",
   durationMs: 130_000,
   peaks: [],
+  error: null,
   url: "/api/music/t1",
   usedBy: 0,
   ...over,
+})
+
+const unready = (
+  status: "processing" | "failed",
+  error: string | null = null
+): MusicTrackSummary => ({
+  id: "t2",
+  title: "Fresh upload",
+  status,
+  durationMs: null,
+  peaks: null,
+  error,
+  url: "/api/music/t2",
+  usedBy: 0,
 })
 
 beforeEach(() => {
@@ -77,6 +95,42 @@ describe("MusicLibrary", () => {
     expect(screen.getByText(/^2:10 · Not used$/)).toBeVisible()
     expect(screen.getByText(/Under 1 clip$/)).toBeVisible()
     expect(screen.getByText(/Under 3 clips$/)).toBeVisible()
+  })
+
+  it("shows a processing track with a spinner and refreshes until it's done", () => {
+    vi.useFakeTimers()
+    try {
+      const { rerender } = render(
+        <MusicLibrary tracks={[track(), unready("processing")]} />
+      )
+      expect(screen.getByText("Processing…")).toBeVisible()
+      expect(
+        screen.getByRole("status", { name: "Processing Fresh upload" })
+      ).toBeVisible()
+      vi.advanceTimersByTime(3000)
+      expect(refresh).toHaveBeenCalledTimes(1)
+
+      rerender(<MusicLibrary tracks={[track(), track({ id: "t2" })]} />)
+      vi.advanceTimersByTime(9000)
+      expect(refresh).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("shows why a track failed and lets it be deleted", async () => {
+    const user = userEvent.setup()
+    render(
+      <MusicLibrary tracks={[unready("failed", "This file has no audio")]} />
+    )
+    expect(screen.getByText("This file has no audio")).toBeVisible()
+    await user.click(
+      screen.getByRole("button", { name: "Delete Fresh upload" })
+    )
+    await user.click(
+      await screen.findByRole("button", { name: "Delete track" })
+    )
+    await waitFor(() => expect(remove).toHaveBeenCalledWith("t2"))
   })
 
   it("renames on blur only when the title changed", async () => {

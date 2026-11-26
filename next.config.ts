@@ -1,6 +1,7 @@
 import type { NextConfig } from "next"
 
 const nextConfig: NextConfig = {
+  ...(process.env.NIMBUS_STANDALONE === "1" && { output: "standalone" }),
   typedRoutes: true,
   htmlLimitedBots: /.*/,
   serverExternalPackages: ["pg", "pino", "pino-pretty"],

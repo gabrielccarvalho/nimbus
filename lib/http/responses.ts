@@ -58,6 +58,14 @@ export async function fileResponse(
   key: string,
   options: { download?: string } = {}
 ): Promise<Response> {
+  const signed = await storage.readUrl(key, { download: options.download })
+  if (signed) {
+    return new Response(null, {
+      status: 302,
+      headers: { Location: signed, "Cache-Control": "private, max-age=0" },
+    })
+  }
+
   const info = await storage.stat(key)
   if (!info) return new Response("Not found", { status: 404 })
 

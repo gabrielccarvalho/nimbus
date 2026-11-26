@@ -1,6 +1,10 @@
+import { readdir, writeFile } from "node:fs/promises"
+import path from "node:path"
+
 import { sql } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { workerHealth } from "@/features/jobs/health"
 import { backoffMs, jobQueue } from "@/features/jobs/queue"
 import { createWorker, type JobHandlers } from "@/features/jobs/worker-loop"
 import { projectRepository } from "@/features/projects/repository"
@@ -199,6 +203,35 @@ describe("worker loop", () => {
     expect(onFinalFailure).toHaveBeenCalledOnce()
   })
 
+  it("gives each attempt its own scratch directory and removes it", async () => {
+    const queue = jobQueue(env.db)
+    const job = await queue.enqueue({
+      type: "probe",
+      projectId: (await project()).id,
+      maxAttempts: 2,
+    })
+    const dirs: string[] = []
+    const w = worker({
+      probe: async ({ scratch }) => {
+        dirs.push(scratch)
+        await writeFile(path.join(scratch, "graph.txt"), "graph")
+        if (dirs.length === 1) throw new AppError("EXTERNAL", "ffmpeg crashed")
+      },
+    })
+    await w.drain()
+    await env.db.execute(
+      sql`update jobs set run_after = now() - interval '1 hour' where id = ${job.id}`
+    )
+    await w.drain()
+
+    expect(dirs).toEqual([
+      path.join(env.scratchDir, `${job.id}-1`),
+      path.join(env.scratchDir, `${job.id}-2`),
+    ])
+    expect(await readdir(env.scratchDir)).toEqual([])
+    expect((await queue.get(job.id))?.status).toBe("succeeded")
+  })
+
   it("aborts a running job when it is cancelled elsewhere", async () => {
     const queue = jobQueue(env.db)
     const job = await queue.enqueue({
@@ -343,5 +376,145 @@ describe("worker loop", () => {
     await vi.waitFor(() => expect(w.activeCount).toBe(1))
     await w.stop()
     expect((await queue.get(job.id))?.status).toBe("succeeded")
+  })
+
+  it("SIGTERM lets a running job finish within the deadline", async () => {
+    const queue = jobQueue(env.db)
+    const job = await queue.enqueue({
+      type: "probe",
+      projectId: (await project()).id,
+    })
+    let aborted = false
+    const w = worker({
+      probe: ({ signal }) =>
+        new Promise<void>((resolve) => {
+          signal.addEventListener("abort", () => (aborted = true))
+          setTimeout(resolve, 200)
+        }),
+    })
+    w.start()
+    await vi.waitFor(() => expect(w.activeCount).toBe(1))
+    await w.stop({ graceMs: 2_000 })
+    expect(aborted).toBe(false)
+    expect((await queue.get(job.id))?.status).toBe("succeeded")
+  })
+
+  it("a job interrupted by shutdown is re-queued without using an attempt", async () => {
+    const queue = jobQueue(env.db)
+    const job = await queue.enqueue({
+      type: "probe",
+      projectId: (await project()).id,
+      maxAttempts: 3,
+    })
+    const onCancelled = vi.fn()
+    const onFinalFailure = vi.fn()
+    const w = worker(
+      {
+        probe: ({ signal }) =>
+          new Promise<void>((_, reject) => {
+            signal.addEventListener("abort", () => reject(signal.reason))
+          }),
+      },
+      { onCancelled, onFinalFailure }
+    )
+    w.start()
+    await vi.waitFor(() => expect(w.activeCount).toBe(1))
+    await w.stop({ graceMs: 100 })
+    const released = await queue.get(job.id)
+    expect(released).toMatchObject({
+      status: "queued",
+      attempts: 0,
+      leaseOwner: null,
+      leasedUntil: null,
+      error: null,
+    })
+    expect(released!.runAfter.getTime()).toBeLessThanOrEqual(Date.now())
+    expect(onCancelled).not.toHaveBeenCalled()
+    expect(onFinalFailure).not.toHaveBeenCalled()
+  })
+
+  it("a job cancelled during shutdown stays cancelled", async () => {
+    const queue = jobQueue(env.db)
+    const job = await queue.enqueue({
+      type: "probe",
+      projectId: (await project()).id,
+    })
+    const w = worker({
+      probe: ({ signal }) =>
+        new Promise<void>((_, reject) => {
+          signal.addEventListener("abort", () => reject(signal.reason))
+        }),
+    })
+    w.start()
+    await vi.waitFor(() => expect(w.activeCount).toBe(1))
+    const stopped = w.stop({ graceMs: 100 })
+    await queue.cancel(job.id)
+    await stopped
+    expect(await queue.get(job.id)).toMatchObject({ status: "cancelled" })
+  })
+
+  it("a genuine error during shutdown follows the fail path", async () => {
+    const queue = jobQueue(env.db)
+    const job = await queue.enqueue({
+      type: "probe",
+      projectId: (await project()).id,
+      maxAttempts: 1,
+    })
+    const w = worker({
+      probe: ({ signal }) =>
+        new Promise<void>((_, reject) => {
+          signal.addEventListener("abort", () =>
+            reject(new AppError("VALIDATION", "Broken input"))
+          )
+        }),
+    })
+    w.start()
+    await vi.waitFor(() => expect(w.activeCount).toBe(1))
+    await w.stop({ graceMs: 100 })
+    expect(await queue.get(job.id)).toMatchObject({
+      status: "failed",
+      attempts: 1,
+      error: "Broken input",
+    })
+  })
+
+  it("release only touches a running job this worker owns", async () => {
+    const queue = jobQueue(env.db)
+    const job = await queue.enqueue({ type: "probe", projectId: null })
+    await queue.lease({ owner: "a", leaseMs: 60_000 })
+    expect(await queue.release(job.id, "b")).toBe(false)
+    await queue.cancel(job.id)
+    expect(await queue.release(job.id, "a")).toBe(false)
+    expect(await queue.get(job.id)).toMatchObject({
+      status: "cancelled",
+      attempts: 1,
+    })
+  })
+
+  it("records when it last polled for jobs", async () => {
+    const w = worker({ probe: async () => {} })
+    const before = w.lastPolledAt
+    await new Promise((r) => setTimeout(r, 5))
+    w.start()
+    await vi.waitFor(() => expect(w.lastPolledAt).toBeGreaterThan(before))
+    await w.stop()
+  })
+
+  it("healthz stays 200 while the worker drains", async () => {
+    const queue = jobQueue(env.db)
+    await queue.enqueue({ type: "probe", projectId: (await project()).id })
+    let finish = () => {}
+    const w = worker({
+      probe: () => new Promise<void>((resolve) => (finish = resolve)),
+    })
+    const later = () => Date.now() + 60_000
+    const healthy = workerHealth(w, 20, later)
+    w.start()
+    await vi.waitFor(() => expect(w.activeCount).toBe(1))
+    expect(healthy()).toBe(false)
+    const stopped = w.stop({ graceMs: 5_000 })
+    expect(healthy()).toBe(true)
+    finish()
+    await stopped
   })
 })

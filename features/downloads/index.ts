@@ -4,6 +4,7 @@ import { getEnv } from "@/lib/env"
 
 import { exportBrowserCookies } from "./browser-cookies"
 import { parseBrowserSpec } from "./chromium-cookies"
+import { materializeCookiesText } from "./cookies-text"
 import type { Downloader } from "./downloader"
 import { FakeDownloader } from "./fake"
 import { YtDlpDownloader } from "./yt-dlp"
@@ -19,7 +20,11 @@ export function getDownloader(): Downloader {
     binary: env.YTDLP_PATH,
     ffmpeg: env.FFMPEG_PATH,
     cookiesFromBrowser: browser ? undefined : env.YTDLP_COOKIES_FROM_BROWSER,
-    cookiesFile: env.YTDLP_COOKIES,
+    cookiesFile:
+      env.YTDLP_COOKIES ??
+      (env.YTDLP_COOKIES_TEXT && !env.YTDLP_COOKIES_FROM_BROWSER
+        ? materializeCookiesText(env.SCRATCH_DIR, env.YTDLP_COOKIES_TEXT)
+        : undefined),
     exportCookies: browser ? () => exportBrowserCookies(browser) : undefined,
   })
 }

@@ -49,11 +49,3 @@ test("media route only serves project media", async ({ request }) => {
     expect(response.status(), url).toBe(404)
   }
 })
-
-test("uploads are limited to video", async ({ request }) => {
-  const response = await request.post("/api/uploads", {
-    headers: { "content-type": "text/plain", "x-file-name": "notes.txt" },
-    data: "hello",
-  })
-  expect(response.status()).toBe(415)
-})

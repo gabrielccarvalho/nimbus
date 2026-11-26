@@ -1,37 +1,22 @@
 import "server-only"
 
-import { Transform } from "node:stream"
-
-import { getDb, newId, withTransaction, type Db } from "@/lib/db"
-import { getEnv } from "@/lib/env"
-import { AppError, isAppError } from "@/lib/errors"
-import { readableFromRequestBody } from "@/lib/http/request-body"
+import { withTransaction, type Db } from "@/lib/db"
+import { AppError } from "@/lib/errors"
 import { logger } from "@/lib/logger"
-import { getStorage, storageKeys, type StorageAdapter } from "@/lib/storage"
-import { assertDiskSpace } from "@/lib/storage/disk"
+import { getStorage, type StorageAdapter } from "@/lib/storage"
+import { headCheck } from "@/lib/storage/common"
 
-import { parseAudioProbe } from "../pipeline/steps/probe-parse"
-import { UPLOAD_FILENAME_HEADER } from "../projects/upload"
-import { runFfmpeg, runFfprobe } from "../render/ffmpeg-runner"
-import {
-  AUDIO_MAGIC_BYTES,
-  peakFold,
-  sniffAudio,
-  trackInUseMessage,
-  trackTitleFromFile,
-} from "./media"
+import { jobQueue } from "../jobs/queue"
+import { AUDIO_MAGIC_BYTES, sniffAudio, trackInUseMessage } from "./media"
 import { musicRepository } from "./repository"
 import {
   MUSIC_FORMATS,
   MUSIC_MAX_BYTES,
-  MUSIC_PEAK_BUCKETS,
   toSummary,
   trackTitleSchema,
   type MusicFormat,
   type MusicTrackSummary,
 } from "./schema"
-
-export type MusicActor = { workspaceId: string; userId: string }
 
 const tooLarge = () =>
   new AppError("TOO_LARGE", "Music files can be up to 50 MB")
@@ -42,133 +27,77 @@ const notAudio = () =>
     "Upload an MP3, M4A, AAC, WAV, OGG or FLAC file"
   )
 
-function audioSniffer(onFormat: (format: MusicFormat) => void) {
-  let head = Buffer.alloc(0)
-  let sniffed = false
-  const sniff = () => {
-    const format = sniffAudio(head)
-    if (!format) throw notAudio()
-    onFormat(format)
-    sniffed = true
-  }
-  return new Transform({
-    transform(chunk: Buffer, _encoding, callback) {
-      if (!sniffed) {
-        head = Buffer.concat([head, chunk]).subarray(0, AUDIO_MAGIC_BYTES)
-        if (head.length >= AUDIO_MAGIC_BYTES) {
-          try {
-            sniff()
-          } catch (error) {
-            callback(error as Error)
-            return
-          }
-        }
-      }
-      callback(null, chunk)
-    },
-    flush(callback) {
-      try {
-        if (head.length === 0) {
-          throw new AppError("VALIDATION", "The upload was empty")
-        }
-        if (!sniffed) sniff()
-        callback()
-      } catch (error) {
-        callback(error as Error)
-      }
-    },
-  })
+export function sniffMusic(head: Uint8Array): MusicFormat {
+  const format = sniffAudio(head)
+  if (!format) throw notAudio()
+  return format
 }
 
-const PEAK_SAMPLE_RATE = 8000
-
-async function readPeaks(
-  file: string,
-  durationMs: number,
-  signal: AbortSignal
-) {
-  const fold = peakFold(
-    Math.round((durationMs * PEAK_SAMPLE_RATE) / 1000),
-    MUSIC_PEAK_BUCKETS
-  )
-  await runFfmpeg(
-    [
-      "-i",
-      file,
-      "-vn",
-      "-ac",
-      "1",
-      "-ar",
-      String(PEAK_SAMPLE_RATE),
-      "-f",
-      "s16le",
-      "pipe:1",
-    ],
-    { signal, timeoutMs: 120_000, onStdoutData: (chunk) => fold.push(chunk) }
-  )
-  return fold.peaks()
-}
-
-export async function handleMusicUpload(
-  request: Request,
-  actor: MusicActor
-): Promise<MusicTrackSummary> {
-  const env = getEnv()
-  const rawName = request.headers.get(UPLOAD_FILENAME_HEADER)
-  const fileName = rawName ? decodeURIComponent(rawName) : ""
-  const declaredLength = Number(request.headers.get("content-length") ?? NaN)
-  if (Number.isFinite(declaredLength) && declaredLength > MUSIC_MAX_BYTES) {
-    throw tooLarge()
-  }
-  if (!request.body) throw new AppError("VALIDATION", "The upload was empty")
-  await assertDiskSpace(
-    env.DATA_DIR,
-    Number.isFinite(declaredLength) ? declaredLength : MUSIC_MAX_BYTES,
-    "store this upload"
-  )
-
-  const storage = getStorage()
-  const id = newId()
-  const tempKey = storageKeys.uploadTemp(id)
-  let format: MusicFormat | undefined
-  let storedKey: string | undefined
-  try {
-    const { bytes } = await storage
-      .write(tempKey, readableFromRequestBody(request.body), {
-        maxBytes: MUSIC_MAX_BYTES,
-        transforms: [audioSniffer((sniffed) => (format = sniffed))],
-      })
-      .catch((error: unknown) => {
-        throw isAppError(error) && error.code === "TOO_LARGE"
-          ? tooLarge()
-          : error
-      })
-    if (!format) throw notAudio()
-
-    const file = storage.resolve(tempKey)
-    const { durationMs } = parseAudioProbe(
-      await runFfprobe(file, request.signal, "audio")
+export function assertMusicFormat(head: Uint8Array, format: MusicFormat) {
+  if (sniffMusic(head) !== format) {
+    throw new AppError(
+      "UNSUPPORTED_MEDIA",
+      `This file isn't the ${format.toUpperCase()} its name says it is`
     )
-    const peaks = await readPeaks(file, durationMs, request.signal)
+  }
+}
 
-    storedKey = storageKeys.music(actor.workspaceId, id, format)
-    await storage.move(tempKey, storedKey)
-    const track = await musicRepository(getDb()).create({
-      id,
-      workspaceId: actor.workspaceId,
-      title: trackTitleFromFile(fileName),
-      storageKey: storedKey,
-      mime: MUSIC_FORMATS[format],
-      bytes,
-      durationMs,
-      peaks,
-      createdBy: actor.userId,
+export function audioCheck(format: MusicFormat) {
+  return headCheck(AUDIO_MAGIC_BYTES, (head) => assertMusicFormat(head, format))
+}
+
+export function musicUploadFormat(upload: {
+  fileName: string
+  mime: string
+  bytes: number
+}): MusicFormat {
+  if (upload.bytes > MUSIC_MAX_BYTES) throw tooLarge()
+  const ext = upload.fileName.split(".").pop()?.toLowerCase() ?? ""
+  if (Object.hasOwn(MUSIC_FORMATS, ext)) return ext as MusicFormat
+  const mime = upload.mime.split(";")[0]!.trim().toLowerCase()
+  const format = Object.entries(MUSIC_FORMATS).find(([, m]) => m === mime)
+  if (format) return format[0] as MusicFormat
+  throw notAudio()
+}
+
+export async function createProcessingTrack(
+  db: Db,
+  upload: {
+    id: string
+    workspaceId: string
+    userId: string
+    title: string
+    storageKey: string
+    mime: string
+    bytes: number
+  }
+): Promise<MusicTrackSummary> {
+  try {
+    const track = await withTransaction(db, async (tx) => {
+      const created = await musicRepository(tx).create({
+        id: upload.id,
+        workspaceId: upload.workspaceId,
+        title: upload.title,
+        storageKey: upload.storageKey,
+        mime: upload.mime,
+        bytes: upload.bytes,
+        status: "processing",
+        createdBy: upload.userId,
+      })
+      await jobQueue(tx).enqueue({
+        type: "probe_music",
+        projectId: null,
+        payload: { trackId: upload.id },
+      })
+      return created
     })
-    logger.info({ trackId: id, bytes, format }, "music track stored")
+    logger.info(
+      { trackId: upload.id, bytes: upload.bytes, mime: upload.mime },
+      "music track stored"
+    )
     return toSummary(track, 0)
   } catch (error) {
-    await storage.remove(tempKey)
-    if (storedKey) await storage.remove(storedKey)
+    await getStorage().remove(upload.storageKey)
     throw error
   }
 }

@@ -121,6 +121,7 @@ export async function detectWebcam(
   const video = document.createElement("video")
   video.muted = true
   video.preload = "auto"
+  video.crossOrigin = "anonymous"
   video.src = src
   const findFaces = loadFaceFinder()
   try {

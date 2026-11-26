@@ -385,6 +385,30 @@ Not verified: how YouTube's Content ID treats the mixed audio, and the music pre
 
 Not verified: the real chart through the Data API (tested against MSW and the fake), and the YouTube app's Add sound flow for a downloaded clip.
 
+### Phase 36: Ready for Vercel, still self-hostable (ADR-0070)
+
+Plan: `docs/superpowers/plans/2026-11-25-vercel-ready.md`.
+
+- [x] 1. Storage contract without file paths: `localCopy`, `putFile`, `readUrl`, `uploadTarget`; contract suite on `LocalStorage`
+- [x] 2. Per-job scratch directories; pipeline steps, downloads and the export zip stop using `resolve`
+- [x] 3. `S3Storage`, `STORAGE_DRIVER`, MinIO in compose, contract suite on MinIO (`pnpm test:s3`)
+- [x] 4. Direct uploads: signed upload targets, the local PUT route, completion actions for videos and music
+- [x] 5. `probe_music` job: tracks are `processing` until the worker has probed them
+- [x] 6. Media served through signed URLs when the driver has them
+- [x] 7. Worker heartbeat and capabilities in Postgres; settings reads them
+- [x] 8. Hosted config: `YTDLP_COOKIES_TEXT`, pool size, auth origins, doctor checks
+- [x] 9. Containers: `Dockerfile.worker`, `Dockerfile.web`, compose `selfhost` profile, worker health endpoint, `vercel.json` daemon
+- [x] 10. `pnpm storage:push`, docs and phase close
+
+Not verified: Daemon CPU time for a whisper large-v3-turbo transcription and a 1080p render; whether a function can stream an export zip over 4.5 MB; R2 presigned PUT with a signed `Content-Length`; CORS on a real R2 or S3 bucket (MinIO has no bucket CORS); how the liveness probe behaves while a daemon terminates; whether the daemon's `root: "./"` affects the web build's static assets; a multipart upload over 5 GiB against hosted storage (MinIO tested with 64 MiB and 5 MiB parts); a real browser upload on the S3 driver against hosted storage.
+
+Follow-ups from the final review:
+
+- [ ] If a job's lease was reclaimed while the worker was draining, shutdown can cancel the job another worker now runs (`worker-loop.ts`: the release miss falls through to `queue.cancel`). In the shutdown branch, never cancel; only report a cancel the row already has.
+- [ ] Shutdown hands a job back only when its error is `CANCELLED`. Abort errors that come back as something else (Anthropic `APIUserAbortError`, fetch `AbortError`) still use an attempt, so DEPLOY.md overstates the guarantee.
+- [ ] Music uploads whose extension doesn't match the sniffed format (an ID3-tagged `.aac`, an M4A named `.mp3`) are rejected now that uploads go straight to the final key. For music only, copy to the sniffed key instead.
+- [ ] Two concurrent `completeUpload` calls with one token can delete the winner's source: the loser's insert fails and its cleanup removes the shared key.
+
 ### Not verified
 
 - MediaPipe face detection on a real face (fixtures have none; the code path is unit tested and the model loads in e2e).

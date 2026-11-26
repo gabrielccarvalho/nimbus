@@ -25,7 +25,11 @@ const globalForDb = globalThis as unknown as {
 
 export function getDb(): Db {
   if (!globalForDb.__nimbusDb) {
-    const pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 10 })
+    const env = getEnv()
+    const pool = new Pool({
+      connectionString: env.DATABASE_URL,
+      max: env.DATABASE_POOL_MAX,
+    })
     globalForDb.__nimbusPool = pool
     globalForDb.__nimbusDb = drizzle(pool, { schema })
   }

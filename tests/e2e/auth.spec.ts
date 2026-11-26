@@ -15,8 +15,10 @@ test.describe("signed out", () => {
     await expectNoSeriousA11yViolations(page)
     const api = await request.get("/api/projects/x/events")
     expect(api.status()).toBe(401)
-    const upload = await request.post("/api/uploads", { data: "x" })
-    expect(upload.status()).toBe(401)
+    const upload = await request.put("/api/uploads/forged.token", {
+      data: "x",
+    })
+    expect(upload.status()).toBe(400)
   })
 
   test("signs in, returns to the page and signs out", async ({ page }) => {

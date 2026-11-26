@@ -12,7 +12,10 @@ import {
 } from "@/features/clips/service"
 import { confirmLayout } from "@/features/layout/service"
 import { musicRepository } from "@/features/music/repository"
-import { DEFAULT_AUDIO_MIX } from "@/features/music/schema"
+import {
+  DEFAULT_AUDIO_MIX,
+  type MusicTrackStatus,
+} from "@/features/music/schema"
 import { projectRepository } from "@/features/projects/repository"
 import { startClipRenders } from "@/features/render/service"
 
@@ -157,7 +160,11 @@ async function addWorkspace() {
   return id
 }
 
-function addTrack(workspaceId: string, durationMs = 30_000) {
+function addTrack(
+  workspaceId: string,
+  durationMs: number | null = 30_000,
+  status: MusicTrackStatus = durationMs === null ? "processing" : "ready"
+) {
   const id = crypto.randomUUID()
   return musicRepository(env.db).create({
     id,
@@ -165,8 +172,9 @@ function addTrack(workspaceId: string, durationMs = 30_000) {
     title: "Night drive",
     storageKey: `music/${workspaceId}/${id}.mp3`,
     mime: "audio/mpeg",
+    status,
     durationMs,
-    peaks: [],
+    peaks: durationMs === null ? null : [],
   })
 }
 
@@ -271,6 +279,31 @@ describe("clip music and text", () => {
       })
     )
     expect(saved.audioMix?.trackStartMs).toBe(29_999)
+  })
+
+  it("saving an audioMix with a processing track is rejected", async () => {
+    const { projectId, clip } = await reviewedProject()
+    const ready = await projectTrack(projectId)
+    const save = (trackId: string) =>
+      updateClip(
+        env.db,
+        projectId,
+        clip.id,
+        edit({ audioMix: { ...DEFAULT_AUDIO_MIX, trackId } })
+      )
+    const processing = await addTrack(ready.workspaceId, null)
+    await expect(save(processing.id)).rejects.toMatchObject({
+      code: "VALIDATION",
+      message: "That music track is still processing. Pick it once it's ready.",
+    })
+    const failed = await addTrack(ready.workspaceId, null, "failed")
+    await expect(save(failed.id)).rejects.toMatchObject({
+      code: "VALIDATION",
+      message: "That music track couldn't be read. Pick another track.",
+    })
+    expect(
+      (await clipRepository(env.db).getOrThrow(clip.id)).audioMix
+    ).toBeNull()
   })
 
   it("saves a mix without a track", async () => {

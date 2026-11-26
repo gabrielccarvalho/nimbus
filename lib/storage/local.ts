@@ -1,32 +1,27 @@
 import "server-only"
 
 import { createReadStream, createWriteStream } from "node:fs"
-import { mkdir, readdir, rename, rm, stat, writeFile } from "node:fs/promises"
+import {
+  copyFile,
+  mkdir,
+  readdir,
+  rename,
+  rm,
+  stat,
+  unlink,
+  writeFile,
+} from "node:fs/promises"
 import path from "node:path"
 import { Transform, type Readable } from "node:stream"
 import { pipeline } from "node:stream/promises"
 
 import { AppError } from "@/lib/errors"
 
-import type { ByteRange, StorageAdapter } from "./types"
+import { byteLimit, KEY_PATTERN } from "./common"
+import type { ByteRange, StorageAdapter, StoredEntry } from "./types"
 
-const KEY_PATTERN = /^[A-Za-z0-9._\-/]+$/
-
-export function byteLimit(maxBytes: number) {
-  let total = 0
-  return new Transform({
-    transform(chunk: Buffer, _encoding, callback) {
-      total += chunk.length
-      if (total > maxBytes) {
-        callback(
-          new AppError("TOO_LARGE", `File is larger than ${maxBytes} bytes`)
-        )
-        return
-      }
-      callback(null, chunk)
-    },
-  })
-}
+const multipartUnsupported = () =>
+  new AppError("STORAGE", "The local driver has no multipart uploads")
 
 export class LocalStorage implements StorageAdapter {
   readonly root: string
@@ -35,7 +30,7 @@ export class LocalStorage implements StorageAdapter {
     this.root = path.resolve(/* turbopackIgnore: true */ root)
   }
 
-  resolve(key: string): string {
+  path(key: string): string {
     if (!key || !KEY_PATTERN.test(key) || key.startsWith("/")) {
       throw new AppError("STORAGE", "Invalid storage key", {
         details: { key },
@@ -55,7 +50,7 @@ export class LocalStorage implements StorageAdapter {
     body: Readable,
     options: { maxBytes?: number; transforms?: Transform[] } = {}
   ): Promise<{ bytes: number }> {
-    const target = this.resolve(key)
+    const target = this.path(key)
     const temp = `${target}.${process.pid}.${Date.now()}.part`
     await mkdir(path.dirname(target), { recursive: true })
     let bytes = 0
@@ -83,22 +78,16 @@ export class LocalStorage implements StorageAdapter {
   }
 
   async writeBuffer(key: string, data: Buffer | string) {
-    const target = this.resolve(key)
+    const target = this.path(key)
     await mkdir(path.dirname(target), { recursive: true })
     const temp = `${target}.${process.pid}.${Date.now()}.part`
     await writeFile(temp, data)
     await rename(temp, target)
   }
 
-  async move(fromKey: string, toKey: string) {
-    const to = this.resolve(toKey)
-    await mkdir(path.dirname(to), { recursive: true })
-    await rename(this.resolve(fromKey), to)
-  }
-
   async stat(key: string) {
     try {
-      const info = await stat(this.resolve(key))
+      const info = await stat(this.path(key))
       if (!info.isFile()) return null
       return { bytes: info.size, mtimeMs: info.mtimeMs }
     } catch (error) {
@@ -109,21 +98,21 @@ export class LocalStorage implements StorageAdapter {
 
   read(key: string, range?: ByteRange): Readable {
     return createReadStream(
-      this.resolve(key),
+      this.path(key),
       range ? { start: range.start, end: range.end } : undefined
     )
   }
 
   async remove(key: string) {
-    await rm(this.resolve(key), { force: true })
+    await rm(this.path(key), { force: true })
   }
 
   async removePrefix(prefix: string) {
-    await rm(this.resolve(prefix), { recursive: true, force: true })
+    await rm(this.path(prefix), { recursive: true, force: true })
   }
 
   async list(prefix: string): Promise<string[]> {
-    const base = this.resolve(prefix)
+    const base = this.path(prefix)
     try {
       const entries = await readdir(base, {
         recursive: true,
@@ -144,10 +133,75 @@ export class LocalStorage implements StorageAdapter {
     }
   }
 
+  async listWithInfo(prefix: string): Promise<StoredEntry[]> {
+    const entries: StoredEntry[] = []
+    for (const key of await this.list(prefix)) {
+      const info = await this.stat(key)
+      if (info) entries.push({ key, ...info })
+    }
+    return entries
+  }
+
+  localCopyCost() {
+    return 0
+  }
+
+  async localCopy(key: string): Promise<string> {
+    const file = this.path(key)
+    if (!(await this.stat(key))) {
+      throw new AppError("NOT_FOUND", "Stored file not found", {
+        details: { key },
+      })
+    }
+    return file
+  }
+
+  async putFile(file: string, key: string) {
+    const target = this.path(key)
+    const { size } = await stat(file)
+    await mkdir(path.dirname(target), { recursive: true })
+    try {
+      await rename(file, target)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EXDEV") throw error
+      const temp = `${target}.${process.pid}.${Date.now()}.part`
+      try {
+        await copyFile(file, temp)
+        await rename(temp, target)
+      } catch (copyError) {
+        await rm(temp, { force: true })
+        throw copyError
+      }
+      await unlink(file)
+    }
+    return { bytes: size }
+  }
+
+  async readUrl(): Promise<string | null> {
+    return null
+  }
+
+  async uploadTarget(): Promise<null> {
+    return null
+  }
+
+  async signUploadParts(): Promise<never> {
+    throw multipartUnsupported()
+  }
+
+  async completeUpload(): Promise<never> {
+    throw multipartUnsupported()
+  }
+
+  async abortUpload() {}
+
+  async abortStaleUploads() {
+    return 0
+  }
+
   async usage(prefix?: string) {
-    const keys = await this.list(prefix ?? ".")
-    let bytes = 0
-    for (const key of keys) bytes += (await this.stat(key))?.bytes ?? 0
-    return { bytes, files: keys.length }
+    const entries = await this.listWithInfo(prefix ?? ".")
+    const bytes = entries.reduce((sum, entry) => sum + entry.bytes, 0)
+    return { bytes, files: entries.length }
   }
 }

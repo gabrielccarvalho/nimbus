@@ -1,6 +1,8 @@
 import "server-only"
 
 import { randomUUID } from "node:crypto"
+import { link, rm } from "node:fs/promises"
+import path from "node:path"
 
 import { getStorage, storageKeys } from "@/lib/storage"
 
@@ -16,13 +18,7 @@ import {
 import { buildSegments, normalizeWords } from "../../transcription/normalize"
 import { transcriptRepository } from "../../transcription/repository"
 import { textTail, type StepDetail } from "../detail"
-import {
-  beginStep,
-  completeStep,
-  produceFile,
-  sourceAsset,
-  throwIfAborted,
-} from "./common"
+import { beginStep, completeStep, sourceAsset, throwIfAborted } from "./common"
 
 const DETECTION_WINDOW_MS = 30_000
 
@@ -30,9 +26,8 @@ async function chooseLanguage(
   project: Project,
   audioPath: string,
   durationMs: number,
-  { signal, logger }: Pick<JobContext, "signal" | "logger">
+  { signal, scratch, logger }: Pick<JobContext, "signal" | "scratch" | "logger">
 ) {
-  const storage = getStorage()
   const resolved = resolveLanguage({
     setting: project.settings.language,
     sourceLanguage: project.sourceLanguage,
@@ -41,8 +36,7 @@ async function chooseLanguage(
   const transcriber = getTranscriber()
   if (!transcriber.multilingual)
     return { language: "en", source: "whisper" } as const
-  const sampleKey = storageKeys.languageSample(project.id, randomUUID())
-  const samplePath = storage.resolve(sampleKey)
+  const samplePath = path.join(scratch, `language-sample-${randomUUID()}.wav`)
   const votes = []
   try {
     for (const startMs of detectionWindows(durationMs, {
@@ -67,7 +61,7 @@ async function chooseLanguage(
       if (vote) votes.push(vote)
     }
   } finally {
-    await storage.remove(sampleKey)
+    await rm(samplePath, { force: true })
   }
   const picked = pickLanguage(votes)
   logger.info({ votes, picked }, "detected spoken language")
@@ -80,6 +74,7 @@ export const transcribeStep: JobHandler = async ({
   job,
   db,
   signal,
+  scratch,
   reportProgress,
   reportDetail,
   logger,
@@ -106,30 +101,34 @@ export const transcribeStep: JobHandler = async ({
     logger.warn({ track }, "chosen audio track is missing, using the default")
   }
 
-  await produceFile(project.id, audioKey, (file) =>
-    runFfmpeg(
-      [
-        "-i",
-        storage.resolve(source.storageKey),
-        ...(trackExists ? ["-map", `0:a:${track}`] : []),
-        "-vn",
-        "-ac",
-        "1",
-        "-ar",
-        "16000",
-        "-c:a",
-        "pcm_s16le",
-        file,
-      ],
-      {
-        signal,
-        expectedDurationMs: durationMs,
-        onProgress: (p) => reportProgress(p * 0.1),
-      }
-    )
+  const sourcePath = await storage.localCopy(source.storageKey, scratch, signal)
+  const audioPath = path.join(scratch, "audio.wav")
+  await runFfmpeg(
+    [
+      "-i",
+      sourcePath,
+      ...(trackExists ? ["-map", `0:a:${track}`] : []),
+      "-vn",
+      "-ac",
+      "1",
+      "-ar",
+      "16000",
+      "-c:a",
+      "pcm_s16le",
+      audioPath,
+    ],
+    {
+      signal,
+      expectedDurationMs: durationMs,
+      onProgress: (p) => reportProgress(p * 0.1),
+    }
   )
+  // A second link keeps the local copy for transcription while putFile takes
+  // the other, so S3 doesn't download what was just uploaded.
+  const upload = path.join(scratch, `${randomUUID()}-audio.wav`)
+  await link(audioPath, upload)
+  const { bytes } = await storage.putFile(upload, audioKey)
   const assets = assetRepository(db)
-  const bytes = (await storage.stat(audioKey))?.bytes ?? 0
   const audio = await assets.findByKind(project.id, "audio")
   if (audio) {
     await assets.update(audio.id, { bytes, durationMs })
@@ -144,10 +143,10 @@ export const transcribeStep: JobHandler = async ({
     })
   }
 
-  const audioPath = storage.resolve(audioKey)
   reportDetail({ ...live, phase: "detecting" })
   const chosen = await chooseLanguage(project, audioPath, durationMs, {
     signal,
+    scratch,
     logger,
   })
   reportProgress(15)

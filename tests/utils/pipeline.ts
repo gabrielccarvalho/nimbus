@@ -9,23 +9,35 @@ import {
   onJobSucceeded,
   pipelineHandlers,
 } from "@/features/pipeline/handlers"
-import { handleUpload } from "@/features/projects/upload"
-import type { Db } from "@/lib/db"
+import {
+  ACCEPTED_VIDEO_TYPES,
+  mimeFromFileName,
+} from "@/features/projects/media-type"
+import type { ImportOptions } from "@/features/projects/schema"
+import { createUploadedProject } from "@/features/projects/upload"
+import { newId, type Db } from "@/lib/db"
 import { logger } from "@/lib/logger"
+import { getStorage, storageKeys } from "@/lib/storage"
 
 export async function uploadFixture(
   file: string,
   name = "fixture.mp4",
-  headers: Record<string, string> = {}
+  options: ImportOptions = {}
 ) {
   const data = await readFile(file)
-  return handleUpload(
-    new Request("http://localhost/api/uploads", {
-      method: "POST",
-      body: data,
-      headers: { "content-type": "video/mp4", "x-file-name": name, ...headers },
-    })
-  )
+  const mime = mimeFromFileName(name) ?? "video/mp4"
+  const projectId = newId()
+  const sourceKey = storageKeys.source(projectId, ACCEPTED_VIDEO_TYPES[mime])
+  await getStorage().writeBuffer(sourceKey, data)
+  return createUploadedProject({
+    projectId,
+    sourceKey,
+    fileName: name,
+    mime,
+    bytes: data.length,
+    options,
+    workspaceId: null,
+  })
 }
 
 export function testWorker(db: Db, handlers: JobHandlers = pipelineHandlers) {

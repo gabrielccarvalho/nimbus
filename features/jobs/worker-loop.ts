@@ -3,6 +3,7 @@ import "server-only"
 import type { Db } from "@/lib/db"
 import { AppError, isRetryable, toAppError } from "@/lib/errors"
 import type { Logger } from "@/lib/logger"
+import { withScratch } from "@/lib/storage/scratch"
 
 import { jobQueue, type Job } from "./queue"
 import { RENDER_JOB_TYPES, type JobType } from "./schema"
@@ -20,6 +21,7 @@ export type JobContext = {
   db: Db
   logger: Logger
   signal: AbortSignal
+  scratch: string
   reportProgress: (percent: number) => void
   reportDetail: (detail: Record<string, unknown>) => void
 }
@@ -44,6 +46,7 @@ export type WorkerOptions = {
 }
 
 const PROGRESS_WRITE_MS = 500
+export const MAX_RUNTIME_MS = 24 * 60 * 60_000
 
 function formatLimit(ms: number) {
   if (ms >= 60 * 60_000 && ms % (60 * 60_000) === 0) {
@@ -73,12 +76,14 @@ export function createWorker(options: WorkerOptions) {
     pollMs,
     leaseMs = 30_000,
     stallTimeoutMs = () => 30 * 60_000,
-    maxRuntimeMs = 24 * 60 * 60_000,
+    maxRuntimeMs = MAX_RUNTIME_MS,
   } = options
   const queue = jobQueue(db)
   const controllers = new Map<string, AbortController>()
   let running = false
+  let stopping = false
   let wake: (() => void) | undefined
+  let lastPolledAt = Date.now()
 
   const handled = (Object.keys(handlers) as JobType[]).filter(
     (type) => handlers[type]
@@ -168,23 +173,26 @@ export function createWorker(options: WorkerOptions) {
         throw new AppError("INTERNAL", `No handler for job type ${job.type}`)
       }
       log.info("job started")
-      await handler({
-        job,
-        db,
-        logger: log,
-        signal: controller.signal,
-        reportProgress(percent) {
-          alive()
-          progress = Math.max(0, Math.min(100, percent))
-          if (Date.now() - lastWrite >= PROGRESS_WRITE_MS) beat()
-        },
-        reportDetail(next) {
-          alive()
-          detail = next
-          detailWritten = false
-          if (Date.now() - lastWrite >= PROGRESS_WRITE_MS) beat()
-        },
-      })
+      await withScratch(`${job.id}-${job.attempts}`, (scratch) =>
+        handler({
+          job,
+          db,
+          logger: log,
+          signal: controller.signal,
+          scratch,
+          reportProgress(percent) {
+            alive()
+            progress = Math.max(0, Math.min(100, percent))
+            if (Date.now() - lastWrite >= PROGRESS_WRITE_MS) beat()
+          },
+          reportDetail(next) {
+            alive()
+            detail = next
+            detailWritten = false
+            if (Date.now() - lastWrite >= PROGRESS_WRITE_MS) beat()
+          },
+        })
+      )
       await beating
       if (!detailWritten) {
         beat()
@@ -196,6 +204,14 @@ export function createWorker(options: WorkerOptions) {
       await options.onSucceeded?.(job)
     } catch (caught) {
       const error = abortReason ?? toAppError(caught)
+      if (
+        error.code === "CANCELLED" &&
+        shuttingDown(controller.signal) &&
+        (await queue.release(job.id, owner))
+      ) {
+        log.info("job handed back for the next worker")
+        return
+      }
       if (error.code === "CANCELLED") {
         await queue.cancel(job.id)
         log.info("job cancelled")
@@ -260,6 +276,7 @@ export function createWorker(options: WorkerOptions) {
 
   async function loop() {
     while (running) {
+      lastPolledAt = Date.now()
       if (Date.now() - lastRecovery >= leaseMs) {
         await recover().catch((error: unknown) =>
           logger.error({ err: error }, "couldn't recover expired leases")
@@ -293,6 +310,7 @@ export function createWorker(options: WorkerOptions) {
     },
 
     async stop({ graceMs = 10_000 } = {}) {
+      stopping = true
       running = false
       wake?.()
       await loopPromise
@@ -324,6 +342,14 @@ export function createWorker(options: WorkerOptions) {
       controllers
         .get(jobId)
         ?.abort(new AppError("CANCELLED", "Job was cancelled"))
+    },
+
+    get stopping() {
+      return stopping
+    },
+
+    get lastPolledAt() {
+      return lastPolledAt
     },
 
     get activeCount() {

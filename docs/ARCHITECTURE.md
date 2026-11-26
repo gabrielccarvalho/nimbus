@@ -1,6 +1,8 @@
 # Architecture
 
-Nimbus is one Next.js app plus one long-running Node worker process. They share a Postgres database (Docker for local development) and a data directory on local disk. Nothing leaves the machine except optional calls to the Anthropic API and the Google (YouTube) APIs used for publishing and insights.
+Nimbus is one Next.js app plus one long-running Node worker process. They share a Postgres database and media storage: a data directory on local disk (`STORAGE_DRIVER=local`, the default) or an S3-compatible bucket (`STORAGE_DRIVER=s3`). Run locally, nothing leaves the machine except optional calls to the Anthropic API and the Google (YouTube) APIs used for publishing and insights.
+
+The web side never spawns a binary, so it can run on Vercel functions. The worker is one image (`Dockerfile.worker`, with ffmpeg, whisper.cpp, yt-dlp and the model) that runs as a Vercel Daemon in production or under Docker Compose when self-hosted, and on the host with `pnpm dev`. See ADR-0070 and [DEPLOY.md](DEPLOY.md).
 
 ## System diagram
 
@@ -11,34 +13,37 @@ flowchart LR
     WD[Webcam detector<br/>MediaPipe WASM + border heuristic]
   end
 
-  subgraph Next[Next.js process]
+  subgraph Next[Next.js: Vercel functions or a container]
     RSC[Server Components<br/>features/*/queries.ts]
-    SA[Server Actions<br/>features/*/actions.ts]
-    UP[/api/uploads<br/>streaming upload/]
-    MD[/api/media/...path<br/>Range serving/]
+    SA[Server Actions<br/>features/*/actions.ts<br/>upload start/complete]
+    UP[/api/uploads/token<br/>PUT, local driver only/]
+    MD[/api/media/...path<br/>signed redirect or Range/]
     SSE[/api/projects/id/events<br/>SSE/]
     ZIP[/api/projects/id/export<br/>streamed zip/]
   end
 
-  subgraph Worker[worker/index.ts]
-    WL[Worker loop<br/>lease → run → complete]
-    H[Job handlers<br/>probe · transcribe · analyze · select · render]
+  subgraph Worker[worker/index.ts: Daemon, container or host]
+    WL[Worker loop<br/>lease → run → complete<br/>heartbeat]
+    H[Job handlers<br/>probe · transcribe · analyze · select · render · probe_music]
+    SC[(SCRATCH_DIR<br/>per-job dirs + S3 input cache)]
   end
 
   DB[(Postgres)]
-  FS[(DATA_DIR<br/>sources · audio · renders)]
+  ST[(StorageAdapter<br/>DATA_DIR or S3 bucket)]
   FF[ffmpeg / ffprobe]
   WH[whisper.cpp]
   AN[Anthropic API]
 
-  UI --> RSC & SA & UP & MD & SSE
+  UI --> RSC & SA & MD & SSE
+  UI -- PUT file --> UP
+  UI -- presigned PUT / signed GET --> ST
   WD --> SA
   RSC & SA & SSE --> DB
-  UP --> FS & DB
-  MD & ZIP --> FS
+  SA & UP & MD & ZIP --> ST
   WL --> DB
   WL --> H
-  H --> FF & WH & AN & FS & DB
+  H --> SC
+  H --> FF & WH & AN & ST & DB
 ```
 
 ## Request vs worker boundary
@@ -48,11 +53,24 @@ flowchart LR
 | Reading projects, clips, transcripts | ffprobe, audio extraction, thumbnails, proxies |
 | Validating and persisting user edits | whisper.cpp transcription                      |
 | Enqueuing jobs                       | silencedetect / ebur128 analysis               |
-| Streaming uploads to disk            | Highlight selection (LLM or heuristic)         |
-| Serving media with Range             | Rendering clips and the horizontal edit        |
-| Streaming job progress over SSE      | Orphan sweeping, temp cleanup                  |
+| Signing upload targets, completing   | Highlight selection (LLM or heuristic)         |
+| Serving media (signed URL or Range)  | Rendering clips and the horizontal edit        |
+| Streaming job progress over SSE      | Probing music and its waveform peaks           |
+| Reading worker heartbeat in settings | Orphan sweeping, temp cleanup, disk checks     |
 
 A request never waits on ffmpeg, whisper or an LLM call. Mutations that kick off work insert a row into `jobs` and return. The one exception is the Manual LLM selector, where the user pastes JSON that is validated and post-processed synchronously (pure code, milliseconds).
+
+The web process never spawns ffmpeg, ffprobe, whisper or yt-dlp and never checks disk space. Modules that do (anything importing `lib/process/run`, such as `features/render/ffmpeg-runner.ts`, `features/transcription/whisper-cpp.ts`, `features/downloads/yt-dlp.ts` and their callers like `features/highlights/frames.ts`) are reached only from job handlers in the worker, plus `scripts/doctor.ts`. The settings page reads ffmpeg capabilities from the worker's row in `worker_heartbeats` and shows "No worker online" when it is more than 3 minutes old.
+
+## Uploads and media
+
+- Uploads go from the browser straight to storage, at the file's final key (`projects/<id>/source.<ext>` or `music/<workspace>/<track>.<ext>`; the id is minted when the upload starts). On S3, `startUploadAction` starts a multipart upload (parts of 64 MiB or more, at most 10,000) and the browser asks `signUploadPartsAction` for part URLs in batches, PUTs up to four parts at a time and retries a failed part twice with a fresh URL. On the local driver the target is `/api/uploads/[token]`, which streams the body to the final key through a `.part` temp. The token's `exp` (1 h) gates the local PUT; its `completeBy` (24 h) gates part signing and completion. `completeUploadAction(token, parts)` assembles the parts, checks the size and that the first bytes match the claimed format, then creates the project or music track; on failure it removes the object or aborts the multipart upload. The sweep removes final keys whose row never appeared after 24 h and aborts multipart uploads older than 24 h.
+- Music tracks stay `processing` until a `probe_music` job has probed them and computed their peaks.
+- `/api/media`, `/api/music` and `/api/avatars` redirect to a signed GET URL (4 h) when the driver has one, and stream with `Range` when it doesn't (local).
+
+## Worker scratch
+
+Each job gets `SCRATCH_DIR/<jobId>-<attempt>` (`ctx.scratch`), removed when the handler settles. Steps take inputs with `storage.localCopy(key, scratch)` and hand outputs back with `putFile` (or `produceFile`); they never build paths into storage. On the local driver `localCopy` returns the stored file and `putFile` renames into place, so it costs nothing. The S3 driver downloads into a shared cache under `SCRATCH_DIR/cache`, keyed by key and ETag, bounded by `SCRATCH_CACHE_BYTES` with least-recently-used eviction, and hard-links entries into the job's scratch so eviction never removes a file in use.
 
 ## Pipeline data flow
 
@@ -62,7 +80,8 @@ sequenceDiagram
   participant N as Next
   participant D as Postgres
   participant W as Worker
-  U->>N: POST /api/uploads (stream)
+  U->>N: start upload (Server Action) → signed PUT target
+  U->>N: complete upload (after the PUT to storage)
   N->>D: project(uploaded) + asset(source) + job(probe)
   W->>D: lease probe
   W->>D: asset metadata, thumbnail, proxy, status=transcribing, job(transcribe)
@@ -93,7 +112,7 @@ components/
 features/<name>/     domain logic per feature
 lib/                 db, env, logger, storage, sse, result/errors, utils
 worker/              worker entry point
-scripts/             doctor, fixtures
+scripts/             doctor, fixtures, migrations, storage push
 tests/               integration, contracts, e2e, fixtures, utils
 docs/
 ```
@@ -106,16 +125,44 @@ All external capabilities sit behind interfaces so tests can swap them and the s
 
 ```ts
 interface StorageAdapter {
-  resolve(key: string): string // absolute path inside DATA_DIR, throws on traversal
-  writeStream(
+  // LocalStorage (DATA_DIR) or S3Storage, picked by STORAGE_DRIVER
+  write(
     key: string,
     body: Readable,
-    opts?: { maxBytes?: number }
+    opts?: { maxBytes?: number; transforms?: Transform[] }
   ): Promise<{ bytes: number }>
-  stat(key: string): Promise<{ bytes: number } | null>
-  readStream(key: string, range?: { start: number; end: number }): Readable
+  writeBuffer(key: string, data: Buffer | string): Promise<void>
+  stat(key: string): Promise<{ bytes: number; mtimeMs: number } | null>
+  read(key: string, range?: ByteRange): Readable
   remove(key: string): Promise<void>
-  usage(): Promise<{ bytes: number }>
+  removePrefix(prefix: string): Promise<void>
+  list(prefix: string): Promise<string[]>
+  listWithInfo(prefix: string): Promise<StoredEntry[]> // key, bytes, mtimeMs from the listing
+  localCopyCost(bytes: number): number // scratch bytes a localCopy needs (0 on local)
+  localCopy(
+    key: string,
+    scratchDir: string,
+    signal?: AbortSignal
+  ): Promise<string> // read-only: on local it is the stored file itself
+  putFile(file: string, key: string): Promise<{ bytes: number }> // consumes the file
+  readUrl(key: string, opts?: { download?: string }): Promise<string | null>
+  uploadTarget(
+    key: string,
+    opts: { bytes: number; contentType: string }
+  ): Promise<UploadTarget | null> // S3: starts a multipart upload; local: null (the app's PUT route)
+  signUploadParts(
+    key: string,
+    upload: { uploadId: string; bytes: number; partSize: number },
+    partNumbers: readonly number[]
+  ): Promise<Array<{ partNumber: number; url: string }>>
+  completeUpload(
+    key: string,
+    uploadId: string,
+    parts: readonly UploadedPart[]
+  ): Promise<void>
+  abortUpload(key: string, uploadId: string): Promise<void>
+  abortStaleUploads(before: Date): Promise<number> // no-op on local
+  usage(prefix?: string): Promise<{ bytes: number; files: number }>
 }
 
 interface Transcriber {
@@ -142,7 +189,7 @@ interface HighlightSelector {
 - Every repository method is async. `withTransaction(db, async (tx) => …)` runs a transaction; code inside must use `tx`, not `db`, or it runs outside the transaction.
 - The job queue claims work with `SELECT … FOR UPDATE SKIP LOCKED` inside a transaction, so any number of workers can lease without double-claiming.
 - Repositories (`features/*/repository.ts`) are the only modules that issue queries, apart from the sweep step's three key lookups.
-- Files live under `DATA_DIR` with keys like `projects/<projectId>/source.mp4`, `projects/<projectId>/renders/<clipId>.mp4`. The DB stores keys, never absolute paths.
+- Files live under `DATA_DIR` or in the bucket with the same keys, like `projects/<projectId>/source.mp4`, `projects/<projectId>/renders/<clipId>-<stamp>.mp4`. The DB stores keys, never absolute paths, so `pnpm storage:push` can move a local install to S3 without touching rows.
 
 ## Realtime
 

@@ -57,26 +57,53 @@ export type MusicFormat = keyof typeof MUSIC_FORMATS
 
 export const MUSIC_ACCEPT = ".mp3,.m4a,.aac,.wav,.ogg,.flac,audio/*"
 
-export type MusicTrackSummary = {
-  id: string
-  title: string
+export type MusicTrackStatus = "processing" | "ready" | "failed"
+
+type TrackBase = { id: string; title: string; url: string; usedBy: number }
+
+export type ReadyMusicTrack = TrackBase & {
+  status: "ready"
   durationMs: number
   peaks: number[]
-  url: string
-  usedBy: number
+  error: null
 }
 
+export type MusicTrackSummary =
+  | ReadyMusicTrack
+  | (TrackBase & {
+      status: "processing" | "failed"
+      durationMs: null
+      peaks: null
+      error: string | null
+    })
+
 export function toSummary(
-  track: Pick<MusicTrackSummary, "id" | "title" | "durationMs" | "peaks">,
+  track: {
+    id: string
+    title: string
+    status: MusicTrackStatus
+    durationMs: number | null
+    peaks: number[] | null
+    error: string | null
+  },
   usedBy: number
 ): MusicTrackSummary {
-  return {
+  const base = {
     id: track.id,
     title: track.title,
-    durationMs: track.durationMs,
-    peaks: track.peaks,
     url: `/api/music/${track.id}`,
     usedBy,
+  }
+  const { durationMs, peaks } = track
+  if (track.status === "ready" && durationMs !== null && peaks !== null) {
+    return { ...base, status: "ready", durationMs, peaks, error: null }
+  }
+  return {
+    ...base,
+    status: track.status === "failed" ? "failed" : "processing",
+    durationMs: null,
+    peaks: null,
+    error: track.error,
   }
 }
 

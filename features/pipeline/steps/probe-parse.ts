@@ -137,7 +137,7 @@ export function parseAudioProbe(json: string) {
   const { streams, format } = readProbe(json)
   const audio = streams.find((s) => s.codec_type === "audio")
   if (!audio) {
-    throw new AppError("UNSUPPORTED_MEDIA", "This file has no audio track")
+    throw new AppError("UNSUPPORTED_MEDIA", "This file has no audio")
   }
   const seconds = Number(format?.duration ?? audio.duration ?? NaN)
   if (!Number.isFinite(seconds) || seconds <= 0) {

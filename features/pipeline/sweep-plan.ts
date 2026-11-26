@@ -11,12 +11,14 @@ export type SweepFile = { key: string; mtimeMs: number }
 export function planSweep({
   files,
   projectIds,
+  trackIds,
   busyProjectIds,
   referencedKeys,
   nowMs,
 }: {
   files: readonly SweepFile[]
   projectIds: ReadonlySet<string>
+  trackIds: ReadonlySet<string>
   busyProjectIds: ReadonlySet<string>
   referencedKeys: ReadonlySet<string>
   nowMs: number
@@ -32,10 +34,21 @@ export function planSweep({
       ) {
         return stale(file, SWEEP_MIN_AGE_MS.upload)
       }
+      // Uploads land at their final key before the row exists, and can be
+      // completed until the claim's 24 h deadline.
+      if (parts[0] === "music" && parts.length === 3) {
+        const trackId = parts[2]!.split(".")[0]!
+        return !trackIds.has(trackId) && stale(file, SWEEP_MIN_AGE_MS.upload)
+      }
       if (parts[0] !== "projects" || !parts[1]) return false
       const projectId = parts[1]
       if (!projectIds.has(projectId)) {
-        return stale(file, SWEEP_MIN_AGE_MS.orphan)
+        return stale(
+          file,
+          parts[2]?.startsWith("source.")
+            ? SWEEP_MIN_AGE_MS.upload
+            : SWEEP_MIN_AGE_MS.orphan
+        )
       }
       if (busyProjectIds.has(projectId)) return false
       if (parts[2] === "work") return stale(file, SWEEP_MIN_AGE_MS.work)

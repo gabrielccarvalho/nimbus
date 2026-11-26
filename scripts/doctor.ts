@@ -1,8 +1,21 @@
 import "@/lib/load-env"
 
-import { access, constants, mkdir, rm, writeFile } from "node:fs/promises"
+import {
+  access,
+  constants,
+  mkdir,
+  rm,
+  statfs,
+  writeFile,
+} from "node:fs/promises"
 import path from "node:path"
 
+import {
+  DeleteObjectCommand,
+  GetBucketCorsCommand,
+  HeadBucketCommand,
+  PutObjectCommand,
+} from "@aws-sdk/client-s3"
 import { Client } from "pg"
 
 import { cookieDatabasePath } from "@/features/downloads/browser-cookies"
@@ -14,6 +27,7 @@ import { isEnglishOnlyModel } from "@/features/transcription/language"
 import { getEnv } from "@/lib/env"
 import { getFfmpegCapabilities } from "@/lib/media/capabilities"
 import { runProcess } from "@/lib/process/run"
+import { createS3Client } from "@/lib/storage"
 
 import { modelFile } from "./setup-vision"
 
@@ -43,6 +57,96 @@ async function main() {
     return finish(strict)
   }
 
+  if (env.NIMBUS_ROLE === "web") {
+    add("worker tools", "ok", "skipped (NIMBUS_ROLE=web, worker only)")
+  } else {
+    await checkWorkerTools(env)
+  }
+
+  add(
+    "anthropic",
+    env.ANTHROPIC_API_KEY
+      ? "ok"
+      : env.HIGHLIGHT_SELECTOR === "anthropic"
+        ? "fail"
+        : "warn",
+    env.ANTHROPIC_API_KEY
+      ? `key configured, model ${env.ANTHROPIC_MODEL}`
+      : "ANTHROPIC_API_KEY missing"
+  )
+
+  const unsetSecrets = ["BETTER_AUTH_SECRET", "NIMBUS_SECRET_KEY"].filter(
+    (name) => !process.env[name]
+  )
+  const socialProviders = [
+    env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && "Google",
+    env.TWITCH_CLIENT_ID && env.TWITCH_CLIENT_SECRET && "Twitch",
+  ].filter(Boolean)
+  add(
+    "accounts",
+    unsetSecrets.length ? "warn" : "ok",
+    [
+      unsetSecrets.length
+        ? `${unsetSecrets.join(" and ")} unset: using development secrets (required in production)`
+        : "secrets configured",
+      socialProviders.length
+        ? `sign-in with ${socialProviders.join(" and ")}`
+        : "email and password only",
+    ].join("; ")
+  )
+
+  const googleConfigured = Boolean(
+    env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
+  )
+  add(
+    "youtube",
+    googleConfigured ? "ok" : "warn",
+    googleConfigured
+      ? "Google credentials configured"
+      : "GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET unset: clips cannot be published to YouTube"
+  )
+
+  const client = new Client({
+    connectionString: env.DATABASE_URL,
+    connectionTimeoutMillis: 3_000,
+  })
+  try {
+    await client.connect()
+    const { rows } = await client.query<{ version: string }>(
+      "select current_setting('server_version') as version"
+    )
+    add(
+      "postgres",
+      "ok",
+      `${rows[0]?.version ?? "connected"} (${new URL(env.DATABASE_URL).host})`
+    )
+  } catch (error) {
+    add(
+      "postgres",
+      "fail",
+      `${String(error)}; start it with docker compose up -d db`
+    )
+  } finally {
+    await client.end().catch(() => undefined)
+  }
+
+  try {
+    await mkdir(env.DATA_DIR, { recursive: true })
+    const probeFile = path.join(env.DATA_DIR, `.doctor-${process.pid}`)
+    await writeFile(probeFile, "ok")
+    await rm(probeFile)
+    add("data dir", "ok", `${env.DATA_DIR} writable`)
+  } catch (error) {
+    add("data dir", "fail", `${env.DATA_DIR}: ${String(error)}`)
+  }
+
+  await checkStorage(env)
+  await checkScratchDir(env)
+
+  finish(strict)
+}
+
+async function checkWorkerTools(env: ReturnType<typeof getEnv>) {
   const caps = await getFfmpegCapabilities(env.FFMPEG_PATH)
   add(
     "ffmpeg",
@@ -135,6 +239,7 @@ async function main() {
     env.YTDLP_COOKIES_FROM_BROWSER &&
       `browser: ${env.YTDLP_COOKIES_FROM_BROWSER}`,
     env.YTDLP_COOKIES && `file: ${env.YTDLP_COOKIES}`,
+    env.YTDLP_COOKIES_TEXT && "text (YTDLP_COOKIES_TEXT)",
   ].filter(Boolean)
   const browser = env.YTDLP_COOKIES_FROM_BROWSER
     ? parseBrowserSpec(env.YTDLP_COOKIES_FROM_BROWSER)
@@ -170,49 +275,6 @@ async function main() {
     add("whisper model", transcriberLevel, `${env.WHISPER_MODEL} not readable`)
   }
 
-  add(
-    "anthropic",
-    env.ANTHROPIC_API_KEY
-      ? "ok"
-      : env.HIGHLIGHT_SELECTOR === "anthropic"
-        ? "fail"
-        : "warn",
-    env.ANTHROPIC_API_KEY
-      ? `key configured, model ${env.ANTHROPIC_MODEL}`
-      : "ANTHROPIC_API_KEY missing"
-  )
-
-  const unsetSecrets = ["BETTER_AUTH_SECRET", "NIMBUS_SECRET_KEY"].filter(
-    (name) => !process.env[name]
-  )
-  const socialProviders = [
-    env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && "Google",
-    env.TWITCH_CLIENT_ID && env.TWITCH_CLIENT_SECRET && "Twitch",
-  ].filter(Boolean)
-  add(
-    "accounts",
-    unsetSecrets.length ? "warn" : "ok",
-    [
-      unsetSecrets.length
-        ? `${unsetSecrets.join(" and ")} unset: using development secrets (required in production)`
-        : "secrets configured",
-      socialProviders.length
-        ? `sign-in with ${socialProviders.join(" and ")}`
-        : "email and password only",
-    ].join("; ")
-  )
-
-  const googleConfigured = Boolean(
-    env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
-  )
-  add(
-    "youtube",
-    googleConfigured ? "ok" : "warn",
-    googleConfigured
-      ? "Google credentials configured"
-      : "GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET unset: clips cannot be published to YouTube"
-  )
-
   try {
     await access(modelFile, constants.R_OK)
     add("face detection", "ok", path.relative(process.cwd(), modelFile))
@@ -234,42 +296,79 @@ async function main() {
       ? `missing ${missingFonts.map((id) => CAPTION_FONTS[id].file).join(", ")} in assets/fonts (see README → Caption fonts)`
       : `${CAPTION_FONT_IDS.length} installed`
   )
+}
 
-  const client = new Client({
-    connectionString: env.DATABASE_URL,
-    connectionTimeoutMillis: 3_000,
-  })
+async function checkStorage(env: ReturnType<typeof getEnv>) {
+  if (env.STORAGE_DRIVER === "local") {
+    add("storage", "ok", `local (${env.DATA_DIR})`)
+    return
+  }
+  const bucket = env.S3_BUCKET!
+  const client = createS3Client(env)
+  const target = env.S3_ENDPOINT ?? `AWS ${env.S3_REGION}`
   try {
-    await client.connect()
-    const { rows } = await client.query<{ version: string }>(
-      "select current_setting('server_version') as version"
+    await client.send(new HeadBucketCommand({ Bucket: bucket }))
+    const key = `doctor/probe-${process.pid}`
+    await client.send(
+      new PutObjectCommand({ Bucket: bucket, Key: key, Body: "ok" })
     )
+    await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }))
     add(
-      "postgres",
+      "storage",
       "ok",
-      `${rows[0]?.version ?? "connected"} (${new URL(env.DATABASE_URL).host})`
+      `s3 bucket ${bucket} at ${target} reachable and writable`
     )
   } catch (error) {
-    add(
-      "postgres",
-      "fail",
-      `${String(error)}; start it with docker compose up -d db`
-    )
-  } finally {
-    await client.end().catch(() => undefined)
+    add("storage", "fail", `s3 bucket ${bucket} at ${target}: ${String(error)}`)
+    return
   }
-
+  const origin = new URL(env.BETTER_AUTH_URL).origin
   try {
-    await mkdir(env.DATA_DIR, { recursive: true })
-    const probeFile = path.join(env.DATA_DIR, `.doctor-${process.pid}`)
+    const { CORSRules = [] } = await client.send(
+      new GetBucketCorsCommand({ Bucket: bucket })
+    )
+    const missing = ["GET", "PUT", "HEAD"].filter(
+      (method) =>
+        !CORSRules.some(
+          (rule) =>
+            rule.AllowedMethods?.includes(method) &&
+            rule.AllowedOrigins?.some((o) => o === "*" || o === origin)
+        )
+    )
+    add(
+      "storage cors",
+      missing.length ? "warn" : "ok",
+      missing.length
+        ? `${origin} is not allowed for ${missing.join(", ")}: browsers can't load or upload media (see docs/DEPLOY.md)`
+        : `${origin} allowed for GET, PUT, HEAD`
+    )
+  } catch (error) {
+    const { name } = error as { name?: string }
+    add(
+      "storage cors",
+      "warn",
+      name === "NoSuchCORSConfiguration"
+        ? `no CORS rules: browsers can't load or upload media from ${origin} (see docs/DEPLOY.md)`
+        : `can't read bucket CORS (${name ?? String(error)}); set it by hand (see docs/DEPLOY.md)`
+    )
+  }
+}
+
+async function checkScratchDir(env: ReturnType<typeof getEnv>) {
+  try {
+    await mkdir(env.SCRATCH_DIR, { recursive: true })
+    const probeFile = path.join(env.SCRATCH_DIR, `.doctor-${process.pid}`)
     await writeFile(probeFile, "ok")
     await rm(probeFile)
-    add("data dir", "ok", `${env.DATA_DIR} writable`)
+    const { bavail, bsize } = await statfs(env.SCRATCH_DIR)
+    add(
+      "scratch dir",
+      "ok",
+      `${env.SCRATCH_DIR} writable, ${((bavail * bsize) / 1024 ** 3) | 0} GiB free`
+    )
   } catch (error) {
-    add("data dir", "fail", `${env.DATA_DIR}: ${String(error)}`)
+    add("scratch dir", "fail", `${env.SCRATCH_DIR}: ${String(error)}`)
   }
-
-  finish(strict)
 }
 
 function finish(strict: boolean) {

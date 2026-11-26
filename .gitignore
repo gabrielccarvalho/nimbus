@@ -38,6 +38,7 @@ pnpm-debug.log*
 *.tsbuildinfo
 next-env.d.ts
 !.env.example
+!.env.selfhost.example
 
 # app data
 /assets/fonts/Pricedown-Black.otf

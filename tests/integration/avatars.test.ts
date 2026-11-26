@@ -135,4 +135,32 @@ describe("avatars", () => {
     expect((await get(logo.image)).status).toBe(404)
     expect((await get("/api/avatars/users/../projects/x.png")).status).toBe(404)
   })
+
+  it("redirects an owner's avatar to the signed URL and hides it from others", async () => {
+    const a = await account("A")
+    const b = await account("B")
+    const storage = getStorage()
+    const photo = await saveAvatar(
+      env.db,
+      storage,
+      "users",
+      a.userId,
+      new Blob([PNG])
+    )
+    const readUrl = vi
+      .spyOn(storage, "readUrl")
+      .mockResolvedValue("https://bucket.test/k?sig")
+
+    viewer.user.id = a.userId
+    viewer.workspace.id = a.workspaceId
+    const own = await get(photo.image)
+    expect(own.status).toBe(302)
+    expect(own.headers.get("location")).toBe("https://bucket.test/k?sig")
+
+    readUrl.mockClear()
+    viewer.user.id = b.userId
+    viewer.workspace.id = b.workspaceId
+    expect((await get(photo.image)).status).toBe(404)
+    expect(readUrl).not.toHaveBeenCalled()
+  })
 })

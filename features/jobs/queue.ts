@@ -204,6 +204,30 @@ export function jobQueue(db: Db) {
       })
     },
 
+    async release(id: string, owner: string): Promise<boolean> {
+      const at = now()
+      return changed(
+        await db
+          .update(jobs)
+          .set({
+            status: "queued",
+            attempts: sql`greatest(${jobs.attempts} - 1, 0)`,
+            leaseOwner: null,
+            leasedUntil: null,
+            runAfter: at,
+            updatedAt: at,
+          })
+          .where(
+            and(
+              eq(jobs.id, id),
+              eq(jobs.leaseOwner, owner),
+              eq(jobs.status, "running")
+            )
+          )
+          .returning({ id: jobs.id })
+      )
+    },
+
     async cancel(id: string): Promise<boolean> {
       const at = now()
       return changed(

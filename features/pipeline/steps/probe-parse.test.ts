@@ -181,6 +181,6 @@ describe("parseAudioProbe", () => {
 
   it("rejects a file without audio", () =>
     expect(() => parseAudioProbe(probe({ audio: null }))).toThrow(
-      "This file has no audio track"
+      "This file has no audio"
     ))
 })

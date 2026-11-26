@@ -46,9 +46,11 @@ Next.js 16 App Router · React 19 · TypeScript strict · Tailwind v4 · shadcn 
 | `pnpm test:unit` / `pnpm test:integration` | Single layer                                      |
 | `pnpm test:e2e`                            | Playwright (fake transcriber, heuristic selector) |
 | `pnpm test:heavy`                          | Real whisper.cpp (skips if missing)               |
+| `pnpm test:s3`                             | Storage contract on MinIO (skips if down)         |
 | `pnpm test:coverage`                       | Coverage with thresholds                          |
 | `pnpm run doctor`                          | System dependency check                           |
 | `pnpm db:generate` / `pnpm db:migrate`     | Drizzle migrations                                |
+| `pnpm storage:push`                        | Copy `DATA_DIR` media into the S3 bucket          |
 | `pnpm fixtures`                            | Generate test videos                              |
 
 ## Docs
@@ -61,4 +63,5 @@ Next.js 16 App Router · React 19 · TypeScript strict · Tailwind v4 · shadcn 
 - [Design system](docs/DESIGN_SYSTEM.md)
 - [Components](docs/COMPONENTS.md)
 - [Testing](docs/TESTING.md)
+- [Deploying](docs/DEPLOY.md)
 - [Decisions (ADRs)](docs/DECISIONS.md)

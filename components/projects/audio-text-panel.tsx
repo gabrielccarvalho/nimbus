@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
+import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
 import {
   Timeline,
@@ -36,6 +37,7 @@ import {
   SOURCE_DB,
   type AudioMix,
   type MusicTrackSummary,
+  type ReadyMusicTrack,
   type TrendingMusic as TrendingMusicResult,
 } from "@/features/music/schema"
 import { formatDuration } from "@/lib/format"
@@ -48,6 +50,12 @@ const secondsToMs = (value: string, maxMs: number, minMs = 0) =>
 const sliderValue = (value: number | readonly number[]) =>
   Array.isArray(value) ? value[0] : (value as number)
 const decibels = (_: string, value: number) => `${value} dB`
+
+function trackDetail(track: MusicTrackSummary) {
+  if (track.status === "processing") return "Processing…"
+  if (track.status === "failed") return "Couldn't be read"
+  return formatDuration(track.durationMs)
+}
 
 function VolumeField({
   label,
@@ -122,18 +130,20 @@ export function AudioTextPanel({
     ...uploads.filter((upload) => !tracks.some((t) => t.id === upload.id)),
   ]
   const items = [
-    { value: null, label: "No music" },
+    { value: null, label: "No music", status: null },
     ...library.map((track) => ({
       value: track.id,
-      label: `${track.title} · ${formatDuration(track.durationMs)}`,
+      label: `${track.title} · ${trackDetail(track)}`,
+      status: track.status,
     })),
   ]
   const mix = audioMix ?? DEFAULT_AUDIO_MIX
-  const track = library.find((t) => t.id === audioMix?.trackId)
+  const selected = library.find((t) => t.id === audioMix?.trackId)
+  const track = selected?.status === "ready" ? selected : undefined
   const editMix = (patch: Partial<AudioMix>) =>
     onAudioMixChange({ ...mix, ...patch })
 
-  const selectTrack = (next: MusicTrackSummary | null) => {
+  const selectTrack = (next: ReadyMusicTrack | null) => {
     if (!next) {
       if (audioMix) editMix({ trackId: null })
       return
@@ -167,18 +177,26 @@ export function AudioTextPanel({
           <div className="flex flex-wrap items-center gap-2">
             <Select
               items={items}
-              value={track?.id ?? null}
+              value={selected?.id ?? null}
               disabled={disabled}
-              onValueChange={(value) =>
-                selectTrack(library.find((t) => t.id === value) ?? null)
-              }
+              onValueChange={(value) => {
+                const next = library.find((t) => t.id === value)
+                selectTrack(next?.status === "ready" ? next : null)
+              }}
             >
               <SelectTrigger id={`${id}-track`} className="min-w-0 flex-1">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {items.map((item) => (
-                  <SelectItem key={item.value ?? ""} value={item.value}>
+                  <SelectItem
+                    key={item.value ?? ""}
+                    value={item.value}
+                    disabled={
+                      item.status === "processing" || item.status === "failed"
+                    }
+                  >
+                    {item.status === "processing" && <Spinner aria-hidden />}
                     {item.label}
                   </SelectItem>
                 ))}
@@ -187,10 +205,9 @@ export function AudioTextPanel({
             <MusicUploadButton
               size="sm"
               disabled={disabled}
-              onUploaded={(upload) => {
+              onUploaded={(upload) =>
                 setUploads((current) => [...current, upload])
-                selectTrack(upload)
-              }}
+              }
             />
           </div>
         </div>

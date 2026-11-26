@@ -1,3 +1,5 @@
+import path from "node:path"
+
 import { eq } from "drizzle-orm"
 import { http, HttpResponse } from "msw"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -637,7 +639,7 @@ describe("publish_clip with a re-render", () => {
       "published"
     )
     expect(upload.mock.calls[0]![2]).toBe(
-      getStorage().resolve(oldAsset.storageKey)
+      path.join(env.dataDir, oldAsset.storageKey)
     )
     expect(await assets.get(oldAssetId)).toBeUndefined()
     expect(await getStorage().stat(oldAsset.storageKey)).toBeFalsy()

@@ -4,12 +4,14 @@ import { planSweep, SWEEP_MIN_AGE_MS } from "./sweep-plan"
 
 const NOW = 10 * 24 * 60 * 60_000
 const old = NOW - SWEEP_MIN_AGE_MS.upload - 1
+const hourOld = NOW - SWEEP_MIN_AGE_MS.orphan - 1
 const fresh = NOW - 1000
 
 const plan = (files: { key: string; mtimeMs: number }[]) =>
   planSweep({
     files,
     projectIds: new Set(["live", "busy"]),
+    trackIds: new Set(["track"]),
     busyProjectIds: new Set(["busy"]),
     referencedKeys: new Set(["projects/live/renders/kept.mp4"]),
     nowMs: NOW,
@@ -41,5 +43,18 @@ describe("planSweep", () => {
       "projects/live/work/x-graph.txt",
       "projects/live/renders/stray.mp4",
     ])
+  })
+
+  it("gives an upload at its final key until the completion deadline", () => {
+    expect(
+      plan([
+        { key: "projects/gone/source.mp4", mtimeMs: hourOld },
+        { key: "projects/gone/source.mp4.1.2.part", mtimeMs: hourOld },
+        { key: "projects/gone/audio.wav", mtimeMs: hourOld },
+        { key: "music/ws/orphan.mp3", mtimeMs: old },
+        { key: "music/ws/pending.mp3", mtimeMs: hourOld },
+        { key: "music/ws/track.mp3", mtimeMs: old },
+      ])
+    ).toEqual(["projects/gone/audio.wav", "music/ws/orphan.mp3"])
   })
 })

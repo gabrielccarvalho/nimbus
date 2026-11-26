@@ -15,8 +15,10 @@ import { AudioTextPanel } from "./audio-text-panel"
 const uploaded: MusicTrackSummary = {
   id: "t3",
   title: "Fresh upload",
-  durationMs: 30_000,
-  peaks: [],
+  status: "processing",
+  durationMs: null,
+  peaks: null,
+  error: null,
   url: "/api/music/t3",
   usedBy: 0,
 }
@@ -43,16 +45,20 @@ const tracks: MusicTrackSummary[] = [
   {
     id: "t1",
     title: "Summer loop",
+    status: "ready",
     durationMs: 130_000,
     peaks: [0.2, 0.8, 0.5],
+    error: null,
     url: "/api/music/t1",
     usedBy: 0,
   },
   {
     id: "t2",
     title: "Night drive",
+    status: "ready",
     durationMs: 200_000,
     peaks: [],
+    error: null,
     url: "/api/music/t2",
     usedBy: 1,
   },
@@ -119,16 +125,35 @@ describe("AudioTextPanel music", () => {
     expect(onAudioMixChange).toHaveBeenLastCalledWith({ ...mix, trackId: null })
   })
 
-  it("selects an upload at once, from its start when the old one is past its end", async () => {
+  it("a processing track shows a spinner and can't be picked", async () => {
     const { onAudioMixChange } = renderPanel({ audioMix: mix })
     await userEvent.click(
       screen.getByRole("button", { name: "Upload a track" })
     )
-    expect(onAudioMixChange).toHaveBeenLastCalledWith({
-      ...mix,
-      trackId: "t3",
-      trackStartMs: 0,
+    await userEvent.click(screen.getByRole("combobox", { name: "Track" }))
+    const option = await screen.findByRole("option", {
+      name: "Fresh upload · Processing…",
     })
+    expect(option).toHaveAttribute("aria-disabled", "true")
+    expect(option.querySelector("[data-slot=spinner]")).not.toBeNull()
+    await userEvent.click(option)
+    expect(onAudioMixChange).not.toHaveBeenCalled()
+  })
+
+  it("lists a failed track without letting it be picked", async () => {
+    const { onAudioMixChange } = renderPanel({
+      tracks: [
+        ...tracks,
+        { ...uploaded, status: "failed", error: "This file has no audio" },
+      ],
+    })
+    await userEvent.click(screen.getByRole("combobox", { name: "Track" }))
+    const option = await screen.findByRole("option", {
+      name: "Fresh upload · Couldn't be read",
+    })
+    expect(option).toHaveAttribute("aria-disabled", "true")
+    await userEvent.click(option)
+    expect(onAudioMixChange).not.toHaveBeenCalled()
   })
 
   it("scrubs the start in the track over its waveform", () => {

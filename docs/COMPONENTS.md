@@ -274,7 +274,7 @@ A 9:16 mock frame (webcam band over gameplay) with a sample caption page in the 
 
 ### MusicUploadButton (`components/music/music-upload-button.tsx`)
 
-Uploads one audio file to `/api/uploads/music` with progress in the label, then calls `onUploaded(track)` and refreshes the route. Rejects files over 50 MB before sending. Used in the workspace music library and the clip editor.
+Uploads one audio file straight to storage (`directUpload` in `components/uploads/direct-upload.ts`: start action, XHR PUT to the signed target, complete action) with progress in the label, then calls `onUploaded(track)` and refreshes the route. Rejects files over 50 MB before sending. Used in the workspace music library and the clip editor.
 
 ### MusicLibrary (`components/settings/music-library.tsx`)
 
