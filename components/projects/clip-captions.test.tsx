@@ -9,7 +9,7 @@ import {
   type CaptionWord,
 } from "@/features/captions/pages"
 
-import { ClipCaptionsCard, type PageEdits } from "./clip-captions"
+import { ClipCaptionsCard, rulerTicks, type PageEdits } from "./clip-captions"
 
 const words: CaptionWord[] = [
   { text: "wait", startMs: 500, endMs: 800 },
@@ -130,5 +130,29 @@ describe("ClipCaptionsCard", () => {
       screen.getByRole("switch", { name: "Show captions on this clip" })
     )
     expect(onEnabledChange).toHaveBeenCalledWith(true)
+  })
+
+  it("widens the lane as you zoom in and fits it back", async () => {
+    const { user } = setup()
+    const lane = () =>
+      screen.getByTestId("captions-scroller").firstElementChild as HTMLElement
+    expect(lane().style.width).toBe("max(100%, 600px)")
+    await user.click(screen.getByRole("button", { name: "Zoom in" }))
+    expect(lane().style.width).toBe("max(100%, 1200px)")
+    await user.click(screen.getByRole("button", { name: "Fit" }))
+    expect(lane().style.width).toBe("100%")
+    expect(screen.getByRole("button", { name: "Zoom out" })).toBeDisabled()
+  })
+})
+
+describe("rulerTicks", () => {
+  it("spaces ticks so their labels don't collide", () => {
+    expect(rulerTicks(6000, 600)).toEqual([
+      0, 1000, 2000, 3000, 4000, 5000, 6000,
+    ])
+    expect(rulerTicks(60_000, 600)).toEqual([
+      0, 10_000, 20_000, 30_000, 40_000, 50_000, 60_000,
+    ])
+    expect(rulerTicks(6000, 0)).toEqual([])
   })
 })
