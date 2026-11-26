@@ -55,3 +55,25 @@ describe("parseEnv storage", () => {
     }
   )
 })
+
+describe("parseEnv hosted settings", () => {
+  it("s3 driver without a bucket fails env parsing", () => {
+    expect(() => parseEnv({ ...s3, S3_BUCKET: undefined })).toThrow(
+      "S3_BUCKET is required when STORAGE_DRIVER=s3"
+    )
+  })
+
+  it("defaults the pool size and role", () => {
+    expect(parseEnv({})).toMatchObject({
+      DATABASE_POOL_MAX: 10,
+      NIMBUS_ROLE: "all",
+    })
+    expect(
+      parseEnv({ DATABASE_POOL_MAX: "3", NIMBUS_ROLE: "web" })
+    ).toMatchObject({
+      DATABASE_POOL_MAX: 3,
+      NIMBUS_ROLE: "web",
+    })
+    expect(() => parseEnv({ DATABASE_POOL_MAX: "0" })).toThrow()
+  })
+})

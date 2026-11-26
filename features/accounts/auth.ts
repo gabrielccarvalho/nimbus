@@ -46,6 +46,7 @@ function createAuth() {
   return betterAuth({
     appName: "nimbus",
     baseURL: env.BETTER_AUTH_URL,
+    trustedOrigins: env.VERCEL_URL ? [`https://${env.VERCEL_URL}`] : [],
     secret: env.BETTER_AUTH_SECRET,
     database: drizzleAdapter(getDb(), {
       provider: "pg",

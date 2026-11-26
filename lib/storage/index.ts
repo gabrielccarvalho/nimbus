@@ -22,25 +22,29 @@ export function getStorage(): StorageAdapter {
   return instance.storage
 }
 
+export function createS3Client(env: Env) {
+  return new S3Client({
+    endpoint: env.S3_ENDPOINT,
+    region: env.S3_REGION,
+    forcePathStyle: env.S3_FORCE_PATH_STYLE,
+    credentials: {
+      accessKeyId: env.S3_ACCESS_KEY_ID!,
+      secretAccessKey: env.S3_SECRET_ACCESS_KEY!,
+    },
+    // The default adds a CRC32 of the empty body to presigned PUTs, which
+    // then rejects every real upload.
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
+  })
+}
+
 function createStorage(env: Env): StorageAdapter {
   if (env.STORAGE_DRIVER === "local") {
     mkdirSync(env.DATA_DIR, { recursive: true })
     return new LocalStorage(env.DATA_DIR)
   }
   return new S3Storage({
-    client: new S3Client({
-      endpoint: env.S3_ENDPOINT,
-      region: env.S3_REGION,
-      forcePathStyle: env.S3_FORCE_PATH_STYLE,
-      credentials: {
-        accessKeyId: env.S3_ACCESS_KEY_ID!,
-        secretAccessKey: env.S3_SECRET_ACCESS_KEY!,
-      },
-      // The default adds a CRC32 of the empty body to presigned PUTs, which
-      // then rejects every real upload.
-      requestChecksumCalculation: "WHEN_REQUIRED",
-      responseChecksumValidation: "WHEN_REQUIRED",
-    }),
+    client: createS3Client(env),
     bucket: env.S3_BUCKET!,
     cache: {
       dir: path.join(env.SCRATCH_DIR, "cache"),

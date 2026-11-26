@@ -27,6 +27,8 @@ const envFields = z.object({
   S3_ACCESS_KEY_ID: z.string().min(1).optional(),
   S3_SECRET_ACCESS_KEY: z.string().min(1).optional(),
   S3_FORCE_PATH_STYLE: booleanish,
+  NIMBUS_ROLE: z.enum(["web", "worker", "all"]).default("all"),
+  DATABASE_POOL_MAX: z.coerce.number().int().positive().default(10),
   DATABASE_URL: z
     .string()
     .min(1)
@@ -47,6 +49,7 @@ const envFields = z.object({
   YTDLP_PATH: z.string().min(1).default("yt-dlp"),
   YTDLP_COOKIES_FROM_BROWSER: z.string().min(1).optional(),
   YTDLP_COOKIES: z.string().min(1).optional(),
+  YTDLP_COOKIES_TEXT: z.string().min(1).optional(),
   DOWNLOADER: z.enum(["yt-dlp", "fake"]).default("yt-dlp"),
   FAKE_DOWNLOAD_FILE: z.string().min(1).optional(),
   HIGHLIGHT_SELECTOR: z
@@ -70,6 +73,7 @@ const envFields = z.object({
   E2E: booleanish,
   BETTER_AUTH_SECRET: z.string().min(32).optional(),
   BETTER_AUTH_URL: z.url().default("http://localhost:3000"),
+  VERCEL_URL: z.string().min(1).optional(),
   NIMBUS_SECRET_KEY: z.string().min(32).optional(),
   GOOGLE_CLIENT_ID: z.string().min(1).optional(),
   GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
