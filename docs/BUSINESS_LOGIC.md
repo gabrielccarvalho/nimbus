@@ -207,7 +207,7 @@ When tracks change:
 
 ### Music and on-screen text
 
-Tracks belong to the workspace's music library: MP3, M4A/AAC, WAV, OGG or FLAC up to 50 MB, with an audio stream. The title starts as the file name and can be renamed. A clip has at most one track (`audioMix`) and one on-screen text (`textOverlay`); null means no music and no text (ADR-0068).
+Tracks belong to the workspace's music library: MP3, M4A/AAC, WAV, OGG or FLAC up to 50 MB, with an audio stream. The title starts as the file name and can be renamed. A clip has at most one track (`audioMix`) and one on-screen text (`textOverlay`); null means no music and no text (ADR-0068). The track picker searches the library and YouTube's top 20 music videos for the region together. A trending song is saved on the clip as `audioMix.youtubeSound` and isn't mixed in: the render keeps the original audio, the editor links the song and explains adding it with Add sound in the YouTube app, and the publish dialog says the upload won't have it. Picking a library track clears the sound and picking a sound clears the track.
 
 | Setting        | Default                        | Range                                                |
 | -------------- | ------------------------------ | ---------------------------------------------------- |

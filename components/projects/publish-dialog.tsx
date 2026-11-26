@@ -5,6 +5,7 @@ import {
   ArrowsClockwiseIcon,
   UploadSimpleIcon,
   WarningIcon,
+  YoutubeLogoIcon,
 } from "@phosphor-icons/react"
 import { useRouter } from "next/navigation"
 import * as React from "react"
@@ -204,6 +205,17 @@ function PublishForm({
           </p>
         )}
       </div>
+      {clip.audioMix?.youtubeSound && (
+        <Alert>
+          <YoutubeLogoIcon aria-hidden />
+          <AlertTitle>This clip has a sound to add</AlertTitle>
+          <AlertDescription>
+            Publishing from here uploads it without “
+            {clip.audioMix.youtubeSound.title}”. To use the sound, download the
+            clip and upload it from the YouTube app with Add sound.
+          </AlertDescription>
+        </Alert>
+      )}
       {clip.audioMix?.trackId && (
         <Alert>
           <WarningIcon aria-hidden />

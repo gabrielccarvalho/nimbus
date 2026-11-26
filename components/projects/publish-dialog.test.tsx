@@ -120,6 +120,33 @@ describe("PublishDialog", () => {
     ).toBeVisible()
   })
 
+  it("says a YouTube sound won't be in the upload", async () => {
+    render(
+      <PublishDialog
+        clip={{
+          ...clip,
+          audioMix: {
+            ...mix,
+            trackId: null,
+            youtubeSound: {
+              videoId: "dQw4w9WgXcQ",
+              title: "Hit song",
+              channelTitle: "Artist",
+              thumbnailUrl: null,
+            },
+          },
+        }}
+        publishing={publishing}
+      />
+    )
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }))
+    expect(
+      await screen.findByText("This clip has a sound to add")
+    ).toBeVisible()
+    expect(screen.getByText(/uploads it without “Hit song”/)).toBeVisible()
+    expect(screen.queryByText("Check the music rights")).not.toBeInTheDocument()
+  })
+
   it.each([
     ["no mix", null],
     ["source volume only", { ...mix, trackId: null }],

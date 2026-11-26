@@ -93,7 +93,7 @@ function renderPanel(
   return all
 }
 
-async function pickTrack(name: string) {
+async function pickTrack(name: string | RegExp) {
   await userEvent.click(screen.getByRole("combobox", { name: "Track" }))
   await userEvent.click(await screen.findByRole("option", { name }))
 }
@@ -104,25 +104,40 @@ const volume = (name: string) =>
 describe("AudioTextPanel music", () => {
   it("lists the library and starts a mix from the defaults", async () => {
     const { onAudioMixChange } = renderPanel()
-    await userEvent.click(screen.getByRole("combobox", { name: "Track" }))
+    const input = screen.getByRole("combobox", { name: "Track" })
+    expect(input).toHaveValue("")
+    expect(input).toHaveAttribute("placeholder", "No music")
+    expect(
+      screen.queryByRole("button", { name: "Clear selection" })
+    ).not.toBeInTheDocument()
+    await userEvent.click(input)
     expect(
       (await screen.findAllByRole("option")).map((o) => o.textContent)
-    ).toEqual(["No music", "Summer loop · 2:10", "Night drive · 3:20"])
-    await userEvent.click(
-      screen.getByRole("option", { name: "Summer loop · 2:10" })
-    )
+    ).toEqual(["Summer loop2:10", "Night drive3:20"])
+    await userEvent.click(screen.getByRole("option", { name: /^Summer loop/ }))
     expect(onAudioMixChange).toHaveBeenLastCalledWith({
       ...DEFAULT_AUDIO_MIX,
       trackId: "t1",
+      youtubeSound: null,
     })
   })
 
-  it("keeps the mix when switching tracks and clears the track with No music", async () => {
+  it("keeps the mix when switching tracks and clears the track", async () => {
     const { onAudioMixChange } = renderPanel({ audioMix: mix })
-    await pickTrack("Night drive · 3:20")
-    expect(onAudioMixChange).toHaveBeenLastCalledWith({ ...mix, trackId: "t2" })
-    await pickTrack("No music")
-    expect(onAudioMixChange).toHaveBeenLastCalledWith({ ...mix, trackId: null })
+    await pickTrack(/^Night drive/)
+    expect(onAudioMixChange).toHaveBeenLastCalledWith({
+      ...mix,
+      trackId: "t2",
+      youtubeSound: null,
+    })
+    await userEvent.click(
+      screen.getByRole("button", { name: "Clear selection" })
+    )
+    expect(onAudioMixChange).toHaveBeenLastCalledWith({
+      ...mix,
+      trackId: null,
+      youtubeSound: null,
+    })
   })
 
   it("a processing track shows a spinner and can't be picked", async () => {
@@ -132,7 +147,7 @@ describe("AudioTextPanel music", () => {
     )
     await userEvent.click(screen.getByRole("combobox", { name: "Track" }))
     const option = await screen.findByRole("option", {
-      name: "Fresh upload · Processing…",
+      name: /^Fresh upload.*Processing…/,
     })
     expect(option).toHaveAttribute("aria-disabled", "true")
     expect(option.querySelector("[data-slot=spinner]")).not.toBeNull()
@@ -149,11 +164,77 @@ describe("AudioTextPanel music", () => {
     })
     await userEvent.click(screen.getByRole("combobox", { name: "Track" }))
     const option = await screen.findByRole("option", {
-      name: "Fresh upload · Couldn't be read",
+      name: /^Fresh upload.*Couldn't be read/,
     })
     expect(option).toHaveAttribute("aria-disabled", "true")
     await userEvent.click(option)
     expect(onAudioMixChange).not.toHaveBeenCalled()
+  })
+
+  it("searches the library and trending songs, and saves a trending pick as a sound", async () => {
+    const { onAudioMixChange } = renderPanel({
+      audioMix: mix,
+      trending: Promise.resolve({
+        status: "ok",
+        region: "BR",
+        tracks: [
+          {
+            videoId: "dQw4w9WgXcQ",
+            title: "Hit song",
+            channelTitle: "Artist",
+            thumbnailUrl: null,
+            durationMs: 184_000,
+            views: 12_400_000,
+          },
+        ],
+      }),
+    })
+    expect(
+      await screen.findByText(/top music on YouTube in Brazil/)
+    ).toBeVisible()
+    const input = screen.getByRole("combobox", { name: "Track" })
+    await userEvent.clear(input)
+    await userEvent.type(input, "hit")
+    expect(
+      (await screen.findAllByRole("option")).map((o) => o.textContent)
+    ).toEqual(["Hit songArtist · 3:04 · 12M views"])
+    await userEvent.click(screen.getByRole("option", { name: /^Hit song/ }))
+    expect(onAudioMixChange).toHaveBeenLastCalledWith({
+      ...mix,
+      trackId: null,
+      youtubeSound: {
+        videoId: "dQw4w9WgXcQ",
+        title: "Hit song",
+        channelTitle: "Artist",
+        thumbnailUrl: null,
+      },
+    })
+  })
+
+  it("shows the chosen YouTube sound with a link and how to add it", () => {
+    renderPanel({
+      audioMix: {
+        ...mix,
+        trackId: null,
+        youtubeSound: {
+          videoId: "dQw4w9WgXcQ",
+          title: "Hit song",
+          channelTitle: "Artist",
+          thumbnailUrl: null,
+        },
+      },
+    })
+    expect(screen.getByRole("link", { name: /Hit song/ })).toHaveAttribute(
+      "href",
+      "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+    )
+    expect(screen.getByText(/pick this song with Add sound/)).toBeVisible()
+    expect(screen.queryByText("Music volume")).not.toBeInTheDocument()
+  })
+
+  it("asks to connect YouTube for trending songs", async () => {
+    renderPanel()
+    expect(await screen.findByText(/Connect YouTube in Settings/)).toBeVisible()
   })
 
   it("scrubs the start in the track over its waveform", () => {

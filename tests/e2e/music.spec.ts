@@ -64,7 +64,7 @@ test("puts a track and a hook title under a clip and renders it", async ({
 
   await page.getByRole("tab", { name: "Audio & text" }).click()
   await page.getByLabel("Track").click()
-  await page.getByRole("option", { name: "tone-880hz · 0:30" }).click()
+  await page.getByRole("option", { name: /^tone-880hz/ }).click()
   await page.getByRole("switch", { name: "Show text on the video" }).click()
   await expect(page.getByLabel("Text", { exact: true })).toHaveValue(
     defaultOverlayText(hook, title)

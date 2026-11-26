@@ -4,6 +4,14 @@ export const MUSIC_DB = { min: -30, max: 0, default: -16 } as const
 export const SOURCE_DB = { min: -30, max: 6, default: 0 } as const
 export const FADE_MAX_MS = 5000
 
+export const youtubeSoundSchema = z.object({
+  videoId: z.string().regex(/^[\w-]{11}$/),
+  title: z.string().min(1).max(200),
+  channelTitle: z.string().max(200),
+  thumbnailUrl: z.url().max(500).nullable(),
+})
+export type YoutubeSound = z.infer<typeof youtubeSoundSchema>
+
 export const audioMixSchema = z.object({
   trackId: z.string().min(1).max(64).nullable(),
   trackStartMs: z.number().int().min(0).default(0),
@@ -22,6 +30,7 @@ export const audioMixSchema = z.object({
   duck: z.boolean().default(true),
   fadeInMs: z.number().int().min(0).max(FADE_MAX_MS).default(0),
   fadeOutMs: z.number().int().min(0).max(FADE_MAX_MS).default(1500),
+  youtubeSound: youtubeSoundSchema.nullable().optional(),
 })
 export type AudioMix = z.infer<typeof audioMixSchema>
 
@@ -106,6 +115,9 @@ export function toSummary(
     error: track.error,
   }
 }
+
+export const youtubeWatchUrl = (videoId: string) =>
+  `https://www.youtube.com/watch?v=${videoId}`
 
 export type TrendingVideo = {
   videoId: string

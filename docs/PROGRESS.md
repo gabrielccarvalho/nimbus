@@ -414,6 +414,8 @@ Follow-ups from the final review:
 - [x] Captions on or off per clip; renders and previews follow the clip
 - [x] Captions lane in the clip editor: drag or resize a caption, click to edit or delete it, shift all captions
 - [x] Sidebar tidy: tabs on one row, presets three across, caption position on one row
+- [x] Captions lane zooms (fit up to 400 px/s), scrolls, follows the playhead and has a click-to-seek ruler
+- [x] Track picker is a searchable combobox with the library and trending songs; a trending pick is saved as the clip's sound to add in the YouTube app (ADR-0069 amended)
 - [ ] Hand check by eye on a real clip with `pnpm dev`
 
 ### Not verified

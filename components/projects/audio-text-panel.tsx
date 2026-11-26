@@ -2,21 +2,23 @@
 
 import * as React from "react"
 
+import { ArrowSquareOutIcon, YoutubeLogoIcon } from "@phosphor-icons/react"
+
 import { MusicUploadButton } from "@/components/music/music-upload-button"
-import { TrendingMusic } from "@/components/music/trending-music"
+import { TrackPicker } from "@/components/music/track-picker"
 import { FieldError } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemMedia,
+  ItemTitle,
+} from "@/components/ui/item"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
-import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
 import {
   Timeline,
@@ -39,6 +41,7 @@ import {
   type MusicTrackSummary,
   type ReadyMusicTrack,
   type TrendingMusic as TrendingMusicResult,
+  youtubeWatchUrl,
 } from "@/features/music/schema"
 import { formatDuration } from "@/lib/format"
 
@@ -50,12 +53,6 @@ const secondsToMs = (value: string, maxMs: number, minMs = 0) =>
 const sliderValue = (value: number | readonly number[]) =>
   Array.isArray(value) ? value[0] : (value as number)
 const decibels = (_: string, value: number) => `${value} dB`
-
-function trackDetail(track: MusicTrackSummary) {
-  if (track.status === "processing") return "Processing…"
-  if (track.status === "failed") return "Couldn't be read"
-  return formatDuration(track.durationMs)
-}
 
 function VolumeField({
   label,
@@ -125,32 +122,30 @@ export function AudioTextPanel({
 }) {
   const id = React.useId()
   const [uploads, setUploads] = React.useState<MusicTrackSummary[]>([])
-  const library = [
-    ...tracks,
-    ...uploads.filter((upload) => !tracks.some((t) => t.id === upload.id)),
-  ]
-  const items = [
-    { value: null, label: "No music", status: null },
-    ...library.map((track) => ({
-      value: track.id,
-      label: `${track.title} · ${trackDetail(track)}`,
-      status: track.status,
-    })),
-  ]
+  const library = React.useMemo(
+    () => [
+      ...tracks,
+      ...uploads.filter((upload) => !tracks.some((t) => t.id === upload.id)),
+    ],
+    [tracks, uploads]
+  )
   const mix = audioMix ?? DEFAULT_AUDIO_MIX
   const selected = library.find((t) => t.id === audioMix?.trackId)
   const track = selected?.status === "ready" ? selected : undefined
   const editMix = (patch: Partial<AudioMix>) =>
     onAudioMixChange({ ...mix, ...patch })
 
+  const sound = audioMix?.youtubeSound ?? null
+
   const selectTrack = (next: ReadyMusicTrack | null) => {
     if (!next) {
-      if (audioMix) editMix({ trackId: null })
+      if (audioMix) editMix({ trackId: null, youtubeSound: null })
       return
     }
     editMix({
       trackId: next.id,
       trackStartMs: mix.trackStartMs < next.durationMs ? mix.trackStartMs : 0,
+      youtubeSound: null,
     })
   }
 
@@ -173,35 +168,8 @@ export function AudioTextPanel({
           Music
         </h3>
         <div className="flex flex-col gap-2">
-          <Label htmlFor={`${id}-track`}>Track</Label>
-          <div className="flex flex-wrap items-center gap-2">
-            <Select
-              items={items}
-              value={selected?.id ?? null}
-              disabled={disabled}
-              onValueChange={(value) => {
-                const next = library.find((t) => t.id === value)
-                selectTrack(next?.status === "ready" ? next : null)
-              }}
-            >
-              <SelectTrigger id={`${id}-track`} className="min-w-0 flex-1">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {items.map((item) => (
-                  <SelectItem
-                    key={item.value ?? ""}
-                    value={item.value}
-                    disabled={
-                      item.status === "processing" || item.status === "failed"
-                    }
-                  >
-                    {item.status === "processing" && <Spinner aria-hidden />}
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor={`${id}-track`}>Track</Label>
             <MusicUploadButton
               size="sm"
               disabled={disabled}
@@ -210,7 +178,70 @@ export function AudioTextPanel({
               }
             />
           </div>
+          <TrackPicker
+            id={`${id}-track`}
+            library={library}
+            trending={trending}
+            disabled={disabled}
+            value={
+              sound
+                ? { kind: "youtube", sound }
+                : selected
+                  ? { kind: "track", id: selected.id }
+                  : { kind: "none" }
+            }
+            onValueChange={(choice) => {
+              if (choice.kind === "youtube") {
+                editMix({ trackId: null, youtubeSound: choice.sound })
+                return
+              }
+              const next =
+                choice.kind === "track"
+                  ? library.find((t) => t.id === choice.id)
+                  : undefined
+              selectTrack(next?.status === "ready" ? next : null)
+            }}
+          />
         </div>
+        {sound && (
+          <div className="flex flex-col gap-2">
+            <Item
+              variant="outline"
+              size="sm"
+              render={
+                <a
+                  href={youtubeWatchUrl(sound.videoId)}
+                  target="_blank"
+                  rel="noreferrer"
+                />
+              }
+            >
+              <ItemMedia variant="image">
+                {sound.thumbnailUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- remote YouTube thumbnail
+                  <img src={sound.thumbnailUrl} alt="" />
+                ) : (
+                  <YoutubeLogoIcon aria-hidden />
+                )}
+              </ItemMedia>
+              <ItemContent className="min-w-0">
+                <ItemTitle className="line-clamp-1">{sound.title}</ItemTitle>
+                <ItemDescription className="line-clamp-1">
+                  {sound.channelTitle}
+                </ItemDescription>
+              </ItemContent>
+              <ItemActions>
+                <ArrowSquareOutIcon aria-label="Opens YouTube" />
+              </ItemActions>
+            </Item>
+            <p className="text-[13px] text-tertiary">
+              Sound to add in the YouTube app. The render keeps the original
+              audio: download the clip, upload it from the YouTube app and pick
+              this song with Add sound. Set the song&apos;s volume there; the
+              original audio volume below still applies to the render.
+            </p>
+          </div>
+        )}
         {previewUnavailable && (
           <p className="text-[13px] text-amber">
             This browser can&apos;t play the music preview. The render will
@@ -331,7 +362,6 @@ export function AudioTextPanel({
             </div>
           </>
         )}
-        <TrendingMusic trending={trending} />
       </section>
 
       <section

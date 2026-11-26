@@ -19,7 +19,7 @@ Before building any UI element:
 
 Installed with `pnpm exec shadcn add` (style `base-nova`, Base UI). Generated files import `cn` from the `cn` package; custom primitives in `components/ui/` do the same so they read identically.
 
-alert, alert-dialog, badge, breadcrumb, button, card, chart, command, dialog, dropdown-menu, empty, field, input, input-group, item, kbd, label, popover, progress, radio-group, scroll-area, select, separator, sheet, skeleton, slider, sonner, spinner, stat-card*, switch, table, tabs, textarea, toggle, toggle-group, tooltip.
+alert, alert-dialog, badge, breadcrumb, button, card, chart, combobox, command, dialog, dropdown-menu, empty, field, input, input-group, item, kbd, label, popover, progress, radio-group, scroll-area, select, separator, sheet, skeleton, slider, sonner, spinner, stat-card*, switch, table, tabs, textarea, toggle, toggle-group, tooltip.
 
 \* custom, see below.
 
@@ -247,6 +247,8 @@ Layout & captions: `LayoutModeOptions` (mode cards with a slot diagram; shared w
 - `components/ui/slider.tsx`: `Slider` forwards `getAriaValueText` to its thumbs, so a value can be read as "-16 dB".
 
 - `components/ui/popover.tsx`: `PopoverContent` forwards `anchor` to the positioner, so a controlled popover can open next to an element that isn't its trigger (the clip editor's effects lane anchors it to the selected block).
+
+- `components/ui/combobox.tsx`: `ComboboxInput` names its dropdown and clear buttons "Show options" and "Clear selection"; the registry leaves them unnamed, which axe flags.
 
 ### ChannelIcon (`components/channels/channel-icon.tsx`)
 
