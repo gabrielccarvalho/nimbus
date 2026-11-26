@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "buildCommand": "pnpm db:migrate && pnpm build",
+  "buildCommand": "if [ \"$VERCEL_ENV\" = production ]; then pnpm db:migrate; fi && pnpm setup:vision && pnpm build",
   "daemons": {
     "worker": {
       "root": "./",
