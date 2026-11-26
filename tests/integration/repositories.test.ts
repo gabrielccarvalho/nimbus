@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { signalsRepository } from "@/features/analysis/repository"
 import { clipRepository } from "@/features/clips/repository"
-import { layoutRepository } from "@/features/layout/repository"
 import {
   assetRepository,
   projectRepository,
@@ -45,8 +44,6 @@ describe("migrations", () => {
         "assets",
         "transcripts",
         "signals",
-        "layouts",
-        "layout_presets",
         "clips",
         "jobs",
         "settings",
@@ -212,7 +209,7 @@ describe("clipRepository", () => {
   })
 })
 
-describe("transcript, signals and layout repositories", () => {
+describe("transcript and signals repositories", () => {
   it("upserts transcripts and signals", async () => {
     const project = await seedProject()
     const words = [{ text: "hi", startMs: 0, endMs: 200, confidence: 0.9 }]
@@ -240,25 +237,6 @@ describe("transcript, signals and layout repositories", () => {
     expect((await signalsRepository(env.db).get(project.id))?.loudness).toEqual(
       [-20, -18]
     )
-  })
-
-  it("saves layouts and one preset per resolution", async () => {
-    const project = await seedProject()
-    const repo = layoutRepository(env.db)
-    const input = {
-      webcamRect: { x: 0.7, y: 0.7, w: 0.2, h: 0.2 },
-      gameplayRect: { x: 0, y: 0, w: 1, h: 1 },
-      gameplayFocusX: 0.5,
-      mode: "cam-top" as const,
-    }
-    await repo.upsert(project.id, { ...input, sourceAspect: "16:9" })
-    expect((await repo.get(project.id))?.webcamRect).toEqual(input.webcamRect)
-
-    await repo.savePreset(1920, 1080, input)
-    await repo.savePreset(1920, 1080, { ...input, mode: "split-50" })
-    expect(await repo.listPresets()).toHaveLength(1)
-    expect((await repo.findPreset(1920, 1080))?.mode).toBe("split-50")
-    expect(await repo.findPreset(2560, 1080)).toBeUndefined()
   })
 })
 

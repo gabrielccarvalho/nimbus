@@ -21,7 +21,6 @@ import {
   pageRoom,
   DEFAULT_PAGING,
   pageAt,
-  sampleCaptionWords,
   spokenEnd,
   wordsInRange,
   type CaptionWord,
@@ -632,33 +631,5 @@ describe("text overlay", () => {
     const ass = buildAss({ lanes: [], style: punch, overlays: [overlay] })
     expect(events(ass)).toHaveLength(1)
     expect(ass).not.toContain(",Caption,,")
-  })
-})
-
-describe("sampleCaptionWords", () => {
-  const word = (text: string, startMs: number) => ({
-    text,
-    startMs,
-    endMs: startMs + 200,
-    confidence: 1,
-  })
-
-  it("picks a continuous run and times it from zero", () => {
-    const words = [
-      word("a", 0),
-      word("b", 5000),
-      word("c", 5300),
-      word("d", 5600),
-      word("e", 9000),
-    ]
-    expect(sampleCaptionWords(words, 3)).toEqual([
-      { text: "b", startMs: 0, endMs: 200 },
-      { text: "c", startMs: 300, endMs: 500 },
-      { text: "d", startMs: 600, endMs: 800 },
-    ])
-  })
-
-  it("returns nothing when no run is long enough", () => {
-    expect(sampleCaptionWords([word("a", 0), word("b", 5000)], 2)).toEqual([])
   })
 })

@@ -9,7 +9,6 @@ export const projectStatuses = [
   "transcribing",
   "analyzing",
   "selecting",
-  "awaiting_layout",
   "ready_for_review",
   "rendering",
   "done",

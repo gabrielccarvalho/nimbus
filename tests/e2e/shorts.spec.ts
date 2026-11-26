@@ -13,8 +13,15 @@ test("turns a 4:3 recording into a full-screen short", async ({ page }) => {
   ).toBeVisible({ timeout: 30_000 })
   await expect(page.getByTestId("stat-aspect")).toHaveText("4:3")
 
-  await page.getByRole("link", { name: /^Layout & captions/ }).click()
-  await expect(page.getByText("Looking for the webcam…")).toBeHidden({
+  await page.getByRole("link", { name: /^Clips/ }).click()
+  const first = page
+    .getByRole("list", { name: "Clips" })
+    .getByRole("button")
+    .first()
+  await first.click()
+  await page.getByRole("dialog").getByRole("link", { name: /Edit/ }).click()
+  await page.getByRole("tab", { name: "Layout" }).click()
+  await expect(page.getByRole("button", { name: "Find webcam" })).toBeEnabled({
     timeout: 30_000,
   })
   await page.getByRole("button", { name: /^Fill, no webcam/ }).click()
@@ -28,15 +35,10 @@ test("turns a 4:3 recording into a full-screen short", async ({ page }) => {
     0
   )
   await expectNoSeriousA11yViolations(page)
-  await page.getByRole("button", { name: "Confirm layout" }).click()
-  await expect(page.getByText("Layout confirmed")).toBeVisible()
+  await expect(page.getByTestId("save-state")).toHaveText("Saved")
+  await page.getByRole("link", { name: "Back to all clips" }).click()
 
-  await page.getByRole("link", { name: "Clips" }).click()
   await page.getByRole("button", { name: /Approve all/ }).click()
-  const first = page
-    .getByRole("list", { name: "Clips" })
-    .getByRole("button")
-    .first()
   await expect(first).toHaveAccessibleDescription(/Approved/)
   await page.getByRole("button", { name: "Render approved clips" }).click()
   await expect(first).toHaveAccessibleDescription(/Rendered/, {

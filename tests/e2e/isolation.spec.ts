@@ -13,7 +13,7 @@ test("another account can't see or reach this account's projects", async ({
   await expect(
     page.getByRole("listitem").filter({ hasText: "Find highlights, completed" })
   ).toBeVisible({ timeout: 30_000 })
-  await page.getByRole("link", { name: "Clips" }).click()
+  await page.getByRole("link", { name: /^Clips/ }).click()
   const tile = page.locator("[data-clip-id]").first()
   const clipId = (await tile.getAttribute("data-clip-id"))!
   const media = (await page.locator("video").first().getAttribute("src"))!
@@ -52,7 +52,6 @@ test("another account can't see or reach this account's projects", async ({
     `${projectPath}/clips`,
     `${projectPath}/clips/${clipId}`,
     `${projectPath}/transcript`,
-    `${projectPath}/layout`,
   ]) {
     const response = await intruder.goto(path)
     expect(response?.status(), path).toBe(404)

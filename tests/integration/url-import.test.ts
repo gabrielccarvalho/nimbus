@@ -64,7 +64,7 @@ describe("importFromUrl", () => {
 
     const project = await projects.getOrThrow(projectId)
     expect(project.name).toBe("Imported recording")
-    expect(project.status).toBe("awaiting_layout")
+    expect(project.status).toBe("ready_for_review")
     const source = await assetRepository(env.db).findByKind(projectId, "source")
     expect(source).toMatchObject({ mime: "video/mp4", width: 1920 })
     expect((await getStorage().stat(source!.storageKey))?.bytes).toBe(
@@ -145,7 +145,7 @@ describe("YouTube replay heatmap", () => {
     await runJobs(env.db, ["select"])
     const project = await projectRepository(env.db).getOrThrow(projectId)
     expect(project.audienceHeatmap).toHaveLength(20)
-    expect(project.status).toBe("awaiting_layout")
+    expect(project.status).toBe("ready_for_review")
   })
 
   it("still finds highlights when the site won't answer", async () => {
@@ -161,7 +161,7 @@ describe("YouTube replay heatmap", () => {
     await runJobs(env.db, ["select"])
     const project = await projectRepository(env.db).getOrThrow(projectId)
     expect(project.audienceHeatmap).toBeNull()
-    expect(project.status).toBe("awaiting_layout")
+    expect(project.status).toBe("ready_for_review")
   })
 })
 

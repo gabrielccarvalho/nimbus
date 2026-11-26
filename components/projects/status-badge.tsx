@@ -10,7 +10,6 @@ const LABELS: Record<ProjectStatus, string> = {
   transcribing: "Transcribing",
   analyzing: "Analyzing",
   selecting: "Finding highlights",
-  awaiting_layout: "Confirm layout",
   ready_for_review: "Ready for review",
   rendering: "Rendering",
   done: "Done",
@@ -25,7 +24,6 @@ const PROJECT_TONES: Record<ProjectStatus, Tone> = {
   transcribing: "lav",
   analyzing: "lav",
   selecting: "lav",
-  awaiting_layout: "amber",
   ready_for_review: "mint",
   rendering: "lav",
   done: "sky",
@@ -53,13 +51,6 @@ export function projectSignal({
   awaitingManualSelection,
   reviewCount = 0,
 }: ProjectSignalInput): ProjectSignal {
-  if (status === "awaiting_layout")
-    return {
-      tone: "amber",
-      label: "Needs you",
-      detail: "Confirm layout",
-      needsYou: true,
-    }
   if (status === "selecting" && awaitingManualSelection)
     return {
       tone: "amber",

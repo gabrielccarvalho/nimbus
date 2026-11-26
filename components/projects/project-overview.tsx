@@ -17,8 +17,6 @@ import {
   ProgressValue,
 } from "@/components/ui/progress"
 import { SignalDot } from "@/components/ui/signal-dot"
-import { confirmLayoutAction } from "@/features/layout/actions"
-import type { LayoutInput } from "@/features/layout/schema"
 import { estimateRemainingMs } from "@/features/pipeline/detail"
 import type { ProjectSnapshot } from "@/features/pipeline/snapshot"
 import {
@@ -32,12 +30,7 @@ import {
 } from "@/features/projects/actions"
 import { formatDuration } from "@/lib/format"
 
-import {
-  stepDetails,
-  stepTimes,
-  webcamCorner,
-  type OverviewFacts,
-} from "./overview-steps"
+import { stepDetails, stepTimes, type OverviewFacts } from "./overview-steps"
 import {
   PipelineStep,
   PipelineStepContent,
@@ -57,11 +50,6 @@ const JOB_LABELS: Record<string, string> = {
   select: "Finding highlights",
   render_clip: "Rendering clip",
   render_edit: "Rendering edit",
-}
-
-export type DetectedLayout = {
-  input: LayoutInput
-  confidence: number
 }
 
 function ActionCard({
@@ -108,68 +96,15 @@ function YourTurn({
 
 function NextStep({
   snapshot,
-  layout,
-  clipCount,
   pending,
   run,
 }: {
   snapshot: ProjectSnapshot
-  layout: DetectedLayout | null
-  clipCount: number
   pending: boolean
   run: (fn: () => Promise<void>) => void
 }) {
   const id = snapshot.id
-  const clips = `${clipCount} ${clipCount === 1 ? "clip" : "clips"}`
   const toReview = snapshot.clips.filter((c) => c.status === "candidate").length
-
-  if (snapshot.status === "awaiting_layout") {
-    const where = layout?.input.webcamRect
-      ? `The webcam was found in ${webcamCorner(layout.input.webcamRect)}, ${Math.round(layout.confidence * 100)}% sure. It goes ${layout.input.camPosition === "bottom" ? "below" : "on top of"} every vertical clip.`
-      : "No webcam was found, so the gameplay fills every vertical clip."
-    return (
-      <YourTurn
-        title={
-          clipCount > 0
-            ? `Check the layout once, then review all ${clips}.`
-            : "Check the layout once to continue."
-        }
-        actions={
-          <>
-            <Button
-              variant="primary"
-              size="sm"
-              nativeButton={false}
-              render={<Link href={`/projects/${id}/layout`} />}
-            >
-              Review layout
-            </Button>
-            {layout && (
-              <Button
-                size="sm"
-                disabled={pending}
-                onClick={() =>
-                  run(async () => {
-                    const result = await confirmLayoutAction(id, {
-                      layout: layout.input,
-                      confidence: layout.confidence,
-                      savePreset: true,
-                    })
-                    if (!result.ok) toast.error(result.error.message)
-                    else toast.success("Layout confirmed")
-                  })
-                }
-              >
-                Looks right, confirm
-              </Button>
-            )}
-          </>
-        }
-      >
-        {where}
-      </YourTurn>
-    )
-  }
 
   if (snapshot.status === "selecting" && snapshot.awaitingManualSelection) {
     return (
@@ -259,13 +194,11 @@ function NextStep({
 export function ProjectOverview({
   initial,
   facts,
-  layout,
   clips = [],
   videoSrc = null,
 }: {
   initial: ProjectSnapshot
   facts: OverviewFacts
-  layout: DetectedLayout | null
   clips?: readonly RenderClip[]
   videoSrc?: string | null
 }) {
@@ -290,20 +223,13 @@ export function ProjectOverview({
   const times = stepTimes(snapshot.jobs)
   const totalMs = Object.values(times).reduce<number>((a, b) => a + (b ?? 0), 0)
   const waiting =
-    snapshot.status === "awaiting_layout" ||
-    (snapshot.status === "selecting" && snapshot.awaitingManualSelection)
+    snapshot.status === "selecting" && snapshot.awaitingManualSelection
 
   const run = (fn: () => Promise<void>) => startTransition(fn)
 
   return (
     <>
-      <NextStep
-        snapshot={snapshot}
-        layout={layout}
-        clipCount={facts.clipCount}
-        pending={pending}
-        run={run}
-      />
+      <NextStep snapshot={snapshot} pending={pending} run={run} />
       <section className="grid gap-2 rounded-[18px] bg-graphite p-[22px]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-[19px] font-semibold tracking-[-0.025em]">

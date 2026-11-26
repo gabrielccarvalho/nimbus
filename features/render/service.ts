@@ -5,7 +5,6 @@ import { AppError } from "@/lib/errors"
 
 import { clipRepository } from "../clips/repository"
 import { jobQueue } from "../jobs/queue"
-import { layoutRepository } from "../layout/repository"
 import { enqueueClipRenders } from "../projects/service"
 import { projectRepository } from "../projects/repository"
 
@@ -22,9 +21,6 @@ export async function startClipRenders(
       "CONFLICT",
       "Finish reviewing the project before rendering"
     )
-  }
-  if (!(await layoutRepository(db).get(projectId))?.confirmedByUser) {
-    throw new AppError("CONFLICT", "Confirm the layout before rendering")
   }
   const clips = (await clipRepository(db).listForProject(projectId)).filter(
     (clip) => clipIds.includes(clip.id)

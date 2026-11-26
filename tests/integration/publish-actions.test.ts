@@ -4,6 +4,7 @@ import { accountRepository } from "@/features/accounts/repository"
 import { updateClipAction } from "@/features/clips/actions"
 import * as jobQueueModule from "@/features/jobs/queue"
 import { clipRepository } from "@/features/clips/repository"
+import { FILL_LAYOUT } from "@/features/layout/schema"
 import { musicRepository } from "@/features/music/repository"
 import { DEFAULT_AUDIO_MIX } from "@/features/music/schema"
 import {
@@ -173,6 +174,7 @@ describe("publishClipAction", () => {
       title: clip.title,
       hook: clip.hook,
       captionOverrides: { pages: [] },
+      layout: FILL_LAYOUT,
     }
     for (const change of [
       {

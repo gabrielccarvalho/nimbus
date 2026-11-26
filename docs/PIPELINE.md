@@ -27,7 +27,7 @@ yt-dlp --no-playlist --no-warnings --ignore-config [--ffmpeg-location FFMPEG_PAT
 
 ## 1. probe (`uploaded → probing → transcribing`)
 
-Input: source asset. Output: asset metadata, `thumbnail` and `proxy` assets, layout row with `sourceAspect`.
+Input: source asset. Output: asset metadata, `thumbnail` and `proxy` assets.
 
 ```sh
 ffprobe -v error -print_format json -show_format -show_streams <source>
@@ -94,26 +94,26 @@ ffmpeg -i <proxy.mp4> -an -vf "fps=10,scale=160:90,select='gt(scene,0.25)',metad
 
 `features/analysis/cuts.ts` reads the `pts_time` of each selected frame into `signals.cuts` (ms). It takes about 10 s per hour of proxy. Progress is 0–80% for the audio pass and 80–95% for this one.
 
-## 4. select (`selecting → awaiting_layout | ready_for_review`)
+## 4. select (`selecting → ready_for_review`)
 
-The configured HighlightSelector returns raw candidates. Shared post-processing (`features/highlights/postprocess.ts`) snaps, bounds, de-overlaps and sorts them (rules in BUSINESS_LOGIC). Clips are inserted with status `candidate`.
+The configured HighlightSelector returns raw candidates. Shared post-processing (`features/highlights/postprocess.ts`) snaps, bounds, de-overlaps and sorts them (rules in BUSINESS_LOGIC). Clips are inserted with status `candidate` and a starting layout from the workspace default (`features/layout/defaults.ts`), with no webcam box yet.
 
 - **anthropic** (`features/highlights/anthropic.ts`): Messages API with structured outputs (`output_config.format` from the zod schema), `effort: "high"`, server-side refusal fallbacks (`fallbacks: "default"`). `stop_reason` is checked before parsing. An unparseable or truncated reply gets one repair turn; a refusal, API error or second bad reply falls back to HeuristicSelector, and each clip's reason starts with "Claude unavailable (…)" so the editor can see it.
 - **visual review** (anthropic only, when the project has a proxy; `features/highlights/review.ts`): the first pass asks for 3× the clip count (at most 40). After post-processing, each candidate gets 12 frames from the proxy, from 3 s before its start to its end (`features/highlights/frames.ts`, one ffmpeg call per candidate with an input seek per frame, ~300 tokens per 640 px frame). Batches of 6 candidates go to `ANTHROPIC_REVIEW_MODEL` (default `ANTHROPIC_MODEL`) at `effort: "medium"`, in parallel. Claude re-scores each clip from what's on screen and moves its start to the payoff; post-processing runs again with `payoffStarts`. If the review fails, the top first-pass candidates are kept and each reason starts with "Not checked against the video (…)". Progress: first pass 10–60%, review 60–90%.
 - The prompt (`features/highlights/prompt.ts`) contains the timestamped transcript (lines in another language marked `(game)`), the 15 loudest 250 ms buckets, silences, game dialogue stretches, runs of camera cuts, the niche's "look for" list and the length/count limits. Manual mode shows the same prompt plus a JSON reply format.
 - **manual**: the step finishes with zero candidates and sets `awaitingManualSelection`; the Clips page shows the prompt and accepts pasted JSON (prose around the JSON is ignored), which goes through the same post-processing.
 - **heuristic** (`features/highlights/heuristic.ts`): windows anchored at every sentence start and every 5 s, at the minimum length and at the midpoint of min/max. Loudness is the 90th percentile of normalized loudness in the window; density is words per second; keywords count hype phrases; question/answer is 1 when a question is followed by a non-question.
-- **effects** (`features/effects/planner.ts`, pure): with the project's `autoEffects` on (default), every new clip gets a track planned from loudness, speech rate and the review's beats (`clips.beats`, kept so a reset never calls Claude again), using the layout stored at probe time. Without a preset that's a webcam-less placeholder, so confirming the layout re-plans the un-edited tracks. Rules in BUSINESS_LOGIC. Heuristic and manual clips get audio-only placement.
+- **effects** (`features/effects/planner.ts`, pure): with the project's `autoEffects` on (default), every new clip gets a track planned from loudness, speech rate and the review's beats (`clips.beats`, kept so a reset never calls Claude again), using the clip's starting layout. It has no webcam box yet, so webcam effects wait until the editor finds the webcam and the save re-plans the un-edited track. Rules in BUSINESS_LOGIC. Heuristic and manual clips get audio-only placement.
 
-## 5. layout (`awaiting_layout → ready_for_review`)
+## 5. webcam detection (per clip, in the editor)
 
-Client-side (`features/layout/detect-webcam.ts`). An off-screen `<video>` seeks to 8 evenly spaced frames of the proxy.
+Client-side (`features/layout/detect-webcam.ts`), not a pipeline step. The first time a clip whose layout uses the webcam but has no webcam box opens in the editor, an off-screen `<video>` seeks to 8 evenly spaced frames inside the clip's range of the proxy. "Find webcam" on the Layout tab runs it again for the current trim.
 
 - **Border heuristic** (`border-heuristic.ts`, pure): frames are scaled to 320 px wide and grayscaled. For each pixel the second-smallest vertical/horizontal gradient across frames is kept (one frame may disagree, e.g. a scene cut), so only static edges survive. Rows and columns are ranked by their longest run of strong edge pixels; every pair of top rows × pair of top columns that forms a plausible overlay (2–35% of the frame, aspect 0.75–2.4) is scored by how much of its perimeter is edge. Among boxes within 0.12 of the best score that contain the best box, the largest wins, so an outer frame beats an inner detail but an unrelated static outline elsewhere (a HUD panel) can't.
 - **Face detection**: MediaPipe Tasks Vision `blaze_face_short_range` (CPU, WASM served from `public/vendor/mediapipe`, installed by `pnpm run setup:vision`). It runs on the border box crop first (webcam faces are tiny in the full frame), then on the whole frame. If the assets are missing it is skipped and the border result stands.
 - **Combining** (`detection.ts`, pure): border score ≥ 0.6 with a face inside → `cam-top` at ≥ 0.9 confidence; border alone → 0.8 × score; no border but a steady small face in ≥ half the frames → a 16:9 box around the face; otherwise `no-cam-blur-fill`.
 
-The user adjusts the box in the layout editor, with a live 9:16 canvas preview drawn from the same `planLayout()` used by the renderer, and confirms (Server Action `confirmLayoutAction` → `awaiting_layout → ready_for_review`), re-planning un-edited effect tracks when `autoEffects` is on. "Use for every W×H recording" saves a LayoutPreset. Skipped automatically for square or portrait sources or when a preset matches the resolution. The layout can be edited again later without changing the status.
+`withDetection` (`features/layout/geometry.ts`, pure) applies the result: a found webcam keeps the clip's webcam mode and position and refits the gameplay box to it; no webcam switches the clip to `no-cam-blur-fill`. The editor autosaves it like any other edit, which re-plans an un-edited effect track. A clip rendered before it was opened renders its webcam mode as `no-cam-fill` (`renderableLayout`).
 
 ## 6. render_clip (`ready_for_review → rendering → done`)
 

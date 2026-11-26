@@ -308,7 +308,7 @@ export function ClipTimeline({
   startMs,
   endMs,
   onTrim,
-  layoutOverride,
+  layout,
   hasWebcam,
   effects,
   onEffectsChange,
@@ -339,7 +339,7 @@ export function ClipTimeline({
   startMs: number
   endMs: number
   onTrim(startMs: number, endMs: number): void
-  layoutOverride: LayoutInput | null
+  layout: LayoutInput
   hasWebcam: boolean
   effects: ClipEffects | null
   onEffectsChange(effects: ClipEffects): void
@@ -500,7 +500,7 @@ export function ClipTimeline({
       const planned = await planClipEffectsAction(projectId, clipId, {
         startMs,
         endMs,
-        layoutOverride,
+        layout,
       })
       if (!planned.ok) {
         toast.error(planned.error.message)

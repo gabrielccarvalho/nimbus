@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { clipRepository } from "@/features/clips/repository"
 import { setClipReviewStatus } from "@/features/clips/service"
 import { importFromUrl } from "@/features/downloads/service"
-import { layoutRepository } from "@/features/layout/repository"
 import { jobQueue } from "@/features/jobs/queue"
 import { projectRepository } from "@/features/projects/repository"
 import {
@@ -98,12 +97,6 @@ describe("project settings", () => {
         beats: null,
       },
     ])
-    await layoutRepository(env.db).savePreset(1920, 1080, {
-      webcamRect: { x: 0.78, y: 0.03, w: 0.2, h: 0.2 },
-      gameplayRect: { x: 0, y: 0, w: 1, h: 1 },
-      gameplayFocusX: 0.5,
-      mode: "cam-top",
-    })
     const kept = { edited: true, events: [] }
     await clips.update(first!.id, { effects: kept })
     await clips.update(second!.id, {
@@ -161,7 +154,7 @@ describe("project settings", () => {
 
     await runJobs(env.db, ["transcribe", "analyze", "select"])
     expect((await projects.getOrThrow(project.id)).status).toBe(
-      "awaiting_layout"
+      "ready_for_review"
     )
     expect(await clips.get(kept!.id)).toMatchObject({ status: "approved" })
   })
@@ -174,7 +167,7 @@ describe("project settings", () => {
     await rerunProject(env.db, project.id, "select")
     await runJobs(env.db, ["select"])
     expect((await projects.getOrThrow(project.id)).status).toBe(
-      "awaiting_layout"
+      "ready_for_review"
     )
   })
 
@@ -201,7 +194,7 @@ describe("find more highlights", () => {
 
     const after = await clips.listForProject(project.id)
     expect((await projects.getOrThrow(project.id)).status).toBe(
-      "awaiting_layout"
+      "ready_for_review"
     )
     for (const clip of before) {
       expect(after.find((c) => c.id === clip.id)).toBeDefined()

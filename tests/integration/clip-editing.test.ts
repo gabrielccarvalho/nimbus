@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { GET as exportZip } from "@/app/api/projects/[id]/export/route"
 import { clipRepository } from "@/features/clips/repository"
+import type { ClipEdit } from "@/features/clips/schema"
 import {
   approveAllCandidates,
   createClipFromRange,
@@ -10,7 +11,6 @@ import {
   setClipReviewStatus,
   updateClip,
 } from "@/features/clips/service"
-import { confirmLayout } from "@/features/layout/service"
 import { musicRepository } from "@/features/music/repository"
 import {
   DEFAULT_AUDIO_MIX,
@@ -21,10 +21,10 @@ import {
 import { projectRepository } from "@/features/projects/repository"
 import { startClipRenders } from "@/features/render/service"
 
-import { layouts, projects, workspaces } from "@/lib/db/schema"
+import { assets, projects, workspaces } from "@/lib/db/schema"
 
 import { fixtures } from "../../scripts/make-fixtures"
-import { runJobs, uploadFixture } from "../utils/pipeline"
+import { runJobs, setClipLayouts, uploadFixture } from "../utils/pipeline"
 import { createTestEnv, type TestEnv } from "../utils/test-env"
 
 vi.mock(
@@ -47,14 +47,17 @@ async function reviewedProject() {
     captionsEnabled: false,
   })
   await runJobs(env.db, ["probe", "transcribe", "analyze", "select"])
-  await confirmLayout(env.db, projectId, {
-    webcamRect: { x: 0.78, y: 0.77, w: 0.2, h: 0.2 },
-    gameplayRect: { x: 0, y: 0, w: 1, h: 1 },
-    gameplayFocusX: 0.5,
-    mode: "cam-top",
-  })
+  await setClipLayouts(env.db, projectId, camTop)
   const [clip] = await clipRepository(env.db).listForProject(projectId)
   return { projectId, clip: clip! }
+}
+
+const camTop: ClipEdit["layout"] = {
+  webcamRect: { x: 0.78, y: 0.77, w: 0.2, h: 0.2 },
+  gameplayRect: { x: 0, y: 0, w: 1, h: 1 },
+  gameplayFocusX: 0.5,
+  mode: "cam-top",
+  camPosition: "top",
 }
 
 const edit = (overrides: Partial<Parameters<typeof updateClip>[3]> = {}) => ({
@@ -67,7 +70,7 @@ const edit = (overrides: Partial<Parameters<typeof updateClip>[3]> = {}) => ({
     added: [],
     lanes: [],
   },
-  layoutOverride: null,
+  layout: camTop,
   effects: null,
   audioMix: null,
   textOverlays: [],
@@ -117,7 +120,7 @@ describe("createClipFromRange", () => {
 })
 
 describe("updateClip", () => {
-  it("saves a layout for one clip and can go back to the project's", async () => {
+  it("saves the clip's own layout", async () => {
     const { projectId, clip } = await reviewedProject()
     const layout = {
       webcamRect: { x: 0.1, y: 0.1, w: 0.2, h: 0.2 },
@@ -126,13 +129,13 @@ describe("updateClip", () => {
       mode: "split-50" as const,
       camPosition: "bottom" as const,
     }
-    const saved = await updateClip(env.db, projectId, clip.id, {
-      ...edit(),
-      layoutOverride: layout,
-    })
-    expect(saved.layoutOverride).toEqual(layout)
-    const reset = await updateClip(env.db, projectId, clip.id, edit())
-    expect(reset.layoutOverride).toBeNull()
+    const saved = await updateClip(env.db, projectId, clip.id, edit({ layout }))
+    expect(saved.layout).toEqual(layout)
+    expect(
+      (await clipRepository(env.db).listForProject(projectId))
+        .filter((other) => other.id !== clip.id)
+        .every((other) => other.layout.mode === "cam-top")
+    ).toBe(true)
   })
 
   it("saves trim, text and caption edits", async () => {
@@ -449,7 +452,7 @@ describe("clip effects", () => {
       mode: "no-cam-fill" as const,
       camPosition: "top" as const,
     }
-    await confirmLayout(env.db, projectId, noCam)
+    await setClipLayouts(env.db, projectId, noCam)
     await clips.update(clip.id, {
       beats: [{ ms: 7000, kind: "reaction" }],
       effects: { edited: false, events: [] },
@@ -461,7 +464,7 @@ describe("clip effects", () => {
       edit({
         startMs: 3000,
         endMs: 13_000,
-        layoutOverride: {
+        layout: {
           ...noCam,
           webcamRect: { x: 0.78, y: 0.77, w: 0.2, h: 0.2 },
           mode: "cam-top",
@@ -481,12 +484,11 @@ describe("clip effects", () => {
       mode: "no-cam-fill" as const,
       camPosition: "top" as const,
     }
-    await confirmLayout(env.db, projectId, noCam)
     const same = { startMs: clip.startMs, endMs: clip.endMs }
     await clips.update(clip.id, {
       beats: [{ ms: clip.startMs + 3000, kind: "reaction" }],
       effects: { edited: false, events: [] },
-      layoutOverride: noCam,
+      layout: noCam,
     })
     const relaidOut = {
       ...noCam,
@@ -497,7 +499,7 @@ describe("clip effects", () => {
       env.db,
       projectId,
       clip.id,
-      edit({ ...same, layoutOverride: relaidOut })
+      edit({ ...same, layout: relaidOut })
     )
     expect(saved.effects?.events.some((e) => e.kind === "focus")).toBe(true)
 
@@ -510,7 +512,7 @@ describe("clip effects", () => {
       env.db,
       projectId,
       clip.id,
-      edit({ ...same, layoutOverride: noCam })
+      edit({ ...same, layout: noCam })
     )
     expect(kept.effects).toEqual(edited)
   })
@@ -547,14 +549,17 @@ describe("clip effects", () => {
     expect(saved.effects).toEqual({ edited: true, events: [zoom(4000, 6000)] })
   })
 
-  it("planClipEffects needs a layout", async () => {
+  it("planClipEffects needs a probed source", async () => {
     const { projectId, clip } = await reviewedProject()
-    await env.db.delete(layouts)
+    await env.db
+      .update(assets)
+      .set({ width: null })
+      .where(eq(assets.projectId, projectId))
     await expect(
       planClipEffects(env.db, projectId, clip.id, {
         startMs: clip.startMs,
         endMs: clip.endMs,
-        layoutOverride: null,
+        layout: camTop,
       })
     ).rejects.toMatchObject({ code: "CONFLICT" })
   })
@@ -583,7 +588,7 @@ describe("clip effects", () => {
     const range = { startMs: 8000, endMs: 18_000 }
     const effects = await planClipEffects(env.db, projectId, clip.id, {
       ...range,
-      layoutOverride: null,
+      layout: camTop,
     })
     expect(effects.edited).toBe(false)
     expect(effects.events).toContainEqual(
@@ -604,7 +609,7 @@ describe("clip effects", () => {
     const effects = await planClipEffects(env.db, projectId, clip.id, {
       startMs: clip.startMs,
       endMs: clip.endMs,
-      layoutOverride: {
+      layout: {
         webcamRect: null,
         gameplayRect: { x: 0, y: 0, w: 1, h: 1 },
         gameplayFocusX: 0.5,

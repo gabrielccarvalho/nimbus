@@ -343,23 +343,6 @@ export function activeWordIndex(page: CaptionPage, ms: number) {
   return active
 }
 
-export function sampleCaptionWords(
-  words: readonly Word[],
-  count = 8,
-  gapMs = DEFAULT_PAGING.gapMs
-): CaptionWord[] {
-  const from = Math.floor(words.length / 10)
-  for (let i = from; i + count <= words.length; i++) {
-    const run = words.slice(i, i + count)
-    if (
-      run.every((w, j) => j === 0 || w.startMs - run[j - 1]!.endMs <= gapMs)
-    ) {
-      return wordsInRange(run, run[0]!.startMs, run.at(-1)!.endMs + 1)
-    }
-  }
-  return []
-}
-
 export function clipCaptionsEnabled(
   clip: { captionOverrides?: { enabled?: boolean } | null },
   settings: { captionsEnabled: boolean }

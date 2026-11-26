@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { clipRepository } from "@/features/clips/repository"
 import { jobQueue } from "@/features/jobs/queue"
-import { layoutRepository } from "@/features/layout/repository"
 import {
   assetRepository,
   projectRepository,
@@ -27,10 +26,10 @@ afterEach(() => env.cleanup())
 
 describe("probe step", () => {
   it.each([
-    [fixtures.wide, 1920, 1080, "16:9", "cam-top"],
-    [fixtures.ultrawide, 2560, 1080, "21:9", "cam-top"],
-    [fixtures.standard, 1440, 1080, "4:3", "cam-top"],
-  ])("probes %s", async (file, width, height, aspect, mode) => {
+    [fixtures.wide, 1920, 1080],
+    [fixtures.ultrawide, 2560, 1080],
+    [fixtures.standard, 1440, 1080],
+  ])("probes %s", async (file, width, height) => {
     const { projectId } = await uploadFixture(file)
     await runJobs(env.db, ["probe"])
 
@@ -53,11 +52,6 @@ describe("probe step", () => {
         (await getStorage().stat(asset!.storageKey))?.bytes
       ).toBeGreaterThan(0)
     }
-    expect(await layoutRepository(env.db).get(projectId)).toMatchObject({
-      sourceAspect: aspect,
-      mode,
-      confirmedByUser: false,
-    })
     expect(
       (await jobQueue(env.db).listForProject(projectId)).map((j) => [
         j.type,
@@ -86,21 +80,6 @@ describe("probe step", () => {
     ).filter((asset) => asset.kind === "thumbnail")
     expect(thumbnails).toHaveLength(1)
     expect((await getStorage().stat(key))?.bytes).toBe(13)
-  })
-
-  it("applies a saved layout preset for the resolution", async () => {
-    await layoutRepository(env.db).savePreset(1920, 1080, {
-      webcamRect: { x: 0.78, y: 0.77, w: 0.2, h: 0.2 },
-      gameplayRect: { x: 0, y: 0, w: 1, h: 1 },
-      gameplayFocusX: 0.4,
-      mode: "cam-top",
-    })
-    const { projectId } = await uploadFixture(fixtures.wide)
-    await runJobs(env.db, ["probe"])
-    expect(await layoutRepository(env.db).get(projectId)).toMatchObject({
-      confirmedByUser: true,
-      gameplayFocusX: 0.4,
-    })
   })
 
   it("fails the project with a readable error for files without audio", async () => {

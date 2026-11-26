@@ -14,8 +14,6 @@ const TABLES: Array<[string, PgTable]> = [
   ["assets", schema.assets],
   ["transcripts", schema.transcripts],
   ["signals", schema.signals],
-  ["layouts", schema.layouts],
-  ["layout_presets", schema.layoutPresets],
   ["clips", schema.clips],
   ["jobs", schema.jobs],
   ["settings", schema.settings],

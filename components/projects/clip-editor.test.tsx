@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { updateClipAction } from "@/features/clips/actions"
 import type { Clip } from "@/features/clips/repository"
+import { detectWebcam } from "@/features/layout/detect-webcam"
 import { gameplayBox, refitGameplay } from "@/features/layout/geometry"
 import type { LayoutInput } from "@/features/layout/schema"
 import type { ProjectSnapshot } from "@/features/pipeline/snapshot"
@@ -33,8 +34,8 @@ vi.mock("@/features/render/actions", () => ({
   renderClipsAction: vi.fn(),
 }))
 
-vi.mock("@/features/layout/actions", () => ({
-  confirmLayoutAction: vi.fn(),
+vi.mock("@/features/layout/detect-webcam", () => ({
+  detectWebcam: vi.fn(),
 }))
 
 vi.mock("@/features/projects/actions", () => ({
@@ -69,7 +70,7 @@ const clip = {
   error: null,
   renderAssetId: null,
   captionOverrides: null,
-  layoutOverride: null,
+  layout,
   effects: null,
   audioMix: null,
   textOverlays: [],
@@ -100,7 +101,6 @@ function renderEditor(edit: Partial<Clip> = {}) {
       sourceDurationMs={120_000}
       sourceWidth={W}
       sourceHeight={H}
-      layout={layout}
       words={[]}
       settings={settings}
       installedFonts={[]}
@@ -121,6 +121,7 @@ function renderEditor(edit: Partial<Clip> = {}) {
 
 beforeEach(() => {
   vi.mocked(updateClipAction).mockReset()
+  vi.mocked(detectWebcam).mockReset()
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null)
 })
 
@@ -357,7 +358,7 @@ describe("ClipEditor audio and text", () => {
 })
 
 describe("ClipEditor gameplay box", () => {
-  it("saves a keyboard-moved gameplay box in the layout override", async () => {
+  it("saves a keyboard-moved gameplay box in the clip layout", async () => {
     vi.mocked(updateClipAction).mockResolvedValue({
       ok: true,
       value: { effects: null },
@@ -373,7 +374,7 @@ describe("ClipEditor gameplay box", () => {
       expect(screen.getByTestId("save-state")).toHaveTextContent("Saved")
     )
     const [, , edit] = vi.mocked(updateClipAction).mock.calls[0]!
-    const saved = (edit as { layoutOverride: LayoutInput }).layoutOverride
+    const saved = (edit as { layout: LayoutInput }).layout
     expect(saved.gameplayFocusX).toBe(0.5)
     expect(saved.gameplayRect.x).toBeCloseTo(before.x + 0.005)
     expect(saved.gameplayRect.y).toBeCloseTo(before.y)
@@ -410,5 +411,45 @@ describe("ClipEditor gameplay box", () => {
     expect(parseFloat(top)).toBeCloseTo(expected.y * 100)
     expect(parseFloat(width)).toBeCloseTo(expected.w * 100)
     expect(parseFloat(height)).toBeCloseTo(expected.h * 100)
+  })
+
+  it("finds the webcam inside the clip the first time it opens", async () => {
+    vi.mocked(updateClipAction).mockResolvedValue({
+      ok: true,
+      value: { effects: null },
+    })
+    vi.mocked(detectWebcam).mockResolvedValue({
+      ...layout,
+      webcamRect: { x: 0.02, y: 0.6, w: 0.3, h: 0.35 },
+      confidence: 0.9,
+      facesFound: 8,
+      faceDetection: true,
+    })
+    renderEditor({
+      layout: { ...layout, webcamRect: null, mode: "split-50" },
+    })
+    expect(detectWebcam).toHaveBeenCalledWith(
+      "/media/proxy.mp4",
+      expect.objectContaining({ range: { startMs: 10_000, endMs: 40_000 } })
+    )
+    await waitFor(() => expect(updateClipAction).toHaveBeenCalled())
+    const [, , edit] = vi.mocked(updateClipAction).mock.calls[0]!
+    const saved = (edit as { layout: LayoutInput }).layout
+    expect(saved.mode).toBe("split-50")
+    expect(saved.webcamRect).toEqual({ x: 0.02, y: 0.6, w: 0.3, h: 0.35 })
+  })
+
+  it("leaves a clip with a marked webcam alone until asked", async () => {
+    vi.mocked(detectWebcam).mockResolvedValue({
+      ...layout,
+      confidence: 0.9,
+      facesFound: 8,
+      faceDetection: true,
+    })
+    renderEditor()
+    expect(detectWebcam).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole("tab", { name: "Layout" }))
+    await userEvent.click(screen.getByRole("button", { name: "Find webcam" }))
+    expect(detectWebcam).toHaveBeenCalledTimes(1)
   })
 })

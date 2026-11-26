@@ -82,9 +82,7 @@ export async function rerunProject(db: Db, projectId: string, step: RerunStep) {
 
 export async function findMoreHighlights(db: Db, projectId: string) {
   const project = await projectRepository(db).getOrThrow(projectId)
-  if (
-    !["awaiting_layout", "ready_for_review", "done"].includes(project.status)
-  ) {
+  if (!["ready_for_review", "done"].includes(project.status)) {
     throw new AppError(
       "CONFLICT",
       isRunning(project.status)

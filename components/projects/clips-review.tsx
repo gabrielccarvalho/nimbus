@@ -56,9 +56,7 @@ type ClipsReviewProps = {
   audio?: AudioSummary
   renders: Record<string, RenderLinks>
   edit?: RenderLinks & { durationMs: number }
-  layout: ClipPlayerData["layout"]
   captions: ClipPlayerData["captions"]
-  layoutConfirmed: boolean
   snapshot: ProjectSnapshot
   publishing: PublishingState
 }
@@ -85,11 +83,10 @@ function ExportBar({
   clips,
   renders,
   edit,
-  layoutConfirmed,
   snapshot,
 }: Pick<
   ClipsReviewProps,
-  "projectId" | "clips" | "renders" | "edit" | "layoutConfirmed" | "snapshot"
+  "projectId" | "clips" | "renders" | "edit" | "snapshot"
 >) {
   const router = useRouter()
   const [pending, startTransition] = React.useTransition()
@@ -135,11 +132,9 @@ function ExportBar({
             {summary || "No clips yet"}
           </b>
           <span className="text-[13px] text-tertiary">
-            {layoutConfirmed
-              ? approved.length > 0
-                ? `Only approved clips render. About ${plural(renderMinutes, "render minute")}.`
-                : "Only approved clips render."
-              : "Confirm the layout before rendering."}
+            {approved.length > 0
+              ? `Only approved clips render. About ${plural(renderMinutes, "render minute")}.`
+              : "Only approved clips render."}
           </span>
         </div>
         {candidates > 0 && (
@@ -197,7 +192,7 @@ function ExportBar({
         <Button
           variant="primary"
           size="sm"
-          disabled={pending || !layoutConfirmed || approved.length === 0}
+          disabled={pending || approved.length === 0}
           onClick={() =>
             run(
               () =>
@@ -281,9 +276,7 @@ export function ClipsReview({
   audio,
   renders,
   edit,
-  layout,
   captions,
-  layoutConfirmed,
   snapshot: initialSnapshot,
   publishing,
 }: ClipsReviewProps) {
@@ -316,7 +309,6 @@ export function ClipsReview({
         clips={clips}
         renders={renders}
         edit={edit}
-        layoutConfirmed={layoutConfirmed}
         snapshot={snapshot}
       />
       <ClipsTimeline
@@ -384,7 +376,6 @@ export function ClipsReview({
           clips={visible}
           ranks={ranks}
           renders={renders}
-          layout={layout}
           captions={captions}
           publishing={publishing}
           openClipId={openId}

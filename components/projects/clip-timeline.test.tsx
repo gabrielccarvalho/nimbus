@@ -95,7 +95,13 @@ function setup(initial: Partial<State> = {}, hasWebcam = true) {
           startMs={state.startMs}
           endMs={state.endMs}
           onTrim={(startMs, endMs) => set({ startMs, endMs })}
-          layoutOverride={null}
+          layout={{
+            webcamRect: null,
+            gameplayRect: { x: 0, y: 0, w: 1, h: 1 },
+            gameplayFocusX: 0.5,
+            mode: "no-cam-fill",
+            camPosition: "top",
+          }}
           hasWebcam={hasWebcam}
           effects={state.effects}
           onEffectsChange={(effects) => set({ effects })}

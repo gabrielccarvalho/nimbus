@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test"
 import { fixtures } from "../../scripts/make-fixtures"
 import { expectNoSeriousA11yViolations } from "./utils/axe"
 
-test("upload, confirm layout, render, download and edit a clip", async ({
+test("upload, find the webcam, render, download and edit a clip", async ({
   page,
 }) => {
   test.setTimeout(180_000)
@@ -15,18 +15,18 @@ test("upload, confirm layout, render, download and edit a clip", async ({
     page.getByRole("listitem").filter({ hasText: "Find highlights, completed" })
   ).toBeVisible({ timeout: 30_000 })
 
-  await page.getByRole("link", { name: /^Layout & captions/ }).click()
-  await expect(page.getByText(/Webcam found/)).toBeVisible({ timeout: 30_000 })
-  await page.getByRole("button", { name: "Confirm layout" }).click()
-  await expect(page.getByText("Layout confirmed")).toBeVisible()
-
-  await page.getByRole("link", { name: "Clips" }).click()
+  await page.getByRole("link", { name: /^Clips/ }).click()
   const first = page
     .getByRole("list", { name: "Clips" })
     .getByRole("button")
     .first()
   await first.click()
   const dialog = page.getByRole("dialog")
+  await dialog.getByRole("link", { name: /Edit/ }).click()
+  await expect(page.getByText(/Webcam found/)).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByTestId("save-state")).toHaveText("Saved")
+  await page.getByRole("link", { name: "Back to all clips" }).click()
+  await first.click()
   await dialog.getByRole("button", { name: "Approve" }).click()
   await expect(dialog.getByRole("button", { name: "Approve" })).toHaveAttribute(
     "aria-pressed",
@@ -72,7 +72,6 @@ test("upload, confirm layout, render, download and edit a clip", async ({
   await page.getByRole("tab", { name: "Layout" }).click()
   const layoutMode = page.getByRole("group", { name: "Mode" })
   await layoutMode.getByRole("button", { name: /^Even split/ }).click()
-  await expect(page.getByText("This clip has its own layout.")).toBeVisible()
   await expect(page.getByRole("group", { name: "Webcam region" })).toBeVisible()
   await page
     .getByRole("group", { name: "Webcam goes" })
@@ -111,9 +110,6 @@ test("upload, confirm layout, render, download and edit a clip", async ({
       .getByRole("group", { name: "Webcam goes" })
       .getByRole("button", { name: "At the bottom" })
   ).toHaveAttribute("aria-pressed", "true")
-  await expect(
-    page.getByRole("button", { name: "Use project layout" })
-  ).toBeVisible()
   await expect(page.getByRole("main").getByTestId("clip-status")).toHaveText(
     "Out of date"
   )

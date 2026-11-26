@@ -11,11 +11,7 @@ async function renderFirstClip(page: Page) {
   await expect(
     page.getByRole("listitem").filter({ hasText: "Find highlights, completed" })
   ).toBeVisible({ timeout: 30_000 })
-  await page.getByRole("link", { name: /^Layout & captions/ }).click()
-  await expect(page.getByText(/Webcam found/)).toBeVisible({ timeout: 30_000 })
-  await page.getByRole("button", { name: "Confirm layout" }).click()
-  await expect(page.getByText("Layout confirmed")).toBeVisible()
-  await page.getByRole("link", { name: "Clips" }).click()
+  await page.getByRole("link", { name: /^Clips/ }).click()
   await page.getByRole("button", { name: /Approve all/ }).click()
   const first = page
     .getByRole("list", { name: "Clips" })

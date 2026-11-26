@@ -25,8 +25,8 @@ export default async function ClipEditorPage({
     getClipEditor(id, clipId),
     getPublishing(id),
   ])
-  if (!data?.video || !data.layout || !data.source?.durationMs) notFound()
-  const { project, clip, video, layout, source } = data
+  if (!data?.video || !data.source?.durationMs) notFound()
+  const { project, clip, video, source } = data
 
   return (
     <>
@@ -37,13 +37,6 @@ export default async function ClipEditorPage({
         clip={clip}
         src={mediaUrl(video.storageKey)}
         sourceDurationMs={source.durationMs!}
-        layout={{
-          webcamRect: layout.webcamRect,
-          gameplayRect: layout.gameplayRect,
-          gameplayFocusX: layout.gameplayFocusX,
-          mode: layout.mode,
-          camPosition: layout.camPosition,
-        }}
         sourceWidth={source.width ?? 1920}
         sourceHeight={source.height ?? 1080}
         words={data.words.filter(

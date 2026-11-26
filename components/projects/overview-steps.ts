@@ -23,14 +23,6 @@ export type OverviewFacts = {
   } | null
   silences: number | null
   clipCount: number
-  layout: {
-    confirmed: boolean
-    mode: string
-    camPosition: string | null
-    hasWebcam: boolean
-    width: number | null
-    height: number | null
-  } | null
 }
 
 const STEP_JOBS: Partial<
@@ -60,7 +52,7 @@ const number = new Intl.NumberFormat("en")
 export function stepDetails(
   facts: OverviewFacts
 ): Record<StepId, string | null> {
-  const { source, transcript, layout } = facts
+  const { source, transcript } = facts
   const resolution =
     source?.width && source.height ? `${source.width}×${source.height}` : null
   return {
@@ -95,16 +87,6 @@ export function stepDetails(
       facts.clipCount > 0
         ? `${facts.clipCount} ${facts.clipCount === 1 ? "clip" : "clips"} ${SELECTORS[facts.selectorMode]}`
         : null,
-    layout: layout?.confirmed
-      ? [
-          layout.hasWebcam
-            ? `Webcam ${layout.camPosition === "bottom" ? "below" : "on top"}`
-            : "No webcam",
-          resolution ? `saved for ${resolution}` : null,
-        ]
-          .filter(Boolean)
-          .join(" · ")
-      : null,
     review: "Approve the ones you want rendered",
     render: `Approved clips only · ${facts.renderQuality[0]!.toUpperCase()}${facts.renderQuality.slice(1)} quality`,
   }
@@ -139,20 +121,4 @@ export function stepTimes(
     )
   }
   return times
-}
-
-export function webcamCorner(rect: {
-  x: number
-  y: number
-  w: number
-  h: number
-}) {
-  const cx = rect.x + rect.w / 2
-  const cy = rect.y + rect.h / 2
-  const vertical = cy < 1 / 3 ? "top" : cy > 2 / 3 ? "bottom" : "middle"
-  const horizontal = cx < 1 / 3 ? "left" : cx > 2 / 3 ? "right" : "center"
-  if (vertical === "middle" && horizontal === "center") return "the middle"
-  if (vertical === "middle") return `the ${horizontal} edge`
-  if (horizontal === "center") return `the ${vertical} edge`
-  return `the ${vertical}-${horizontal} corner`
 }

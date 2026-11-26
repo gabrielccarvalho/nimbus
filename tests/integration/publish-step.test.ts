@@ -8,7 +8,6 @@ import { clipRepository } from "@/features/clips/repository"
 import { setClipReviewStatus } from "@/features/clips/service"
 import { jobQueue } from "@/features/jobs/queue"
 import type { LayoutInput } from "@/features/layout/schema"
-import { confirmLayout } from "@/features/layout/service"
 import { onJobCancelled } from "@/features/pipeline/handlers"
 import {
   assetRepository,
@@ -36,7 +35,7 @@ import { getStorage, storageKeys } from "@/lib/storage"
 
 import { fixtures } from "../../scripts/make-fixtures"
 import { server } from "../utils/msw"
-import { runJobs, uploadFixture } from "../utils/pipeline"
+import { runJobs, setClipLayouts, uploadFixture } from "../utils/pipeline"
 import { insertImportedPublication } from "../utils/publications"
 import { createTestEnv, type TestEnv } from "../utils/test-env"
 
@@ -600,7 +599,7 @@ describe("publish_clip with a re-render", () => {
       captionsEnabled: false,
     })
     await runJobs(env.db, ["probe", "transcribe", "analyze", "select"])
-    await confirmLayout(env.db, projectId, camTop)
+    await setClipLayouts(env.db, projectId, camTop)
     const clipRepo = clipRepository(env.db)
     const [first] = await clipRepo.listForProject(projectId)
     await setClipReviewStatus(env.db, projectId, first!.id, "approved")

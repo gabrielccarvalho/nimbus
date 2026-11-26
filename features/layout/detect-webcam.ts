@@ -116,7 +116,15 @@ export type WebcamDetection = DetectionResult & { faceDetection: boolean }
 
 export async function detectWebcam(
   src: string,
-  { frames = 8, signal }: { frames?: number; signal?: AbortSignal } = {}
+  {
+    frames = 8,
+    range,
+    signal,
+  }: {
+    frames?: number
+    range?: { startMs: number; endMs: number }
+    signal?: AbortSignal
+  } = {}
 ): Promise<WebcamDetection> {
   const video = document.createElement("video")
   video.muted = true
@@ -140,8 +148,12 @@ export async function detectWebcam(
 
     const gray: GrayFrame[] = []
     const snapshots: HTMLCanvasElement[] = []
+    const from = range ? range.startMs / 1000 : 0
+    const to = range
+      ? Math.min(range.endMs / 1000, video.duration)
+      : video.duration
     for (let i = 0; i < frames; i++) {
-      video.currentTime = (video.duration * (i + 0.5)) / frames
+      video.currentTime = from + ((to - from) * (i + 0.5)) / frames
       await once(video, "seeked", signal)
       fullContext.drawImage(video, 0, 0, width, height)
       smallContext.drawImage(video, 0, 0, SAMPLE_WIDTH, sampleHeight)

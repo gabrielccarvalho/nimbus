@@ -36,9 +36,7 @@ export default async function ClipsPage({
     manualPrompt,
     renders,
     edit,
-    layout,
     captions,
-    layoutConfirmed,
     snapshot,
   } = data
 
@@ -56,9 +54,7 @@ export default async function ClipsPage({
           audio={audio}
           renders={renders}
           edit={edit}
-          layout={layout}
           captions={captions}
-          layoutConfirmed={layoutConfirmed}
           snapshot={snapshot}
           publishing={publishing}
         />

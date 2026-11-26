@@ -19,6 +19,7 @@ const GROUPS = [
       { href: "/settings/workspace", label: "General" },
       { href: "/settings/workspace/plan", label: "Plan & usage" },
       { href: "/settings/workspace/defaults", label: "Project defaults" },
+      { href: "/settings/workspace/layout", label: "Layout" },
       { href: "/settings/workspace/captions", label: "Captions" },
       { href: "/settings/workspace/rendering", label: "Rendering" },
       { href: "/settings/workspace/music", label: "Music" },

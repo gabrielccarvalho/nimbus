@@ -14,7 +14,7 @@ import { NICHE_PROFILES, resolveNiche } from "../../highlights/niches"
 import { postprocessCandidates } from "../../highlights/postprocess"
 import type { Candidate, RawCandidate } from "../../highlights/types"
 import type { JobHandler } from "../../jobs/worker-loop"
-import { layoutRepository } from "../../layout/repository"
+import { clipStartLayout } from "../../layout/defaults"
 import { assetRepository, projectRepository } from "../../projects/repository"
 import { transcriptRepository } from "../../transcription/repository"
 import { MAX_DETAIL_CANDIDATES, type StepDetail } from "../detail"
@@ -35,14 +35,11 @@ export const selectStep: JobHandler = async ({
   const existing = more
     ? await clipRepository(db).listForProject(project.id)
     : []
-  const next = (await layoutRepository(db).get(project.id))?.confirmedByUser
-    ? "ready_for_review"
-    : "awaiting_layout"
 
   if (settings.selectorMode === "manual" && !more) {
     await projectRepository(db).setAwaitingManualSelection(project.id, true)
     await clipRepository(db).replaceCandidates(project.id, [])
-    await completeStep(db, project.id, next)
+    await completeStep(db, project.id, "ready_for_review")
     return
   }
 
@@ -138,6 +135,7 @@ export const selectStep: JobHandler = async ({
   ]
 
   const clips = clipRepository(db)
+  const layout = await clipStartLayout(db, project)
   const inserted = await (more ? clips.addCandidates : clips.replaceCandidates)(
     project.id,
     candidates.map((c) => ({
@@ -152,6 +150,7 @@ export const selectStep: JobHandler = async ({
           ? `Not checked against the video (${reviewFailure}). ${c.reason}`
           : c.reason,
       score: c.score,
+      layout,
       beats: c.beats ?? null,
       playbookRuleIds: appliedRuleIds.length > 0 ? appliedRuleIds : null,
     }))
@@ -171,5 +170,5 @@ export const selectStep: JobHandler = async ({
     },
     "selected"
   )
-  await completeStep(db, project.id, next)
+  await completeStep(db, project.id, "ready_for_review")
 }

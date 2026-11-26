@@ -217,3 +217,24 @@ export function refitGameplay(
     gameplayFocusX: 0.5,
   }
 }
+
+export function withDetection(
+  layout: LayoutInput,
+  detection: LayoutInput,
+  width: number,
+  height: number
+): LayoutInput {
+  const detected: LayoutInput = {
+    webcamRect: detection.webcamRect,
+    gameplayRect: detection.gameplayRect,
+    gameplayFocusX: detection.gameplayFocusX,
+    mode: detection.mode,
+    camPosition: layout.camPosition,
+  }
+  if (!usesWebcam(detected.mode) || !usesWebcam(layout.mode)) return detected
+  return {
+    ...detected,
+    mode: layout.mode,
+    ...refitGameplay(detected, layout.mode, width, height),
+  }
+}

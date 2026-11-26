@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { frameAt, zoomRegion } from "@/features/effects/frame"
 import { autoEffectsFor } from "@/features/effects/service"
-import { layoutRepository } from "@/features/layout/repository"
 import type { LayoutInput } from "@/features/layout/schema"
 
 import { fixtures } from "../../scripts/make-fixtures"
@@ -29,30 +28,26 @@ const noCam: LayoutInput = {
   mode: "no-cam-fill",
 }
 
-async function project(layout: LayoutInput) {
+async function project() {
   const { projectId } = await uploadFixture(fixtures.wide)
   await runJobs(env.db, ["probe"])
-  await layoutRepository(env.db).upsert(projectId, {
-    ...layout,
-    sourceAspect: "16:9",
-  })
   return projectId
 }
 
 const clip = (
   beats: NonNullable<Parameters<typeof autoEffectsFor>[2][number]["beats"]>,
-  layoutOverride: LayoutInput | null = null
+  layout: LayoutInput = camTop
 ) => ({
   id: "c1",
   startMs: 10_000,
   endMs: 40_000,
   beats,
-  layoutOverride,
+  layout,
 })
 
 describe("autoEffectsFor", () => {
   it("maps a weird beat from the full frame into the zoomed crop", async () => {
-    const projectId = await project(camTop)
+    const projectId = await project()
     const result = await autoEffectsFor(env.db, projectId, [
       clip([{ ms: 25_000, kind: "weird", x: 0.5, y: 0.5 }]),
     ])
@@ -82,9 +77,9 @@ describe("autoEffectsFor", () => {
   })
 
   it("maps a beat through the no-cam-fill crop, not the full frame", async () => {
-    const projectId = await project(noCam)
+    const projectId = await project()
     const result = await autoEffectsFor(env.db, projectId, [
-      clip([{ ms: 25_000, kind: "weird", x: 0.6, y: 0.5 }]),
+      clip([{ ms: 25_000, kind: "weird", x: 0.6, y: 0.5 }], noCam),
     ])
     const zoom = result.get("c1")!.events.find((e) => e.kind === "zoom")!
     if (zoom.kind !== "zoom") throw new Error("expected a zoom")
@@ -94,16 +89,15 @@ describe("autoEffectsFor", () => {
     expect(zoom.focus.x).not.toBeCloseTo(0.6, 1)
   })
 
-  it("prefers the clip's layout override", async () => {
-    const projectId = await project(noCam)
+  it("plans webcam effects only once the clip's webcam is marked", async () => {
+    const projectId = await project()
     const beats = [{ ms: 25_000, kind: "reaction" as const }]
-    const base = await autoEffectsFor(env.db, projectId, [clip(beats)])
-    expect(base.get("c1")!.events.some((e) => e.kind === "focus")).toBe(false)
-    const overridden = await autoEffectsFor(env.db, projectId, [
-      clip(beats, camTop),
-    ])
-    expect(overridden.get("c1")!.events.some((e) => e.kind === "focus")).toBe(
-      true
-    )
+    const focused = (layout: LayoutInput) =>
+      autoEffectsFor(env.db, projectId, [clip(beats, layout)]).then((r) =>
+        r.get("c1")!.events.some((e) => e.kind === "focus")
+      )
+    expect(await focused(noCam)).toBe(false)
+    expect(await focused({ ...camTop, webcamRect: null })).toBe(false)
+    expect(await focused(camTop)).toBe(true)
   })
 })

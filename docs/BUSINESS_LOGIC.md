@@ -4,18 +4,16 @@ The product creates **drafts for human review**. Nothing is auto-published. Rend
 
 ## Entities
 
-| Entity       | Key fields                                                                                                                                                                                                                                              |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Project      | id, name, sourceAssetId, status, failedStep, error, settings snapshot (captionStyle, clipMinMs, clipMaxMs, selectorMode, targetClipCount), createdAt, updatedAt                                                                                         |
-| Asset        | id, projectId, kind (`source` · `audio` · `thumbnail` · `proxy` · `render` · `subtitle`), storageKey, mime, bytes, durationMs, width, height, fps, codec                                                                                                |
-| Transcript   | projectId, language, words[] `{text, startMs, endMs, confidence}`, segments[] `{text, startMs, endMs, firstWord, lastWord}`                                                                                                                             |
-| Signals      | projectId, silences[] `{startMs, endMs}`, loudness[] (LUFS, 1 sample / 250 ms), speechDensity[] (words per second per 10 s window)                                                                                                                      |
-| Layout       | projectId, sourceAspect (`16:9` · `16:10` · `4:3` · `21:9` · `other`), webcamRect `{x,y,w,h}` normalized 0–1 or null, gameplayRect, gameplayFocusX 0–1, mode (`cam-top` · `split-50` · `no-cam-fill` · `no-cam-blur-fill`), confidence, confirmedByUser |
-| LayoutPreset | width, height (unique pair), webcamRect, gameplayRect, mode, gameplayFocusX                                                                                                                                                                             |
-| Clip         | id, projectId, startMs, endMs, title, hook, reason, score 0–1, status (`candidate` · `approved` · `rejected` · `rendering` · `rendered` · `failed`), captionOverrides, renderAssetId, error                                                             |
-| CaptionStyle | presetId + overrides (font, fontSize, primary/highlight color token, outline, position, maxWordsPerPage, maxCharsPerLine, uppercase)                                                                                                                    |
-| Job          | id, projectId, type, payload, status (`queued` · `running` · `succeeded` · `failed` · `cancelled`), attempts, maxAttempts, runAfter, leasedUntil, leaseOwner, progress 0–100, error, timestamps                                                         |
-| Setting      | key, value (JSON, zod-validated per key)                                                                                                                                                                                                                |
+| Entity       | Key fields                                                                                                                                                                                          |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Project      | id, name, sourceAssetId, status, failedStep, error, settings snapshot (captionStyle, clipMinMs, clipMaxMs, selectorMode, targetClipCount), createdAt, updatedAt                                     |
+| Asset        | id, projectId, kind (`source` · `audio` · `thumbnail` · `proxy` · `render` · `subtitle`), storageKey, mime, bytes, durationMs, width, height, fps, codec                                            |
+| Transcript   | projectId, language, words[] `{text, startMs, endMs, confidence}`, segments[] `{text, startMs, endMs, firstWord, lastWord}`                                                                         |
+| Signals      | projectId, silences[] `{startMs, endMs}`, loudness[] (LUFS, 1 sample / 250 ms), speechDensity[] (words per second per 10 s window)                                                                  |
+| Clip         | id, projectId, startMs, endMs, title, hook, reason, score 0–1, status (`candidate` · `approved` · `rejected` · `rendering` · `rendered` · `failed`), layout, captionOverrides, renderAssetId, error |
+| CaptionStyle | presetId + overrides (font, fontSize, primary/highlight color token, outline, position, maxWordsPerPage, maxCharsPerLine, uppercase)                                                                |
+| Job          | id, projectId, type, payload, status (`queued` · `running` · `succeeded` · `failed` · `cancelled`), attempts, maxAttempts, runAfter, leasedUntil, leaseOwner, progress 0–100, error, timestamps     |
+| Setting      | key, value (JSON, zod-validated per key)                                                                                                                                                            |
 
 ## Project state machine
 
@@ -26,12 +24,9 @@ stateDiagram-v2
   probing --> transcribing
   transcribing --> analyzing
   analyzing --> selecting
-  selecting --> awaiting_layout
-  selecting --> ready_for_review: layout skipped
-  awaiting_layout --> ready_for_review
+  selecting --> ready_for_review
   ready_for_review --> rendering
   rendering --> done
-  ready_for_review --> awaiting_layout: edit layout
   rendering --> ready_for_review: re-review after renders
   done --> rendering: re-render
   done --> ready_for_review: edit clips
@@ -139,10 +134,12 @@ Transcripts over ~60k characters are split into parts with a minute of overlap, 
 
 ### Layout
 
-- Every landscape source (`w ≥ 1.2 h`, whatever its class) goes through `awaiting_layout` with `cam-top` proposed. Square and portrait sources skip it with `no-cam-blur-fill`. A LayoutPreset for the exact source resolution also skips it (preset applied, `confirmedByUser = true`).
-- Detection proposes a rect plus confidence. Below 0.5 confidence or with no face, propose `no-cam-blur-fill`.
+- Every clip has its own layout (`clips.layout`): webcamRect `{x,y,w,h}` normalized 0–1 or null, gameplayRect, gameplayFocusX 0–1, mode (`cam-top` · `split-50` · `no-cam-fill` · `no-cam-blur-fill`), camPosition. There is no project layout.
+- A new clip starts from the workspace default (Settings › Layout: mode and webcam position, default `cam-top` on top) with no webcam box and the full frame as gameplay. Square and portrait sources (`w < 1.2 h`) start as `no-cam-blur-fill`.
+- A webcam mode without a webcam box renders and previews as `no-cam-fill` until the box is set.
+- The editor detects the webcam inside the clip's range the first time such a clip opens. Detection proposes a rect plus confidence; below 0.5 confidence or with no face the clip becomes `no-cam-blur-fill`. A found webcam keeps the clip's mode and position.
 - In webcam modes the webcam goes on top by default; `camPosition: "bottom"` swaps the two stacked regions, and "auto" captions move with the gameplay so they stay off the face.
-- A clip can override the project layout (mode, webcam box, gameplay box, webcam position) from its editor; renders use `clips.layout_override` when set. Caption position (auto, top, middle, bottom) is a per-clip caption style override.
+- The editor's Layout tab edits the clip's mode and webcam position; the source view edits its webcam and gameplay boxes. Caption position (auto, top, middle, bottom) is a per-clip caption style override.
 - Gameplay box: in every mode but `no-cam-blur-fill`, the gameplay crop is a dashed box on the source that can be dragged and resized like the webcam box. Its shape is locked to the slot it fills (1080×1248 in cam-top, 1080×960 in split-50, 1080×1920 in no-cam-fill). It starts at the current crop, `coverCrop(gameplayRect, slot, gameplayFocusX)`; an edit stores the box as `gameplayRect` and sets `gameplayFocusX` to 0.5, so the crop is the box itself. Switching mode refits an edited box to the new slot around its centre, with the same area where it fits, inside the frame (a box at full size stays at full size); an untouched layout keeps its rect and focus, so its crop is the same as before.
 - Keyboard nudge: arrow = 0.5% of the frame, Shift+arrow = 5%.
 
@@ -181,7 +178,7 @@ When tracks change:
 
 - Selection plans a track for every new clip when the project's `autoEffects` is on (default), Claude, heuristic and pasted clips alike. Beats are stored on the clip so planning again never calls Claude.
 - Turning `autoEffects` on plans every track that isn't `edited`; turning it off sets them to null. Edited tracks are never touched. If clips are rendered, the settings form offers a render re-run.
-- Confirming or changing the project layout (with `autoEffects` on) re-plans every track that isn't `edited`, null ones included, on clips without a layout override, in the same transaction. Selection runs before webcam detection, so without a preset its tracks were planned against the probe's webcam-less placeholder.
+- Selection runs before webcam detection, so a new clip's track has no webcam effects; the save that stores the detected webcam re-plans it (below).
 - Saving a trim or a different clip layout re-plans an existing track that isn't `edited` over the clip's range, with the layout being saved. A null track stays null. Any change to the events sets `edited: true`; an edited track only has out-of-range events dropped on trim.
 - "Reset to auto" / "Add effects automatically" in the editor call `planClipEffectsAction`, which returns a fresh plan for the range and layout on screen without saving it. It's saved with the rest of the clip.
 

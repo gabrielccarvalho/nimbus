@@ -1,6 +1,8 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
+import { saveSettingsAction } from "@/features/settings/actions"
 import { defaultAppSettings } from "@/features/settings/schema"
 
 import { SettingsForm } from "./settings-form"
@@ -34,5 +36,36 @@ describe("SettingsForm rendering", () => {
   it("hides the alert when a worker is online", () => {
     renderRendering(true)
     expect(screen.queryByText("No worker online")).not.toBeInTheDocument()
+  })
+})
+
+describe("SettingsForm layout", () => {
+  it("saves the default layout for new clips", async () => {
+    vi.mocked(saveSettingsAction).mockResolvedValue({
+      ok: true,
+      value: defaultAppSettings,
+    })
+    render(
+      <SettingsForm
+        section="layout"
+        settings={defaultAppSettings}
+        claudeAvailable={false}
+        workerOnline
+        hardwareEncoder={null}
+        englishOnlyModel={false}
+        installedFonts={[]}
+      />
+    )
+    await userEvent.click(screen.getByRole("button", { name: /^Even split/ }))
+    await userEvent.click(screen.getByRole("button", { name: "At the bottom" }))
+    await userEvent.click(screen.getByRole("button", { name: "Save layout" }))
+    await waitFor(() =>
+      expect(saveSettingsAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          layoutMode: "split-50",
+          camPosition: "bottom",
+        })
+      )
+    )
   })
 })

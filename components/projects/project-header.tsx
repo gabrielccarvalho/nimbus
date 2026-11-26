@@ -19,7 +19,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { SignalDot } from "@/components/ui/signal-dot"
 import { StatusPill } from "@/components/ui/status-pill"
 import type {
   ProjectHeaderData,
@@ -58,12 +57,6 @@ export function ProjectHeader({
       href: `${base}/transcript`,
       label: "Transcript",
       active: pathname.startsWith(`${base}/transcript`),
-    },
-    {
-      href: `${base}/layout`,
-      label: "Layout & captions",
-      active: pathname.startsWith(`${base}/layout`),
-      pending: project.status === "awaiting_layout",
     },
     {
       href: `${base}/clips`,
@@ -176,9 +169,6 @@ export function ProjectHeader({
                 )}
               >
                 {tab.label}
-                {tab.pending && (
-                  <SignalDot tone="amber" lit size="sm" label="Needs you" />
-                )}
                 {tab.count !== undefined && tab.count > 0 && (
                   <span className="font-mono text-[11px] font-semibold text-tertiary">
                     {tab.count}

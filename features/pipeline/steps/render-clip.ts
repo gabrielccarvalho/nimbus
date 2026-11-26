@@ -20,7 +20,7 @@ import { captionBaseline, resolveCaptionStyle } from "../../captions/styles"
 import { clipRepository } from "../../clips/repository"
 import type { JobHandler } from "../../jobs/worker-loop"
 import { OUTPUT_HEIGHT, OUTPUT_WIDTH, planLayout } from "../../layout/geometry"
-import { layoutRepository } from "../../layout/repository"
+import { renderableLayout } from "../../layout/schema"
 import { planAudio } from "../../music/envelope"
 import { musicRepository } from "../../music/repository"
 import { assetRepository, projectRepository } from "../../projects/repository"
@@ -63,9 +63,7 @@ export const renderClipStep: JobHandler = async ({
   if (!clip || clip.projectId !== project.id) {
     throw new AppError("CANCELLED", "Clip was deleted")
   }
-  const layout =
-    clip.layoutOverride ?? (await layoutRepository(db).get(project.id))
-  if (!layout) throw new AppError("CONFLICT", "The layout is missing")
+  const layout = renderableLayout(clip.layout)
   const source = await sourceFile(db, project)
   if (!source.width || !source.height) {
     throw new AppError("CONFLICT", "The source hasn't been probed")

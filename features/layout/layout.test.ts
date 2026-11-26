@@ -10,8 +10,14 @@ import {
   planLayout,
   refitGameplay,
   toPixels,
+  withDetection,
 } from "./geometry"
-import { FULL_FRAME } from "./schema"
+import {
+  FULL_FRAME,
+  needsWebcam,
+  renderableLayout,
+  startingLayout,
+} from "./schema"
 
 function frame(
   width: number,
@@ -464,3 +470,71 @@ describe("gameplay box", () => {
     })
   })
 })
+
+describe("clip layouts", () => {
+  const defaults = { mode: "split-50", camPosition: "bottom" } as const
+
+  it("starts a clip from the workspace default, waiting for its webcam", () => {
+    const layout = startingLayout(defaults, { landscape: true })
+    expect(layout).toEqual({
+      webcamRect: null,
+      gameplayRect: FULL_FRAME,
+      gameplayFocusX: 0.5,
+      mode: "split-50",
+      camPosition: "bottom",
+    })
+    expect(needsWebcam(layout)).toBe(true)
+  })
+
+  it("starts a portrait recording as a blurred fill", () => {
+    const layout = startingLayout(defaults, { landscape: false })
+    expect(layout.mode).toBe("no-cam-blur-fill")
+    expect(needsWebcam(layout)).toBe(false)
+  })
+
+  it("fills with gameplay until the webcam is marked", () => {
+    const waiting = startingLayout(defaults, { landscape: true })
+    expect(renderableLayout(waiting).mode).toBe("no-cam-fill")
+    const marked = {
+      ...waiting,
+      webcamRect: { x: 0.7, y: 0.7, w: 0.25, h: 0.25 },
+    }
+    expect(renderableLayout(marked)).toBe(marked)
+  })
+
+  const found = {
+    webcamRect: { x: 0.7, y: 0.65, w: 0.28, h: 0.3 },
+    gameplayRect: { x: 0.2, y: 0, w: 0.6, h: 1 },
+    gameplayFocusX: 0.5,
+    mode: "cam-top" as const,
+    camPosition: "top" as const,
+  }
+
+  it("keeps the clip's webcam mode and position when the webcam is found", () => {
+    const start = startingLayout(defaults, { landscape: true })
+    const next = withDetection(start, found, 1920, 1080)
+    expect(next.mode).toBe("split-50")
+    expect(next.camPosition).toBe("bottom")
+    expect(next.webcamRect).toEqual(found.webcamRect)
+    expect(needsWebcam(next)).toBe(false)
+  })
+
+  it("falls back to a fit layout when no webcam is found", () => {
+    const start = startingLayout(defaults, { landscape: true })
+    const next = withDetection(
+      start,
+      { ...FULL_LAYOUT_NONE, camPosition: "top" },
+      1920,
+      1080
+    )
+    expect(next.mode).toBe("no-cam-blur-fill")
+    expect(next.camPosition).toBe("bottom")
+  })
+})
+
+const FULL_LAYOUT_NONE = {
+  webcamRect: null,
+  gameplayRect: FULL_FRAME,
+  gameplayFocusX: 0.5,
+  mode: "no-cam-blur-fill" as const,
+}

@@ -6,6 +6,7 @@ import { withTransaction, type Db } from "@/lib/db"
 import { AppError } from "@/lib/errors"
 
 import { overlaysInClip } from "../captions/overlay"
+import { clipStartLayout } from "../layout/defaults"
 import { captionsInClip } from "../captions/pages"
 import { normalizeEffects, type ClipEffects } from "../effects/schema"
 import { autoEffectsFor } from "../effects/service"
@@ -25,7 +26,7 @@ import {
   type ClipStatus,
 } from "./schema"
 
-const REVIEWABLE = new Set(["awaiting_layout", "ready_for_review", "done"])
+const REVIEWABLE = new Set(["ready_for_review", "done"])
 
 export async function applyManualSelection(
   db: Db,
@@ -58,9 +59,14 @@ export async function applyManualSelection(
     )
   }
   const repository = clipRepository(db)
+  const layout = await clipStartLayout(db, project)
   const clips = await repository.replaceCandidates(
     projectId,
-    candidates.map((c) => ({ ...c, description: c.description ?? c.hook }))
+    candidates.map((c) => ({
+      ...c,
+      description: c.description ?? c.hook,
+      layout,
+    }))
   )
   if (project.settings.autoEffects) {
     const tracks = await autoEffectsFor(db, projectId, clips)
@@ -110,6 +116,7 @@ export async function createClipFromRange(
       ...range,
       title: title.slice(0, 100),
       reason: "Made from the transcript",
+      layout: await clipStartLayout(db, project),
     },
   ])
   if (project.settings.autoEffects) {
@@ -170,10 +177,7 @@ export async function updateClip(
     )
   }
   const trimmed = edit.startMs !== clip.startMs || edit.endMs !== clip.endMs
-  const relaidOut = !isDeepStrictEqual(
-    edit.layoutOverride ?? null,
-    clip.layoutOverride ?? null
-  )
+  const relaidOut = !isDeepStrictEqual(edit.layout, clip.layout)
   const range = { startMs: edit.startMs, endMs: edit.endMs }
   const stored = edit.effects ?? clip.effects
   let effects: ClipEffects | null | undefined
@@ -186,7 +190,7 @@ export async function updateClip(
     effects =
       (
         await autoEffectsFor(db, projectId, [
-          { ...clip, ...range, layoutOverride: edit.layoutOverride },
+          { ...clip, ...range, layout: edit.layout },
         ])
       ).get(clip.id) ?? null
   } else if (edit.effects) {
@@ -209,7 +213,7 @@ export async function updateClip(
         captions: captionsInClip(lane.captions, length),
       })),
     },
-    layoutOverride: edit.layoutOverride,
+    layout: edit.layout,
     ...(effects === undefined ? {} : { effects }),
     audioMix: musicInClip(edit.audioMix, length),
     textOverlays: overlaysInClip(edit.textOverlays, length),
@@ -275,7 +279,10 @@ export async function planClipEffects(
     await autoEffectsFor(db, projectId, [{ ...clip, ...plan }])
   ).get(clip.id)
   if (!effects) {
-    throw new AppError("CONFLICT", "Confirm the layout before planning effects")
+    throw new AppError(
+      "CONFLICT",
+      "Wait for the recording to be probed before planning effects"
+    )
   }
   return effects
 }

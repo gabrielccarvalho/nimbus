@@ -6,7 +6,6 @@ import { clipRepository } from "../clips/repository"
 import type { ClipStatus } from "../clips/schema"
 import { jobQueue } from "../jobs/queue"
 import type { JobStatus, JobType } from "../jobs/schema"
-import { layoutRepository } from "../layout/repository"
 import { assetRepository, projectRepository } from "../projects/repository"
 import type { ProjectStatus } from "../projects/schema"
 import { stepDetailSchema, type StepDetail } from "./detail"
@@ -39,10 +38,9 @@ export async function getProjectSnapshot(
 ): Promise<ProjectSnapshot | undefined> {
   const project = await projectRepository(db).get(projectId)
   if (!project) return undefined
-  const [jobRows, assetRows, layout, clipRows] = await Promise.all([
+  const [jobRows, assetRows, clipRows] = await Promise.all([
     jobQueue(db).listForProject(projectId),
     assetRepository(db).listForProject(projectId),
-    layoutRepository(db).get(projectId),
     clipRepository(db).listForProject(projectId),
   ])
   const jobs = jobRows.slice(0, 50).map((job) => ({
@@ -67,11 +65,7 @@ export async function getProjectSnapshot(
         ":"
       )
     )
-  const revision = [
-    project.name,
-    layout?.sourceAspect ?? "",
-    ...assets.sort(),
-  ].join("|")
+  const revision = [project.name, ...assets.sort()].join("|")
   return {
     id: project.id,
     status: project.status,

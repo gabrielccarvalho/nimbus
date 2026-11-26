@@ -4,7 +4,6 @@ import { projectFilter } from "./status-badge"
 
 describe("projectFilter", () => {
   it("files each project under one home filter", () => {
-    expect(projectFilter({ status: "awaiting_layout" })).toBe("needs")
     expect(
       projectFilter({ status: "selecting", awaitingManualSelection: true })
     ).toBe("needs")

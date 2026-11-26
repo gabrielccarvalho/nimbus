@@ -430,9 +430,21 @@ One timeline under the video replaces the Trim, Effects, Captions, Text and Musi
 - [x] Preview plays every music clip, shows every caption lane and text, and places each caption lane by dragging
 - [x] Unit, integration and e2e coverage; checked by hand on the e2e recording (screenshots of the timeline, the inspector, caption overflow and Fit)
 
+### Phase 39: A layout per clip (ADR-0073)
+
+The project layout step and the "Layout & captions" page are gone. Every clip keeps its own layout, starting from the workspace default.
+
+- [x] `clips.layout` replaces `layout_override`; the `layouts` and `layout_presets` tables and the `awaiting_layout` status are dropped. Migration 0022 copies each project's layout onto its clips (a clip override wins) and moves waiting projects to review.
+- [x] Settings › Layout: default mode and webcam position for new clips. Selection, manual paste and new clips from the transcript start from it with no webcam box.
+- [x] The clip editor finds the webcam inside the clip the first time it opens and autosaves it; "Find webcam" runs it again for the current trim
+- [x] A webcam mode without a webcam box renders and previews as a gameplay fill; webcam effects wait for the box
+- [x] Render, effects planning and clip review no longer wait on a confirmed layout
+- [x] Unit, integration and e2e coverage
+
 ### Not verified
 
 - The clip timeline on a long real recording (checked on the 20 s e2e fixture only, so autosave didn't touch real clips).
+- Opening a clip of a real recording: detection now runs per clip, so on a long recording it seeks inside a 15–60 s range instead of the whole video (only the 20 s fixture was tried).
 - MediaPipe face detection on a real face (fixtures have none; the code path is unit tested and the model loads in e2e).
 - Real multi-hour recordings end to end (a 3 h stream was transcribed and scored; rendering from it wasn't). Claude's chunking of long transcripts is tested against a mocked API only.
 - Hardware encoders other than VideoToolbox.

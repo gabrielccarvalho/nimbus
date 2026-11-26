@@ -1,7 +1,10 @@
 import { readFile } from "node:fs/promises"
 
+import { eq } from "drizzle-orm"
+
 import type { JobType } from "@/features/jobs/schema"
 import { createWorker, type JobHandlers } from "@/features/jobs/worker-loop"
+import { layoutInputSchema, type LayoutInput } from "@/features/layout/schema"
 import {
   jobStallTimeoutMs,
   onJobCancelled,
@@ -16,6 +19,7 @@ import {
 import type { ImportOptions } from "@/features/projects/schema"
 import { createUploadedProject } from "@/features/projects/upload"
 import { newId, type Db } from "@/lib/db"
+import { clips } from "@/lib/db/schema"
 import { logger } from "@/lib/logger"
 import { getStorage, storageKeys } from "@/lib/storage"
 
@@ -66,4 +70,15 @@ export async function runJobs(
     types.map((type) => [type, handlers[type]])
   ) as JobHandlers
   await testWorker(db, subset).drain()
+}
+
+export async function setClipLayouts(
+  db: Db,
+  projectId: string,
+  layout: LayoutInput
+) {
+  await db
+    .update(clips)
+    .set({ layout: layoutInputSchema.parse(layout) })
+    .where(eq(clips.projectId, projectId))
 }

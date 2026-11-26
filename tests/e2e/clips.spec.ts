@@ -3,22 +3,14 @@ import { expect, test, type Page } from "@playwright/test"
 import { fixtures } from "../../scripts/make-fixtures"
 import { expectNoSeriousA11yViolations } from "./utils/axe"
 
-async function uploadAndOpenClips(page: Page, { confirmLayout = false } = {}) {
+async function uploadAndOpenClips(page: Page) {
   await page.goto("/")
   await page.locator("input[type=file]").setInputFiles(fixtures.wide)
   await expect(page).toHaveURL(/\/projects\/[\w-]+$/, { timeout: 30_000 })
   await expect(
     page.getByRole("listitem").filter({ hasText: "Find highlights, completed" })
   ).toBeVisible({ timeout: 30_000 })
-  if (confirmLayout) {
-    await page.getByRole("link", { name: /^Layout & captions/ }).click()
-    await expect(page.getByText(/Webcam found/)).toBeVisible({
-      timeout: 30_000,
-    })
-    await page.getByRole("button", { name: "Confirm layout" }).click()
-    await expect(page.getByText("Layout confirmed")).toBeVisible()
-  }
-  await page.getByRole("link", { name: "Clips" }).click()
+  await page.getByRole("link", { name: /^Clips/ }).click()
   return page.getByRole("list", { name: "Clips" }).locator("[data-clip-id]")
 }
 
@@ -115,10 +107,10 @@ test("filters, rejects and approves from the keyboard, then finds more highlight
 })
 
 test("adds a zoom effect in the clip editor", async ({ page }) => {
-  const tiles = await uploadAndOpenClips(page, { confirmLayout: true })
+  const tiles = await uploadAndOpenClips(page)
   await tiles.first().click()
   await page.getByRole("dialog").getByRole("link", { name: /Edit/ }).click()
-  await expect(page.getByLabel("Title")).toBeVisible()
+  await expect(page.getByText(/Webcam found/)).toBeVisible({ timeout: 30_000 })
 
   const timeline = page.getByRole("region", { name: "Timeline" })
   const addEffect = async (name: string) => {
@@ -196,10 +188,10 @@ test("adds a zoom effect in the clip editor", async ({ page }) => {
 })
 
 test("moves the gameplay box in the clip editor", async ({ page }) => {
-  const tiles = await uploadAndOpenClips(page, { confirmLayout: true })
+  const tiles = await uploadAndOpenClips(page)
   await tiles.first().click()
   await page.getByRole("dialog").getByRole("link", { name: /Edit/ }).click()
-  await expect(page.getByLabel("Title")).toBeVisible()
+  await expect(page.getByText(/Webcam found/)).toBeVisible({ timeout: 30_000 })
 
   const region = page.getByRole("group", { name: "Gameplay region" })
   const describe = () =>
@@ -224,15 +216,13 @@ test("moves the gameplay box in the clip editor", async ({ page }) => {
   await page.reload()
   await expect(region).toBeVisible()
   expect(await describe()).toEqual(after)
-  await page.getByRole("tab", { name: "Layout" }).click()
-  await expect(page.getByText("This clip has its own layout.")).toBeVisible()
 })
 
 test("places this clip's captions by hand", async ({ page }) => {
-  const tiles = await uploadAndOpenClips(page, { confirmLayout: true })
+  const tiles = await uploadAndOpenClips(page)
   await tiles.first().click()
   await page.getByRole("dialog").getByRole("link", { name: /Edit/ }).click()
-  await expect(page.getByLabel("Title")).toBeVisible()
+  await expect(page.getByText(/Webcam found/)).toBeVisible({ timeout: 30_000 })
 
   const caption = page.getByRole("slider", { name: "Caption position" })
   await caption.focus()

@@ -14,8 +14,6 @@ vi.mock("./use-project-events", () => ({
   useProjectEvents: (snapshot: ProjectSnapshot) => snapshot,
 }))
 
-vi.mock("@/features/layout/actions", () => ({ confirmLayoutAction: vi.fn() }))
-
 vi.mock("@/features/projects/actions", () => ({
   cancelProjectAction: vi.fn(),
   retryProjectAction: vi.fn(),
@@ -31,7 +29,6 @@ const facts: OverviewFacts = {
   transcript: null,
   silences: null,
   clipCount: 0,
-  layout: null,
 }
 
 function job(
@@ -64,9 +61,7 @@ function overview(jobs: ProjectSnapshot["jobs"]) {
     jobs,
     clips: [],
   }
-  return render(
-    <ProjectOverview initial={snapshot} facts={facts} layout={null} />
-  )
+  return render(<ProjectOverview initial={snapshot} facts={facts} />)
 }
 
 describe("ProjectOverview", () => {

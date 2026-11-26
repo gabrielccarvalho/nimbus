@@ -1,13 +1,13 @@
 "use client"
 
 import {
-  ArrowCounterClockwiseIcon,
   ArrowLeftIcon,
   CaretLeftIcon,
   CaretRightIcon,
   CheckIcon,
   DownloadSimpleIcon,
   FilmSlateIcon,
+  MagicWandIcon,
   XIcon,
 } from "@phosphor-icons/react"
 import Link from "next/link"
@@ -27,6 +27,7 @@ import {
   ProgressLabel,
   ProgressValue,
 } from "@/components/ui/progress"
+import { Spinner } from "@/components/ui/spinner"
 import { StatusPill } from "@/components/ui/status-pill"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
@@ -53,7 +54,14 @@ import {
 } from "@/features/captions/styles"
 import { setClipStatusAction, updateClipAction } from "@/features/clips/actions"
 import type { Clip } from "@/features/clips/repository"
-import { usesWebcam, type LayoutInput } from "@/features/layout/schema"
+import { detectWebcam } from "@/features/layout/detect-webcam"
+import { withDetection } from "@/features/layout/geometry"
+import {
+  needsWebcam,
+  renderableLayout,
+  usesWebcam,
+  type LayoutInput,
+} from "@/features/layout/schema"
 import { planAudio } from "@/features/music/envelope"
 import {
   DEFAULT_AUDIO_MIX,
@@ -83,7 +91,7 @@ import {
   GameplayRegion,
   LayoutModeOptions,
   withLayoutMode,
-} from "./layout-editor"
+} from "./layout-fields"
 
 const AUTOSAVE_MS = 600
 const MUSIC_POLL_MS = 3000
@@ -96,7 +104,6 @@ type ClipEditorProps = {
   sourceDurationMs: number
   sourceWidth: number
   sourceHeight: number
-  layout: LayoutInput
   words: Word[]
   settings: ProjectSettings
   installedFonts: readonly CaptionFontId[]
@@ -123,7 +130,6 @@ export function ClipEditor({
   sourceDurationMs,
   sourceWidth,
   sourceHeight,
-  layout: projectLayout,
   words,
   settings,
   installedFonts,
@@ -149,9 +155,10 @@ export function ClipEditor({
     clip.captionOverrides?.enabled
   )
   const captionsEnabled = captionsOverride ?? settings.captionsEnabled
-  const [layoutOverride, setLayoutOverride] =
-    React.useState<LayoutInput | null>(clip.layoutOverride)
-  const layout = layoutOverride ?? projectLayout
+  const [layout, setLayout] = React.useState(clip.layout)
+  const [detecting, setDetecting] = React.useState(() =>
+    needsWebcam(clip.layout)
+  )
   const hasWebcam = usesWebcam(layout.mode)
   const [effects, setEffects] = React.useState(clip.effects)
   const [audioMix, setAudioMix] = React.useState(clip.audioMix)
@@ -162,10 +169,43 @@ export function ClipEditor({
   )
   const selectedEffect = selection?.type === "effect" ? selection.index : null
   const editLayout = (patch: Partial<LayoutInput>) =>
-    setLayoutOverride((current) => ({
-      ...(current ?? projectLayout),
-      ...patch,
-    }))
+    setLayout((current) => ({ ...current, ...patch }))
+  const findWebcam = React.useCallback(
+    (range: { startMs: number; endMs: number }, signal?: AbortSignal) =>
+      detectWebcam(src, { range, signal }).then(
+        (result) => {
+          setLayout((current) =>
+            withDetection(current, result, sourceWidth, sourceHeight)
+          )
+          setDetecting(false)
+          if (usesWebcam(result.mode)) {
+            toast.success(
+              `Webcam found (${Math.round(result.confidence * 100)}% confident)`
+            )
+          } else {
+            toast.info("No webcam found. Mark it yourself if there is one.")
+          }
+        },
+        (error: unknown) => {
+          if (signal?.aborted) return
+          setDetecting(false)
+          toast.error(
+            error instanceof Error ? error.message : "Webcam detection failed"
+          )
+        }
+      ),
+    [src, sourceWidth, sourceHeight]
+  )
+  const [autoDetect] = React.useState(() => needsWebcam(clip.layout))
+  React.useEffect(() => {
+    if (!autoDetect) return
+    const controller = new AbortController()
+    void findWebcam(
+      { startMs: clip.startMs, endMs: clip.endMs },
+      controller.signal
+    )
+    return () => controller.abort()
+  }, [autoDetect, findWebcam, clip.startMs, clip.endMs])
   const [captions, setCaptions] = React.useState<CaptionState>(() => ({
     pageEdits: Object.fromEntries(
       (clip.captionOverrides?.pages ?? []).map(({ index, ...edit }) => [
@@ -218,7 +258,8 @@ export function ClipEditor({
       ? [{ key: `${index}:${plan.trackId}`, src: track.url, plan }]
       : []
   })
-  const baseline = captionBaseline(style, layout)
+  const output = renderableLayout(layout)
+  const baseline = captionBaseline(style, output)
   const captionsNearTop = captionsEnabled && baseline < 0.4
   const overrides = Object.entries(captions.pageEdits).map(([index, edit]) => ({
     index: Number(index),
@@ -284,7 +325,7 @@ export function ClipEditor({
       lanes: captions.lanes,
       style: styleRef,
     },
-    layoutOverride,
+    layout,
     effects,
     audioMix,
     textOverlays,
@@ -477,6 +518,7 @@ export function ClipEditor({
               <CropRegionEditor
                 value={layout.webcamRect ?? DEFAULT_WEBCAM}
                 onValueChange={(webcamRect) => editLayout({ webcamRect })}
+                disabled={detecting}
                 className="mx-auto w-full rounded-none"
                 style={{
                   aspectRatio: `${sourceWidth} / ${sourceHeight}`,
@@ -507,7 +549,7 @@ export function ClipEditor({
           <aside className="grid min-w-0 flex-[1_1_340px] gap-4">
             <div className="grid grid-cols-[150px_minmax(0,1fr)] items-start gap-3.5">
               <ClipEffectsPreview
-                layout={layout}
+                layout={output}
                 source={{ width: sourceWidth, height: sourceHeight }}
                 effects={effects}
                 selected={selectedEffect}
@@ -651,28 +693,38 @@ export function ClipEditor({
               </TabsContent>
               <TabsContent value="layout" className="grid gap-4">
                 <div className="flex flex-wrap items-start justify-between gap-2">
-                  <p className="min-w-0 flex-1 text-[13px] text-tertiary">
-                    {layoutOverride
-                      ? "This clip has its own layout."
-                      : "Uses the project layout. Changes here apply to this clip only."}
+                  <p
+                    className="min-w-0 flex-1 text-[13px] text-tertiary"
+                    aria-live="polite"
+                  >
+                    {detecting
+                      ? "Looking for the webcam in this clip…"
+                      : hasWebcam
+                        ? "Drag the solid box over the webcam, the dashed one over the gameplay."
+                        : layout.mode === "no-cam-fill"
+                          ? "The dashed box is the part of the frame that fills the short."
+                          : "The whole frame is shown over a blurred copy of itself."}
                   </p>
-                  {layoutOverride && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setLayoutOverride(null)}
-                    >
-                      <ArrowCounterClockwiseIcon
-                        data-icon="inline-start"
-                        aria-hidden
-                      />
-                      Use project layout
-                    </Button>
-                  )}
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={detecting}
+                    onClick={() => {
+                      setDetecting(true)
+                      void findWebcam({ startMs, endMs })
+                    }}
+                  >
+                    {detecting ? (
+                      <Spinner data-icon="inline-start" />
+                    ) : (
+                      <MagicWandIcon data-icon="inline-start" aria-hidden />
+                    )}
+                    Find webcam
+                  </Button>
                 </div>
                 <LayoutModeOptions
                   value={layout.mode}
+                  disabled={detecting}
                   onValueChange={(mode) =>
                     editLayout(
                       withLayoutMode(layout, mode, sourceWidth, sourceHeight)
@@ -711,7 +763,7 @@ export function ClipEditor({
           startMs={startMs}
           endMs={endMs}
           onTrim={trim}
-          layoutOverride={layoutOverride}
+          layout={layout}
           hasWebcam={hasWebcam && Boolean(layout.webcamRect)}
           effects={effects}
           onEffectsChange={setEffects}

@@ -79,7 +79,7 @@ function clip(id: string, title: string, overrides: Partial<Clip> = {}) {
     error: null,
     renderAssetId: null,
     captionOverrides: null,
-    layoutOverride: null,
+    layout,
     effects: null,
     ...overrides,
   } as Clip
@@ -115,7 +115,6 @@ const data = {
   publishing,
   src: "/media/proxy.mp4",
   renders,
-  layout,
   captions: Object.fromEntries(
     clips.map((c) => [c.id, { lanes: [], style, enabled: true }])
   ),
@@ -349,7 +348,6 @@ describe("ClipsReview", () => {
         clips={clips}
         {...data}
         durationMs={120_000}
-        layoutConfirmed
         snapshot={
           { id: "p1", status: "ready_for_review", jobs: [], clips: [] } as never
         }

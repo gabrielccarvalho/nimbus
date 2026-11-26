@@ -87,9 +87,8 @@ sequenceDiagram
   W->>D: asset metadata, thumbnail, proxy, status=transcribing, job(transcribe)
   W->>D: transcript, status=analyzing, job(analyze)
   W->>D: signals, status=selecting, job(select)
-  W->>D: clips(candidate), status=awaiting_layout | ready_for_review
-  U->>N: confirm layout (Server Action)
-  N->>D: layout(confirmed), status=ready_for_review
+  W->>D: clips(candidate, layout from workspace default), status=ready_for_review
+  U->>N: open a clip: webcam found in the browser, layout autosaved
   U->>N: approve clips, render
   N->>D: status=rendering, job(render_clip) × N
   W->>D: assets(render), clip status, status=done
@@ -108,7 +107,7 @@ app/                 routes only: pages, layouts, route handlers, loading/error 
 components/
   ui/                shadcn + shadcn-style primitives
   app-shell/         sidebar, header, breadcrumbs
-  <domain>/          app-specific composites (projects, clips, captions, layout-editor…)
+  <domain>/          app-specific composites (projects, clips, captions, layout-fields…)
 features/<name>/     domain logic per feature
 lib/                 db, env, logger, storage, sse, result/errors, utils
 worker/              worker entry point

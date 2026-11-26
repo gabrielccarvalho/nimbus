@@ -4,6 +4,7 @@ import { accountRepository } from "@/features/accounts/repository"
 import { textOverlaySchema } from "@/features/captions/overlay"
 import { updateClipAction } from "@/features/clips/actions"
 import { clipRepository } from "@/features/clips/repository"
+import { FILL_LAYOUT } from "@/features/layout/schema"
 import { audioMixSchema, DEFAULT_AUDIO_MIX } from "@/features/music/schema"
 import {
   assetRepository,
@@ -69,6 +70,7 @@ describe("updateClipAction", () => {
       title: "Clip",
       hook: "",
       captionOverrides: { pages: [] },
+      layout: FILL_LAYOUT,
       effects: {
         edited: true,
         events: [
@@ -108,6 +110,7 @@ describe("updateClipAction", () => {
       title: "Clip",
       hook: "",
       captionOverrides: { pages: [] },
+      layout: FILL_LAYOUT,
     }
     const textOverlay = {
       text: "a".repeat(81),

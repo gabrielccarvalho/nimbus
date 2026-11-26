@@ -97,7 +97,7 @@ export const clipEditSchema = clipTextSchema.extend({
   startMs: z.number().int().nonnegative(),
   endMs: z.number().int().positive(),
   captionOverrides: captionOverridesSchema,
-  layoutOverride: layoutInputSchema.nullable().default(null),
+  layout: layoutInputSchema,
   effects: clipEffectsSchema.nullable().default(null),
   audioMix: audioMixSchema.nullable().default(null),
   textOverlays: textOverlaysSchema.default([]),
@@ -105,7 +105,7 @@ export const clipEditSchema = clipTextSchema.extend({
 export type ClipEdit = z.infer<typeof clipEditSchema>
 
 export const clipPlanSchema = clipEditSchema
-  .pick({ startMs: true, endMs: true, layoutOverride: true })
+  .pick({ startMs: true, endMs: true, layout: true })
   .refine((plan) => plan.endMs > plan.startMs, {
     message: "The clip must end after it starts",
     path: ["endMs"],

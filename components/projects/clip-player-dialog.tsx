@@ -35,7 +35,7 @@ import type { CaptionLane } from "@/features/captions/pages"
 import type { CaptionStyle } from "@/features/captions/styles"
 import { setClipStatusAction } from "@/features/clips/actions"
 import type { Clip } from "@/features/clips/repository"
-import type { LayoutInput } from "@/features/layout/schema"
+import { renderableLayout } from "@/features/layout/schema"
 import { formatDuration } from "@/lib/format"
 
 import { ClipLoop, ClipPreview } from "./clip-preview"
@@ -49,7 +49,6 @@ export type ClipPlayerData = {
   projectId: string
   src: string
   renders: Record<string, RenderLinks>
-  layout: LayoutInput | null
   captions: Record<
     string,
     {
@@ -101,11 +100,10 @@ function ClipPlayer({
   clip,
   src,
   renders,
-  layout: projectLayout,
   captions,
 }: Omit<ClipPlayerData, "projectId" | "publishing"> & { clip: Clip }) {
   const render = currentRender(clip, renders)
-  const layout = clip.layoutOverride ?? projectLayout
+  const layout = renderableLayout(clip.layout)
   const caption = captions[clip.id]
 
   if (render) {
@@ -130,7 +128,7 @@ function ClipPlayer({
     <VideoPlayerProvider>
       <ClipLoop startMs={clip.startMs} endMs={clip.endMs} />
       <div className="relative overflow-hidden rounded-lg bg-black">
-        {layout && caption ? (
+        {caption ? (
           <>
             <VideoPlayerVideo
               src={src}

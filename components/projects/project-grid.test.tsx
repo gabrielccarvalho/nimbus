@@ -35,8 +35,8 @@ const projects = [
   project({
     id: "a",
     name: "Waiting",
-    status: "awaiting_layout",
-    clipCount: 12,
+    status: "selecting",
+    awaitingManualSelection: true,
   }),
   project({ id: "b", name: "Running", status: "transcribing", progress: 34 }),
   project({ id: "c", name: "Ready", reviewCount: 9, clipCount: 9 }),
@@ -69,9 +69,7 @@ describe("NeedsYouBanner", () => {
   it("links straight to the step waiting on the user", () => {
     render(<NeedsYouBanner project={projects[0]!} />)
     const link = screen.getByRole("link")
-    expect(link).toHaveAttribute("href", "/projects/a/layout")
-    expect(link).toHaveTextContent(
-      "12 clips found, confirm the layout to start rendering."
-    )
+    expect(link).toHaveAttribute("href", "/projects/a/clips")
+    expect(link).toHaveTextContent("Paste Claude's highlights to continue.")
   })
 })

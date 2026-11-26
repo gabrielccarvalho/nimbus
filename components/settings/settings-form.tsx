@@ -17,6 +17,10 @@ import { saveSettingsAction } from "@/features/settings/actions"
 import type { AppSettings } from "@/features/settings/schema"
 
 import { CaptionStyleFields } from "@/components/projects/caption-style-fields"
+import {
+  CamPositionField,
+  LayoutModeOptions,
+} from "@/components/projects/layout-fields"
 import { CaptionStylePreview } from "@/components/projects/caption-style-preview"
 import {
   placeCaption,
@@ -38,6 +42,11 @@ const TITLES = {
     title: "Project defaults",
     description:
       "Where every new import starts. Imports can override them, and each project keeps its own copy.",
+  },
+  layout: {
+    title: "Layout",
+    description:
+      "How new clips are framed. Each clip looks for the webcam the first time you open it and keeps its own layout.",
   },
   captions: {
     title: "Captions",
@@ -110,6 +119,18 @@ export function SettingsForm({
               claudeAvailable={claudeAvailable}
             />
             <PublishingFields value={settings} set={set} />
+          </>
+        )}
+        {section === "layout" && (
+          <>
+            <LayoutModeOptions
+              value={settings.layoutMode}
+              onValueChange={(mode) => set("layoutMode", mode)}
+            />
+            <CamPositionField
+              value={settings.camPosition}
+              onValueChange={(camPosition) => set("camPosition", camPosition)}
+            />
           </>
         )}
         {section === "captions" && (

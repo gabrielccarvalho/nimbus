@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
 import { clipRepository } from "@/features/clips/repository"
 import { updateClip } from "@/features/clips/service"
+import { FILL_LAYOUT } from "@/features/layout/schema"
 import { trackInUseMessage } from "@/features/music/media"
 import { musicRepository } from "@/features/music/repository"
 import { DEFAULT_AUDIO_MIX, newMusicClip } from "@/features/music/schema"
@@ -62,7 +63,7 @@ async function seed(db: Db) {
     title: "Bridge fight",
     hook: "",
     captionOverrides: { pages: [], added: [], lanes: [] },
-    layoutOverride: null,
+    layout: FILL_LAYOUT,
     effects: null,
     audioMix: {
       ...DEFAULT_AUDIO_MIX,

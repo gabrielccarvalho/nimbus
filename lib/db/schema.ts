@@ -27,12 +27,7 @@ import type { TextOverlay } from "@/features/captions/overlay"
 import type { CaptionOverrides, ClipStatus } from "@/features/clips/schema"
 import type { Beat, ClipEffects } from "@/features/effects/schema"
 import type { JobStatus, JobType } from "@/features/jobs/schema"
-import type {
-  CamPosition,
-  LayoutInput,
-  LayoutMode,
-  Rect,
-} from "@/features/layout/schema"
+import { FILL_LAYOUT, type LayoutInput } from "@/features/layout/schema"
 import type { PlanId, UsageKind } from "@/features/accounts/schema"
 import type { AudioMix, MusicTrackStatus } from "@/features/music/schema"
 import type {
@@ -54,7 +49,6 @@ import type {
   AudioTrack,
   ProjectSettings,
   ProjectStatus,
-  SourceAspect,
 } from "@/features/projects/schema"
 import type {
   LanguageSource,
@@ -263,43 +257,6 @@ export const signals = pgTable("signals", {
   ...timestamps,
 })
 
-export const layouts = pgTable("layouts", {
-  projectId: text("project_id")
-    .primaryKey()
-    .references(() => projects.id, { onDelete: "cascade" }),
-  sourceAspect: text("source_aspect").$type<SourceAspect>().notNull(),
-  webcamRect: jsonb("webcam_rect").$type<Rect | null>(),
-  gameplayRect: jsonb("gameplay_rect").$type<Rect>().notNull(),
-  gameplayFocusX: doublePrecision("gameplay_focus_x").notNull().default(0.5),
-  mode: text("mode").$type<LayoutMode>().notNull(),
-  camPosition: text("cam_position")
-    .$type<CamPosition>()
-    .notNull()
-    .default("top"),
-  confidence: doublePrecision("confidence").notNull().default(0),
-  confirmedByUser: boolean("confirmed_by_user").notNull().default(false),
-  ...timestamps,
-})
-
-export const layoutPresets = pgTable(
-  "layout_presets",
-  {
-    id: text("id").primaryKey(),
-    width: integer("width").notNull(),
-    height: integer("height").notNull(),
-    webcamRect: jsonb("webcam_rect").$type<Rect | null>(),
-    gameplayRect: jsonb("gameplay_rect").$type<Rect>().notNull(),
-    gameplayFocusX: doublePrecision("gameplay_focus_x").notNull().default(0.5),
-    mode: text("mode").$type<LayoutMode>().notNull(),
-    camPosition: text("cam_position")
-      .$type<CamPosition>()
-      .notNull()
-      .default("top"),
-    ...timestamps,
-  },
-  (t) => [uniqueIndex("layout_presets_resolution_idx").on(t.width, t.height)]
-)
-
 export const clips = pgTable(
   "clips",
   {
@@ -316,7 +273,7 @@ export const clips = pgTable(
     score: doublePrecision("score").notNull().default(0),
     status: text("status").$type<ClipStatus>().notNull().default("candidate"),
     captionOverrides: jsonb("caption_overrides").$type<CaptionOverrides>(),
-    layoutOverride: jsonb("layout_override").$type<LayoutInput>(),
+    layout: jsonb("layout").$type<LayoutInput>().notNull().default(FILL_LAYOUT),
     effects: jsonb("effects").$type<ClipEffects | null>(),
     beats: jsonb("beats").$type<Beat[] | null>(),
     playbookRuleIds: jsonb("playbook_rule_ids").$type<string[] | null>(),

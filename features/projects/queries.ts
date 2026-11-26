@@ -10,11 +10,7 @@ import { getSession, requireViewer } from "../accounts/session"
 import { claudeAvailable } from "../accounts/usage"
 import { normalizeLoudness } from "../analysis/loudness"
 import { signalsRepository } from "../analysis/repository"
-import {
-  clipCaptionLanes,
-  clipCaptionsEnabled,
-  sampleCaptionWords,
-} from "../captions/pages"
+import { clipCaptionLanes, clipCaptionsEnabled } from "../captions/pages"
 import { speakerTranscriptWords } from "../captions/speaker"
 import { resolveCaptionStyle } from "../captions/styles"
 import { clipRepository } from "../clips/repository"
@@ -22,7 +18,7 @@ import { NICHE_PROFILES, resolveNiche } from "../highlights/niches"
 import { loadPlaybook } from "../insights/repository"
 import { buildManualPrompt } from "../highlights/prompt"
 import { jobQueue } from "../jobs/queue"
-import { layoutRepository } from "../layout/repository"
+import { classifyAspect } from "../pipeline/steps/probe-parse"
 import { musicTracksFor } from "../music/queries"
 import { getProjectSnapshot } from "../pipeline/snapshot"
 import { isEnglishOnlyModel } from "../transcription/language"
@@ -94,9 +90,8 @@ export async function getProjectHeader(id: string) {
   const db = getDb()
   const project = await visibleProject(db, id)
   if (!project) return undefined
-  const [source, layout, clips, transcript] = await Promise.all([
+  const [source, clips, transcript] = await Promise.all([
     assetRepository(db).findByKind(id, "source"),
-    layoutRepository(db).get(id),
     clipRepository(db).listForProject(id),
     transcriptRepository(db).get(id),
   ])
@@ -111,7 +106,10 @@ export async function getProjectHeader(id: string) {
           bytes: source.bytes,
         }
       : null,
-    aspect: layout?.sourceAspect ?? null,
+    aspect:
+      source?.width && source.height
+        ? classifyAspect(source.width, source.height)
+        : null,
     language:
       transcript?.language ??
       project.sourceLanguage ??
@@ -134,16 +132,14 @@ export async function getProjectOverview(id: string) {
   const db = getDb()
   const project = await visibleProject(db, id)
   if (!project) return undefined
-  const [assets, layout, audio, clips, jobs, snapshot, transcript] =
-    await Promise.all([
-      assetRepository(db).listForProject(id),
-      layoutRepository(db).get(id),
-      audioSummary(db, project),
-      clipRepository(db).listForProject(id),
-      jobQueue(db).listForProject(id),
-      getProjectSnapshot(db, id),
-      transcriptRepository(db).get(id),
-    ])
+  const [assets, audio, clips, jobs, snapshot, transcript] = await Promise.all([
+    assetRepository(db).listForProject(id),
+    audioSummary(db, project),
+    clipRepository(db).listForProject(id),
+    jobQueue(db).listForProject(id),
+    getProjectSnapshot(db, id),
+    transcriptRepository(db).get(id),
+  ])
   return {
     project,
     transcript: transcript
@@ -156,7 +152,6 @@ export async function getProjectOverview(id: string) {
     source: assets.find((a) => a.kind === "source"),
     thumbnail: assets.find((a) => a.kind === "thumbnail"),
     proxy: assets.find((a) => a.kind === "proxy"),
-    layout,
     audio,
     clips,
     jobs,
@@ -196,15 +191,13 @@ export async function getProjectClips(id: string) {
   const db = getDb()
   const project = await visibleProject(db, id)
   if (!project) return undefined
-  const [assets, clips, audio, layout, transcript, snapshot] =
-    await Promise.all([
-      assetRepository(db).listForProject(id),
-      clipRepository(db).listForProject(id),
-      audioSummary(db, project),
-      layoutRepository(db).get(id),
-      transcriptRepository(db).get(id),
-      getProjectSnapshot(db, id),
-    ])
+  const [assets, clips, audio, transcript, snapshot] = await Promise.all([
+    assetRepository(db).listForProject(id),
+    clipRepository(db).listForProject(id),
+    audioSummary(db, project),
+    transcriptRepository(db).get(id),
+    getProjectSnapshot(db, id),
+  ])
   const source = assets.find((a) => a.kind === "source")
   const durationMs = source?.durationMs ?? 0
   let manualPrompt: string | undefined
@@ -287,16 +280,6 @@ export async function getProjectClips(id: string) {
           durationMs: edit.durationMs ?? 0,
         }
       : undefined,
-    layout: layout
-      ? {
-          webcamRect: layout.webcamRect,
-          gameplayRect: layout.gameplayRect,
-          gameplayFocusX: layout.gameplayFocusX,
-          mode: layout.mode,
-          camPosition: layout.camPosition,
-        }
-      : null,
-    layoutConfirmed: Boolean(layout?.confirmedByUser),
     snapshot: snapshot!,
   }
 }
@@ -309,10 +292,9 @@ export async function getClipEditor(projectId: string, clipId: string) {
     clipRepository(db).get(clipId),
   ])
   if (!project || !clip || clip.projectId !== project.id) return undefined
-  const [assets, layout, transcript, snapshot, clips, musicTracks, signals] =
+  const [assets, transcript, snapshot, clips, musicTracks, signals] =
     await Promise.all([
       assetRepository(db).listForProject(projectId),
-      layoutRepository(db).get(projectId),
       transcriptRepository(db).get(projectId),
       getProjectSnapshot(db, projectId),
       clipRepository(db).listForProject(projectId),
@@ -334,7 +316,6 @@ export async function getClipEditor(projectId: string, clipId: string) {
     clip,
     source,
     video,
-    layout,
     words: speakerTranscriptWords(transcript),
     siblings: {
       index: position,
@@ -378,32 +359,6 @@ function sourceLoudness(
 }
 
 export type SourceLoudness = NonNullable<ReturnType<typeof sourceLoudness>>
-
-export async function getProjectLayout(id: string) {
-  await connection()
-  const db = getDb()
-  const project = await visibleProject(db, id)
-  if (!project) return undefined
-  const [assets, layout, transcript] = await Promise.all([
-    assetRepository(db).listForProject(id),
-    layoutRepository(db).get(id),
-    transcriptRepository(db).get(id),
-  ])
-  const source = assets.find((a) => a.kind === "source")
-  const proxy = assets.find((a) => a.kind === "proxy")
-  const preset =
-    source?.width && source.height
-      ? await layoutRepository(db).findPreset(source.width, source.height)
-      : undefined
-  return {
-    project,
-    source,
-    video: proxy ?? source,
-    layout,
-    hasPreset: Boolean(preset),
-    captionSample: sampleCaptionWords(speakerTranscriptWords(transcript)),
-  }
-}
 
 export async function getProjectSettings(id: string) {
   await connection()

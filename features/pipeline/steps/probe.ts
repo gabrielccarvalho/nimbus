@@ -3,8 +3,6 @@ import "server-only"
 import { getStorage, storageKeys } from "@/lib/storage"
 
 import type { JobHandler } from "../../jobs/worker-loop"
-import { layoutRepository } from "../../layout/repository"
-import { FULL_FRAME } from "../../layout/schema"
 import { assetRepository } from "../../projects/repository"
 import { runFfmpeg, runFfprobe } from "../../render/ffmpeg-runner"
 import {
@@ -14,7 +12,7 @@ import {
   sourceAsset,
   throwIfAborted,
 } from "./common"
-import { classifyAspect, isLandscape, parseProbe } from "./probe-parse"
+import { classifyAspect, parseProbe } from "./probe-parse"
 
 export const probeStep: JobHandler = async ({
   job,
@@ -118,32 +116,7 @@ export const probeStep: JobHandler = async ({
   })
   throwIfAborted(signal)
 
-  const layouts = layoutRepository(db)
   const sourceAspect = classifyAspect(info.displayWidth, info.displayHeight)
-  const landscape = isLandscape(info.displayWidth, info.displayHeight)
-  const preset = await layouts.findPreset(info.displayWidth, info.displayHeight)
-  if (preset) {
-    await layouts.upsert(project.id, {
-      sourceAspect,
-      webcamRect: preset.webcamRect,
-      gameplayRect: preset.gameplayRect,
-      gameplayFocusX: preset.gameplayFocusX,
-      mode: preset.mode,
-      camPosition: preset.camPosition,
-      confidence: 1,
-      confirmedByUser: true,
-    })
-  } else {
-    await layouts.upsert(project.id, {
-      sourceAspect,
-      webcamRect: null,
-      gameplayRect: FULL_FRAME,
-      gameplayFocusX: 0.5,
-      mode: landscape ? "cam-top" : "no-cam-blur-fill",
-      confirmedByUser: !landscape,
-    })
-  }
-
-  logger.info({ ...info, sourceAspect, preset: Boolean(preset) }, "probed")
+  logger.info({ ...info, sourceAspect }, "probed")
   await completeStep(db, project.id, "transcribing", "transcribe")
 }

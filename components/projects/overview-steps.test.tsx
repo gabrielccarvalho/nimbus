@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { stepDetails, stepTimes, webcamCorner } from "./overview-steps"
+import { stepDetails, stepTimes } from "./overview-steps"
 
 const job = (
   type: string,
@@ -37,14 +37,6 @@ describe("stepDetails", () => {
       transcript: { words: 6587, language: "pt", languageSource: "source" },
       silences: 12,
       clipCount: 12,
-      layout: {
-        confirmed: true,
-        mode: "cam-top",
-        camPosition: "top",
-        hasWebcam: true,
-        width: 1920,
-        height: 1080,
-      },
     })
     expect(details).toMatchObject({
       upload: "YouTube · 1.6 GB",
@@ -52,7 +44,6 @@ describe("stepDetails", () => {
       transcribe: "6,587 words · Portuguese, from the video page",
       analyze: "12 silences · loudness peaks marked",
       select: "12 clips picked and titled by Claude",
-      layout: "Webcam on top · saved for 1920×1080",
       render: "Approved clips only · Standard quality",
     })
   })
@@ -66,11 +57,9 @@ describe("stepDetails", () => {
       transcript: null,
       silences: null,
       clipCount: 0,
-      layout: null,
     })
     expect(details.probe).toBeNull()
     expect(details.select).toBeNull()
-    expect(details.layout).toBeNull()
   })
 })
 
@@ -88,19 +77,5 @@ describe("stepTimes", () => {
       ),
     ])
     expect(times).toEqual({ probe: 24_000, render: 15_000 })
-  })
-})
-
-describe("webcamCorner", () => {
-  it("names where the webcam sits", () => {
-    expect(webcamCorner({ x: 0.75, y: 0.7, w: 0.2, h: 0.25 })).toBe(
-      "the bottom-right corner"
-    )
-    expect(webcamCorner({ x: 0.02, y: 0.02, w: 0.2, h: 0.2 })).toBe(
-      "the top-left corner"
-    )
-    expect(webcamCorner({ x: 0.4, y: 0.75, w: 0.2, h: 0.2 })).toBe(
-      "the bottom edge"
-    )
   })
 })

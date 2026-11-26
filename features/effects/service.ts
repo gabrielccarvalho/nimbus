@@ -3,8 +3,7 @@ import "server-only"
 import type { SignalsData } from "../analysis/schema"
 import { signalsRepository } from "../analysis/repository"
 import { clipRepository, type Clip } from "../clips/repository"
-import { layoutRepository } from "../layout/repository"
-import { usesWebcam } from "../layout/schema"
+import { renderableLayout, usesWebcam } from "../layout/schema"
 import { assetRepository } from "../projects/repository"
 import type { Db } from "@/lib/db"
 
@@ -33,20 +32,15 @@ function toZoomRegion(beat: Beat, region: FloatRect): Beat {
 export async function autoEffectsFor(
   db: Db,
   projectId: string,
-  clips: readonly Pick<
-    Clip,
-    "id" | "startMs" | "endMs" | "beats" | "layoutOverride"
-  >[]
+  clips: readonly Pick<Clip, "id" | "startMs" | "endMs" | "beats" | "layout">[]
 ): Promise<Map<string, ClipEffects>> {
   const signals = (await signalsRepository(db).get(projectId)) ?? NO_SIGNALS
-  const layout = await layoutRepository(db).get(projectId)
   const source = await assetRepository(db).findByKind(projectId, "source")
   const effects = new Map<string, ClipEffects>()
   if (!source?.width || !source.height) return effects
   const size = { width: source.width, height: source.height }
   for (const clip of clips) {
-    const used = clip.layoutOverride ?? layout
-    if (!used) continue
+    const used = renderableLayout(clip.layout)
     const region = zoomRegion(used, size)
     effects.set(clip.id, {
       events: planEffects({
@@ -62,15 +56,10 @@ export async function autoEffectsFor(
   return effects
 }
 
-export async function syncAutoEffects(
-  db: Db,
-  projectId: string,
-  on: boolean,
-  include: (clip: Clip) => boolean = () => true
-) {
+export async function syncAutoEffects(db: Db, projectId: string, on: boolean) {
   const clips = clipRepository(db)
   const unedited = (await clips.listForProject(projectId)).filter(
-    (clip) => !clip.effects?.edited && include(clip)
+    (clip) => !clip.effects?.edited
   )
   const tracks = on ? await autoEffectsFor(db, projectId, unedited) : null
   for (const clip of unedited) {

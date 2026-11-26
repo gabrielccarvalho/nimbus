@@ -7,7 +7,7 @@ import {
   setClipReviewStatus,
 } from "@/features/clips/service"
 import { HeuristicSelector } from "@/features/highlights/heuristic"
-import { layoutRepository } from "@/features/layout/repository"
+import { settingsRepository } from "@/features/settings/repository"
 import { insightsRepository } from "@/features/insights/repository"
 import { projectRepository } from "@/features/projects/repository"
 import { publishingRepository } from "@/features/publishing/repository"
@@ -85,10 +85,10 @@ async function analyzed(configure?: (projectId: string) => Promise<void>) {
 }
 
 describe("select step", () => {
-  it("stores heuristic candidates and waits for layout confirmation", async () => {
+  it("stores heuristic candidates ready for review", async () => {
     const projectId = await analyzed()
     const project = await projectRepository(env.db).getOrThrow(projectId)
-    expect(project.status).toBe("awaiting_layout")
+    expect(project.status).toBe("ready_for_review")
     expect(project.awaitingManualSelection).toBe(false)
     const clips = await clipRepository(env.db).listForProject(projectId)
     expect(clips.length).toBeGreaterThan(0)
@@ -101,17 +101,25 @@ describe("select step", () => {
     }
   })
 
-  it("skips layout confirmation when a preset already confirmed it", async () => {
-    await layoutRepository(env.db).savePreset(1920, 1080, {
-      webcamRect: { x: 0.78, y: 0.03, w: 0.2, h: 0.2 },
-      gameplayRect: { x: 0, y: 0, w: 1, h: 1 },
-      gameplayFocusX: 0.5,
-      mode: "cam-top",
+  it("starts every clip from the workspace default layout", async () => {
+    const workspace = settingsRepository(env.db)
+    await workspace.save({
+      ...(await workspace.get()),
+      layoutMode: "split-50",
+      camPosition: "bottom",
     })
     const projectId = await analyzed()
-    expect((await projectRepository(env.db).getOrThrow(projectId)).status).toBe(
-      "ready_for_review"
-    )
+    const clips = await clipRepository(env.db).listForProject(projectId)
+    expect(clips.length).toBeGreaterThan(0)
+    for (const clip of clips) {
+      expect(clip.layout).toEqual({
+        webcamRect: null,
+        gameplayRect: { x: 0, y: 0, w: 1, h: 1 },
+        gameplayFocusX: 0.5,
+        mode: "split-50",
+        camPosition: "bottom",
+      })
+    }
   })
 
   it("waits for pasted JSON in manual mode", async () => {
@@ -268,12 +276,6 @@ describe("playbook at selection", () => {
 describe("auto effects at selection", () => {
   const withReview = async (autoEffects: boolean) => {
     review.on = true
-    await layoutRepository(env.db).savePreset(1920, 1080, {
-      webcamRect: { x: 0.78, y: 0.03, w: 0.2, h: 0.2 },
-      gameplayRect: { x: 0, y: 0, w: 1, h: 1 },
-      gameplayFocusX: 0.5,
-      mode: "cam-top",
-    })
     return analyzed(async (id) => {
       const projects = projectRepository(env.db)
       await projects.updateSettings(id, {
@@ -283,19 +285,14 @@ describe("auto effects at selection", () => {
     })
   }
 
-  it("stores beats and an auto effect track when autoEffects is on", async () => {
+  it("stores beats and an auto track without webcam effects until the webcam is found", async () => {
     const projectId = await withReview(true)
     const clips = await clipRepository(env.db).listForProject(projectId)
     expect(clips.length).toBeGreaterThan(0)
     for (const clip of clips) {
       expect(clip.beats).toEqual([{ ms: expect.any(Number), kind: "reaction" }])
       expect(clip.effects).toMatchObject({ edited: false })
-      const beat = clip.beats![0]!
-      expect(clip.effects!.events).toContainEqual(
-        expect.objectContaining({ kind: "focus" })
-      )
-      const focus = clip.effects!.events.find((e) => e.kind === "focus")!
-      expect(Math.abs(focus.startMs - beat.ms)).toBeLessThanOrEqual(3000)
+      expect(clip.effects!.events.some((e) => e.kind === "focus")).toBe(false)
       for (const event of clip.effects!.events) {
         expect(event.startMs).toBeGreaterThanOrEqual(clip.startMs)
         expect(event.endMs).toBeLessThanOrEqual(clip.endMs)

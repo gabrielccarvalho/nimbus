@@ -16,7 +16,6 @@ import { frameAt, type FrameRegion } from "@/features/effects/frame"
 import type { Effect } from "@/features/effects/schema"
 import { coverCrop, toPixels } from "@/features/layout/geometry"
 import type { LayoutInput } from "@/features/layout/schema"
-import { confirmLayout } from "@/features/layout/service"
 import {
   assetRepository,
   projectRepository,
@@ -45,7 +44,7 @@ import * as capabilities from "@/lib/media/capabilities"
 import { getStorage, storageKeys } from "@/lib/storage"
 
 import { FIXTURE_SILENCES_S, fixtures } from "../../scripts/make-fixtures"
-import { runJobs, uploadFixture } from "../utils/pipeline"
+import { runJobs, setClipLayouts, uploadFixture } from "../utils/pipeline"
 import { createTestEnv, type TestEnv } from "../utils/test-env"
 
 let env: TestEnv
@@ -190,7 +189,7 @@ async function readyProject(captionsEnabled: boolean) {
     captionsEnabled,
   })
   await runJobs(env.db, ["probe", "transcribe", "analyze", "select"])
-  await confirmLayout(env.db, projectId, camTop)
+  await setClipLayouts(env.db, projectId, camTop)
   const [clip] = await clipRepository(env.db).listForProject(projectId)
   await setClipReviewStatus(env.db, projectId, clip!.id, "approved")
   return { projectId, clipId: clip!.id }
@@ -254,13 +253,13 @@ describe("render_clip", () => {
     )
   })
 
-  it("refuses clips that aren't approved and unconfirmed layouts", async () => {
+  it("refuses clips that aren't approved", async () => {
     const { projectId } = await uploadFixture(fixtures.wide)
     await runJobs(env.db, ["probe", "transcribe", "analyze", "select"])
     const [clip] = await clipRepository(env.db).listForProject(projectId)
     await expect(
       startClipRenders(env.db, projectId, [clip!.id])
-    ).rejects.toThrow(/Confirm the layout|review/)
+    ).rejects.toThrow(/Approve clips/)
   })
 })
 
@@ -320,14 +319,14 @@ describe("render_clip with effects", () => {
 
   async function renderWith(
     events: ((startMs: number) => Effect[]) | null,
-    layoutOverride: LayoutInput | null = null
+    layout: LayoutInput = camTop
   ) {
     const { projectId, clipId } = await readyProject(false)
     const clips = clipRepository(env.db)
     const { startMs, endMs } = (await clips.get(clipId))!
     expect(endMs - startMs).toBeGreaterThan(7000)
     await clips.update(clipId, {
-      layoutOverride,
+      layout,
       effects: events ? { events: events(startMs), edited: true } : null,
     })
     await startClipRenders(env.db, projectId, [clipId])
@@ -458,7 +457,7 @@ describe("render_clip from 4:3", () => {
       captionsEnabled: false,
     })
     await runJobs(env.db, ["probe", "transcribe", "analyze", "select"])
-    await confirmLayout(env.db, projectId, {
+    await setClipLayouts(env.db, projectId, {
       webcamRect: null,
       gameplayRect: { x: 0, y: 0, w: 1, h: 1 },
       gameplayFocusX: 0.5,

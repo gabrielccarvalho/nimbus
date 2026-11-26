@@ -50,14 +50,14 @@ describe("buildCrumbs analytics", () => {
 
 describe("projectSignal", () => {
   it("marks what needs you in amber", () => {
-    expect(projectSignal({ status: "awaiting_layout" })).toMatchObject({
-      tone: "amber",
-      label: "Needs you",
-      needsYou: true,
-    })
     expect(
       projectSignal({ status: "selecting", awaitingManualSelection: true })
-    ).toMatchObject({ tone: "amber", detail: "Paste highlights" })
+    ).toMatchObject({
+      tone: "amber",
+      label: "Needs you",
+      detail: "Paste highlights",
+      needsYou: true,
+    })
   })
 
   it("counts clips to review and names the failed step", () => {
@@ -74,7 +74,12 @@ describe("projectSignal", () => {
 
 describe("AppSidebar", () => {
   const recent = [
-    { id: "p1", name: "Ranked", status: "awaiting_layout" as const },
+    {
+      id: "p1",
+      name: "Ranked",
+      status: "selecting" as const,
+      awaitingManualSelection: true,
+    },
   ]
   const shell = {
     recent,
@@ -101,7 +106,7 @@ describe("AppSidebar", () => {
     )
     const link = screen.getByRole("link", { name: /Ranked/ })
     expect(link).toHaveAttribute("aria-current", "page")
-    expect(link).toHaveTextContent("Needs you · confirm layout")
+    expect(link).toHaveTextContent("Needs you · paste highlights")
     expect(screen.getByRole("link", { name: /Projects/ })).toHaveTextContent(
       "4"
     )

@@ -85,25 +85,16 @@ function meta(project: ProjectGridItem) {
 
 export function NeedsYouBanner({ project }: { project: ProjectGridItem }) {
   const signal = projectSignal(project)
-  const manual = project.status === "selecting"
-  const href = manual
-    ? (`/projects/${project.id}/clips` as const)
-    : (`/projects/${project.id}/layout` as const)
-  const message = manual
-    ? "Paste Claude's highlights to continue."
-    : project.clipCount > 0
-      ? `${clipsLabel(project.clipCount)} found, confirm the layout to start rendering.`
-      : "Confirm the layout to continue."
   return (
     <Link
-      href={href}
+      href={`/projects/${project.id}/clips`}
       className="flex flex-wrap items-center gap-3.5 rounded-[18px] bg-graphite px-[18px] py-3.5 transition-colors hover:bg-graphite-2"
     >
       <SignalDot tone="amber" lit />
       <span className="min-w-0 flex-[1_1_300px] text-sm">
         <b className="font-semibold">{project.name}</b>{" "}
         <span className="text-muted-foreground">
-          is waiting for you. {message}
+          is waiting for you. Paste Claude&apos;s highlights to continue.
         </span>
       </span>
       <span className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold">

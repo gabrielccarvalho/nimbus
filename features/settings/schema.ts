@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { nicheSchema } from "../highlights/niches"
+import { camPositionSchema, layoutModeSchema } from "../layout/schema"
 
 import { privacyStatuses } from "../publishing/schema"
 import {
@@ -28,6 +29,8 @@ export const appSettingsSchema = z
     reactionPhrases: reactionPhrasesSchema,
     niche: nicheSchema,
     autoEffects: z.boolean(),
+    layoutMode: layoutModeSchema,
+    camPosition: camPositionSchema,
     hardwareEncoding: z.boolean(),
     publishPrivacy: z.enum(privacyStatuses),
     publishTags: z
@@ -53,6 +56,8 @@ export const defaultAppSettings: AppSettings = {
   reactionPhrases: defaultProjectSettings.reactionPhrases,
   niche: defaultProjectSettings.niche,
   autoEffects: defaultProjectSettings.autoEffects,
+  layoutMode: "cam-top",
+  camPosition: "top",
   hardwareEncoding: false,
   publishPrivacy: "private",
   publishTags: [],

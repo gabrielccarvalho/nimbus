@@ -20,9 +20,8 @@ const forward: Record<ProjectStatus, readonly ProjectStatus[]> = {
   probing: ["transcribing"],
   transcribing: ["analyzing"],
   analyzing: ["selecting"],
-  selecting: ["awaiting_layout", "ready_for_review"],
-  awaiting_layout: ["ready_for_review"],
-  ready_for_review: ["rendering", "awaiting_layout"],
+  selecting: ["ready_for_review"],
+  ready_for_review: ["rendering"],
   rendering: ["done", "ready_for_review"],
   done: ["rendering", "ready_for_review"],
   failed: [],
@@ -34,7 +33,6 @@ export function isRunning(status: ProjectStatus): status is RunningStatus {
 }
 
 export const RERUN_FROM: readonly ProjectStatus[] = [
-  "awaiting_layout",
   "ready_for_review",
   "done",
   "failed",
@@ -125,7 +123,6 @@ export const PIPELINE_STEPS: readonly PipelineStep[] = [
   { id: "transcribe", label: "Transcribe", statuses: ["transcribing"] },
   { id: "analyze", label: "Analyze audio", statuses: ["analyzing"] },
   { id: "select", label: "Find highlights", statuses: ["selecting"] },
-  { id: "layout", label: "Confirm layout", statuses: ["awaiting_layout"] },
   { id: "review", label: "Review clips", statuses: ["ready_for_review"] },
   { id: "render", label: "Render", statuses: ["rendering", "done"] },
 ]

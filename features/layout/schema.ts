@@ -37,3 +37,36 @@ export const layoutInputSchema = z.object({
   camPosition: camPositionSchema.default("top"),
 })
 export type LayoutInput = z.input<typeof layoutInputSchema>
+
+export const FILL_LAYOUT: z.infer<typeof layoutInputSchema> = {
+  webcamRect: null,
+  gameplayRect: FULL_FRAME,
+  gameplayFocusX: 0.5,
+  mode: "no-cam-fill",
+  camPosition: "top",
+}
+
+export const defaultLayoutSchema = z.object({
+  mode: layoutModeSchema,
+  camPosition: camPositionSchema,
+})
+export type DefaultLayout = z.infer<typeof defaultLayoutSchema>
+
+export function startingLayout(
+  defaults: DefaultLayout,
+  source: { landscape: boolean }
+): LayoutInput {
+  return {
+    ...FILL_LAYOUT,
+    mode: source.landscape ? defaults.mode : "no-cam-blur-fill",
+    camPosition: defaults.camPosition,
+  }
+}
+
+export function needsWebcam(layout: LayoutInput) {
+  return usesWebcam(layout.mode) && layout.webcamRect === null
+}
+
+export function renderableLayout<L extends LayoutInput>(layout: L): L {
+  return needsWebcam(layout) ? { ...layout, mode: "no-cam-fill" } : layout
+}

@@ -28,7 +28,6 @@ export default async function ProjectOverviewPage({
     source,
     thumbnail,
     proxy,
-    layout,
     clips,
     snapshot,
     audio,
@@ -58,31 +57,7 @@ export default async function ProjectOverviewPage({
             transcript,
             silences: audio ? audio.silences.length : null,
             clipCount: kept.length,
-            layout: layout
-              ? {
-                  confirmed: layout.confirmedByUser,
-                  mode: layout.mode,
-                  camPosition: layout.camPosition,
-                  hasWebcam: Boolean(layout.webcamRect),
-                  width: source?.width ?? null,
-                  height: source?.height ?? null,
-                }
-              : null,
           }}
-          layout={
-            layout
-              ? {
-                  input: {
-                    webcamRect: layout.webcamRect,
-                    gameplayRect: layout.gameplayRect,
-                    gameplayFocusX: layout.gameplayFocusX,
-                    mode: layout.mode,
-                    camPosition: layout.camPosition ?? "top",
-                  },
-                  confidence: layout.confidence,
-                }
-              : null
-          }
           clips={kept.map((clip) => ({
             id: clip.id,
             title: clip.title,

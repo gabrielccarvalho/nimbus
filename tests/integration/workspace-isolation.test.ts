@@ -10,7 +10,6 @@ import {
   updateClipAction,
 } from "@/features/clips/actions"
 import { clipRepository } from "@/features/clips/repository"
-import { confirmLayoutAction } from "@/features/layout/actions"
 import {
   cancelProjectAction,
   deleteProjectAction,
@@ -91,7 +90,6 @@ describe("workspace isolation", () => {
       planClipEffects: planClipEffectsAction(p, c, range),
       approveAll: approveAllCandidatesAction(p),
       manualSelection: submitManualSelectionAction(p, "[]"),
-      confirmLayout: confirmLayoutAction(p, {}),
       rename: renameProjectAction(p, "Stolen"),
       settings: updateProjectSettingsAction(p, defaultProjectSettings),
       rerun: rerunProjectAction(p, "select"),
