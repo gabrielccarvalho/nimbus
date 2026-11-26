@@ -81,6 +81,7 @@ const envFields = z.object({
   BETTER_AUTH_SECRET: z.string().min(32).optional(),
   BETTER_AUTH_URL: z.url().default("http://localhost:3000"),
   VERCEL_URL: z.string().min(1).optional(),
+  VERCEL_BRANCH_URL: z.string().min(1).optional(),
   NIMBUS_SECRET_KEY: z.string().min(32).optional(),
   GOOGLE_CLIENT_ID: z.string().min(1).optional(),
   GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),

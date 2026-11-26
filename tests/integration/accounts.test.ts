@@ -270,4 +270,17 @@ describe("trusted origins", () => {
     resetEnvCache()
     expect(await trusted()).toContain("https://nimbus-git-feat-team.vercel.app")
   })
+
+  it("VERCEL_BRANCH_URL is a trusted origin", async () => {
+    process.env.VERCEL_URL = "nimbus-abc123-team.vercel.app"
+    process.env.VERCEL_BRANCH_URL = "nimbus-git-feat-team.vercel.app"
+    const { resetEnvCache } = await import("@/lib/env")
+    resetEnvCache()
+    expect(await trusted()).toEqual(
+      expect.arrayContaining([
+        "https://nimbus-abc123-team.vercel.app",
+        "https://nimbus-git-feat-team.vercel.app",
+      ])
+    )
+  })
 })

@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: nimbus
       POSTGRES_DB: nimbus
     ports:
-      - "5442:5432"
+      - "127.0.0.1:5442:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -25,8 +25,8 @@ services:
       # MinIO has no bucket CORS (PutBucketCors is NotImplemented), only this.
       MINIO_API_CORS_ALLOW_ORIGIN: ${MINIO_CORS_ORIGIN:-http://localhost:3000}
     ports:
-      - "9010:9000"
-      - "9011:9001"
+      - "127.0.0.1:9010:9000"
+      - "127.0.0.1:9011:9001"
     volumes:
       - miniodata:/bitnami/minio/data
     healthcheck:
