@@ -1,5 +1,13 @@
 import { randomUUID } from "node:crypto"
-import { mkdtemp, readFile, rm } from "node:fs/promises"
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  utimes,
+  writeFile,
+} from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { Readable } from "node:stream"
@@ -45,14 +53,19 @@ client.middlewareStack.add(
 const tmp = await mkdtemp(path.join(os.tmpdir(), "storage-s3-"))
 
 function make(
-  options: { maxCopyBytes?: number; cacheBytes?: number; bucket?: string } = {}
+  options: {
+    maxCopyBytes?: number
+    cacheBytes?: number
+    cacheDir?: string
+    bucket?: string
+  } = {}
 ) {
   return new S3Storage({
     client,
     bucket,
     prefix: `${run}/${randomUUID()}`,
     cache: {
-      dir: path.join(tmp, randomUUID(), "cache"),
+      dir: options.cacheDir ?? path.join(tmp, randomUUID(), "cache"),
       maxBytes: options.cacheBytes ?? 1024 ** 3,
     },
     ...options,
@@ -204,6 +217,36 @@ describe.skipIf(!reachable)("S3Storage", () => {
     expect(await readFile(c.file, "utf8")).toBe("1234")
     expect((await copy("a")).fetched).toBe(0)
     expect((await copy("b")).fetched).toBe(1)
+    await storage.removePrefix(".")
+  })
+
+  it("localCopy of a .part key is evicted like any other entry", async () => {
+    const cacheDir = path.join(tmp, randomUUID(), "cache")
+    const storage = make({ cacheBytes: 6, cacheDir })
+    await storage.writeBuffer("tmp/uploads/one.part", "1234")
+    await storage.writeBuffer("e/two.txt", "5678")
+    await storage.localCopy("tmp/uploads/one.part", await scratchDir())
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    await storage.localCopy("e/two.txt", await scratchDir())
+    const names = await readdir(cacheDir)
+    expect(names.filter((name) => name !== ".tmp")).toEqual([
+      expect.stringMatching(/\.txt$/),
+    ])
+    await storage.removePrefix(".")
+  })
+
+  it("stale temp downloads are removed", async () => {
+    const cacheDir = path.join(tmp, randomUUID(), "cache")
+    const storage = make({ cacheDir })
+    const temps = path.join(cacheDir, ".tmp")
+    await mkdir(temps, { recursive: true })
+    const stale = new Date(Date.now() - 7 * 60 * 60_000)
+    await writeFile(path.join(temps, "stale"), "x")
+    await utimes(path.join(temps, "stale"), stale, stale)
+    await writeFile(path.join(temps, "live"), "x")
+    await storage.writeBuffer("e/a.txt", "a")
+    await storage.localCopy("e/a.txt", await scratchDir())
+    expect(await readdir(temps)).toEqual(["live"])
     await storage.removePrefix(".")
   })
 

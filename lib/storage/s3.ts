@@ -48,6 +48,7 @@ const COPY_PART_BYTES = 1024 ** 3
 const MAX_PARTS = 10_000
 const READ_URL_SECONDS = 4 * 60 * 60
 const UPLOAD_URL_SECONDS = 60 * 60
+const STALE_DOWNLOAD_MS = 6 * 60 * 60_000
 
 // HeadObject answers a bare 404 for a missing key and a missing bucket alike,
 // which the SDK names NotFound; GetObject says NoSuchKey or NoSuchBucket.
@@ -416,9 +417,10 @@ export class S3Storage implements StorageAdapter {
     entry: string,
     info: { bytes: number; etag: string }
   ) {
-    await mkdir(this.cache.dir, { recursive: true })
+    const temps = path.join(this.cache.dir, ".tmp")
+    await mkdir(temps, { recursive: true })
     await this.evict(info.bytes)
-    const temp = `${entry}.${randomUUID()}.part`
+    const temp = path.join(temps, randomUUID())
     try {
       const { Body } = await this.client.send(
         new GetObjectCommand({
@@ -437,11 +439,21 @@ export class S3Storage implements StorageAdapter {
   }
 
   private async evict(incoming: number) {
-    const names = await readdir(this.cache.dir)
+    const temps = path.join(this.cache.dir, ".tmp")
+    // A live download keeps touching its temp file; an old one was orphaned.
+    for (const name of await readdir(temps)) {
+      const file = path.join(temps, name)
+      const info = await stat(file).catch(() => null)
+      if (info && Date.now() - info.mtimeMs > STALE_DOWNLOAD_MS) {
+        await rm(file, { force: true })
+      }
+    }
     const entries = []
-    for (const name of names) {
-      if (name.endsWith(".part")) continue
-      const file = path.join(this.cache.dir, name)
+    for (const dirent of await readdir(this.cache.dir, {
+      withFileTypes: true,
+    })) {
+      if (!dirent.isFile()) continue
+      const file = path.join(this.cache.dir, dirent.name)
       const info = await stat(file).catch(() => null)
       if (info) entries.push({ file, bytes: info.size, mtimeMs: info.mtimeMs })
     }
