@@ -10,7 +10,11 @@ import { getSession, requireViewer } from "../accounts/session"
 import { claudeAvailable } from "../accounts/usage"
 import { normalizeLoudness } from "../analysis/loudness"
 import { signalsRepository } from "../analysis/repository"
-import { clipCaptionPages, sampleCaptionWords } from "../captions/pages"
+import {
+  clipCaptionPages,
+  clipCaptionsEnabled,
+  sampleCaptionWords,
+} from "../captions/pages"
 import { speakerTranscriptWords } from "../captions/speaker"
 import { resolveCaptionStyle } from "../captions/styles"
 import { clipRepository } from "../clips/repository"
@@ -254,7 +258,14 @@ export async function getProjectClips(id: string) {
       const style = resolveCaptionStyle(
         clip.captionOverrides?.style ?? project.settings.captionStyle
       )
-      return [clip.id, { pages: clipCaptionPages(words, clip, style), style }]
+      return [
+        clip.id,
+        {
+          pages: clipCaptionPages(words, clip, style),
+          style,
+          enabled: clipCaptionsEnabled(clip, project.settings),
+        },
+      ]
     })
   )
   const edit = assets.find((a) => a.kind === "edit")

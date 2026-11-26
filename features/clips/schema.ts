@@ -22,6 +22,7 @@ export const captionPageOverrideSchema = z.object({
 })
 
 export const captionOverridesSchema = z.object({
+  enabled: z.boolean().optional(),
   pages: z.array(captionPageOverrideSchema).default([]),
   style: z
     .object({

@@ -116,8 +116,9 @@ const data = {
   src: "/media/proxy.mp4",
   renders,
   layout,
-  captions: Object.fromEntries(clips.map((c) => [c.id, { pages: [], style }])),
-  captionsEnabled: true,
+  captions: Object.fromEntries(
+    clips.map((c) => [c.id, { pages: [], style, enabled: true }])
+  ),
 }
 
 beforeEach(() => {

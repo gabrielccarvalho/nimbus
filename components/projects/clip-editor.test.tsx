@@ -253,6 +253,21 @@ describe("ClipEditor audio and text", () => {
     )
   })
 
+  it("turns captions off for this clip only", async () => {
+    renderEditor()
+    expect(screen.getByLabelText("Caption position")).toBeInTheDocument()
+    await userEvent.click(screen.getByRole("tab", { name: "Captions" }))
+    const toggle = screen.getByRole("switch", {
+      name: "Show captions on this clip",
+    })
+    expect(toggle).toBeChecked()
+    await userEvent.click(toggle)
+    expect(screen.queryByLabelText("Caption position")).not.toBeInTheDocument()
+    await waitFor(() => expect(updateClipAction).toHaveBeenCalled())
+    const [, , edit] = vi.mocked(updateClipAction).mock.calls.at(-1)!
+    expect(edit).toMatchObject({ captionOverrides: { enabled: false } })
+  })
+
   it("keeps the music and text when only the title changes", async () => {
     const audioMix = {
       trackId: "t1",

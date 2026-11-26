@@ -28,6 +28,7 @@ import {
   ProgressValue,
 } from "@/components/ui/progress"
 import { StatusPill } from "@/components/ui/status-pill"
+import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -192,6 +193,10 @@ export function ClipEditor({
   const [styleRef, setStyleRef] = React.useState(
     clip.captionOverrides?.style ?? settings.captionStyle
   )
+  const [captionsOverride, setCaptionsOverride] = React.useState(
+    clip.captionOverrides?.enabled
+  )
+  const captionsEnabled = captionsOverride ?? settings.captionsEnabled
   const [layoutOverride, setLayoutOverride] =
     React.useState<LayoutInput | null>(clip.layoutOverride)
   const layout = layoutOverride ?? projectLayout
@@ -244,7 +249,7 @@ export function ClipEditor({
     [audioMix, track, durationMs, clipWords]
   )
   const captionsNearTop =
-    settings.captionsEnabled && captionBaseline(style, layout) < 0.4
+    captionsEnabled && captionBaseline(style, layout) < 0.4
   const overrides = Object.entries(pageTexts).map(([index, text]) => ({
     index: Number(index),
     text,
@@ -281,7 +286,11 @@ export function ClipEditor({
     endMs,
     title,
     hook,
-    captionOverrides: { pages: overrides, style: styleRef },
+    captionOverrides: {
+      enabled: captionsOverride,
+      pages: overrides,
+      style: styleRef,
+    },
     layoutOverride,
     effects,
     audioMix,
@@ -580,7 +589,7 @@ export function ClipEditor({
                 pages={pages}
                 startMs={startMs}
                 captionStyle={style}
-                captionsEnabled={settings.captionsEnabled}
+                captionsEnabled={captionsEnabled}
                 overlay={textOverlay}
                 onBaselineChange={(baseline) =>
                   setStyleRef((current) => placeCaption(current, baseline))
@@ -741,15 +750,27 @@ export function ClipEditor({
                 )}
               </TabsContent>
               <TabsContent value="captions" className="grid gap-4">
-                {!settings.captionsEnabled && (
-                  <p className="text-[13px] text-tertiary">
-                    Captions are turned off for this project in Settings.
-                  </p>
-                )}
+                <div className="flex items-center gap-2.5">
+                  <Switch
+                    id="clip-captions"
+                    checked={captionsEnabled}
+                    onCheckedChange={(checked) =>
+                      setCaptionsOverride(
+                        checked === settings.captionsEnabled
+                          ? undefined
+                          : checked
+                      )
+                    }
+                  />
+                  <Label htmlFor="clip-captions">
+                    Show captions on this clip
+                  </Label>
+                </div>
                 <CaptionStyleFields
                   value={styleRef}
                   onValueChange={setStyleRef}
                   installedFonts={installedFonts}
+                  disabled={!captionsEnabled}
                 />
                 <ol aria-label="Caption text" className="grid gap-2">
                   {basePages.map((page) => {

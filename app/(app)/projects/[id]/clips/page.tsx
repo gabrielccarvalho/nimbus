@@ -58,7 +58,6 @@ export default async function ClipsPage({
           edit={edit}
           layout={layout}
           captions={captions}
-          captionsEnabled={project.settings.captionsEnabled}
           layoutConfirmed={layoutConfirmed}
           snapshot={snapshot}
           publishing={publishing}

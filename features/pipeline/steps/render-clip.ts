@@ -11,7 +11,11 @@ import { assertDiskSpace } from "@/lib/storage/disk"
 
 import { buildAss } from "../../captions/ass"
 import { overlayEndMs } from "../../captions/overlay"
-import { clipCaptionPages, wordsInRange } from "../../captions/pages"
+import {
+  clipCaptionPages,
+  clipCaptionsEnabled,
+  wordsInRange,
+} from "../../captions/pages"
 import { captionBaseline, resolveCaptionStyle } from "../../captions/styles"
 import { clipRepository } from "../../clips/repository"
 import type { JobHandler } from "../../jobs/worker-loop"
@@ -87,12 +91,12 @@ export const renderClipStep: JobHandler = async ({
 
   const env = getEnv()
   const capabilities = await getFfmpegCapabilities(env.FFMPEG_PATH)
-  const captions = project.settings.captionsEnabled
+  const captions = clipCaptionsEnabled(clip, project.settings)
   if ((captions || textOverlay) && !capabilities.hasLibass) {
     throw new AppError(
       "DEPENDENCY_MISSING",
       captions
-        ? "This ffmpeg can't burn in captions (no libass). Install one with libass or turn captions off."
+        ? "This ffmpeg can't burn in captions (no libass). Install one with libass or turn captions off for this clip."
         : "This ffmpeg can't burn in on-screen text (no libass). Install one with libass or remove the text."
     )
   }

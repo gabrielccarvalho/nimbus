@@ -260,7 +260,7 @@ export function ClipsGrid({
             render={currentRender(clip, data.renders)}
             publication={data.publishing.publications[clip.id]}
             caption={
-              data.captionsEnabled
+              data.captions[clip.id]?.enabled
                 ? (data.captions[clip.id]?.pages[0]?.words
                     .map((w) => w.text)
                     .join(" ") ?? "")

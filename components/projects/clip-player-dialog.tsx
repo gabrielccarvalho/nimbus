@@ -50,8 +50,10 @@ export type ClipPlayerData = {
   src: string
   renders: Record<string, RenderLinks>
   layout: LayoutInput | null
-  captions: Record<string, { pages: CaptionPage[]; style: CaptionStyle }>
-  captionsEnabled: boolean
+  captions: Record<
+    string,
+    { pages: CaptionPage[]; style: CaptionStyle; enabled: boolean }
+  >
   publishing: PublishingState
 }
 
@@ -97,7 +99,6 @@ function ClipPlayer({
   renders,
   layout: projectLayout,
   captions,
-  captionsEnabled,
 }: Omit<ClipPlayerData, "projectId" | "publishing"> & { clip: Clip }) {
   const render = currentRender(clip, renders)
   const layout = clip.layoutOverride ?? projectLayout
@@ -138,7 +139,7 @@ function ClipPlayer({
               pages={caption.pages}
               startMs={clip.startMs}
               captionStyle={caption.style}
-              captionsEnabled={captionsEnabled}
+              captionsEnabled={caption.enabled}
               overlay={clip.textOverlay}
               className="rounded-none"
             />

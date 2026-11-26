@@ -14,6 +14,7 @@ import {
   breakLines,
   buildCaptionPages,
   clipCaptionPages,
+  clipCaptionsEnabled,
   DEFAULT_PAGING,
   pageAt,
   sampleCaptionWords,
@@ -217,6 +218,19 @@ describe("wordsInRange and lookup", () => {
         style
       )
     ).toEqual(buildCaptionPages(sample, 5000, style))
+  })
+
+  it("lets a clip override the project's captions setting", () => {
+    const on = { captionsEnabled: true }
+    const off = { captionsEnabled: false }
+    expect(clipCaptionsEnabled({ captionOverrides: null }, on)).toBe(true)
+    expect(clipCaptionsEnabled({ captionOverrides: {} }, off)).toBe(false)
+    expect(
+      clipCaptionsEnabled({ captionOverrides: { enabled: false } }, on)
+    ).toBe(false)
+    expect(
+      clipCaptionsEnabled({ captionOverrides: { enabled: true } }, off)
+    ).toBe(true)
   })
 })
 

@@ -58,7 +58,6 @@ type ClipsReviewProps = {
   edit?: RenderLinks & { durationMs: number }
   layout: ClipPlayerData["layout"]
   captions: ClipPlayerData["captions"]
-  captionsEnabled: boolean
   layoutConfirmed: boolean
   snapshot: ProjectSnapshot
   publishing: PublishingState
@@ -284,7 +283,6 @@ export function ClipsReview({
   edit,
   layout,
   captions,
-  captionsEnabled,
   layoutConfirmed,
   snapshot: initialSnapshot,
   publishing,
@@ -388,7 +386,6 @@ export function ClipsReview({
           renders={renders}
           layout={layout}
           captions={captions}
-          captionsEnabled={captionsEnabled}
           publishing={publishing}
           openClipId={openId}
           onOpenClipIdChange={setOpenId}

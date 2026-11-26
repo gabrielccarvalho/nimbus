@@ -210,6 +210,13 @@ export function sampleCaptionWords(
   return []
 }
 
+export function clipCaptionsEnabled(
+  clip: { captionOverrides?: { enabled?: boolean } | null },
+  settings: { captionsEnabled: boolean }
+): boolean {
+  return clip.captionOverrides?.enabled ?? settings.captionsEnabled
+}
+
 export function clipCaptionPages(
   words: readonly Word[],
   clip: {
