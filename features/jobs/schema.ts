@@ -15,6 +15,7 @@ export const jobTypes = [
   "sync_uploads",
   "sync_channel",
   "sync_stats_batch",
+  "probe_music",
 ] as const
 export const jobTypeSchema = z.enum(jobTypes)
 export type JobType = z.infer<typeof jobTypeSchema>
@@ -54,6 +55,7 @@ export const jobPayloadSchemas = {
     channelId: z.string().min(1),
     publicationIds: z.array(z.string().min(1)).min(1).max(STATS_BATCH_SIZE),
   }),
+  probe_music: z.object({ trackId: z.string().min(1) }),
 } satisfies Record<JobType, z.ZodType>
 
 export type JobPayload<T extends JobType> = z.infer<

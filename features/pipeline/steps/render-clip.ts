@@ -77,6 +77,13 @@ export const renderClipStep: JobHandler = async ({
       "This clip's music track was deleted. Pick another track or remove the music."
     )
   }
+  const trackDurationMs = track?.durationMs ?? null
+  if (track && (track.status !== "ready" || trackDurationMs === null)) {
+    throw new AppError(
+      "CONFLICT",
+      "This clip's music track isn't ready. Pick another track or remove the music."
+    )
+  }
 
   const env = getEnv()
   const capabilities = await getFfmpegCapabilities(env.FFMPEG_PATH)
@@ -103,7 +110,7 @@ export const renderClipStep: JobHandler = async ({
       : []
   const audio = planAudio(
     audioMix,
-    track ?? null,
+    trackDurationMs === null ? null : { durationMs: trackDurationMs },
     durationMs,
     wordsInRange(words, clip.startMs, clip.endMs)
   )

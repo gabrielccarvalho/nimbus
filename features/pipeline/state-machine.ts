@@ -93,6 +93,7 @@ const statusForJob: Record<JobType, RunningStatus | null> = {
   sync_uploads: null,
   sync_channel: null,
   sync_stats_batch: null,
+  probe_music: null,
 }
 
 export function statusForJobType(type: JobType): RunningStatus | null {

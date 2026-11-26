@@ -1,33 +1,22 @@
 import "server-only"
 
-import { getDb, withTransaction, type Db } from "@/lib/db"
+import { withTransaction, type Db } from "@/lib/db"
 import { AppError } from "@/lib/errors"
 import { logger } from "@/lib/logger"
 import { getStorage, type StorageAdapter } from "@/lib/storage"
 import { headCheck } from "@/lib/storage/common"
-import { withScratch } from "@/lib/storage/scratch"
 
-import { parseAudioProbe } from "../pipeline/steps/probe-parse"
-import { runFfmpeg, runFfprobe } from "../render/ffmpeg-runner"
-import {
-  AUDIO_MAGIC_BYTES,
-  peakFold,
-  sniffAudio,
-  trackInUseMessage,
-  trackTitleFromFile,
-} from "./media"
+import { jobQueue } from "../jobs/queue"
+import { AUDIO_MAGIC_BYTES, sniffAudio, trackInUseMessage } from "./media"
 import { musicRepository } from "./repository"
 import {
   MUSIC_FORMATS,
   MUSIC_MAX_BYTES,
-  MUSIC_PEAK_BUCKETS,
   toSummary,
   trackTitleSchema,
   type MusicFormat,
   type MusicTrackSummary,
 } from "./schema"
-
-export type MusicActor = { workspaceId: string; userId: string }
 
 const tooLarge = () =>
   new AppError("TOO_LARGE", "Music files can be up to 50 MB")
@@ -60,71 +49,44 @@ export function musicUploadMime(upload: {
   throw notAudio()
 }
 
-const PEAK_SAMPLE_RATE = 8000
-
-async function readPeaks(file: string, durationMs: number) {
-  const fold = peakFold(
-    Math.round((durationMs * PEAK_SAMPLE_RATE) / 1000),
-    MUSIC_PEAK_BUCKETS
-  )
-  await runFfmpeg(
-    [
-      "-i",
-      file,
-      "-vn",
-      "-ac",
-      "1",
-      "-ar",
-      String(PEAK_SAMPLE_RATE),
-      "-f",
-      "s16le",
-      "pipe:1",
-    ],
-    { timeoutMs: 120_000, onStdoutData: (chunk) => fold.push(chunk) }
-  )
-  return fold.peaks()
-}
-
-export async function finishMusicUpload(
+export async function createProcessingTrack(
+  db: Db,
   upload: {
     id: string
+    workspaceId: string
+    userId: string
+    title: string
     storageKey: string
-    format: MusicFormat
-    fileName: string
+    mime: string
     bytes: number
-  },
-  actor: MusicActor
+  }
 ): Promise<MusicTrackSummary> {
-  const storage = getStorage()
   try {
-    const { durationMs, peaks } = await withScratch(
-      `music-${upload.id}`,
-      async (scratch) => {
-        const file = await storage.localCopy(upload.storageKey, scratch)
-        const { durationMs } = parseAudioProbe(
-          await runFfprobe(file, undefined, "audio")
-        )
-        return { durationMs, peaks: await readPeaks(file, durationMs) }
-      }
-    )
-    const track = await musicRepository(getDb()).create({
-      id: upload.id,
-      workspaceId: actor.workspaceId,
-      title: trackTitleFromFile(upload.fileName),
-      storageKey: upload.storageKey,
-      mime: MUSIC_FORMATS[upload.format],
-      bytes: upload.bytes,
-      durationMs,
-      peaks,
-      createdBy: actor.userId,
+    const track = await withTransaction(db, async (tx) => {
+      const created = await musicRepository(tx).create({
+        id: upload.id,
+        workspaceId: upload.workspaceId,
+        title: upload.title,
+        storageKey: upload.storageKey,
+        mime: upload.mime,
+        bytes: upload.bytes,
+        status: "processing",
+        createdBy: upload.userId,
+      })
+      await jobQueue(tx).enqueue({
+        type: "probe_music",
+        projectId: null,
+        payload: { trackId: upload.id },
+      })
+      return created
     })
     logger.info(
-      { trackId: upload.id, bytes: upload.bytes, format: upload.format },
+      { trackId: upload.id, bytes: upload.bytes, mime: upload.mime },
       "music track stored"
     )
     return toSummary(track, 0)
   } catch (error) {
-    await storage.remove(upload.storageKey)
+    await getStorage().remove(upload.storageKey)
     throw error
   }
 }

@@ -226,6 +226,10 @@ Enqueued by the due sweep when the channel has never synced or the last sync is 
 
 Enqueued by "Find patterns" on the Insights tab, never twice at once for one channel. It runs with `projectId: null` and needs enough published clips with stats a few days old (`INSIGHTS_MIN_CLIPS`, `INSIGHTS_MIN_AGE_DAYS`). The step sends their stats and retention to Claude (`features/insights/prompt.ts`), records one `claude_run` with no project, cleans the suggestions (limits, evidence ids) and replaces the channel's pending ones, keeping rejected ones. Nothing changes the playbook until a person approves a suggestion.
 
+## 14. probe_music (no project)
+
+Enqueued with `payload: { trackId }` in the same transaction that inserts a music track as `processing`, once its upload completes. The step runs ffprobe on a local copy (`parseAudioProbe`) and decodes it once to 8 kHz mono for 240 waveform peaks, then stores `durationMs` and `peaks` and marks the track `ready`. A track that's gone or no longer `processing` makes it a no-op. A file without an audio stream, or one ffprobe can't read, fails at once (`UNSUPPORTED_MEDIA`); other errors retry up to 3 attempts. Only the final failure marks the track `failed` with the user message ("This file has no audio"), and the file stays stored until the track is deleted. The music library and the clip editor poll `router.refresh()` every 3 s while a track is processing; the track picker lists processing and failed tracks but only `ready` ones can be picked, and saving or rendering a clip with a track that isn't ready is refused.
+
 ## Progress
 
 `-progress pipe:1` emits `key=value` blocks ending in `progress=continue|end`. The pure parser (`features/render/progress-parser.ts`) reads `out_time_us` (or `out_time_ms`, which is also microseconds) and returns `min(100, out_time / expected_duration · 100)`. The runner throttles DB writes to at most one per 500 ms.

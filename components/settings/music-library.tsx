@@ -27,6 +27,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import { Input } from "@/components/ui/input"
+import { Spinner } from "@/components/ui/spinner"
 import {
   Item,
   ItemActions,
@@ -42,6 +43,8 @@ import type { MusicTrackSummary } from "@/features/music/schema"
 import { formatDuration } from "@/lib/format"
 
 import { SettingsSection, SettingsSectionHeader } from "./section"
+
+const POLL_MS = 3000
 
 function usage(count: number) {
   if (count === 0) return "Not used"
@@ -101,9 +104,20 @@ function TrackRow({ track }: { track: MusicTrackSummary }) {
             if (event.key === "Enter") rename(true)
           }}
         />
-        <ItemDescription>
-          {formatDuration(track.durationMs)} · {usage(track.usedBy)}
-        </ItemDescription>
+        {track.status === "processing" ? (
+          <ItemDescription className="flex items-center gap-1.5">
+            <Spinner aria-label={`Processing ${track.title}`} />
+            <span>Processing…</span>
+          </ItemDescription>
+        ) : track.status === "failed" ? (
+          <ItemDescription className="text-destructive">
+            {track.error ?? "This file couldn't be read"}
+          </ItemDescription>
+        ) : (
+          <ItemDescription>
+            {formatDuration(track.durationMs)} · {usage(track.usedBy)}
+          </ItemDescription>
+        )}
       </ItemContent>
       <ItemActions>
         <AlertDialog open={open} onOpenChange={setOpen}>
@@ -147,6 +161,15 @@ function TrackRow({ track }: { track: MusicTrackSummary }) {
 }
 
 export function MusicLibrary({ tracks }: { tracks: MusicTrackSummary[] }) {
+  const router = useRouter()
+  const anyProcessing = tracks.some((track) => track.status === "processing")
+
+  React.useEffect(() => {
+    if (!anyProcessing) return
+    const timer = setInterval(() => router.refresh(), POLL_MS)
+    return () => clearInterval(timer)
+  }, [anyProcessing, router])
+
   return (
     <SettingsSection aria-labelledby="music-title">
       <SettingsSectionHeader

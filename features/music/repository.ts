@@ -54,6 +54,18 @@ export function musicRepository(db: Db) {
         .where(eq(musicTracks.id, id))
     },
 
+    async update(
+      id: string,
+      patch: Partial<
+        Pick<NewMusicTrack, "status" | "durationMs" | "peaks" | "error">
+      >
+    ) {
+      await db
+        .update(musicTracks)
+        .set({ ...patch, updatedAt: now() })
+        .where(eq(musicTracks.id, id))
+    },
+
     async delete(id: string) {
       await db.delete(musicTracks).where(eq(musicTracks.id, id))
     },

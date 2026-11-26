@@ -25,8 +25,10 @@ vi.mock("sonner", () => ({
 const track: MusicTrackSummary = {
   id: "t1",
   title: "Summer loop",
-  durationMs: 130_000,
-  peaks: [],
+  status: "processing",
+  durationMs: null,
+  peaks: null,
+  error: null,
   url: "/api/music/t1",
   usedBy: 0,
 }
@@ -152,7 +154,7 @@ describe("MusicUploadButton", () => {
       ok: false,
       error: {
         code: "UNSUPPORTED_MEDIA",
-        message: "This file has no audio track",
+        message: "Upload an MP3, M4A, AAC, WAV, OGG or FLAC file",
       },
     })
     render(<MusicUploadButton />)
@@ -161,7 +163,9 @@ describe("MusicUploadButton", () => {
     xhr.status = 200
     xhr.onload?.()
     await waitFor(() =>
-      expect(toastError).toHaveBeenCalledWith("This file has no audio track")
+      expect(toastError).toHaveBeenCalledWith(
+        "Upload an MP3, M4A, AAC, WAV, OGG or FLAC file"
+      )
     )
     expect(screen.getByRole("button", { name: "Upload a track" })).toBeEnabled()
   })

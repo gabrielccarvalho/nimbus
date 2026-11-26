@@ -34,7 +34,7 @@ import type {
   Rect,
 } from "@/features/layout/schema"
 import type { PlanId, UsageKind } from "@/features/accounts/schema"
-import type { AudioMix } from "@/features/music/schema"
+import type { AudioMix, MusicTrackStatus } from "@/features/music/schema"
 import type {
   ChannelStatus,
   PublicationOrigin,
@@ -342,8 +342,10 @@ export const musicTracks = pgTable(
     storageKey: text("storage_key").notNull(),
     mime: text("mime").notNull(),
     bytes: bigint("bytes", { mode: "number" }).notNull().default(0),
-    durationMs: integer("duration_ms").notNull(),
-    peaks: jsonb("peaks").$type<number[]>().notNull(),
+    status: text("status").$type<MusicTrackStatus>().notNull().default("ready"),
+    durationMs: integer("duration_ms"),
+    peaks: jsonb("peaks").$type<number[]>(),
+    error: text("error"),
     createdBy: text("created_by").references(() => user.id, {
       onDelete: "set null",
     }),

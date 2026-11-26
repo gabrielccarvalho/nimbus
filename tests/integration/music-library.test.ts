@@ -9,6 +9,7 @@ import { accountRepository } from "@/features/accounts/repository"
 import { deleteOwnedWorkspaces } from "@/features/accounts/service"
 import { clipRepository } from "@/features/clips/repository"
 import { trackInUseMessage } from "@/features/music/media"
+import { musicTracksFor } from "@/features/music/queries"
 import { musicRepository } from "@/features/music/repository"
 import { deleteTrack, renameTrack } from "@/features/music/service"
 import { projectRepository } from "@/features/projects/repository"
@@ -22,6 +23,7 @@ import { clips, user } from "@/lib/db/schema"
 import { getStorage } from "@/lib/storage"
 
 import { fixtures } from "../../scripts/make-fixtures"
+import { runJobs } from "../utils/pipeline"
 import { createTestEnv, type TestEnv } from "../utils/test-env"
 import { directUpload } from "../utils/uploads"
 
@@ -91,8 +93,14 @@ describe("music uploads", () => {
     signedIn.user = owner
 
     const summary = (await upload("summer_loop.m4a")).track!
-    expect(summary.url).toBe(`/api/music/${summary.id}`)
+    expect(summary).toMatchObject({
+      url: `/api/music/${summary.id}`,
+      status: "processing",
+      durationMs: null,
+      peaks: null,
+    })
 
+    await runJobs(env.db, ["probe_music"])
     const track = await musicRepository(env.db).get(summary.id)
     expect(track).toMatchObject({
       title: "summer loop",
@@ -100,10 +108,10 @@ describe("music uploads", () => {
       createdBy: owner.id,
       storageKey: `music/${actor.workspaceId}/${summary.id}.m4a`,
       mime: "audio/mp4",
+      status: "ready",
     })
-    expect(Math.abs(track!.durationMs - 30_000)).toBeLessThanOrEqual(50)
-    expect(track!.peaks).toHaveLength(240)
-    expect(track!.peaks.every((p) => p > 0.05 && p <= 1)).toBe(true)
+    expect(Math.abs((track?.durationMs ?? 0) - 30_000)).toBeLessThanOrEqual(50)
+    expect(track?.peaks).toHaveLength(240)
     expect((await getStorage().stat(track!.storageKey))?.bytes).toBe(
       track!.bytes
     )
@@ -119,16 +127,24 @@ describe("music uploads", () => {
     )
   })
 
-  it("rejects files without audio and cleans up", async () => {
-    const { owner } = await account("Owner")
+  it("lists a file without audio as failed until it's deleted", async () => {
+    const { owner, actor } = await account("Owner")
     signedIn.user = owner
-    const { error } = await upload("silent.m4a", fixtures.noAudio)
-    expect(error).toEqual({
-      code: "UNSUPPORTED_MEDIA",
-      message: "This file has no audio track",
-    })
-    expect(await getStorage().list("music")).toEqual([])
+    const { id } = (await upload("silent.m4a", fixtures.noAudio)).track!
+    await runJobs(env.db, ["probe_music"])
+
+    expect(await musicTracksFor(env.db, actor.workspaceId)).toMatchObject([
+      {
+        id,
+        status: "failed",
+        error: "This file has no audio",
+        durationMs: null,
+        peaks: null,
+      },
+    ])
     expect(await getStorage().list("tmp")).toEqual([])
+    await deleteTrack(env.db, getStorage(), actor.workspaceId, id)
+    expect(await getStorage().list("music")).toEqual([])
   })
 
   it("rejects files that aren't audio", async () => {

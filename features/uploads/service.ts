@@ -2,14 +2,15 @@ import "server-only"
 
 import type { Readable } from "node:stream"
 
-import { newId } from "@/lib/db"
+import { getDb, newId } from "@/lib/db"
 import { AppError } from "@/lib/errors"
 import { getStorage, storageKeys } from "@/lib/storage"
 
-import { AUDIO_MAGIC_BYTES } from "../music/media"
+import { AUDIO_MAGIC_BYTES, trackTitleFromFile } from "../music/media"
+import { MUSIC_FORMATS } from "../music/schema"
 import {
   audioCheck,
-  finishMusicUpload,
+  createProcessingTrack,
   musicUploadMime,
   sniffMusic,
 } from "../music/service"
@@ -148,10 +149,15 @@ export async function completeUpload(
     const id = newId()
     const storageKey = storageKeys.music(actor.workspaceId, id, format)
     await storage.move(claim.key, storageKey)
-    const track = await finishMusicUpload(
-      { id, storageKey, format, fileName: claim.fileName, bytes: claim.bytes },
-      actor
-    )
+    const track = await createProcessingTrack(getDb(), {
+      id,
+      workspaceId: actor.workspaceId,
+      userId: actor.userId,
+      title: trackTitleFromFile(claim.fileName),
+      storageKey,
+      mime: MUSIC_FORMATS[format],
+      bytes: claim.bytes,
+    })
     return { trackId: track.id, track }
   } catch (error) {
     await storage.remove(claim.key)

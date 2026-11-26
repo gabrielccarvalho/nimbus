@@ -701,7 +701,7 @@ describe("render_clip with music and on-screen text", () => {
       audioMix: {
         ...DEFAULT_AUDIO_MIX,
         trackId: track.id,
-        trackStartMs: track.durationMs - 5000,
+        trackStartMs: (track.durationMs ?? 0) - 5000,
         musicDb: 0,
         sourceDb: -10,
       },
@@ -761,6 +761,27 @@ describe("render_clip with music and on-screen text", () => {
     )
     expect(thrown).toMatchObject({ code: "CONFLICT", message: trackGone })
     expect(failed).toMatchObject({ status: "failed", error: trackGone })
+  })
+
+  it("fails when the clip's music track isn't ready", async () => {
+    const { projectId, clip, track } = await musicProject()
+    const message =
+      "This clip's music track isn't ready. Pick another track or remove the music."
+    const { clip: failed, thrown } = await renderClip(
+      projectId,
+      clip.id,
+      { audioMix: { ...DEFAULT_AUDIO_MIX, trackId: track.id } },
+      async () => {
+        await musicRepository(env.db).update(track.id, {
+          status: "processing",
+          durationMs: null,
+          peaks: null,
+        })
+        await failFast()
+      }
+    )
+    expect(thrown).toMatchObject({ code: "CONFLICT", message })
+    expect(failed).toMatchObject({ status: "failed", error: message })
   })
 
   it("fails when the clip's music track is in another workspace", async () => {
