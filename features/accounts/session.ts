@@ -12,7 +12,9 @@ import { getAuth } from "./auth"
 import { accountRepository } from "./repository"
 
 export const getSession = cache(async () => {
-  const result = await getAuth().api.getSession({ headers: await headers() })
+  // Reading headers first stops prerendering before auth needs its secrets.
+  const requestHeaders = await headers()
+  const result = await getAuth().api.getSession({ headers: requestHeaders })
   if (!result) return null
   const accounts = accountRepository(getDb())
   const workspace =
