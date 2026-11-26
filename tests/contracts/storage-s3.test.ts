@@ -18,6 +18,8 @@ import { afterAll, describe, expect, it } from "vitest"
 import { sweep } from "@/features/pipeline/steps/sweep"
 import { logger } from "@/lib/logger"
 import { storageKeys } from "@/lib/storage"
+import { LocalStorage } from "@/lib/storage/local"
+import { pushStorage } from "@/lib/storage/push"
 import { S3Storage } from "@/lib/storage/s3"
 
 import { testDb } from "../utils/test-env"
@@ -319,6 +321,33 @@ describe.skipIf(!reachable)("S3Storage", () => {
     expect(await storage.stat("m/src.bin")).toBeNull()
     const copied = Buffer.concat(await storage.read("m/dst.bin").toArray())
     expect(copied.equals(data)).toBe(true)
+    await storage.removePrefix(".")
+  })
+
+  it("storage push copies new files and skips matching ones", async () => {
+    const root = await mkdtemp(path.join(tmp, "data-"))
+    const local = new LocalStorage(root)
+    await local.writeBuffer("projects/p/source.mp4", "source")
+    await local.writeBuffer("projects/p/audio.wav", "audio")
+    await local.writeBuffer("avatars/users/u/1.png", "avatar")
+    await local.writeBuffer(storageKeys.uploadTemp("pending"), "partial")
+    await writeFile(path.join(root, "app.db"), "sqlite")
+    const storage = make()
+    await storage.writeBuffer("projects/p/audio.wav", "AUDIO")
+    await storage.writeBuffer("avatars/users/u/1.png", "stale")
+
+    const first = await pushStorage(local, storage)
+    expect(first).toEqual({ copied: 2, skipped: 1, failed: [] })
+    expect(await storage.list(".")).toEqual([
+      "avatars/users/u/1.png",
+      "projects/p/audio.wav",
+      "projects/p/source.mp4",
+    ])
+    const avatar = await storage.read("avatars/users/u/1.png").toArray()
+    expect(Buffer.concat(avatar).toString()).toBe("avatar")
+
+    const second = await pushStorage(local, storage)
+    expect(second).toEqual({ copied: 0, skipped: 3, failed: [] })
     await storage.removePrefix(".")
   })
 

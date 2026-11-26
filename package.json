@@ -33,7 +33,8 @@
     "db:migrate": "tsx --conditions=react-server scripts/migrate.ts",
     "db:import-sqlite": "tsx --conditions=react-server scripts/migrate-sqlite.ts",
     "prepare": "husky",
-    "setup:vision": "tsx scripts/setup-vision.ts"
+    "setup:vision": "tsx scripts/setup-vision.ts",
+    "storage:push": "tsx --conditions=react-server scripts/storage-push.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.12.0",
