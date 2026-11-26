@@ -19,3 +19,36 @@ export function byteLimit(maxBytes: number) {
     },
   })
 }
+
+export function headCheck(size: number, check: (head: Buffer) => void) {
+  let head = Buffer.alloc(0)
+  let checked = false
+  const run = () => {
+    check(head)
+    checked = true
+  }
+  return new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      if (!checked) {
+        head = Buffer.concat([head, chunk]).subarray(0, size)
+        if (head.length >= size) {
+          try {
+            run()
+          } catch (error) {
+            callback(error as Error)
+            return
+          }
+        }
+      }
+      callback(null, chunk)
+    },
+    flush(callback) {
+      try {
+        if (!checked) run()
+        callback()
+      } catch (error) {
+        callback(error as Error)
+      }
+    },
+  })
+}

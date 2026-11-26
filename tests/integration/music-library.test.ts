@@ -5,26 +5,25 @@ import { NextRequest } from "next/server"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { GET as musicGET } from "@/app/api/music/[id]/route"
-import { POST as musicUploadPOST } from "@/app/api/uploads/music/route"
 import { accountRepository } from "@/features/accounts/repository"
 import { deleteOwnedWorkspaces } from "@/features/accounts/service"
 import { clipRepository } from "@/features/clips/repository"
 import { trackInUseMessage } from "@/features/music/media"
 import { musicRepository } from "@/features/music/repository"
-import type { MusicTrackSummary } from "@/features/music/schema"
-import {
-  deleteTrack,
-  handleMusicUpload,
-  renameTrack,
-} from "@/features/music/service"
+import { deleteTrack, renameTrack } from "@/features/music/service"
 import { projectRepository } from "@/features/projects/repository"
 import { defaultProjectSettings } from "@/features/projects/schema"
-import { DEFAULT_AUDIO_MIX } from "@/features/music/schema"
+import {
+  DEFAULT_AUDIO_MIX,
+  type MusicTrackSummary,
+} from "@/features/music/schema"
+import { startUploadAction } from "@/features/uploads/actions"
 import { clips, user } from "@/lib/db/schema"
 import { getStorage } from "@/lib/storage"
 
 import { fixtures } from "../../scripts/make-fixtures"
 import { createTestEnv, type TestEnv } from "../utils/test-env"
+import { directUpload } from "../utils/uploads"
 
 const signedIn: { user: { id: string; name: string } | null } = { user: null }
 
@@ -56,30 +55,13 @@ async function account(name: string) {
   return { owner, actor: { userId: id, workspaceId: workspace.id } }
 }
 
-function uploadRequest(
-  body: BodyInit | ReadableStream<Uint8Array>,
-  fileName: string,
-  headers: Record<string, string> = {}
-) {
-  return new Request("http://localhost/api/uploads/music", {
-    method: "POST",
-    body,
-    headers: { "x-file-name": encodeURIComponent(fileName), ...headers },
-    duplex: "half",
-  } as RequestInit)
-}
-
 async function upload(fileName: string, file = fixtures.tone) {
-  const response = await musicUploadPOST(
-    uploadRequest(await readFile(file), fileName)
+  const result = await directUpload(
+    { kind: "music", fileName },
+    await readFile(file)
   )
-  return {
-    status: response.status,
-    body: (await response.json()) as {
-      track?: MusicTrackSummary
-      error?: { code: string; message: string }
-    },
-  }
+  if (!result.ok) return { error: result.error }
+  return { track: (result.value as { track: MusicTrackSummary }).track }
 }
 
 const getFile = (id: string, headers: Record<string, string> = {}) =>
@@ -108,9 +90,7 @@ describe("music uploads", () => {
     const { owner, actor } = await account("Owner")
     signedIn.user = owner
 
-    const { status, body } = await upload("summer_loop.m4a")
-    expect(status).toBe(201)
-    const summary = body.track!
+    const summary = (await upload("summer_loop.m4a")).track!
     expect(summary.url).toBe(`/api/music/${summary.id}`)
 
     const track = await musicRepository(env.db).get(summary.id)
@@ -133,7 +113,7 @@ describe("music uploads", () => {
   it("stores the extension it sniffed, not the one in the name", async () => {
     const { owner, actor } = await account("Owner")
     signedIn.user = owner
-    const { id } = (await upload("loop.mp3")).body.track!
+    const { id } = (await upload("loop.mp3")).track!
     expect((await musicRepository(env.db).get(id))?.storageKey).toBe(
       `music/${actor.workspaceId}/${id}.m4a`
     )
@@ -142,9 +122,8 @@ describe("music uploads", () => {
   it("rejects files without audio and cleans up", async () => {
     const { owner } = await account("Owner")
     signedIn.user = owner
-    const { status, body } = await upload("silent.m4a", fixtures.noAudio)
-    expect(status).toBe(415)
-    expect(body.error).toEqual({
+    const { error } = await upload("silent.m4a", fixtures.noAudio)
+    expect(error).toEqual({
       code: "UNSUPPORTED_MEDIA",
       message: "This file has no audio track",
     })
@@ -155,9 +134,8 @@ describe("music uploads", () => {
   it("rejects files that aren't audio", async () => {
     const { owner } = await account("Owner")
     signedIn.user = owner
-    const { status, body } = await upload("song.mp3", fixtures.notVideo)
-    expect(status).toBe(415)
-    expect(body.error).toEqual({
+    const { error } = await upload("song.mp3", fixtures.notVideo)
+    expect(error).toEqual({
       code: "UNSUPPORTED_MEDIA",
       message: "Upload an MP3, M4A, AAC, WAV, OGG or FLAC file",
     })
@@ -165,67 +143,52 @@ describe("music uploads", () => {
   })
 
   it("rejects an empty upload", async () => {
-    const { actor } = await account("Owner")
-    await expect(
-      handleMusicUpload(uploadRequest(new Uint8Array(0), "empty.mp3"), actor)
-    ).rejects.toMatchObject({
-      code: "VALIDATION",
-      message: "The upload was empty",
-    })
-    expect(await getStorage().list("tmp")).toEqual([])
-  })
-
-  it("stops when the client goes away", async () => {
-    const { actor } = await account("Owner")
-    const controller = new AbortController()
-    const request = new Request(
-      uploadRequest(await readFile(fixtures.tone), "gone.m4a"),
-      {
-        signal: controller.signal,
-      }
-    )
-    controller.abort()
-    await expect(handleMusicUpload(request, actor)).rejects.toMatchObject({
-      code: "CANCELLED",
-    })
-    expect(await getStorage().list("tmp")).toEqual([])
-    expect(await getStorage().list("music")).toEqual([])
-  })
-
-  it("rejects files over 50 MB, declared or streamed", async () => {
-    const { actor } = await account("Owner")
-    await expect(
-      handleMusicUpload(
-        uploadRequest("x", "big.mp3", {
-          "content-length": String(51 * 1024 * 1024),
-        }),
-        actor
+    const { owner } = await account("Owner")
+    signedIn.user = owner
+    expect(
+      await directUpload(
+        { kind: "music", fileName: "empty.mp3" },
+        new Uint8Array()
       )
-    ).rejects.toMatchObject({
-      code: "TOO_LARGE",
-      message: "Music files can be up to 50 MB",
+    ).toEqual({
+      ok: false,
+      error: { code: "VALIDATION", message: "The upload was empty" },
     })
+  })
 
-    const head = await readFile(fixtures.tone)
-    const chunk = new Uint8Array(1024 * 1024)
-    let sent = 0
-    const stream = new ReadableStream<Uint8Array>({
-      pull(controller) {
-        controller.enqueue(sent === 0 ? head : chunk)
-        sent += 1
-        if (sent > 52) controller.close()
+  it("rejects files over 50 MB before anything is sent", async () => {
+    const { owner } = await account("Owner")
+    signedIn.user = owner
+    expect(
+      await startUploadAction({
+        kind: "music",
+        fileName: "big.mp3",
+        mime: "audio/mpeg",
+        bytes: 51 * 1024 * 1024,
+      })
+    ).toEqual({
+      ok: false,
+      error: { code: "TOO_LARGE", message: "Music files can be up to 50 MB" },
+    })
+  })
+
+  it("rejects files that are neither audio nor named like it", async () => {
+    const { owner } = await account("Owner")
+    signedIn.user = owner
+    expect(
+      await startUploadAction({
+        kind: "music",
+        fileName: "notes.txt",
+        mime: "text/plain",
+        bytes: 10,
+      })
+    ).toEqual({
+      ok: false,
+      error: {
+        code: "UNSUPPORTED_MEDIA",
+        message: "Upload an MP3, M4A, AAC, WAV, OGG or FLAC file",
       },
     })
-    await expect(
-      handleMusicUpload(uploadRequest(stream, "big.m4a"), actor)
-    ).rejects.toMatchObject({
-      code: "TOO_LARGE",
-      message: "Music files can be up to 50 MB",
-    })
-    expect(await getStorage().list("tmp")).toEqual([])
-    expect(
-      await musicRepository(env.db).listForWorkspace(actor.workspaceId)
-    ).toEqual([])
   })
 })
 
@@ -233,8 +196,7 @@ describe("music library", () => {
   it("renames a track", async () => {
     const { owner, actor } = await account("Owner")
     signedIn.user = owner
-    const { body } = await upload("summer_loop.m4a")
-    const id = body.track!.id
+    const id = (await upload("summer_loop.m4a")).track!.id
 
     await renameTrack(env.db, actor.workspaceId, id, "  Night drive  ")
     expect((await musicRepository(env.db).get(id))?.title).toBe("Night drive")
@@ -250,8 +212,8 @@ describe("music library", () => {
     const { owner, actor } = await account("Owner")
     signedIn.user = owner
     const storage = getStorage()
-    const used = (await upload("used.m4a")).body.track!
-    const free = (await upload("free.m4a")).body.track!
+    const used = (await upload("used.m4a")).track!
+    const free = (await upload("free.m4a")).track!
     const clip = await clipWithTrack(actor.workspaceId, used.id)
     const usedTrack = await musicRepository(env.db).get(used.id)
     const freeTrack = await musicRepository(env.db).get(free.id)
@@ -274,7 +236,7 @@ describe("music library", () => {
     const a = await account("A")
     const b = await account("B")
     signedIn.user = a.owner
-    const { id } = (await upload("summer_loop.m4a")).body.track!
+    const { id } = (await upload("summer_loop.m4a")).track!
     const storage = getStorage()
 
     await expect(
@@ -297,8 +259,8 @@ describe("music library", () => {
     const { owner, actor } = await account("Owner")
     signedIn.user = owner
     const storage = getStorage()
-    const used = (await upload("used.m4a")).body.track!
-    const free = (await upload("free.m4a")).body.track!
+    const used = (await upload("used.m4a")).track!
+    const free = (await upload("free.m4a")).track!
     await clipWithTrack(actor.workspaceId, used.id)
     await clipWithTrack(actor.workspaceId, used.id)
     const tracks = await musicRepository(env.db).listForWorkspace(

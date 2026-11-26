@@ -125,9 +125,7 @@ describe("transcribe step", () => {
       "-shortest",
       file,
     ])
-    const { projectId } = await uploadFixture(file, "two-tracks.mkv", {
-      "content-type": "video/x-matroska",
-    })
+    const { projectId } = await uploadFixture(file, "two-tracks.mkv")
     await runJobs(env.db, ["probe"])
     const assets = assetRepository(env.db)
     const source = await assets.findByKind(projectId, "source")

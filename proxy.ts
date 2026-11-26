@@ -28,7 +28,7 @@ export function proxy(request: NextRequest) {
 }
 
 // Uploads skip the proxy: it buffers request bodies and truncates them past
-// proxyClientMaxBodySize. The route handler checks the session itself.
+// proxyClientMaxBodySize. The route handler checks the signed upload token.
 export const config = {
   matcher: [
     "/((?!api/auth|api/fonts|api/uploads|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|webp|ico|woff2?)$).*)",

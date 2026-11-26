@@ -3,19 +3,22 @@ import "server-only"
 import { inArray } from "drizzle-orm"
 
 import { assets, jobs, projects } from "@/lib/db/schema"
-import { getStorage } from "@/lib/storage"
+import { getStorage, type StorageAdapter } from "@/lib/storage"
 
-import type { JobHandler } from "../../jobs/worker-loop"
+import type { JobContext, JobHandler } from "../../jobs/worker-loop"
 import { planSweep, type SweepFile } from "../sweep-plan"
 import { throwIfAborted } from "./common"
 
-export const sweepStep: JobHandler = async ({
-  db,
-  logger,
-  signal,
-  reportProgress,
-}) => {
-  const storage = getStorage()
+export async function sweep(
+  {
+    db,
+    logger,
+    signal,
+    reportProgress,
+  }: Pick<JobContext, "db" | "logger" | "signal" | "reportProgress">,
+  storage: StorageAdapter,
+  nowMs = Date.now()
+) {
   const files: SweepFile[] = []
   for (const prefix of ["tmp/uploads", "tmp/downloads", "projects"]) {
     for (const key of await storage.list(prefix)) {
@@ -48,7 +51,7 @@ export const sweepStep: JobHandler = async ({
     projectIds,
     busyProjectIds,
     referencedKeys,
-    nowMs: Date.now(),
+    nowMs,
   })
   for (const key of doomed) {
     throwIfAborted(signal)
@@ -59,3 +62,5 @@ export const sweepStep: JobHandler = async ({
   }
   reportProgress(100)
 }
+
+export const sweepStep: JobHandler = (ctx) => sweep(ctx, getStorage())

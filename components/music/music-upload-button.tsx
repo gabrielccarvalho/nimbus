@@ -6,50 +6,12 @@ import * as React from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { directUpload } from "@/components/uploads/direct-upload"
 import {
   MUSIC_ACCEPT,
   MUSIC_MAX_BYTES,
   type MusicTrackSummary,
 } from "@/features/music/schema"
-
-function upload(file: File, onProgress: (percent: number) => void) {
-  return new Promise<MusicTrackSummary>((resolve, reject) => {
-    const xhr = new XMLHttpRequest()
-    xhr.open("POST", "/api/uploads/music")
-    xhr.setRequestHeader(
-      "content-type",
-      file.type || "application/octet-stream"
-    )
-    xhr.setRequestHeader("x-file-name", encodeURIComponent(file.name))
-    xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable) onProgress((event.loaded / event.total) * 100)
-    }
-    xhr.onload = () => {
-      let body: unknown
-      try {
-        body = JSON.parse(xhr.responseText)
-      } catch {
-        body = null
-      }
-      if (
-        xhr.status === 201 &&
-        body &&
-        typeof body === "object" &&
-        "track" in body
-      ) {
-        resolve((body as { track: MusicTrackSummary }).track)
-        return
-      }
-      const message =
-        body && typeof body === "object" && "error" in body
-          ? (body as { error: { message: string } }).error.message
-          : `Upload failed (${xhr.status})`
-      reject(new Error(message))
-    }
-    xhr.onerror = () => reject(new Error("The upload was interrupted"))
-    xhr.send(file)
-  })
-}
 
 export function MusicUploadButton({
   onUploaded,
@@ -71,7 +33,7 @@ export function MusicUploadButton({
     }
     setProgress(0)
     try {
-      const track = await upload(file, setProgress)
+      const { track } = await directUpload(file, { kind: "music" }, setProgress)
       toast.success(`Added “${track.title}”`)
       onUploaded?.(track)
       router.refresh()

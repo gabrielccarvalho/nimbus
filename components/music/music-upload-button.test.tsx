@@ -5,12 +5,19 @@ import type { MusicTrackSummary } from "@/features/music/schema"
 
 import { MusicUploadButton } from "./music-upload-button"
 
-const { refresh, toastError, toastSuccess } = vi.hoisted(() => ({
-  refresh: vi.fn(),
-  toastError: vi.fn(),
-  toastSuccess: vi.fn(),
-}))
+const { refresh, toastError, toastSuccess, startUpload, completeUpload } =
+  vi.hoisted(() => ({
+    refresh: vi.fn(),
+    toastError: vi.fn(),
+    toastSuccess: vi.fn(),
+    startUpload: vi.fn(),
+    completeUpload: vi.fn(),
+  }))
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }))
+vi.mock("@/features/uploads/actions", () => ({
+  startUploadAction: startUpload,
+  completeUploadAction: completeUpload,
+}))
 vi.mock("sonner", () => ({
   toast: { error: toastError, success: toastSuccess },
 }))
@@ -48,9 +55,26 @@ function pick(file: File) {
   })
 }
 
+const target = {
+  url: "https://bucket.example/tmp/uploads/u1.part?sig=1",
+  method: "PUT",
+  headers: { "Content-Type": "audio/mpeg" },
+}
+
+async function sending() {
+  await waitFor(() => expect(FakeXhr.last).toBeDefined())
+  return FakeXhr.last
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
+  FakeXhr.last = undefined as unknown as FakeXhr
   vi.stubGlobal("XMLHttpRequest", FakeXhr)
+  startUpload.mockResolvedValue({ ok: true, value: { token: "tok", target } })
+  completeUpload.mockResolvedValue({
+    ok: true,
+    value: { trackId: track.id, track },
+  })
 })
 
 describe("MusicUploadButton", () => {
@@ -67,24 +91,33 @@ describe("MusicUploadButton", () => {
     Object.defineProperty(big, "size", { value: 51 * 1024 * 1024 })
     pick(big)
     expect(toastError).toHaveBeenCalledWith("Music files can be up to 50 MB")
+    expect(startUpload).not.toHaveBeenCalled()
     expect(FakeXhr.last).toBeUndefined()
   })
 
   it("shows progress while sending and reports the uploaded track", async () => {
     const onUploaded = vi.fn()
     render(<MusicUploadButton onUploaded={onUploaded} />)
-    pick(new File(["x"], "Summer loop.mp3", { type: "audio/mpeg" }))
-    const xhr = FakeXhr.last
-    expect(xhr.open).toHaveBeenCalledWith("POST", "/api/uploads/music")
-    expect(xhr.headers["x-file-name"]).toBe("Summer%20loop.mp3")
+    const file = new File(["x"], "Summer loop.mp3", { type: "audio/mpeg" })
+    pick(file)
+    const xhr = await sending()
+    expect(startUpload).toHaveBeenCalledWith({
+      kind: "music",
+      fileName: "Summer loop.mp3",
+      mime: "audio/mpeg",
+      bytes: 1,
+    })
+    expect(xhr.open).toHaveBeenCalledWith("PUT", target.url)
+    expect(xhr.headers).toEqual(target.headers)
+    expect(xhr.send).toHaveBeenCalledWith(file)
     xhr.upload.onprogress?.({ lengthComputable: true, loaded: 40, total: 100 })
     const busy = await screen.findByRole("button", { name: "Uploading… 40%" })
     expect(busy).toBeDisabled()
 
-    xhr.status = 201
-    xhr.responseText = JSON.stringify({ track })
+    xhr.status = 200
     xhr.onload?.()
     await waitFor(() => expect(onUploaded).toHaveBeenCalledWith(track))
+    expect(completeUpload).toHaveBeenCalledWith("tok")
     expect(toastSuccess).toHaveBeenCalledWith("Added “Summer loop”")
     expect(refresh).toHaveBeenCalled()
     expect(screen.getByRole("button", { name: "Upload a track" })).toBeEnabled()
@@ -93,19 +126,51 @@ describe("MusicUploadButton", () => {
   it("toasts the server's message on failure", async () => {
     render(<MusicUploadButton />)
     pick(new File(["x"], "a.mp3", { type: "audio/mpeg" }))
-    const xhr = FakeXhr.last
-    xhr.status = 422
-    xhr.responseText = JSON.stringify({ error: { message: "No audio found" } })
+    const xhr = await sending()
+    xhr.status = 415
+    xhr.responseText = JSON.stringify({ error: { message: "Not audio" } })
+    xhr.onload?.()
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith("Not audio"))
+    expect(completeUpload).not.toHaveBeenCalled()
+  })
+
+  it("toasts a refused start without sending", async () => {
+    startUpload.mockResolvedValue({
+      ok: false,
+      error: { code: "TOO_LARGE", message: "Music files can be up to 50 MB" },
+    })
+    render(<MusicUploadButton />)
+    pick(new File(["x"], "a.mp3", { type: "audio/mpeg" }))
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith("Music files can be up to 50 MB")
+    )
+    expect(FakeXhr.last).toBeUndefined()
+  })
+
+  it("toasts a refused completion", async () => {
+    completeUpload.mockResolvedValue({
+      ok: false,
+      error: {
+        code: "UNSUPPORTED_MEDIA",
+        message: "This file has no audio track",
+      },
+    })
+    render(<MusicUploadButton />)
+    pick(new File(["x"], "a.mp3", { type: "audio/mpeg" }))
+    const xhr = await sending()
+    xhr.status = 200
     xhr.onload?.()
     await waitFor(() =>
-      expect(toastError).toHaveBeenCalledWith("No audio found")
+      expect(toastError).toHaveBeenCalledWith("This file has no audio track")
     )
+    expect(screen.getByRole("button", { name: "Upload a track" })).toBeEnabled()
   })
 
   it("announces progress in coarse steps", async () => {
     render(<MusicUploadButton />)
     pick(new File(["x"], "a.mp3", { type: "audio/mpeg" }))
-    FakeXhr.last.upload.onprogress?.({
+    const xhr = await sending()
+    xhr.upload.onprogress?.({
       lengthComputable: true,
       loaded: 47,
       total: 100,
@@ -118,7 +183,8 @@ describe("MusicUploadButton", () => {
   it("toasts and re-enables the button when the upload is interrupted", async () => {
     render(<MusicUploadButton />)
     pick(new File(["x"], "a.mp3", { type: "audio/mpeg" }))
-    FakeXhr.last.onerror?.()
+    const xhr = await sending()
+    xhr.onerror?.()
     await waitFor(() =>
       expect(toastError).toHaveBeenCalledWith("The upload was interrupted")
     )

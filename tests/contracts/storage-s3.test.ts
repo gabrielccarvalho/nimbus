@@ -15,8 +15,12 @@ import { Readable } from "node:stream"
 import { S3Client } from "@aws-sdk/client-s3"
 import { afterAll, describe, expect, it } from "vitest"
 
+import { sweep } from "@/features/pipeline/steps/sweep"
+import { logger } from "@/lib/logger"
+import { storageKeys } from "@/lib/storage"
 import { S3Storage } from "@/lib/storage/s3"
 
+import { testDb } from "../utils/test-env"
 import { storageContract } from "./storage"
 
 const endpoint = process.env.S3_TEST_ENDPOINT ?? "http://localhost:9010"
@@ -115,6 +119,22 @@ describe.skipIf(!reachable)("S3Storage", () => {
     })
     expect(response.status).toBe(200)
     expect((await storage.stat("up/ok.bin"))?.bytes).toBe(body.length)
+  })
+
+  it("sweep removes stale upload temps from S3", async () => {
+    const storage = make()
+    await storage.writeBuffer(storageKeys.uploadTemp("abandoned"), "x")
+    await sweep(
+      {
+        db: await testDb(),
+        logger,
+        signal: new AbortController().signal,
+        reportProgress: () => {},
+      },
+      storage,
+      Date.now() + 25 * 60 * 60_000
+    )
+    expect(await storage.list("tmp/uploads")).toEqual([])
   })
 
   it("upload target rejects a larger body", async () => {

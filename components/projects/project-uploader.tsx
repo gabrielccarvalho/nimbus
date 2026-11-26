@@ -10,6 +10,7 @@ import {
   ProgressLabel,
   ProgressValue,
 } from "@/components/ui/progress"
+import { directUpload } from "@/components/uploads/direct-upload"
 import type { ImportOptions } from "@/features/projects/schema"
 
 export const ACCEPT = [
@@ -28,53 +29,6 @@ export const REJECTION_MESSAGES: Record<DropzoneRejection["reason"], string> = {
   type: "Upload an MP4, MOV, MKV or WebM video",
   size: "This file is larger than the upload limit",
   count: "Upload one video at a time",
-}
-
-function upload(
-  file: File,
-  options: ImportOptions,
-  onProgress: (percent: number) => void
-) {
-  return new Promise<{ projectId: string }>((resolve, reject) => {
-    const xhr = new XMLHttpRequest()
-    xhr.open("POST", "/api/uploads")
-    xhr.setRequestHeader(
-      "content-type",
-      file.type || "application/octet-stream"
-    )
-    xhr.setRequestHeader("x-file-name", encodeURIComponent(file.name))
-    xhr.setRequestHeader(
-      "x-import-options",
-      encodeURIComponent(JSON.stringify(options))
-    )
-    xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable) onProgress((event.loaded / event.total) * 100)
-    }
-    xhr.onload = () => {
-      let body: unknown
-      try {
-        body = JSON.parse(xhr.responseText)
-      } catch {
-        body = null
-      }
-      if (
-        xhr.status === 201 &&
-        body &&
-        typeof body === "object" &&
-        "projectId" in body
-      ) {
-        resolve(body as { projectId: string })
-        return
-      }
-      const message =
-        body && typeof body === "object" && "error" in body
-          ? (body as { error: { message: string } }).error.message
-          : `Upload failed (${xhr.status})`
-      reject(new Error(message))
-    }
-    xhr.onerror = () => reject(new Error("The upload was interrupted"))
-    xhr.send(file)
-  })
 }
 
 async function capturePreview(file: File): Promise<string | null> {
@@ -122,7 +76,11 @@ export function useRecordingUpload(options: ImportOptions) {
     setProgress(0)
     void capturePreview(file).then(setPreview)
     try {
-      const { projectId } = await upload(file, options, setProgress)
+      const { projectId } = await directUpload(
+        file,
+        { kind: "video", options },
+        setProgress
+      )
       toast.success("Upload complete. Processing started.")
       router.push(`/projects/${projectId}`)
     } catch (error) {

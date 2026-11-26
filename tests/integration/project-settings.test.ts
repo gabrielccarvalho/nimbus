@@ -33,9 +33,8 @@ async function analyzedProject() {
 describe("import options", () => {
   it("override the defaults for uploads", async () => {
     const { projectId } = await uploadFixture(fixtures.wide, "a.mp4", {
-      "x-import-options": encodeURIComponent(
-        JSON.stringify({ language: "pt", selectorMode: "manual" })
-      ),
+      language: "pt",
+      selectorMode: "manual",
     })
     const project = await projectRepository(env.db).getOrThrow(projectId)
     expect(project.settings).toMatchObject({
@@ -54,14 +53,6 @@ describe("import options", () => {
     )
     const project = await projectRepository(env.db).getOrThrow(projectId)
     expect(project.settings.language).toBe("es")
-  })
-
-  it("reject invalid options", async () => {
-    await expect(
-      uploadFixture(fixtures.wide, "a.mp4", {
-        "x-import-options": encodeURIComponent('{"selectorMode":"magic"}'),
-      })
-    ).rejects.toMatchObject({ code: "VALIDATION" })
   })
 })
 
