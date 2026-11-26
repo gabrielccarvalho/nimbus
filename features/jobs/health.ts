@@ -10,6 +10,15 @@ export function pollingFresh(
   return now - lastPolledAt <= 3 * pollMs + POLL_SLACK_MS
 }
 
+export function workerHealth(
+  worker: { lastPolledAt: number; stopping: boolean },
+  pollMs: number,
+  now = Date.now
+) {
+  return () =>
+    worker.stopping || pollingFresh(worker.lastPolledAt, pollMs, now())
+}
+
 export function startHealthServer(port: number, isHealthy: () => boolean) {
   const server = http.createServer((request, response) => {
     if (request.method !== "GET" || request.url !== "/healthz") {

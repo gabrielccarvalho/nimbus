@@ -2,7 +2,7 @@ import "@/lib/load-env"
 
 import os from "node:os"
 
-import { pollingFresh, startHealthServer } from "@/features/jobs/health"
+import { startHealthServer, workerHealth } from "@/features/jobs/health"
 import {
   deleteHeartbeat,
   HEARTBEAT_INTERVAL_MS,
@@ -125,8 +125,9 @@ const heartbeatReady = detectCapabilities()
 
 worker.start()
 const health = env.WORKER_HEALTH_PORT
-  ? startHealthServer(env.WORKER_HEALTH_PORT, () =>
-      pollingFresh(worker.lastPolledAt, env.WORKER_POLL_MS)
+  ? startHealthServer(
+      env.WORKER_HEALTH_PORT,
+      workerHealth(worker, env.WORKER_POLL_MS)
     )
   : undefined
 health?.on("error", (error) =>
@@ -155,11 +156,15 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     clearInterval(sweepTimer)
     clearInterval(statsTimer)
     clearInterval(heartbeatTimer)
-    health?.close()
     logger.info({ signal }, "worker stopping")
+    // A failing liveness probe SIGKILLs without the grace period, so /healthz
+    // keeps answering until the drain is over.
     void worker
       .stop({ graceMs: env.WORKER_SHUTDOWN_GRACE_MS })
-      .then(() => deleteHeartbeat(db, owner))
+      .then(() => {
+        health?.close()
+        return deleteHeartbeat(db, owner)
+      })
       .catch((error: unknown) =>
         logger.error({ err: error }, "couldn't remove the worker heartbeat")
       )

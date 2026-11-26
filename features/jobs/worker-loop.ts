@@ -81,6 +81,7 @@ export function createWorker(options: WorkerOptions) {
   const queue = jobQueue(db)
   const controllers = new Map<string, AbortController>()
   let running = false
+  let stopping = false
   let wake: (() => void) | undefined
   let lastPolledAt = Date.now()
 
@@ -305,6 +306,7 @@ export function createWorker(options: WorkerOptions) {
     },
 
     async stop({ graceMs = 10_000 } = {}) {
+      stopping = true
       running = false
       wake?.()
       await loopPromise
@@ -336,6 +338,10 @@ export function createWorker(options: WorkerOptions) {
       controllers
         .get(jobId)
         ?.abort(new AppError("CANCELLED", "Job was cancelled"))
+    },
+
+    get stopping() {
+      return stopping
     },
 
     get lastPolledAt() {

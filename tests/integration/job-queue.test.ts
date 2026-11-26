@@ -4,6 +4,7 @@ import path from "node:path"
 import { sql } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { workerHealth } from "@/features/jobs/health"
 import { backoffMs, jobQueue } from "@/features/jobs/queue"
 import { createWorker, type JobHandlers } from "@/features/jobs/worker-loop"
 import { projectRepository } from "@/features/projects/repository"
@@ -433,5 +434,23 @@ describe("worker loop", () => {
     w.start()
     await vi.waitFor(() => expect(w.lastPolledAt).toBeGreaterThan(before))
     await w.stop()
+  })
+
+  it("healthz stays 200 while the worker drains", async () => {
+    const queue = jobQueue(env.db)
+    await queue.enqueue({ type: "probe", projectId: (await project()).id })
+    let finish = () => {}
+    const w = worker({
+      probe: () => new Promise<void>((resolve) => (finish = resolve)),
+    })
+    const later = () => Date.now() + 60_000
+    const healthy = workerHealth(w, 20, later)
+    w.start()
+    await vi.waitFor(() => expect(w.activeCount).toBe(1))
+    expect(healthy()).toBe(false)
+    const stopped = w.stop({ graceMs: 5_000 })
+    expect(healthy()).toBe(true)
+    finish()
+    await stopped
   })
 })
