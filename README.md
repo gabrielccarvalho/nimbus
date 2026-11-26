@@ -72,13 +72,21 @@ Only Postgres runs in Docker. Next and the worker run on the host because VideoT
 
 Projects from the earlier SQLite version can be copied over once with `pnpm db:import-sqlite [path/to/app.db]` (defaults to `DATA_DIR/app.db`). Media files stay where they are.
 
+## Deploying
+
+Nimbus deploys to Vercel Pro: the web app on functions, the worker as a Vercel Daemon built from `Dockerfile.worker`, Postgres from Neon (Vercel Marketplace) and media in an R2 or S3 bucket. The bucket needs CORS for the app's origins (PUT, GET, HEAD; `Range` allowed; `Content-Range`, `Accept-Ranges`, `ETag` exposed). Preview deployments have no worker, so their jobs wait until one runs against their database. Setup, environment variables and first-deploy checks are in [docs/DEPLOY.md](docs/DEPLOY.md).
+
+## Self-hosting
+
+`docker-compose.selfhost.yml` runs Postgres, MinIO, the web app and the worker in containers. Copy `.env.selfhost.example` to `.env.selfhost`, fill it in and follow [docs/DEPLOY.md](docs/DEPLOY.md#self-hosting). `pnpm storage:push` copies existing `data/` media into the bucket.
+
 ## Environment
 
 See `.env.example` for the full list. Values that also appear in Settings are only defaults: once Settings are saved, the saved values win. The main ones:
 
 | Variable                       | Default                                 | Purpose                                                                                                                                                            |
 | ------------------------------ | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `DATA_DIR`                     | `./data`                                | Database, uploads and renders                                                                                                                                      |
+| `DATA_DIR`                     | `./data`                                | Uploads and renders with the local storage driver                                                                                                                  |
 | `FFMPEG_PATH` / `FFPROBE_PATH` | `ffmpeg` / `ffprobe`                    | Binaries                                                                                                                                                           |
 | `VIDEO_ENCODER`                | `libx264`                               | `libx264`, `auto` (first hardware H.264 encoder found) or a specific encoder. Anything but `libx264` turns hardware encoding on by default; Settings can toggle it |
 | `WHISPER_BIN`                  | `whisper-cli`                           | whisper.cpp CLI                                                                                                                                                    |
@@ -112,6 +120,7 @@ See `.env.example` for the full list. Values that also appear in Settings are on
 | `pnpm fixtures`                                              | Generate test videos                                                           |
 | `pnpm run doctor`                                            | Dependency check                                                               |
 | `pnpm db:generate`, `pnpm db:migrate`                        | Drizzle migrations                                                             |
+| `pnpm storage:push`                                          | Copy `DATA_DIR` media into the S3 bucket (`STORAGE_DRIVER=s3`)                 |
 
 ## Docs
 

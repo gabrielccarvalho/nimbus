@@ -389,16 +389,18 @@ Not verified: the real chart through the Data API (tested against MSW and the fa
 
 Plan: `docs/superpowers/plans/2026-11-25-vercel-ready.md`.
 
-- [ ] 1. Storage contract without file paths: `localCopy`, `putFile`, `readUrl`, `uploadTarget`; contract suite on `LocalStorage`
-- [ ] 2. Per-job scratch directories; pipeline steps, downloads and the export zip stop using `resolve`
-- [ ] 3. `S3Storage`, `STORAGE_DRIVER`, MinIO in compose, contract suite on MinIO (`pnpm test:s3`)
-- [ ] 4. Direct uploads: signed upload targets, the local PUT route, completion actions for videos and music
-- [ ] 5. `probe_music` job: tracks are `processing` until the worker has probed them
-- [ ] 6. Media served through signed URLs when the driver has them
-- [ ] 7. Worker heartbeat and capabilities in Postgres; settings reads them
-- [ ] 8. Hosted config: `YTDLP_COOKIES_TEXT`, pool size, auth origins, doctor checks
-- [ ] 9. Containers: `Dockerfile.worker`, `Dockerfile.web`, compose `selfhost` profile, worker health endpoint, `vercel.json` daemon
-- [ ] 10. `pnpm storage:push`, docs and phase close
+- [x] 1. Storage contract without file paths: `localCopy`, `putFile`, `readUrl`, `uploadTarget`; contract suite on `LocalStorage`
+- [x] 2. Per-job scratch directories; pipeline steps, downloads and the export zip stop using `resolve`
+- [x] 3. `S3Storage`, `STORAGE_DRIVER`, MinIO in compose, contract suite on MinIO (`pnpm test:s3`)
+- [x] 4. Direct uploads: signed upload targets, the local PUT route, completion actions for videos and music
+- [x] 5. `probe_music` job: tracks are `processing` until the worker has probed them
+- [x] 6. Media served through signed URLs when the driver has them
+- [x] 7. Worker heartbeat and capabilities in Postgres; settings reads them
+- [x] 8. Hosted config: `YTDLP_COOKIES_TEXT`, pool size, auth origins, doctor checks
+- [x] 9. Containers: `Dockerfile.worker`, `Dockerfile.web`, compose `selfhost` profile, worker health endpoint, `vercel.json` daemon
+- [x] 10. `pnpm storage:push`, docs and phase close
+
+Not verified: Daemon CPU time for a whisper large-v3-turbo transcription and a 1080p render; whether a function can stream an export zip over 4.5 MB; R2 presigned PUT with a signed `Content-Length`; CORS on a real R2 or S3 bucket (MinIO has no bucket CORS); how the liveness probe behaves while a daemon terminates; whether the daemon's `root: "./"` affects the web build's static assets; the 5 GB multipart move (`S3_TEST_LARGE=1`, not run); a real browser upload on the S3 driver against hosted storage.
 
 ### Not verified
 
