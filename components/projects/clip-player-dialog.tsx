@@ -31,7 +31,7 @@ import {
   VideoPlayerTime,
   VideoPlayerVideo,
 } from "@/components/ui/video-player"
-import type { CaptionPage } from "@/features/captions/pages"
+import type { CaptionLane } from "@/features/captions/pages"
 import type { CaptionStyle } from "@/features/captions/styles"
 import { setClipStatusAction } from "@/features/clips/actions"
 import type { Clip } from "@/features/clips/repository"
@@ -52,7 +52,11 @@ export type ClipPlayerData = {
   layout: LayoutInput | null
   captions: Record<
     string,
-    { pages: CaptionPage[]; style: CaptionStyle; enabled: boolean }
+    {
+      lanes: CaptionLane<number | null>[]
+      style: CaptionStyle
+      enabled: boolean
+    }
   >
   publishing: PublishingState
 }
@@ -136,11 +140,11 @@ function ClipPlayer({
             <ClipPreview
               layout={layout}
               effects={clip.effects?.events}
-              pages={caption.pages}
+              lanes={caption.lanes}
               startMs={clip.startMs}
               captionStyle={caption.style}
               captionsEnabled={caption.enabled}
-              overlay={clip.textOverlay}
+              overlays={clip.textOverlays}
               className="rounded-none"
             />
           </>

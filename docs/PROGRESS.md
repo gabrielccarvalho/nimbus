@@ -419,8 +419,20 @@ Follow-ups from the final review:
 - [x] "Search YouTube for …" in the track picker when the library and chart don't match
 - [ ] Hand check by eye on a real clip with `pnpm dev`
 
+### Phase 38: Multi-track clip timeline (ADR-0072)
+
+One timeline under the video replaces the Trim, Effects, Captions, Text and Music cards: a shared ruler, playhead and zoom; a header per track; tracks added from the toolbar.
+
+- [x] Lanes in the data: effects carry `lane` (no overlap within a lane, the upper lane wins for the same kind); caption lanes beyond the transcript with their own captions and screen position, plus captions added to the transcript lane; on-screen texts as a list with start/end/lane; music as clips with start, end, in-point, volume, fades and lane; original audio volume and mute. Migration 0021 converts stored text and music.
+- [x] Render: every caption lane at its own height, every text in its window, every music clip mixed at its offset with its own volume and fades
+- [x] Pure lane helpers (fit in a lane, first free lane, pack, move, music re-timing, caption moves between lanes) shared by every track type
+- [x] Timeline UI: video track with trim handles and trim-to-playhead, effect/caption/text/music tracks with blocks to drag, resize and move between lanes of the same type, original audio and music waveforms scaled by volume, one zoom for every track
+- [x] Preview plays every music clip, shows every caption lane and text, and places each caption lane by dragging
+- [x] Unit, integration and e2e coverage; checked by hand on the e2e recording (screenshots of the timeline, the inspector, caption overflow and Fit)
+
 ### Not verified
 
+- The clip timeline on a long real recording (checked on the 20 s e2e fixture only, so autosave didn't touch real clips).
 - MediaPipe face detection on a real face (fixtures have none; the code path is unit tested and the model loads in e2e).
 - Real multi-hour recordings end to end (a 3 h stream was transcribed and scored; rendering from it wasn't). Claude's chunking of long transcripts is tested against a mocked API only.
 - Hardware encoders other than VideoToolbox.

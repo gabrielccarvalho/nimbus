@@ -321,7 +321,10 @@ export const clips = pgTable(
     beats: jsonb("beats").$type<Beat[] | null>(),
     playbookRuleIds: jsonb("playbook_rule_ids").$type<string[] | null>(),
     audioMix: jsonb("audio_mix").$type<AudioMix | null>(),
-    textOverlay: jsonb("text_overlay").$type<TextOverlay | null>(),
+    textOverlays: jsonb("text_overlays")
+      .$type<TextOverlay[]>()
+      .notNull()
+      .default([]),
     renderAssetId: text("render_asset_id").references(() => assets.id, {
       onDelete: "set null",
     }),

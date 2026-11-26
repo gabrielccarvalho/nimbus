@@ -1,6 +1,6 @@
 import "server-only"
 
-import { and, desc, eq, isNotNull, sql } from "drizzle-orm"
+import { and, desc, eq, sql } from "drizzle-orm"
 
 import { now, type Db } from "@/lib/db"
 import { clips, musicTracks, projects } from "@/lib/db/schema"
@@ -8,7 +8,11 @@ import { clips, musicTracks, projects } from "@/lib/db/schema"
 export type MusicTrack = typeof musicTracks.$inferSelect
 export type NewMusicTrack = typeof musicTracks.$inferInsert
 
-const trackIdOf = sql<string>`${clips.audioMix}->>'trackId'`
+const usesTrack = (trackId: string) =>
+  sql`coalesce(${clips.audioMix}->'music', '[]'::jsonb) @> ${JSON.stringify([{ trackId }])}::jsonb`
+const musicOf = sql<
+  { trackId: string }[]
+>`coalesce(${clips.audioMix}->'music', '[]'::jsonb)`
 
 export function musicRepository(db: Db) {
   return {
@@ -80,18 +84,28 @@ export function musicRepository(db: Db) {
           projectId: clips.projectId,
         })
         .from(clips)
-        .where(eq(trackIdOf, trackId))
+        .where(usesTrack(trackId))
         .orderBy(clips.createdAt, clips.id)
     },
 
     async usageCounts(workspaceId: string) {
       const rows = await db
-        .select({ trackId: trackIdOf, count: sql<number>`count(*)::int` })
+        .select({ music: musicOf })
         .from(clips)
         .innerJoin(projects, eq(projects.id, clips.projectId))
-        .where(and(eq(projects.workspaceId, workspaceId), isNotNull(trackIdOf)))
-        .groupBy(trackIdOf)
-      return new Map(rows.map((row) => [row.trackId, row.count]))
+        .where(
+          and(
+            eq(projects.workspaceId, workspaceId),
+            sql`jsonb_array_length(${musicOf}) > 0`
+          )
+        )
+      const counts = new Map<string, number>()
+      for (const row of rows) {
+        for (const trackId of new Set(row.music.map((m) => m.trackId))) {
+          counts.set(trackId, (counts.get(trackId) ?? 0) + 1)
+        }
+      }
+      return counts
     },
   }
 }

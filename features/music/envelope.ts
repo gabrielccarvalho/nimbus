@@ -11,13 +11,16 @@ export const DUCK_DB = -10
 export const DUCK_RAMP_MS = 200
 
 export type MusicPlan = {
+  trackId: string
+  startMs: number
+  inMs: number
   musicDb: number
   lengthMs: number
   fadeInMs: number
   fadeOutMs: number
   duck: TimeRange[]
 }
-export type AudioPlan = { sourceDb: number; music: MusicPlan | null }
+export type AudioPlan = { sourceDb: number | null; music: MusicPlan[] }
 
 export function dbToGain(db: number) {
   return 10 ** (db / 20)
@@ -60,29 +63,39 @@ export function duckDbAt(intervals: readonly TimeRange[], tMs: number) {
 
 export function planAudio(
   mix: AudioMix | null,
-  track: { durationMs: number } | null,
+  tracks: ReadonlyMap<string, { durationMs: number }>,
   clipDurationMs: number,
   words: readonly CaptionWord[]
 ): AudioPlan | null {
   if (!mix) return null
-  const lengthMs = track
-    ? Math.min(clipDurationMs, track.durationMs - mix.trackStartMs)
-    : 0
-  if (mix.trackId === null || !track || lengthMs <= 0) {
-    return { sourceDb: mix.sourceDb, music: null }
-  }
-  const fadeInMs = Math.min(mix.fadeInMs, lengthMs)
-  const fadeOutMs = Math.min(mix.fadeOutMs, lengthMs - fadeInMs)
-  return {
-    sourceDb: mix.sourceDb,
-    music: {
-      musicDb: mix.musicDb,
-      lengthMs,
-      fadeInMs,
-      fadeOutMs,
-      duck: mix.duck ? speechIntervals(words, lengthMs) : [],
-    },
-  }
+  const speech = mix.duck ? speechIntervals(words, clipDurationMs) : []
+  const music = mix.music.flatMap((clip): MusicPlan[] => {
+    const track = tracks.get(clip.trackId)
+    if (!track) return []
+    const lengthMs = Math.min(
+      Math.min(clip.endMs, clipDurationMs) - clip.startMs,
+      track.durationMs - clip.inMs
+    )
+    if (lengthMs <= 0) return []
+    const fadeInMs = Math.min(clip.fadeInMs, lengthMs)
+    return [
+      {
+        trackId: clip.trackId,
+        startMs: clip.startMs,
+        inMs: clip.inMs,
+        musicDb: clip.db,
+        lengthMs,
+        fadeInMs,
+        fadeOutMs: Math.min(clip.fadeOutMs, lengthMs - fadeInMs),
+        duck: speech.flatMap((span) => {
+          const startMs = Math.max(0, span.startMs - clip.startMs)
+          const endMs = Math.min(lengthMs, span.endMs - clip.startMs)
+          return endMs > startMs ? [{ startMs, endMs }] : []
+        }),
+      },
+    ]
+  })
+  return { sourceDb: mix.sourceMuted ? null : mix.sourceDb, music }
 }
 
 export function musicGainAt(plan: MusicPlan, tMs: number) {

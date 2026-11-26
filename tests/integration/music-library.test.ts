@@ -16,6 +16,7 @@ import { projectRepository } from "@/features/projects/repository"
 import { defaultProjectSettings } from "@/features/projects/schema"
 import {
   DEFAULT_AUDIO_MIX,
+  newMusicClip,
   type MusicTrackSummary,
 } from "@/features/music/schema"
 import { startUploadAction } from "@/features/uploads/actions"
@@ -82,7 +83,15 @@ async function clipWithTrack(workspaceId: string, trackId: string) {
   ])
   await env.db
     .update(clips)
-    .set({ audioMix: { ...DEFAULT_AUDIO_MIX, trackId } })
+    .set({
+      audioMix: {
+        ...DEFAULT_AUDIO_MIX,
+        music: [
+          newMusicClip(trackId, { startMs: 0, endMs: 4000, lane: 0 }),
+          newMusicClip(trackId, { startMs: 5000, endMs: 9000, lane: 0 }),
+        ],
+      },
+    })
     .where(eq(clips.id, clip!.id))
   return clip!
 }

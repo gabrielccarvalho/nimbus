@@ -132,6 +132,9 @@ afterEach(() => {
 })
 
 const plan: MusicPlan = {
+  trackId: "t1",
+  startMs: 0,
+  inMs: 45_000,
   musicDb: -16,
   lengthMs: 8_000,
   fadeInMs: 0,
@@ -143,9 +146,7 @@ function renderPreview(
   props: Partial<React.ComponentProps<typeof MusicPreview>> = {}
 ) {
   const all = {
-    src: "/api/music/t1",
-    plan,
-    trackStartMs: 45_000,
+    voices: [{ key: "t1", src: "/api/music/t1", plan }],
     clipStartMs: 10_000,
     sourceDb: 4,
     onUnavailable: vi.fn(),
@@ -315,7 +316,7 @@ describe("MusicPreview", () => {
     const firstSource = ctx!.sourceFor(first)!
     const firstGain = ctx!.gainFor(first)!
 
-    view.rerender({ src: "/api/music/t2" })
+    view.rerender({ voices: [{ key: "t2", src: "/api/music/t2", plan }] })
     expect(firstSource.disconnect).toHaveBeenCalled()
     expect(firstGain.disconnect).toHaveBeenCalled()
     const second = view.audio

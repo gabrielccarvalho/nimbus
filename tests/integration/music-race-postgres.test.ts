@@ -8,7 +8,7 @@ import { clipRepository } from "@/features/clips/repository"
 import { updateClip } from "@/features/clips/service"
 import { trackInUseMessage } from "@/features/music/media"
 import { musicRepository } from "@/features/music/repository"
-import { DEFAULT_AUDIO_MIX } from "@/features/music/schema"
+import { DEFAULT_AUDIO_MIX, newMusicClip } from "@/features/music/schema"
 import { deleteTrack } from "@/features/music/service"
 import {
   assetRepository,
@@ -61,11 +61,14 @@ async function seed(db: Db) {
     endMs: 20_000,
     title: "Bridge fight",
     hook: "",
-    captionOverrides: { pages: [] },
+    captionOverrides: { pages: [], added: [], lanes: [] },
     layoutOverride: null,
     effects: null,
-    audioMix: { ...DEFAULT_AUDIO_MIX, trackId: track.id },
-    textOverlay: null,
+    audioMix: {
+      ...DEFAULT_AUDIO_MIX,
+      music: [newMusicClip(track.id, { startMs: 0, endMs: 20_000, lane: 0 })],
+    },
+    textOverlays: [],
   }
   return { workspaceId, projectId: project.id, clip: clip!, track, edit }
 }

@@ -151,19 +151,19 @@ A clip with effect events renders through `effectsGraph` (`features/render/effec
 
 ### Music and on-screen text
 
-A clip with `audioMix.trackId` gets the track as a second input, input-seeked to `trackStartMs` (`-ss … -i <track>` after the source). `planAudio()` (`features/music/envelope.ts`) turns the mix, the track's duration, the clip length and the clip's transcript words (made clip-relative with `wordsInRange`) into a plan, and `audioGraph()` writes it (golden `features/render/__golden__/audio-*.txt`, `cam-top-music.txt`, `effects-music.txt`):
+Each music clip in `audioMix.music` gets its track as another input, input-seeked to the clip's in-point (`-ss … -i <track>` after the source; a track used twice is copied locally once). `planAudio()` (`features/music/envelope.ts`) turns the mix, each track's duration, the clip length and the clip's transcript words (made clip-relative with `wordsInRange`) into one plan per music clip, and `audioGraph()` writes them as branches `[m0]`, `[m1]`… delayed to their start with `adelay` (golden `features/render/__golden__/audio-*.txt`, `cam-top-music.txt`, `effects-music.txt`):
 
 ```
 [0:a]atrim=start=2.000:end=17.000,asetpts=PTS-STARTPTS,volume=-3dB,aformat=sample_rates=48000:channel_layouts=stereo[src];
 [1:a]atrim=end=15.000,asetpts=PTS-STARTPTS,aformat=…,volume=-16dB,
   volume='pow(10,-0.5*(clip((t-0.800)/0.200,0,1)*clip((2.700-t)/0.200,0,1)+…))':eval=frame,
-  afade=t=in:st=0:d=0.500,afade=t=out:st=13.500:d=1.500[music];
-[src][music]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,alimiter=limit=0.95:level=0:latency=1[a]
+  afade=t=in:st=0:d=0.500,afade=t=out:st=13.500:d=1.500,adelay=0:all=1[m0];
+[src][m0]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,alimiter=limit=0.95:level=0:latency=1[a]
 ```
 
-The music `atrim` ends at the shorter of the clip and what's left of the track, so a short track stops early with its fade-out fitted inside it, and `duration=first` keeps the output at the clip length. The `volume` expression is the duck envelope (−10 dB under each merged speech interval, 200 ms ramps; omitted when ducking is off or nobody speaks). `normalize=0` keeps both levels as set, and the limiter only stops clipping. A null `audioMix`, or one without a track, keeps the plain `[0:a]atrim` chain, with `volume=` when `sourceDb` isn't 0 and the limiter when it's above 0. `render_edit` never gets music.
+Each branch's `atrim` ends at the shorter of the music clip and what's left of the track, so a short track stops early with its fade-out fitted inside it, and `duration=first` keeps the output at the clip length. The `volume` expression is the duck envelope in the music clip's own time (−10 dB under each merged speech interval, 200 ms ramps; omitted when ducking is off or nobody speaks). `normalize=0` keeps every level as set, and the limiter only stops clipping. A muted original audio gets `volume=0`. A null `audioMix`, or one without music, keeps the plain `[0:a]atrim` chain, with `volume=` when `sourceDb` isn't 0 and the limiter when it's above 0. `render_edit` never gets music.
 
-A `textOverlay` adds one `Dialogue` on layer 1 in the `Title` style of the clip's ASS file, from 0 to `untilMs` (or the clip end), wrapped by libass (`\q0`) inside 90 px side margins, 240 px from the top or centred (`\an5`). It's burned with the captions, or alone when captions are off (golden `features/captions/__golden__/overlay.ass`).
+Every caption lane writes its pages on its own layer (the lane's index) at its own `\pos` height. Every text in `textOverlays` adds one `Dialogue` above the caption layers in the `Title` style, from its start to its end, wrapped by libass (`\q0`) inside 90 px side margins, 240 px from the top or centred (`\an5`). They're burned with the captions, or alone when captions are off (golden `features/captions/__golden__/overlay.ass`).
 
 ### Output encoding
 

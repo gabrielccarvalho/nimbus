@@ -58,6 +58,7 @@ export default async function ClipEditorPage({
         publishing={publishing}
         musicTracks={data.musicTracks}
         trendingMusic={getTrendingMusic()}
+        loudness={data.loudness}
       />
     </>
   )

@@ -14,6 +14,8 @@ import { confirmLayout } from "@/features/layout/service"
 import { musicRepository } from "@/features/music/repository"
 import {
   DEFAULT_AUDIO_MIX,
+  newMusicClip,
+  type MusicClip,
   type MusicTrackStatus,
 } from "@/features/music/schema"
 import { projectRepository } from "@/features/projects/repository"
@@ -60,12 +62,26 @@ const edit = (overrides: Partial<Parameters<typeof updateClip>[3]> = {}) => ({
   endMs: 12_000,
   title: "Edited",
   hook: "New hook",
-  captionOverrides: { pages: [{ index: 0, text: "fixed text" }] },
+  captionOverrides: {
+    pages: [{ index: 0, text: "fixed text" }],
+    added: [],
+    lanes: [],
+  },
   layoutOverride: null,
   effects: null,
   audioMix: null,
-  textOverlay: null,
+  textOverlays: [],
   ...overrides,
+})
+
+const withTrack = (trackId: string, patch: Partial<MusicClip> = {}) => ({
+  ...DEFAULT_AUDIO_MIX,
+  music: [
+    {
+      ...newMusicClip(trackId, { startMs: 0, endMs: 10_000, lane: 0 }),
+      ...patch,
+    },
+  ],
 })
 
 const request = (projectId: string) =>
@@ -191,29 +207,80 @@ describe("clip music and text", () => {
   const overlay = {
     text: "Wait for it",
     position: "top" as const,
-    untilMs: 3000,
+    startMs: 0,
+    endMs: 3000,
+    lane: 0,
   }
 
-  it("stores the music mix and on-screen text, and clears them with null", async () => {
+  it("stores the music clips and on-screen texts, and clears them", async () => {
     const { projectId, clip } = await reviewedProject()
     const track = await projectTrack(projectId)
-    const audioMix = { ...DEFAULT_AUDIO_MIX, trackId: track.id }
+    const audioMix = withTrack(track.id)
+    const later = { ...overlay, text: "Now", startMs: 5000, endMs: 7000 }
     const saved = await updateClip(
       env.db,
       projectId,
       clip.id,
-      edit({ audioMix, textOverlay: overlay })
+      edit({ audioMix, textOverlays: [overlay, later] })
     )
     expect(saved.audioMix).toEqual(audioMix)
-    expect(saved.textOverlay).toEqual(overlay)
+    expect(saved.textOverlays).toEqual([overlay, later])
     expect(await clipRepository(env.db).getOrThrow(clip.id)).toMatchObject({
       audioMix,
-      textOverlay: overlay,
+      textOverlays: [overlay, later],
     })
 
     const cleared = await updateClip(env.db, projectId, clip.id, edit())
     expect(cleared.audioMix).toBeNull()
-    expect(cleared.textOverlay).toBeNull()
+    expect(cleared.textOverlays).toEqual([])
+  })
+
+  it("cuts texts, music and hand-written captions at the clip's end", async () => {
+    const { projectId, clip } = await reviewedProject()
+    const track = await projectTrack(projectId)
+    const saved = await updateClip(
+      env.db,
+      projectId,
+      clip.id,
+      edit({
+        startMs: 2000,
+        endMs: 8000,
+        textOverlays: [
+          { ...overlay, startMs: 4000, endMs: 9000 },
+          { ...overlay, startMs: 5800, endMs: 9000, lane: 1 },
+        ],
+        audioMix: withTrack(track.id, { startMs: 1000, endMs: 9000 }),
+        captionOverrides: {
+          pages: [],
+          added: [{ startMs: 5000, endMs: 7000, text: "late" }],
+          lanes: [
+            {
+              baseline: 0.3,
+              captions: [
+                { startMs: 1000, endMs: 2000, text: "kept" },
+                { startMs: 6500, endMs: 7000, text: "gone" },
+              ],
+            },
+          ],
+        },
+      })
+    )
+    expect(saved.textOverlays).toEqual([
+      { ...overlay, startMs: 4000, endMs: 6000 },
+    ])
+    expect(saved.audioMix?.music[0]).toMatchObject({
+      startMs: 1000,
+      endMs: 6000,
+    })
+    expect(saved.captionOverrides?.added).toEqual([
+      { startMs: 5000, endMs: 6000, text: "late" },
+    ])
+    expect(saved.captionOverrides?.lanes).toEqual([
+      {
+        baseline: 0.3,
+        captions: [{ startMs: 1000, endMs: 2000, text: "kept" }],
+      },
+    ])
   })
 
   it("rejects a track from another workspace or one that was deleted", async () => {
@@ -225,7 +292,7 @@ describe("clip music and text", () => {
         env.db,
         projectId,
         clip.id,
-        edit({ audioMix: { ...DEFAULT_AUDIO_MIX, trackId: other.id } })
+        edit({ audioMix: withTrack(other.id) })
       )
     ).rejects.toMatchObject({
       code: "VALIDATION",
@@ -237,7 +304,7 @@ describe("clip music and text", () => {
         env.db,
         projectId,
         clip.id,
-        edit({ audioMix: { ...DEFAULT_AUDIO_MIX, trackId: own.id } })
+        edit({ audioMix: withTrack(own.id) })
       )
     ).rejects.toMatchObject({
       code: "VALIDATION",
@@ -251,14 +318,14 @@ describe("clip music and text", () => {
   it("needs the music to start before the track ends", async () => {
     const { projectId, clip } = await reviewedProject()
     const track = await projectTrack(projectId, 30_000)
-    for (const trackStartMs of [30_000, 45_000]) {
+    for (const inMs of [30_000, 45_000]) {
       await expect(
         updateClip(
           env.db,
           projectId,
           clip.id,
           edit({
-            audioMix: { ...DEFAULT_AUDIO_MIX, trackId: track.id, trackStartMs },
+            audioMix: withTrack(track.id, { inMs }),
           })
         )
       ).rejects.toMatchObject({
@@ -271,14 +338,10 @@ describe("clip music and text", () => {
       projectId,
       clip.id,
       edit({
-        audioMix: {
-          ...DEFAULT_AUDIO_MIX,
-          trackId: track.id,
-          trackStartMs: 29_999,
-        },
+        audioMix: withTrack(track.id, { inMs: 29_999 }),
       })
     )
-    expect(saved.audioMix?.trackStartMs).toBe(29_999)
+    expect(saved.audioMix?.music[0]?.inMs).toBe(29_999)
   })
 
   it("saving an audioMix with a processing track is rejected", async () => {
@@ -289,7 +352,7 @@ describe("clip music and text", () => {
         env.db,
         projectId,
         clip.id,
-        edit({ audioMix: { ...DEFAULT_AUDIO_MIX, trackId } })
+        edit({ audioMix: withTrack(trackId) })
       )
     const processing = await addTrack(ready.workspaceId, null)
     await expect(save(processing.id)).rejects.toMatchObject({
@@ -325,6 +388,7 @@ describe("clip effects", () => {
     endMs,
     scale: 1.4,
     focus: { x: 0.5, y: 0.5 },
+    lane: 0,
   })
 
   it("clips edited effects to a new trim", async () => {

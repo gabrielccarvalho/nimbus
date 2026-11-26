@@ -62,10 +62,17 @@ test("puts a track and a hook title under a clip and renders it", async ({
   const title = await page.getByLabel("Title").inputValue()
   const hook = await page.getByLabel("Hook").inputValue()
 
-  await page.getByRole("tab", { name: "Audio & text" }).click()
-  await page.getByLabel("Track").click()
+  const timeline = page.getByRole("region", { name: "Timeline" })
+  await timeline.getByRole("button", { name: "Music", exact: true }).click()
+  await page.getByRole("combobox", { name: "Track" }).click()
   await page.getByRole("option", { name: /^tone-880hz/ }).click()
-  await page.getByRole("switch", { name: "Show text on the video" }).click()
+  const song = page
+    .getByRole("group", { name: "Music track 1" })
+    .getByRole("button", { name: /^Music tone-880hz at / })
+  await expect(song).toHaveAttribute("aria-pressed", "true")
+  await expect(page.getByTestId("music-waveform")).toBeVisible()
+  await page.keyboard.press("Escape")
+  await timeline.getByRole("button", { name: "Text", exact: true }).click()
   await expect(page.getByLabel("Text", { exact: true })).toHaveValue(
     defaultOverlayText(hook, title)
   )
@@ -101,7 +108,10 @@ test("puts a track and a hook title under a clip and renders it", async ({
   await page.keyboard.press("Escape")
   await expect(form).toBeHidden()
 
-  await page.getByRole("tab", { name: "Audio & text" }).click()
+  await page
+    .getByRole("group", { name: "Music track 1" })
+    .getByRole("button", { name: /^Music tone-880hz at / })
+    .click()
   await page.getByRole("slider", { name: "Music volume" }).focus()
   await page.keyboard.press("ArrowRight")
   await expect(saveState).toHaveText("Saved")

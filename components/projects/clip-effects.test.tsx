@@ -1,18 +1,12 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { VideoPlayerProvider } from "@/components/ui/video-player"
 import { resolveCaptionStyle } from "@/features/captions/styles"
-import { planClipEffectsAction } from "@/features/clips/actions"
 import type { ClipEffects } from "@/features/effects/schema"
 import type { LayoutInput } from "@/features/layout/schema"
 
-import { ClipEffectsCard, ClipEffectsPreview } from "./clip-effects"
-
-vi.mock("@/features/clips/actions", () => ({
-  planClipEffectsAction: vi.fn(),
-}))
+import { ClipEffectsPreview } from "./clip-effects"
 
 const layout: LayoutInput = {
   webcamRect: null,
@@ -22,49 +16,8 @@ const layout: LayoutInput = {
   camPosition: "top",
 }
 
-const planned: ClipEffects = {
-  edited: false,
-  events: [{ kind: "shake", startMs: 4000, endMs: 4500, intensity: "light" }],
-}
-
 beforeEach(() => {
-  vi.mocked(planClipEffectsAction).mockReset()
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null)
-})
-
-describe("ClipEffectsCard", () => {
-  it("plans effects for the unsaved range and layout", async () => {
-    vi.mocked(planClipEffectsAction).mockResolvedValue({
-      ok: true,
-      value: planned,
-    })
-    const onEffectsChange = vi.fn()
-    render(
-      <VideoPlayerProvider>
-        <ClipEffectsCard
-          projectId="p1"
-          clipId="c1"
-          startMs={3000}
-          endMs={9000}
-          layoutOverride={layout}
-          hasWebcam={false}
-          effects={null}
-          onEffectsChange={onEffectsChange}
-          selected={null}
-          onSelectedChange={vi.fn()}
-        />
-      </VideoPlayerProvider>
-    )
-    await userEvent.click(
-      screen.getByRole("button", { name: "Add effects automatically" })
-    )
-    expect(planClipEffectsAction).toHaveBeenCalledWith("p1", "c1", {
-      startMs: 3000,
-      endMs: 9000,
-      layoutOverride: layout,
-    })
-    await waitFor(() => expect(onEffectsChange).toHaveBeenCalledWith(planned))
-  })
 })
 
 describe("ClipEffectsPreview", () => {
@@ -90,7 +43,7 @@ describe("ClipEffectsPreview", () => {
           effects={effects}
           selected={0}
           onEffectsChange={onEffectsChange}
-          pages={[]}
+          lanes={[]}
           startMs={0}
           captionStyle={resolveCaptionStyle({ presetId: "" })}
           captionsEnabled={false}

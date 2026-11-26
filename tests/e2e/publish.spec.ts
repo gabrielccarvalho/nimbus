@@ -83,7 +83,11 @@ test("an edited clip can't be published until it is rendered again", async ({
   const publish = page.getByRole("button", { name: "Publish", exact: true })
   await expect(publish).toBeEnabled()
 
-  await page.getByRole("button", { name: "Add zoom" }).click()
+  await page
+    .getByRole("region", { name: "Timeline" })
+    .getByRole("button", { name: "Effect", exact: true })
+    .click()
+  await page.getByRole("menuitem", { name: "Zoom", exact: true }).click()
   await expect(page.getByTestId("save-state")).toHaveText("Saved")
   await expect(publish).toBeDisabled()
   await expect(page.getByText("Render the latest edit first")).toBeVisible()

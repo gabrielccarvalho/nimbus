@@ -29,6 +29,7 @@ import {
   TimelineRange,
 } from "@/components/ui/timeline"
 import { TimelineBlock, TimelineTrack } from "@/components/ui/timeline-track"
+import { Waveform } from "@/components/ui/waveform"
 import {
   VideoPlayer,
   VideoPlayerControls,
@@ -79,50 +80,69 @@ const SAMPLE_PAGES = buildCaptionPages(
 
 const OVERLAY_STYLE = resolveCaptionStyle({ presetId: "punch" })
 
-type ExampleBlock = { id: string; startMs: number; endMs: number }
+type ExampleBlock = { id: string; startMs: number; endMs: number; lane: number }
 
 function TimelineTrackExample() {
   const [blocks, setBlocks] = React.useState<ExampleBlock[]>([
-    { id: "a", startMs: 8000, endMs: 14_000 },
-    { id: "b", startMs: 30_000, endMs: 33_000 },
+    { id: "a", startMs: 8000, endMs: 14_000, lane: 0 },
+    { id: "b", startMs: 30_000, endMs: 33_000, lane: 1 },
   ])
   const [selected, setSelected] = React.useState<string | null>("a")
+  const update = (id: string, patch: Partial<ExampleBlock>) =>
+    setBlocks((all) => all.map((b) => (b.id === id ? { ...b, ...patch } : b)))
   return (
-    <div className="flex max-w-xl flex-col gap-3">
-      <TimelineTrack aria-label="Effects track" durationMs={60_000}>
-        {blocks.map((block) => (
-          <TimelineBlock
-            key={block.id}
-            aria-label={`Effect ${block.id}`}
-            startMs={block.startMs}
-            endMs={block.endMs}
-            selected={selected === block.id}
-            onSelect={() => setSelected(block.id)}
-            onChange={(startMs, endMs) =>
-              setBlocks((all) =>
-                all.map((b) =>
-                  b.id === block.id ? { ...b, startMs, endMs } : b
-                )
-              )
-            }
-            onDelete={() =>
-              setBlocks((all) => all.filter((b) => b.id !== block.id))
-            }
-          >
-            Zoom
-          </TimelineBlock>
-        ))}
-      </TimelineTrack>
-      <TimelineTrack aria-label="Locked track" durationMs={60_000}>
+    <div className="flex max-w-xl flex-col gap-1.5">
+      {[0, 1].map((lane) => (
+        <TimelineTrack
+          key={lane}
+          aria-label={`Effects track ${lane + 1}`}
+          durationMs={60_000}
+          lane={String(lane)}
+          group="gallery-effects"
+        >
+          {blocks
+            .filter((block) => block.lane === lane)
+            .map((block) => (
+              <TimelineBlock
+                key={block.id}
+                aria-label={`Effect ${block.id}`}
+                startMs={block.startMs}
+                endMs={block.endMs}
+                selected={selected === block.id}
+                onSelect={() => setSelected(block.id)}
+                onChange={(startMs, endMs) =>
+                  update(block.id, { startMs, endMs })
+                }
+                onLaneChange={(to, startMs, endMs) =>
+                  update(block.id, { lane: Number(to), startMs, endMs })
+                }
+                onDelete={() =>
+                  setBlocks((all) => all.filter((b) => b.id !== block.id))
+                }
+              >
+                Zoom
+              </TimelineBlock>
+            ))}
+        </TimelineTrack>
+      ))}
+      <TimelineTrack aria-label="Music track" durationMs={60_000}>
         <TimelineBlock
-          aria-label="Locked effect"
-          variant="muted"
+          aria-label="Music"
           resizable={false}
-          startMs={20_000}
-          endMs={40_000}
+          startMs={5000}
+          endMs={50_000}
+          className="border-mint bg-mint/10"
           onChange={() => {}}
         >
-          Full cam
+          <Waveform
+            values={Array.from(
+              { length: 90 },
+              (_, i) => 0.4 + 0.4 * Math.abs(Math.sin(i / 5))
+            )}
+            gain={0.7}
+            className="absolute inset-0 size-full text-mint/45"
+          />
+          <span className="relative">Synthwave</span>
         </TimelineBlock>
       </TimelineTrack>
     </div>

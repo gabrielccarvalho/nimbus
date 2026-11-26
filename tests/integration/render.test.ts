@@ -25,7 +25,12 @@ import { jobQueue } from "@/features/jobs/queue"
 import type { JobHandler } from "@/features/jobs/worker-loop"
 import { speechIntervals } from "@/features/music/envelope"
 import { musicRepository } from "@/features/music/repository"
-import { DEFAULT_AUDIO_MIX, type AudioMix } from "@/features/music/schema"
+import {
+  DEFAULT_AUDIO_MIX,
+  newMusicClip,
+  type AudioMix,
+  type MusicClip,
+} from "@/features/music/schema"
 import { renderClipStep } from "@/features/pipeline/steps/render-clip"
 import {
   cancelClipRenders,
@@ -578,18 +583,18 @@ describe("render_clip with music and on-screen text", () => {
       .set({ maxAttempts: 1 })
       .where(eq(jobs.type, "render_clip"))
   const trackGone =
-    "This clip's music track was deleted. Pick another track or remove the music."
+    "A music track on this clip was deleted. Pick another track or remove that music."
 
   async function renderClip(
     projectId: string,
     clipId: string,
-    patch: { audioMix?: AudioMix | null; textOverlay?: TextOverlay | null },
+    patch: { audioMix?: AudioMix | null; textOverlays?: TextOverlay[] },
     beforeRun?: () => Promise<unknown>
   ) {
     const clips = clipRepository(env.db)
     await clips.update(clipId, {
       audioMix: null,
-      textOverlay: null,
+      textOverlays: [],
       ...patch,
     })
     await startClipRenders(env.db, projectId, [clipId])
@@ -635,7 +640,30 @@ describe("render_clip with music and on-screen text", () => {
     return { speech: speech && speech.startMs + MARGIN_MS, quiet }
   }
 
-  const loud = { ...DEFAULT_AUDIO_MIX, musicDb: 0, fadeOutMs: 0 }
+  const music = (
+    trackId: string,
+    patch: Partial<MusicClip> = {},
+    mix: Partial<AudioMix> = {}
+  ): AudioMix => ({
+    ...DEFAULT_AUDIO_MIX,
+    ...mix,
+    music: [
+      {
+        ...newMusicClip(trackId, { startMs: 0, endMs: 180_000, lane: 0 }),
+        ...patch,
+      },
+    ],
+  })
+  const loud = { db: 0, fadeOutMs: 0 }
+  const title = [
+    {
+      text: "WAIT FOR IT",
+      position: "top" as const,
+      startMs: 0,
+      endMs: 3000,
+      lane: 0,
+    },
+  ]
 
   it("mixes the track under the clip", async () => {
     const { projectId, clip, track } = await musicProject()
@@ -643,7 +671,7 @@ describe("render_clip with music and on-screen text", () => {
     const silence = sourceSilence(clip)
 
     const mixed = await renderClip(projectId, clip.id, {
-      audioMix: { ...loud, trackId: track.id, duck: false },
+      audioMix: music(track.id, loud, { duck: false }),
     })
     expect(mixed.clip.error).toBeNull()
     const info = probe(mixed.file)
@@ -683,7 +711,7 @@ describe("render_clip with music and on-screen text", () => {
     expect(quiet).toBeDefined()
 
     const { file } = await renderClip(projectId, clip.id, {
-      audioMix: { ...loud, trackId: track.id, duck: true, sourceDb: -10 },
+      audioMix: music(track.id, loud, { duck: true, sourceDb: -10 }),
     })
     const level = (atMs: number) =>
       bandLevelDb(file, 880, atMs / 1000, WINDOW_MS / 1000)
@@ -698,13 +726,11 @@ describe("render_clip with music and on-screen text", () => {
     expect(durationS).toBeGreaterThan(7)
 
     const { file } = await renderClip(projectId, clip.id, {
-      audioMix: {
-        ...DEFAULT_AUDIO_MIX,
-        trackId: track.id,
-        trackStartMs: (track.durationMs ?? 0) - 5000,
-        musicDb: 0,
-        sourceDb: -10,
-      },
+      audioMix: music(
+        track.id,
+        { inMs: (track.durationMs ?? 0) - 5000, db: 0 },
+        { sourceDb: -10 }
+      ),
     })
     expect(
       Math.abs(Number(probe(file).format.duration) - durationS)
@@ -720,7 +746,7 @@ describe("render_clip with music and on-screen text", () => {
       const plain = await renderClip(projectId, clip.id, {})
       const plainFrames = [grayFrame(plain.file, 1), grayFrame(plain.file, 5)]
       const titled = await renderClip(projectId, clip.id, {
-        textOverlay: { text: "WAIT FOR IT", position: "top", untilMs: 3000 },
+        textOverlays: title,
       })
       expect(titled.clip.error).toBeNull()
       expect(
@@ -742,7 +768,7 @@ describe("render_clip with music and on-screen text", () => {
     const message =
       "This ffmpeg can't burn in on-screen text (no libass). Install one with libass or remove the text."
     const { clip: failed, thrown } = await renderClip(projectId, clip.id, {
-      textOverlay: { text: "WAIT FOR IT", position: "top", untilMs: 3000 },
+      textOverlays: title,
     })
     expect(thrown).toMatchObject({ code: "DEPENDENCY_MISSING", message })
     expect(failed).toMatchObject({ status: "failed", error: message })
@@ -753,7 +779,7 @@ describe("render_clip with music and on-screen text", () => {
     const { clip: failed, thrown } = await renderClip(
       projectId,
       clip.id,
-      { audioMix: { ...DEFAULT_AUDIO_MIX, trackId: track.id } },
+      { audioMix: music(track.id) },
       async () => {
         await env.db.delete(musicTracks).where(eq(musicTracks.id, track.id))
         await failFast()
@@ -766,11 +792,11 @@ describe("render_clip with music and on-screen text", () => {
   it("fails when the clip's music track isn't ready", async () => {
     const { projectId, clip, track } = await musicProject()
     const message =
-      "This clip's music track isn't ready. Pick another track or remove the music."
+      "A music track on this clip isn't ready. Pick another track or remove that music."
     const { clip: failed, thrown } = await renderClip(
       projectId,
       clip.id,
-      { audioMix: { ...DEFAULT_AUDIO_MIX, trackId: track.id } },
+      { audioMix: music(track.id) },
       async () => {
         await musicRepository(env.db).update(track.id, {
           status: "processing",
@@ -790,7 +816,7 @@ describe("render_clip with music and on-screen text", () => {
     const { clip: failed, thrown } = await renderClip(
       projectId,
       clip.id,
-      { audioMix: { ...DEFAULT_AUDIO_MIX, trackId: track.id } },
+      { audioMix: music(track.id) },
       failFast
     )
     expect(thrown).toMatchObject({ code: "CONFLICT", message: trackGone })

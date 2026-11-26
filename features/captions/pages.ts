@@ -157,9 +157,22 @@ export type PageOverride = {
   endMs?: number
 }
 
+export type CaptionItem = { startMs: number; endMs: number; text: string }
+export type CaptionLaneEdit = {
+  baseline: number
+  captions: readonly CaptionItem[]
+}
+
 export type CaptionEdits = {
   pages?: readonly PageOverride[]
   offsetMs?: number
+  added?: readonly CaptionItem[]
+  lanes?: readonly CaptionLaneEdit[]
+}
+
+export type CaptionLane<B extends number | null = number> = {
+  baseline: B
+  pages: CaptionPage[]
 }
 
 function retimePage(page: CaptionPage, startMs: number, endMs: number) {
@@ -239,17 +252,71 @@ export function shiftPages(
   })
 }
 
+export const manualPageIndex = (position: number) => -1 - position
+
+export function manualPages(
+  items: readonly CaptionItem[],
+  durationMs: number,
+  options: Pick<PagingOptions, "maxCharsPerLine" | "maxLines"> = DEFAULT_PAGING
+): CaptionPage[] {
+  return items.flatMap((item, position) => {
+    const startMs = Math.max(0, item.startMs)
+    const endMs = Math.min(durationMs, item.endMs)
+    const tokens = item.text.split(/\s+/).filter(Boolean)
+    if (endMs <= startMs || tokens.length === 0) return []
+    const span = (endMs - startMs) / tokens.length
+    return [
+      {
+        index: manualPageIndex(position),
+        startMs,
+        endMs,
+        words: tokens.map((token, i) => ({
+          text: token,
+          startMs: Math.round(startMs + i * span),
+          endMs: Math.round(startMs + (i + 1) * span),
+        })),
+        lines: breakLines(
+          tokens,
+          options.maxCharsPerLine,
+          options.maxLines
+        ) ?? [tokens.length],
+      },
+    ]
+  })
+}
+
+const byStart = (a: CaptionPage, b: CaptionPage) => a.startMs - b.startMs
+
 export function editCaptionPages(
   pages: readonly CaptionPage[],
   edits: CaptionEdits | null | undefined,
   durationMs: number,
   options: Pick<PagingOptions, "maxCharsPerLine" | "maxLines"> = DEFAULT_PAGING
 ): CaptionPage[] {
-  return shiftPages(
-    applyPageOverrides(pages, edits?.pages ?? [], options),
-    edits?.offsetMs ?? 0,
-    durationMs
-  )
+  return [
+    ...shiftPages(
+      applyPageOverrides(pages, edits?.pages ?? [], options),
+      edits?.offsetMs ?? 0,
+      durationMs
+    ),
+    ...manualPages(edits?.added ?? [], durationMs, options),
+  ].sort(byStart)
+}
+
+export function captionLanes<B extends number | null>(
+  pages: readonly CaptionPage[],
+  edits: CaptionEdits | null | undefined,
+  durationMs: number,
+  baseline: B,
+  options: Pick<PagingOptions, "maxCharsPerLine" | "maxLines"> = DEFAULT_PAGING
+): CaptionLane<B | number>[] {
+  return [
+    { baseline, pages: editCaptionPages(pages, edits, durationMs, options) },
+    ...(edits?.lanes ?? []).map((lane) => ({
+      baseline: lane.baseline,
+      pages: manualPages(lane.captions, durationMs, options),
+    })),
+  ]
 }
 
 export function pageRoom(
@@ -300,17 +367,18 @@ export function clipCaptionsEnabled(
   return clip.captionOverrides?.enabled ?? settings.captionsEnabled
 }
 
-export function clipCaptionPages(
+export function clipCaptionLanes<B extends number | null>(
   words: readonly Word[],
   clip: {
     startMs: number
     endMs: number
     captionOverrides?: CaptionEdits | null
   },
-  style: Pick<PagingOptions, "maxWordsPerPage" | "maxCharsPerLine">
-): CaptionPage[] {
+  style: Pick<PagingOptions, "maxWordsPerPage" | "maxCharsPerLine">,
+  baseline: B
+): CaptionLane<B | number>[] {
   const durationMs = clip.endMs - clip.startMs
-  return editCaptionPages(
+  return captionLanes(
     buildCaptionPages(
       wordsInRange(words, clip.startMs, clip.endMs),
       durationMs,
@@ -321,6 +389,17 @@ export function clipCaptionPages(
     ),
     clip.captionOverrides,
     durationMs,
+    baseline,
     { maxCharsPerLine: style.maxCharsPerLine, maxLines: 2 }
   )
+}
+
+export function captionsInClip(
+  items: readonly CaptionItem[],
+  durationMs: number
+): CaptionItem[] {
+  return items.flatMap((item) => {
+    const endMs = Math.min(item.endMs, durationMs)
+    return endMs > item.startMs ? [{ ...item, endMs }] : []
+  })
 }

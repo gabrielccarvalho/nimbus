@@ -24,6 +24,9 @@ import {
 const subtitles = { file: "/data/work/c1.ass", fontsDir: "/app/assets/fonts" }
 const webcamRect = { x: 0.7833, y: 0.7704, w: 0.2, h: 0.2 }
 const music = {
+  trackId: "t1",
+  startMs: 0,
+  inMs: 0,
   musicDb: -16,
   lengthMs: 15_000,
   fadeInMs: 500,
@@ -41,15 +44,42 @@ describe("audioGraph", () => {
       audioGraph({
         from: "2.000",
         to: "17.000",
-        audio: { sourceDb: -3, music },
+        audio: { sourceDb: -3, music: [music] },
       })
     ).toBe(
       [
         "[0:a]atrim=start=2.000:end=17.000,asetpts=PTS-STARTPTS,volume=-3dB,aformat=sample_rates=48000:channel_layouts=stereo[src]",
-        "[1:a]atrim=end=15.000,asetpts=PTS-STARTPTS,aformat=sample_rates=48000:channel_layouts=stereo,volume=-16dB,volume='pow(10,-0.5*(clip((t-0.800)/0.200,0,1)*clip((2.700-t)/0.200,0,1)+clip((t-5.800)/0.200,0,1)*clip((9.200-t)/0.200,0,1)))':eval=frame,afade=t=in:st=0:d=0.500,afade=t=out:st=13.500:d=1.500[music]",
-        "[src][music]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,alimiter=limit=0.95:level=0:latency=1[a]",
+        "[1:a]atrim=end=15.000,asetpts=PTS-STARTPTS,aformat=sample_rates=48000:channel_layouts=stereo,volume=-16dB,volume='pow(10,-0.5*(clip((t-0.800)/0.200,0,1)*clip((2.700-t)/0.200,0,1)+clip((t-5.800)/0.200,0,1)*clip((9.200-t)/0.200,0,1)))':eval=frame,afade=t=in:st=0:d=0.500,afade=t=out:st=13.500:d=1.500[m0]",
+        "[src][m0]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,alimiter=limit=0.95:level=0:latency=1[a]",
       ].join(";\n")
     ))
+
+  it("delays each music clip to its start and mixes them all", () => {
+    const graph = audioGraph({
+      from: "2.000",
+      to: "17.000",
+      audio: {
+        sourceDb: null,
+        music: [
+          { ...music, duck: [], fadeInMs: 0, fadeOutMs: 0, lengthMs: 4_000 },
+          {
+            ...music,
+            startMs: 6_500,
+            duck: [],
+            fadeInMs: 0,
+            fadeOutMs: 0,
+            lengthMs: 3_000,
+          },
+        ],
+      },
+    })
+    expect(graph.split(";\n")).toEqual([
+      "[0:a]atrim=start=2.000:end=17.000,asetpts=PTS-STARTPTS,volume=0,aformat=sample_rates=48000:channel_layouts=stereo[src]",
+      "[1:a]atrim=end=4.000,asetpts=PTS-STARTPTS,aformat=sample_rates=48000:channel_layouts=stereo,volume=-16dB[m0]",
+      "[2:a]atrim=end=3.000,asetpts=PTS-STARTPTS,aformat=sample_rates=48000:channel_layouts=stereo,volume=-16dB,adelay=6500:all=1[m1]",
+      `[src][m0][m1]amix=inputs=3:duration=first:dropout_transition=0:normalize=0,${limiter}[a]`,
+    ])
+  })
 
   it("keeps today's audio line without a plan or at 0 dB", () => {
     const today = "[0:a]atrim=start=2.000:end=17.000,asetpts=PTS-STARTPTS[a]"
@@ -59,7 +89,7 @@ describe("audioGraph", () => {
       audioGraph({
         from: "2.000",
         to: "17.000",
-        audio: { sourceDb: 0, music: null },
+        audio: { sourceDb: 0, music: [] },
       })
     ).toBe(today)
   })
@@ -71,7 +101,7 @@ describe("audioGraph", () => {
         to: "15.000",
         audio: {
           sourceDb: 0,
-          music: { ...music, duck: [{ startMs: 0, endMs: 1_000 }] },
+          music: [{ ...music, duck: [{ startMs: 0, endMs: 1_000 }] }],
         },
       })
     ).toContain(
@@ -82,14 +112,14 @@ describe("audioGraph", () => {
     const graph = audioGraph({
       from: "2.000",
       to: "17.000",
-      audio: { sourceDb: 0, music: { ...music, duck: [], fadeInMs: 0 } },
+      audio: { sourceDb: 0, music: [{ ...music, duck: [], fadeInMs: 0 }] },
     })
     expect(graph).not.toContain("eval=frame")
     expect(graph).not.toContain("afade=t=in")
     expect(graph).toContain(
       "[0:a]atrim=start=2.000:end=17.000,asetpts=PTS-STARTPTS,aformat=sample_rates=48000:channel_layouts=stereo[src]"
     )
-    expect(graph).toContain("volume=-16dB,afade=t=out:st=13.500:d=1.500[music]")
+    expect(graph).toContain("volume=-16dB,afade=t=out:st=13.500:d=1.500[m0]")
   })
 
   it("limits only a boosted source", () => {
@@ -97,7 +127,7 @@ describe("audioGraph", () => {
       audioGraph({
         from: "2.000",
         to: "17.000",
-        audio: { sourceDb, music: null },
+        audio: { sourceDb, music: [] },
       })
     expect(source(-3)).toBe(
       "[0:a]atrim=start=2.000:end=17.000,asetpts=PTS-STARTPTS,volume=-3dB[a]"
@@ -111,7 +141,7 @@ describe("audioGraph", () => {
     const from = "2.000"
     const to = "17.000"
     await expect(
-      audioGraph({ from, to, audio: { sourceDb: -3, music } })
+      audioGraph({ from, to, audio: { sourceDb: -3, music: [music] } })
     ).toMatchFileSnapshot("./__golden__/audio-duck.txt")
     await expect(
       audioGraph({
@@ -119,19 +149,21 @@ describe("audioGraph", () => {
         to,
         audio: {
           sourceDb: 0,
-          music: {
-            ...music,
-            lengthMs: 8_000,
-            duck: [
-              { startMs: 1_000, endMs: 2_500 },
-              { startMs: 6_000, endMs: 8_000 },
-            ],
-          },
+          music: [
+            {
+              ...music,
+              lengthMs: 8_000,
+              duck: [
+                { startMs: 1_000, endMs: 2_500 },
+                { startMs: 6_000, endMs: 8_000 },
+              ],
+            },
+          ],
         },
       })
     ).toMatchFileSnapshot("./__golden__/audio-ends-early.txt")
     await expect(
-      audioGraph({ from, to, audio: { sourceDb: 6, music: null } })
+      audioGraph({ from, to, audio: { sourceDb: 6, music: [] } })
     ).toMatchFileSnapshot("./__golden__/audio-source-only.txt")
   })
 })
@@ -173,7 +205,7 @@ describe("verticalGraph", () => {
       endMs: 41_500,
       fps: 30,
       subtitles,
-      audio: { sourceDb: 0, music },
+      audio: { sourceDb: 0, music: [music] },
     })
     await expect(graph).toMatchFileSnapshot("./__golden__/cam-top-music.txt")
   })
@@ -276,7 +308,7 @@ describe("effectsGraph", () => {
   it("builds zoom+shake+focus on cam-top with music", async () => {
     const graph = effectsGraph({
       ...zoomShakeFocus,
-      audio: { sourceDb: 0, music },
+      audio: { sourceDb: 0, music: [music] },
     })
     await expect(graph).toMatchFileSnapshot("./__golden__/effects-music.txt")
   })
@@ -578,7 +610,7 @@ describe("helpers", () => {
       renderArgs({
         input: "/in.mp4",
         seekMs: 10_000,
-        music: { file: "/data/music/w/t.m4a", seekMs },
+        music: [{ file: "/data/music/w/t.m4a", seekMs }],
         graphFile: "/g.txt",
         encoder: "libx264",
         output: "/out.mp4",

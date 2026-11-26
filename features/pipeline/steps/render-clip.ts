@@ -10,9 +10,9 @@ import { getStorage, storageKeys } from "@/lib/storage"
 import { assertDiskSpace } from "@/lib/storage/disk"
 
 import { buildAss } from "../../captions/ass"
-import { overlayEndMs } from "../../captions/overlay"
+import { overlaysInClip } from "../../captions/overlay"
 import {
-  clipCaptionPages,
+  clipCaptionLanes,
   clipCaptionsEnabled,
   wordsInRange,
 } from "../../captions/pages"
@@ -71,28 +71,39 @@ export const renderClipStep: JobHandler = async ({
     throw new AppError("CONFLICT", "The source hasn't been probed")
   }
 
-  const { audioMix, textOverlay } = clip
-  const track = audioMix?.trackId
-    ? await musicRepository(db).get(audioMix.trackId)
-    : null
-  if (audioMix?.trackId && track?.workspaceId !== project.workspaceId) {
-    throw new AppError(
-      "CONFLICT",
-      "This clip's music track was deleted. Pick another track or remove the music."
-    )
-  }
-  const trackDurationMs = track?.durationMs ?? null
-  if (track && (track.status !== "ready" || trackDurationMs === null)) {
-    throw new AppError(
-      "CONFLICT",
-      "This clip's music track isn't ready. Pick another track or remove the music."
-    )
+  const { audioMix } = clip
+  const durationMs = clip.endMs - clip.startMs
+  const overlays = overlaysInClip(clip.textOverlays, durationMs)
+  const musicRepo = musicRepository(db)
+  const tracks = new Map<
+    string,
+    { durationMs: number; storageKey: string; bytes: number }
+  >()
+  for (const trackId of new Set(audioMix?.music.map((m) => m.trackId))) {
+    const track = await musicRepo.get(trackId)
+    if (track?.workspaceId !== project.workspaceId) {
+      throw new AppError(
+        "CONFLICT",
+        "A music track on this clip was deleted. Pick another track or remove that music."
+      )
+    }
+    if (track.status !== "ready" || track.durationMs === null) {
+      throw new AppError(
+        "CONFLICT",
+        "A music track on this clip isn't ready. Pick another track or remove that music."
+      )
+    }
+    tracks.set(trackId, {
+      durationMs: track.durationMs,
+      storageKey: track.storageKey,
+      bytes: track.bytes,
+    })
   }
 
   const env = getEnv()
   const capabilities = await getFfmpegCapabilities(env.FFMPEG_PATH)
   const captions = clipCaptionsEnabled(clip, project.settings)
-  if ((captions || textOverlay) && !capabilities.hasLibass) {
+  if ((captions || overlays.length > 0) && !capabilities.hasLibass) {
     throw new AppError(
       "DEPENDENCY_MISSING",
       captions
@@ -101,11 +112,12 @@ export const renderClipStep: JobHandler = async ({
     )
   }
   const storage = getStorage()
-  const durationMs = clip.endMs - clip.startMs
   await assertDiskSpace(
     env.SCRATCH_DIR,
     estimateRenderBytes(durationMs) +
-      storage.localCopyCost(source.bytes + (track?.bytes ?? 0))
+      storage.localCopyCost(
+        source.bytes + [...tracks.values()].reduce((sum, t) => sum + t.bytes, 0)
+      )
   )
 
   const words =
@@ -114,7 +126,7 @@ export const renderClipStep: JobHandler = async ({
       : []
   const audio = planAudio(
     audioMix,
-    trackDurationMs === null ? null : { durationMs: trackDurationMs },
+    tracks,
     durationMs,
     wordsInRange(words, clip.startMs, clip.endMs)
   )
@@ -122,23 +134,18 @@ export const renderClipStep: JobHandler = async ({
   const stamp = Date.now()
   const workFile = (name: string) => path.join(scratch, `${clip.id}.${name}`)
   let subtitles: { file: string; fontsDir: string } | undefined
-  if (captions || textOverlay) {
+  if (captions || overlays.length > 0) {
     const style = resolveCaptionStyle(
       clip.captionOverrides?.style ?? project.settings.captionStyle
     )
     await writeFile(
       workFile("ass"),
       buildAss({
-        pages: captions ? clipCaptionPages(words, clip, style) : [],
+        lanes: captions
+          ? clipCaptionLanes(words, clip, style, captionBaseline(style, layout))
+          : [],
         style,
-        baseline: captionBaseline(style, layout),
-        overlay: textOverlay
-          ? {
-              text: textOverlay.text,
-              position: textOverlay.position,
-              endMs: overlayEndMs(textOverlay, durationMs),
-            }
-          : undefined,
+        overlays,
       })
     )
     subtitles = {
@@ -186,13 +193,19 @@ export const renderClipStep: JobHandler = async ({
   reportProgress(2)
 
   const input = await storage.localCopy(source.storageKey, scratch, signal)
-  const music =
-    audio?.music && track && audioMix
-      ? {
-          file: await storage.localCopy(track.storageKey, scratch, signal),
-          seekMs: audioMix.trackStartMs,
-        }
-      : undefined
+  const files = new Map<string, string>()
+  for (const plan of audio?.music ?? []) {
+    if (files.has(plan.trackId)) continue
+    const track = tracks.get(plan.trackId)!
+    files.set(
+      plan.trackId,
+      await storage.localCopy(track.storageKey, scratch, signal)
+    )
+  }
+  const music = (audio?.music ?? []).map((plan) => ({
+    file: files.get(plan.trackId)!,
+    seekMs: plan.inMs,
+  }))
   await produceFile(scratch, outputKey, async (output) => {
     await runFfmpeg(
       renderArgs({
@@ -247,8 +260,8 @@ export const renderClipStep: JobHandler = async ({
       clipId: clip.id,
       encoder,
       captions,
-      music: Boolean(audio?.music),
-      overlay: Boolean(textOverlay),
+      music: audio?.music.length ?? 0,
+      overlays: overlays.length,
       bytes: asset.bytes,
     },
     "clip rendered"

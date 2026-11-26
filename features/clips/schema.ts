@@ -1,6 +1,7 @@
 import { z } from "zod"
 
-import { textOverlaySchema } from "../captions/overlay"
+import { textOverlaysSchema } from "../captions/overlay"
+import { CAPTION_BASELINE_RANGE } from "../captions/styles"
 import { clipEffectsSchema } from "../effects/schema"
 import { layoutInputSchema } from "../layout/schema"
 import { audioMixSchema } from "../music/schema"
@@ -33,6 +34,34 @@ export const captionPageOverrideSchema = z
     { message: "A caption must end after it starts", path: ["endMs"] }
   )
 
+export const CAPTION_TEXT_MAX = 200
+export const MAX_CAPTION_LANES = 4
+
+export const captionItemSchema = z
+  .object({
+    startMs: z.number().int().nonnegative(),
+    endMs: z.number().int().positive(),
+    text: z
+      .string()
+      .trim()
+      .min(1, "Write the caption or delete it")
+      .max(CAPTION_TEXT_MAX),
+  })
+  .refine((item) => item.endMs > item.startMs, {
+    message: "A caption must end after it starts",
+    path: ["endMs"],
+  })
+export type CaptionItem = z.infer<typeof captionItemSchema>
+
+export const captionLaneSchema = z.object({
+  baseline: z
+    .number()
+    .min(CAPTION_BASELINE_RANGE.min)
+    .max(CAPTION_BASELINE_RANGE.max),
+  captions: z.array(captionItemSchema).max(100),
+})
+export type CaptionLaneEdit = z.infer<typeof captionLaneSchema>
+
 export const captionOverridesSchema = z.object({
   enabled: z.boolean().optional(),
   offsetMs: z
@@ -42,6 +71,11 @@ export const captionOverridesSchema = z.object({
     .max(CAPTION_MAX_OFFSET_MS)
     .optional(),
   pages: z.array(captionPageOverrideSchema).default([]),
+  added: z.array(captionItemSchema).max(100).default([]),
+  lanes: z
+    .array(captionLaneSchema)
+    .max(MAX_CAPTION_LANES - 1)
+    .default([]),
   style: z
     .object({
       presetId: z.string().min(1),
@@ -66,7 +100,7 @@ export const clipEditSchema = clipTextSchema.extend({
   layoutOverride: layoutInputSchema.nullable().default(null),
   effects: clipEffectsSchema.nullable().default(null),
   audioMix: audioMixSchema.nullable().default(null),
-  textOverlay: textOverlaySchema.nullable().default(null),
+  textOverlays: textOverlaysSchema.default([]),
 })
 export type ClipEdit = z.infer<typeof clipEditSchema>
 

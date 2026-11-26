@@ -53,10 +53,10 @@ function duckVolume(duck: MusicPlan["duck"]) {
   return `volume='pow(10,${DUCK_DB / 20}*(${terms.join("+")}))':eval=frame`
 }
 
-function musicBranch(music: MusicPlan) {
-  const { musicDb, lengthMs, fadeInMs, fadeOutMs, duck } = music
+function musicBranch(music: MusicPlan, input: number) {
+  const { startMs, musicDb, lengthMs, fadeInMs, fadeOutMs, duck } = music
   return [
-    `[1:a]atrim=end=${seconds(lengthMs)}`,
+    `[${input}:a]atrim=end=${seconds(lengthMs)}`,
     "asetpts=PTS-STARTPTS",
     STEREO_48K,
     `volume=${musicDb}dB`,
@@ -67,6 +67,7 @@ function musicBranch(music: MusicPlan) {
           `afade=t=out:st=${seconds(lengthMs - fadeOutMs)}:d=${seconds(fadeOutMs)}`,
         ]
       : []),
+    ...(startMs > 0 ? [`adelay=${startMs}:all=1`] : []),
   ].join(",")
 }
 
@@ -79,20 +80,29 @@ export function audioGraph({
   to: string
   audio?: AudioPlan | null
 }) {
-  const sourceDb = audio?.sourceDb ?? 0
-  const music = audio?.music ?? null
+  const sourceDb = audio ? audio.sourceDb : 0
+  const music = audio?.music ?? []
   const source = [
     `[0:a]atrim=start=${from}:end=${to}`,
     "asetpts=PTS-STARTPTS",
-    ...(sourceDb !== 0 ? [`volume=${sourceDb}dB`] : []),
+    ...(sourceDb === null
+      ? ["volume=0"]
+      : sourceDb !== 0
+        ? [`volume=${sourceDb}dB`]
+        : []),
   ]
-  if (!music) {
-    return [...source, ...(sourceDb > 0 ? [LIMITER] : [])].join(",") + "[a]"
+  if (music.length === 0) {
+    return (
+      [...source, ...(sourceDb !== null && sourceDb > 0 ? [LIMITER] : [])].join(
+        ","
+      ) + "[a]"
+    )
   }
+  const labels = music.map((_, i) => `[m${i}]`).join("")
   return [
     `${[...source, STEREO_48K].join(",")}[src]`,
-    `${musicBranch(music)}[music]`,
-    `[src][music]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,${LIMITER}[a]`,
+    ...music.map((plan, i) => `${musicBranch(plan, i + 1)}[m${i}]`),
+    `[src]${labels}amix=inputs=${music.length + 1}:duration=first:dropout_transition=0:normalize=0,${LIMITER}[a]`,
   ].join(";\n")
 }
 
@@ -222,7 +232,7 @@ export function renderArgs({
 }: {
   input: string
   seekMs: number
-  music?: { file: string; seekMs: number }
+  music?: readonly { file: string; seekMs: number }[]
   graphFile: string
   encoder: Encoder
   crf?: number
@@ -232,13 +242,11 @@ export function renderArgs({
     ...(seekMs > 0 ? ["-ss", seconds(seekMs)] : []),
     "-i",
     input,
-    ...(music
-      ? [
-          ...(music.seekMs > 0 ? ["-ss", seconds(music.seekMs)] : []),
-          "-i",
-          music.file,
-        ]
-      : []),
+    ...(music ?? []).flatMap((track) => [
+      ...(track.seekMs > 0 ? ["-ss", seconds(track.seekMs)] : []),
+      "-i",
+      track.file,
+    ]),
     "-/filter_complex",
     graphFile,
     "-map",

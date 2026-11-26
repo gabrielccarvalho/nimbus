@@ -207,10 +207,11 @@ When tracks change:
 
 ### Music and on-screen text
 
-Tracks belong to the workspace's music library: MP3, M4A/AAC, WAV, OGG or FLAC up to 50 MB, with an audio stream. The title starts as the file name and can be renamed. A clip has at most one track (`audioMix`) and one on-screen text (`textOverlay`); null means no music and no text (ADR-0068). The track picker filters the library and YouTube's top 20 music videos for the region together, and can search YouTube's Music category on request (101 quota units a search, cached for an hour). A trending song is saved on the clip as `audioMix.youtubeSound` and isn't mixed in: the render keeps the original audio, the editor links the song and explains adding it with Add sound in the YouTube app, and the publish dialog says the upload won't have it. Picking a library track clears the sound and picking a sound clears the track.
+Tracks belong to the workspace's music library: MP3, M4A/AAC, WAV, OGG or FLAC up to 50 MB, with an audio stream. The title starts as the file name and can be renamed. A clip's `audioMix` holds the original audio's volume and mute plus a list of music clips, each with its start and end in the clip, an in-point in the song, a volume and fades; `textOverlays` is a list of texts with a start and an end. Both live on lanes of the clip timeline (ADR-0072). The track picker filters the library and YouTube's top 20 music videos for the region together, and can search YouTube's Music category on request (101 quota units a search, cached for an hour). A trending song is saved on the clip as `audioMix.youtubeSound` and isn't mixed in: the render keeps the original audio, the editor links the song and explains adding it with Add sound in the YouTube app, and the publish dialog says the upload won't have it.
 
 | Setting        | Default                        | Range                                                |
 | -------------- | ------------------------------ | ---------------------------------------------------- |
+| music start    | the playhead                   | inside the clip; at least 0.5 s long                 |
 | start in track | 0                              | before the track's end                               |
 | music volume   | −16 dB                         | −30 to 0 dB, whole dB                                |
 | original audio | 0 dB                           | −30 to +6 dB, whole dB                               |
@@ -218,11 +219,15 @@ Tracks belong to the workspace's music library: MP3, M4A/AAC, WAV, OGG or FLAC u
 | fade in / out  | 0 s / 1.5 s                    | 0–5 s each                                           |
 | on-screen text | the hook, else the title       | 1–80 characters; a longer hook is cut at a word, "…" |
 | text position  | top (240 of 1920 from the top) | top or centre                                        |
-| text on screen | the first 3 s                  | 0.5–180 s, or the whole clip                         |
+| text on screen | 3 s from the playhead          | at least 0.5 s, inside the clip; up to 20 texts      |
 
 - **Ducking**: speech comes from the clip's transcript words, each ended where its caption would clear (`spokenEnd`), so a long Whisper word doesn't keep the music down through a pause. Gaps under 400 ms are merged, and the music drops 10 dB under speech with 200 ms ramps. No speech means no ducking.
-- **Track runs out**: if the clip outlasts what's left of the track after the start point, the music stops early, and both fades are fitted inside the music that plays. The track never loops.
-- **Mix**: the original audio and the music are summed as set, without normalisation. A limiter only stops the sum from clipping.
+- **Lanes**: a lane never holds two items at once. Adding something at the playhead uses the first lane of its type with room and opens a new lane when none has room (up to 6 effect lanes, 4 caption lanes, 4 text lanes, 4 music lanes). Moving an item onto a lane where it doesn't fit is refused. For two effects of the same kind at the same time, the upper lane wins.
+- **Caption lanes**: the first lane holds the transcript (edits by page index, shift all) and captions written by hand; each extra lane has its own captions and its own height on screen, starting 0.15 away from the style's height. An empty extra lane can be removed.
+- **Music clips**: moving one keeps its in-point; trimming its left edge moves the in-point with it, and it can't run past the end of the song.
+- **Track runs out**: a music clip stops at the end of the song, and both fades are fitted inside the music that plays. The track never loops.
+- **Mix**: the original audio and every music clip are summed as set, without normalisation. A limiter only stops the sum from clipping. Muting the original audio keeps only the music.
+- **Trim**: hand-written captions, texts and music keep their times in the clip and are cut at the new end; a music clip or text left shorter than 0.5 s is removed.
 - **Delete**: a track can't be deleted while any clip uses it. The message names up to two clips ("This track is under “A” and “B”. Remove it from those clips first.", or "… and N more clips"). Saving a clip with a track and deleting that track wait on each other, so neither slips past the other.
 - **Stale render**: any change to the music or the text makes a rendered clip `approved` again, like other edits, and it can't be published until it's rendered again ("Render the latest edit first"). A clip with a track shows a Content ID warning in the publish dialog; Nimbus doesn't check rights.
 - Music is only mixed into the vertical clips, never the horizontal edit.

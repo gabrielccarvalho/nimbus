@@ -117,7 +117,7 @@ const data = {
   renders,
   layout,
   captions: Object.fromEntries(
-    clips.map((c) => [c.id, { pages: [], style, enabled: true }])
+    clips.map((c) => [c.id, { lanes: [], style, enabled: true }])
   ),
 }
 

@@ -216,7 +216,7 @@ function PublishForm({
           </AlertDescription>
         </Alert>
       )}
-      {clip.audioMix?.trackId && (
+      {(clip.audioMix?.music.length ?? 0) > 0 && (
         <Alert>
           <WarningIcon aria-hidden />
           <AlertTitle>Check the music rights</AlertTitle>

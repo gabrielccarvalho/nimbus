@@ -31,12 +31,6 @@ import { StatusPill } from "@/components/ui/status-pill"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import {
-  Timeline,
-  TimelinePlayhead,
-  TimelineRange,
-} from "@/components/ui/timeline"
-import {
-  useVideoPlayer,
   VideoPlayerControls,
   VideoPlayerMuteButton,
   VideoPlayerPlayButton,
@@ -44,9 +38,11 @@ import {
   VideoPlayerTime,
   VideoPlayerVideo,
 } from "@/components/ui/video-player"
+import { overlaysInClip } from "@/features/captions/overlay"
 import {
   buildCaptionPages,
-  editCaptionPages,
+  captionLanes,
+  captionsInClip,
   wordsInRange,
 } from "@/features/captions/pages"
 import {
@@ -59,19 +55,25 @@ import { setClipStatusAction, updateClipAction } from "@/features/clips/actions"
 import type { Clip } from "@/features/clips/repository"
 import { usesWebcam, type LayoutInput } from "@/features/layout/schema"
 import { planAudio } from "@/features/music/envelope"
-import type { MusicTrackSummary, TrendingMusic } from "@/features/music/schema"
+import {
+  DEFAULT_AUDIO_MIX,
+  musicInClip,
+  type MusicTrackSummary,
+  type TrendingMusic,
+} from "@/features/music/schema"
 import type { ProjectSnapshot } from "@/features/pipeline/snapshot"
+import type { SourceLoudness } from "@/features/projects/queries"
 import type { ProjectSettings } from "@/features/projects/schema"
+import type { CaptionState } from "@/features/timeline/captions"
 import { renderClipsAction } from "@/features/render/actions"
 import type { Word } from "@/features/transcription/schema"
 import { formatTimestamp } from "@/lib/format"
 
-import { AudioTextPanel } from "./audio-text-panel"
 import { CaptionStyleFields } from "./caption-style-fields"
-import { ClipCaptionsCard, type PageEdits } from "./clip-captions"
-import { ClipEffectsCard, ClipEffectsPreview } from "./clip-effects"
+import { ClipEffectsPreview } from "./clip-effects"
 import { useClipStatus } from "./clip-player-dialog"
 import { ClipLoop } from "./clip-preview"
+import { ClipTimeline, type TimelineSelection } from "./clip-timeline"
 import { MusicPreview } from "./music-preview"
 import { PublishControl, type PublishingState } from "./publish-dialog"
 import { useProjectEvents } from "./use-project-events"
@@ -83,7 +85,6 @@ import {
   withLayoutMode,
 } from "./layout-editor"
 
-const WINDOW_PADDING_MS = 10_000
 const AUTOSAVE_MS = 600
 const MUSIC_POLL_MS = 3000
 const QUALITY_LABELS = { draft: "Draft", standard: "Standard", high: "High" }
@@ -110,60 +111,10 @@ type ClipEditorProps = {
   }
   musicTracks: MusicTrackSummary[]
   trendingMusic: Promise<TrendingMusic>
+  loudness: SourceLoudness | null
 }
 
 const seconds = (ms: number) => (ms / 1000).toFixed(1)
-
-function TrimTimeline({
-  windowStartMs,
-  windowEndMs,
-  startMs,
-  endMs,
-}: {
-  windowStartMs: number
-  windowEndMs: number
-  startMs: number
-  endMs: number
-}) {
-  const { currentMs, seek } = useVideoPlayer()
-  return (
-    <Timeline
-      aria-label="Clip timeline"
-      durationMs={windowEndMs - windowStartMs}
-      value={Math.max(0, currentMs - windowStartMs)}
-      onValueChange={(ms) => seek(ms + windowStartMs)}
-      step={100}
-      className="h-10"
-    >
-      <TimelineRange
-        variant="selected"
-        startMs={startMs - windowStartMs}
-        endMs={endMs - windowStartMs}
-      />
-      <TimelinePlayhead />
-    </Timeline>
-  )
-}
-
-function PlayheadButtons({
-  onStart,
-  onEnd,
-}: {
-  onStart: (ms: number) => void
-  onEnd: (ms: number) => void
-}) {
-  const { currentMs } = useVideoPlayer()
-  return (
-    <div className="flex flex-wrap gap-2">
-      <Button type="button" size="sm" onClick={() => onStart(currentMs)}>
-        Start at playhead
-      </Button>
-      <Button type="button" size="sm" onClick={() => onEnd(currentMs)}>
-        End at playhead
-      </Button>
-    </div>
-  )
-}
 
 export function ClipEditor({
   projectId,
@@ -182,6 +133,7 @@ export function ClipEditor({
   siblings,
   musicTracks,
   trendingMusic,
+  loudness,
 }: ClipEditorProps) {
   const router = useRouter()
   const snapshot = useProjectEvents(initialSnapshot)
@@ -203,30 +155,29 @@ export function ClipEditor({
   const hasWebcam = usesWebcam(layout.mode)
   const [effects, setEffects] = React.useState(clip.effects)
   const [audioMix, setAudioMix] = React.useState(clip.audioMix)
-  const [textOverlay, setTextOverlay] = React.useState(clip.textOverlay)
+  const [textOverlays, setTextOverlays] = React.useState(clip.textOverlays)
   const [previewUnavailable, setPreviewUnavailable] = React.useState(false)
-  const [selectedEffect, setSelectedEffect] = React.useState<number | null>(
+  const [selection, setSelection] = React.useState<TimelineSelection | null>(
     null
   )
+  const selectedEffect = selection?.type === "effect" ? selection.index : null
   const editLayout = (patch: Partial<LayoutInput>) =>
     setLayoutOverride((current) => ({
       ...(current ?? projectLayout),
       ...patch,
     }))
-  const [pageEdits, setPageEdits] = React.useState<PageEdits>(() =>
-    Object.fromEntries(
+  const [captions, setCaptions] = React.useState<CaptionState>(() => ({
+    pageEdits: Object.fromEntries(
       (clip.captionOverrides?.pages ?? []).map(({ index, ...edit }) => [
         index,
         edit,
       ])
-    )
-  )
-  const [offsetMs, setOffsetMs] = React.useState(
-    clip.captionOverrides?.offsetMs ?? 0
-  )
+    ),
+    offsetMs: clip.captionOverrides?.offsetMs ?? 0,
+    added: clip.captionOverrides?.added ?? [],
+    lanes: clip.captionOverrides?.lanes ?? [],
+  }))
 
-  const windowStartMs = Math.max(0, clip.startMs - WINDOW_PADDING_MS)
-  const windowEndMs = Math.min(sourceDurationMs, clip.endMs + WINDOW_PADDING_MS)
   const style = resolveCaptionStyle(styleRef)
   const durationMs = endMs - startMs
   const clipWords = React.useMemo(
@@ -241,8 +192,15 @@ export function ClipEditor({
       }),
     [clipWords, durationMs, style.maxWordsPerPage, style.maxCharsPerLine]
   )
-  const selectedTrack = musicTracks.find((t) => t.id === audioMix?.trackId)
-  const track = selectedTrack?.status === "ready" ? selectedTrack : null
+  const readyTracks = React.useMemo(
+    () =>
+      new Map(
+        musicTracks.flatMap((track) =>
+          track.status === "ready" ? [[track.id, track] as const] : []
+        )
+      ),
+    [musicTracks]
+  )
   const musicProcessing = musicTracks.some((t) => t.status === "processing")
 
   React.useEffect(() => {
@@ -251,19 +209,31 @@ export function ClipEditor({
     return () => clearInterval(timer)
   }, [musicProcessing, router])
   const audioPlan = React.useMemo(
-    () => planAudio(audioMix, track, durationMs, clipWords),
-    [audioMix, track, durationMs, clipWords]
+    () => planAudio(audioMix, readyTracks, durationMs, clipWords),
+    [audioMix, readyTracks, durationMs, clipWords]
   )
-  const captionsNearTop =
-    captionsEnabled && captionBaseline(style, layout) < 0.4
-  const overrides = Object.entries(pageEdits).map(([index, edit]) => ({
+  const voices = (audioPlan?.music ?? []).flatMap((plan, index) => {
+    const track = readyTracks.get(plan.trackId)
+    return track
+      ? [{ key: `${index}:${plan.trackId}`, src: track.url, plan }]
+      : []
+  })
+  const baseline = captionBaseline(style, layout)
+  const captionsNearTop = captionsEnabled && baseline < 0.4
+  const overrides = Object.entries(captions.pageEdits).map(([index, edit]) => ({
     index: Number(index),
     ...edit,
   }))
-  const pages = editCaptionPages(
+  const lanes = captionLanes(
     basePages,
-    { pages: overrides, offsetMs },
+    {
+      pages: overrides,
+      offsetMs: captions.offsetMs,
+      added: captions.added,
+      lanes: captions.lanes,
+    },
     durationMs,
+    null,
     { maxCharsPerLine: style.maxCharsPerLine, maxLines: 2 }
   )
 
@@ -284,9 +254,21 @@ export function ClipEditor({
   const trim = (nextStart: number, nextEnd: number) => {
     const start = Math.max(0, Math.min(Math.round(nextStart), sourceDurationMs))
     const end = Math.max(0, Math.min(Math.round(nextEnd), sourceDurationMs))
+    const length = end - start
     setStartMs(start)
     setEndMs(end)
-    setPageEdits({})
+    setSelection(null)
+    setCaptions((current) => ({
+      ...current,
+      pageEdits: {},
+      added: captionsInClip(current.added, length),
+      lanes: current.lanes.map((lane) => ({
+        ...lane,
+        captions: captionsInClip(lane.captions, length),
+      })),
+    }))
+    setTextOverlays((current) => overlaysInClip(current, length))
+    setAudioMix((current) => musicInClip(current, length))
   }
 
   const payload = {
@@ -296,14 +278,16 @@ export function ClipEditor({
     hook,
     captionOverrides: {
       enabled: captionsOverride,
-      offsetMs: offsetMs || undefined,
+      offsetMs: captions.offsetMs || undefined,
       pages: overrides,
+      added: captions.added,
+      lanes: captions.lanes,
       style: styleRef,
     },
     layoutOverride,
     effects,
     audioMix,
-    textOverlay,
+    textOverlays,
   }
   const serialized = JSON.stringify(payload)
   const [saved, setSaved] = React.useState(serialized)
@@ -335,14 +319,17 @@ export function ClipEditor({
       JSON.stringify(stored) !== JSON.stringify(snapshot.effects)
     ) {
       setEffects(stored)
-      setSelectedEffect((index) => {
-        const effect =
-          index === null ? undefined : snapshot.effects?.events[index]
+      setSelection((current) => {
+        if (current?.type !== "effect") return current
+        const effect = snapshot.effects?.events[current.index]
         if (!effect || !stored) return null
         const found = stored.events.findIndex(
-          (event) => JSON.stringify(event) === JSON.stringify(effect)
+          (event) =>
+            event.kind === effect.kind &&
+            event.startMs === effect.startMs &&
+            (event.lane ?? 0) === (effect.lane ?? 0)
         )
-        return found === -1 ? null : found
+        return found === -1 ? null : { type: "effect", index: found }
       })
       setSaved(JSON.stringify({ ...snapshot, effects: stored }))
     } else {
@@ -402,11 +389,9 @@ export function ClipEditor({
     <VideoPlayerProvider>
       <ClipLoop startMs={startMs} endMs={endMs} />
       <MusicPreview
-        src={track?.url ?? null}
-        plan={audioPlan?.music ?? null}
-        trackStartMs={audioMix?.trackStartMs ?? 0}
+        voices={voices}
         clipStartMs={startMs}
-        sourceDb={audioPlan?.sourceDb ?? 0}
+        sourceDb={audioPlan ? audioPlan.sourceDb : 0}
         onUnavailable={() => setPreviewUnavailable(true)}
       />
       <div className="grid gap-5">
@@ -517,92 +502,6 @@ export function ClipEditor({
                 <VideoPlayerMuteButton className="ms-auto" />
               </VideoPlayerControls>
             </div>
-
-            <section className="grid gap-3.5 rounded-[18px] bg-graphite px-[18px] py-4">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="text-[15px] font-semibold tracking-[-0.015em]">
-                  Trim
-                </h3>
-                <span className="text-[13px] text-tertiary">
-                  {seconds(durationMs)} s long. Changing the trim resets caption
-                  edits.
-                </span>
-              </div>
-              <TrimTimeline
-                windowStartMs={windowStartMs}
-                windowEndMs={windowEndMs}
-                startMs={startMs}
-                endMs={endMs}
-              />
-              <div className="flex flex-wrap items-end gap-3 pt-3.5 shadow-[inset_0_1px_0_var(--hair)]">
-                <div className="grid flex-[1_1_140px] gap-2">
-                  <Label htmlFor="clip-start">Start (seconds)</Label>
-                  <Input
-                    id="clip-start"
-                    type="number"
-                    inputMode="decimal"
-                    step={0.1}
-                    min={0}
-                    className="font-mono"
-                    value={seconds(startMs)}
-                    onChange={(event) =>
-                      trim(Number(event.target.value) * 1000, endMs)
-                    }
-                  />
-                </div>
-                <div className="grid flex-[1_1_140px] gap-2">
-                  <Label htmlFor="clip-end">End (seconds)</Label>
-                  <Input
-                    id="clip-end"
-                    type="number"
-                    inputMode="decimal"
-                    step={0.1}
-                    min={0}
-                    className="font-mono"
-                    value={seconds(endMs)}
-                    onChange={(event) =>
-                      trim(startMs, Number(event.target.value) * 1000)
-                    }
-                  />
-                </div>
-                <PlayheadButtons
-                  onStart={(ms) => trim(ms, endMs)}
-                  onEnd={(ms) => trim(startMs, ms)}
-                />
-              </div>
-            </section>
-
-            <ClipEffectsCard
-              projectId={projectId}
-              clipId={clip.id}
-              startMs={startMs}
-              endMs={endMs}
-              layoutOverride={layoutOverride}
-              hasWebcam={hasWebcam && Boolean(layout.webcamRect)}
-              effects={effects}
-              onEffectsChange={setEffects}
-              selected={selectedEffect}
-              onSelectedChange={setSelectedEffect}
-              disabled={pending || rendering}
-            />
-
-            <ClipCaptionsCard
-              startMs={startMs}
-              durationMs={durationMs}
-              basePages={basePages}
-              pages={pages}
-              enabled={captionsEnabled}
-              onEnabledChange={(checked) =>
-                setCaptionsOverride(
-                  checked === settings.captionsEnabled ? undefined : checked
-                )
-              }
-              pageEdits={pageEdits}
-              onPageEditsChange={setPageEdits}
-              offsetMs={offsetMs}
-              onOffsetChange={setOffsetMs}
-              disabled={pending || rendering}
-            />
           </div>
 
           <aside className="grid min-w-0 flex-[1_1_340px] gap-4">
@@ -613,14 +512,23 @@ export function ClipEditor({
                 effects={effects}
                 selected={selectedEffect}
                 onEffectsChange={setEffects}
-                pages={pages}
+                lanes={lanes}
                 startMs={startMs}
                 captionStyle={style}
                 captionsEnabled={captionsEnabled}
-                overlay={textOverlay}
-                onBaselineChange={(baseline) =>
-                  setStyleRef((current) => placeCaption(current, baseline))
-                }
+                overlays={textOverlays}
+                onBaselineChange={(lane, next) => {
+                  if (lane === 0) {
+                    setStyleRef((current) => placeCaption(current, next))
+                    return
+                  }
+                  setCaptions((current) => ({
+                    ...current,
+                    lanes: current.lanes.map((edit, i) =>
+                      i === lane - 1 ? { ...edit, baseline: next } : edit
+                    ),
+                  }))
+                }}
               />
               <div className="grid content-start justify-items-start gap-2.5">
                 <span className="mono-label">Output</span>
@@ -710,20 +618,11 @@ export function ClipEditor({
             >
               <TabsList
                 aria-label="Clip inspector"
-                className="grid w-full grid-cols-[repeat(4,auto)] justify-between"
+                className="grid w-full grid-cols-3"
               >
-                <TabsTrigger value="details" className="px-2.5 text-[13px]">
-                  Details
-                </TabsTrigger>
-                <TabsTrigger value="layout" className="px-2.5 text-[13px]">
-                  Layout
-                </TabsTrigger>
-                <TabsTrigger value="captions" className="px-2.5 text-[13px]">
-                  Captions
-                </TabsTrigger>
-                <TabsTrigger value="audio" className="px-2.5 text-[13px]">
-                  Audio &amp; text
-                </TabsTrigger>
+                <TabsTrigger value="details">Details</TabsTrigger>
+                <TabsTrigger value="layout">Layout</TabsTrigger>
+                <TabsTrigger value="captions">Captions</TabsTrigger>
               </TabsList>
               <TabsContent value="details" className="grid gap-4">
                 <div className="grid gap-2">
@@ -790,8 +689,8 @@ export function ClipEditor({
               <TabsContent value="captions" className="grid gap-4">
                 {!captionsEnabled && (
                   <p className="text-[13px] text-tertiary">
-                    Captions are off for this clip. Turn them on in the Captions
-                    panel under the video.
+                    Captions are off for this clip. Turn them on with the eye on
+                    the captions track.
                   </p>
                 )}
                 <CaptionStyleFields
@@ -801,25 +700,46 @@ export function ClipEditor({
                   disabled={!captionsEnabled}
                 />
               </TabsContent>
-              <TabsContent value="audio">
-                <AudioTextPanel
-                  audioMix={audioMix}
-                  onAudioMixChange={setAudioMix}
-                  textOverlay={textOverlay}
-                  onTextOverlayChange={setTextOverlay}
-                  tracks={musicTracks}
-                  trending={trendingMusic}
-                  clipDurationMs={durationMs}
-                  hook={hook}
-                  title={title}
-                  captionsNearTop={captionsNearTop}
-                  previewUnavailable={previewUnavailable}
-                  disabled={pending || rendering}
-                />
-              </TabsContent>
             </Tabs>
           </aside>
         </div>
+
+        <ClipTimeline
+          projectId={projectId}
+          clipId={clip.id}
+          sourceDurationMs={sourceDurationMs}
+          startMs={startMs}
+          endMs={endMs}
+          onTrim={trim}
+          layoutOverride={layoutOverride}
+          hasWebcam={hasWebcam && Boolean(layout.webcamRect)}
+          effects={effects}
+          onEffectsChange={setEffects}
+          spokenPages={lanes[0]!.pages}
+          captions={captions}
+          onCaptionsChange={setCaptions}
+          captionsEnabled={captionsEnabled}
+          onCaptionsEnabledChange={(checked) =>
+            setCaptionsOverride(
+              checked === settings.captionsEnabled ? undefined : checked
+            )
+          }
+          captionBaseline={baseline}
+          textOverlays={textOverlays}
+          onTextOverlaysChange={setTextOverlays}
+          hook={hook}
+          title={title}
+          captionsNearTop={captionsNearTop}
+          audioMix={audioMix ?? DEFAULT_AUDIO_MIX}
+          onAudioMixChange={setAudioMix}
+          tracks={musicTracks}
+          trending={trendingMusic}
+          loudness={loudness}
+          previewUnavailable={previewUnavailable}
+          selection={selection}
+          onSelectionChange={setSelection}
+          disabled={pending || rendering}
+        />
       </div>
     </VideoPlayerProvider>
   )

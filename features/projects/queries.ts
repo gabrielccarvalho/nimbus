@@ -11,7 +11,7 @@ import { claudeAvailable } from "../accounts/usage"
 import { normalizeLoudness } from "../analysis/loudness"
 import { signalsRepository } from "../analysis/repository"
 import {
-  clipCaptionPages,
+  clipCaptionLanes,
   clipCaptionsEnabled,
   sampleCaptionWords,
 } from "../captions/pages"
@@ -261,7 +261,7 @@ export async function getProjectClips(id: string) {
       return [
         clip.id,
         {
-          pages: clipCaptionPages(words, clip, style),
+          lanes: clipCaptionLanes(words, clip, style, null),
           style,
           enabled: clipCaptionsEnabled(clip, project.settings),
         },
@@ -309,7 +309,7 @@ export async function getClipEditor(projectId: string, clipId: string) {
     clipRepository(db).get(clipId),
   ])
   if (!project || !clip || clip.projectId !== project.id) return undefined
-  const [assets, layout, transcript, snapshot, clips, musicTracks] =
+  const [assets, layout, transcript, snapshot, clips, musicTracks, signals] =
     await Promise.all([
       assetRepository(db).listForProject(projectId),
       layoutRepository(db).get(projectId),
@@ -317,6 +317,7 @@ export async function getClipEditor(projectId: string, clipId: string) {
       getProjectSnapshot(db, projectId),
       clipRepository(db).listForProject(projectId),
       project.workspaceId ? musicTracksFor(db, project.workspaceId) : [],
+      signalsRepository(db).get(projectId),
     ])
   const order = clips
     .filter((c) => c.status !== "rejected" || c.id === clip.id)
@@ -351,8 +352,32 @@ export async function getClipEditor(projectId: string, clipId: string) {
       : undefined,
     snapshot: snapshot!,
     musicTracks,
+    loudness: signals
+      ? sourceLoudness(signals.loudness, signals.loudnessIntervalMs, clip)
+      : null,
   }
 }
+
+const LOUDNESS_PADDING_MS = 3 * 60_000
+
+function sourceLoudness(
+  lufs: readonly number[],
+  intervalMs: number,
+  clip: { startMs: number; endMs: number }
+) {
+  const from = Math.max(
+    0,
+    Math.floor((clip.startMs - LOUDNESS_PADDING_MS) / intervalMs)
+  )
+  const to = Math.ceil((clip.endMs + LOUDNESS_PADDING_MS) / intervalMs)
+  return {
+    fromMs: from * intervalMs,
+    intervalMs,
+    values: normalizeLoudness(lufs.slice(from, to)),
+  }
+}
+
+export type SourceLoudness = NonNullable<ReturnType<typeof sourceLoudness>>
 
 export async function getProjectLayout(id: string) {
   await connection()

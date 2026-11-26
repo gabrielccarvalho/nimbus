@@ -143,12 +143,12 @@ Horizontal time strip for a whole recording: loudness, silences, clip ranges and
 
 ### TimelineTrack (`components/ui/timeline-track.tsx`)
 
-A lane of draggable blocks positioned by milliseconds, for editing time ranges (for example clip effects under a `Timeline`).
+A lane of draggable blocks positioned by milliseconds, for editing time ranges (for example the clip timeline's tracks).
 
-- Parts: `TimelineTrack` (`durationMs`; a `role="group"`, so give it an `aria-label`), `TimelineBlock` (`startMs`, `endMs`, `variant` = `default` | `muted`, `selected`, `resizable` (default true), `minMs` (default 100), `stepMs` (default 100), `onChange(startMs, endMs)`, `onSelect`, `onDelete`). `useTimelineTrack()` exposes `{ durationMs, trackRef }`.
+- Parts: `TimelineTrack` (`durationMs`; `lane` and `group` to let blocks move between tracks of the same group; a `role="group"`, so give it an `aria-label`), `TimelineBlock` (`startMs`, `endMs`, `variant` = `default` | `muted`, `selected`, `resizable` (default true), `minMs` (default 100), `stepMs` (default 100), `onChange(startMs, endMs)`, `onCommit()`, `onLaneChange(lane, startMs, endMs)`, `onSelect`, `onDelete`). `useTimelineTrack()` exposes `{ durationMs, trackRef }`.
 - Blocks are controlled only: the parent owns the ranges and applies `onChange`. Ranges are clamped to `[0, durationMs]` and kept at least `minMs` long. Same-lane overlap rules belong to the parent.
-- Pointer: dragging the body moves, dragging either edge resizes (pointer capture, like `CropRegionEditor`). Pointer down also calls `onSelect`.
-- A11y: each block is a focusable `role="button"` with `aria-pressed` for selection, so give it an `aria-label`. ←/→ move by `stepMs`, Shift+←/→ resize the end, Enter/Space select, Delete/Backspace call `onDelete`.
+- Pointer: dragging the body moves, dragging either edge resizes (pointer capture, like `CropRegionEditor`). Pointer down also calls `onSelect`, and pointer up calls `onCommit`. With `onLaneChange`, dragging over another track of the same `group` previews the drop there (`data-dragging`) and dropping reports that track's `lane` and the time under the pointer.
+- A11y: each block is a focusable `role="button"` with `aria-pressed` for selection, so give it an `aria-label` that contains its visible text. ←/→ move by `stepMs`, Shift+←/→ resize the end (each calls `onCommit`), Alt+↑/↓ move to the track above or below in the group, Enter/Space select, Delete/Backspace call `onDelete`.
 
 ```tsx
 <TimelineTrack aria-label="Zoom" durationMs={durationMs}>
@@ -282,14 +282,18 @@ Uploads one audio file straight to storage (`directUpload` in `components/upload
 
 The Settings › Music page: a `SettingsSection` with the `MusicUploadButton` in its header and the workspace's tracks as a registry `ItemGroup` list (each `Item` is a `role="listitem"`, since `ItemGroup` is a `role="list"`), or an `Empty` state. Each row renames on blur or Enter (read-only while the rename runs, focus kept), shows the duration and how many clips use the track, and deletes through an `AlertDialog`. A refused delete toasts the server's message naming the clips and leaves the row.
 
-### AudioTextPanel (`components/projects/audio-text-panel.tsx`)
+### Waveform (`components/ui/waveform.tsx`)
 
-The clip editor's "Audio & text" tab, controlled through `audioMix`/`onAudioMixChange` and `textOverlay`/`onTextOverlayChange`. Music: a track `Select` with an upload button (an upload is selected at once), a `Timeline` scrubber for the start in the track over the track's waveform with the clip's span as a range, music and original audio volume sliders, ducking and fades. Text: an on/off switch that starts from the hook, the text with a counter, position and how long it stays. `captionsNearTop` warns about top text over top captions and `previewUnavailable` says the preview can't play music. Under the music controls it shows `TrendingMusic` from the `trending` promise.
+A mirrored area of 0–1 `values` drawn to fill its box (`preserveAspectRatio="none"`), each value times `gain` and capped at the box, with a sliver kept for silence. Colour comes from `currentColor`. Decorative (`aria-hidden`); the clip timeline puts it inside audio blocks with `gain` following the volume.
 
-### TrendingMusic (`components/music/trending-music.tsx`)
+### ClipTimeline (`components/projects/clip-timeline.tsx`)
 
-The "Trending on YouTube" chart for the clip editor. Takes the `TrendingMusic` result as a promise and reads it with `use()` inside its own `Suspense` (skeleton rows while it loads), so the editor never waits on YouTube. Each song is a link to YouTube in a `role="listitem"` wrapper (on the `Item` itself the role would hide the link) with its rank, thumbnail, artist, length and compact views. Without a channel it asks to connect one, and it shows the service's message when the chart is unavailable.
+The clip editor's one timeline under the video (ADR-0072), fully controlled: trim, effects, caption state, texts, audio mix and the selection come in as props with a change callback each. A toolbar adds an effect (menu), a caption, a text or music (a popover with the `TrackPicker` and upload) at the playhead, adds a track of any type (menu), sets the clip's start or end at the playhead, deletes the selection, and plans or resets auto effects. The ruler (labels relative to the clip start, seek by click or drag), the playhead and the zoom (Fit plus five px/s levels) are shared by every track, and the track headers stay put while the tracks scroll. Tracks from top: texts, captions (the first header hides captions and opens Caption timing: shift all and reset), effects, the video (drag the edges or the body to trim, committed on release, with 10 s of the recording on each side), the original audio (mute in the header, wave from the recording's loudness), music. Effects, captions, texts and music move between their tracks by drag or Alt+↑/↓. Selecting a block opens one inspector popover from `timeline-inspector.tsx` (effect scale or intensity, caption text, text and position, music volume/in-point/fades/ducking, original volume and mute, clip start and end). Audio waves scale with the volume. The lane rules are pure, in `features/timeline/`.
+
+### TrackPicker (`components/music/track-picker.tsx`)
+
+A registry `Combobox` with "No music" as its placeholder and a clear button. Groups the library and the `trending` chart (read from a promise without suspending), filters ignoring case and accents, and offers "Search YouTube for …" (`searchMusicAction`) when the query is 2+ characters; results join as their own group. Values are a `TrackChoice`: none, a library track id, or a `YoutubeSound`.
 
 ### MusicPreview (`components/projects/music-preview.tsx`)
 
-A hidden `<audio>` that plays the clip's track through Web Audio in step with the `VideoPlayer` video, at `musicGainAt()` of the render's `MusicPlan` (volume, fades, duck), and routes the video through a gain at `sourceDb`. Nothing is created until the video plays, and the video is routed only once the `AudioContext` runs, so it is never silenced by a suspended context. Without Web Audio it calls `onUnavailable` and leaves the video alone.
+One hidden `<audio>` per music clip (`voices`), played through Web Audio in step with the `VideoPlayer` video from the clip's in-point while the playhead is inside it, at `musicGainAt()` of the render's `MusicPlan` (volume, fades, duck); the video goes through a gain at `sourceDb` (silent when `null`, for a muted original). Nothing is created until the video plays, and the video is routed only once the `AudioContext` runs, so it is never silenced by a suspended context. Without Web Audio it calls `onUnavailable` and leaves the video alone.

@@ -79,11 +79,19 @@ test("upload, confirm layout, render, download and edit a clip", async ({
     .getByRole("button", { name: "At the bottom" })
     .click()
   await page
-    .getByRole("group", { name: "Caption timing" })
-    .getByRole("button", { name: /^Caption 1 at/ })
+    .getByRole("group", { name: "Captions track", exact: true })
+    .getByRole("button", { name: /^Caption / })
+    .first()
     .click()
   await page.getByLabel("Caption text").fill("Edited caption")
+  await expect(
+    page
+      .getByRole("group", { name: "Captions track", exact: true })
+      .getByRole("button", { name: /^Caption Edited caption at / })
+  ).toBeVisible()
+  await page.getByRole("button", { name: "Caption timing" }).click()
   await page.getByRole("button", { name: "Show captions later" }).click()
+  await page.keyboard.press("Escape")
   await page.getByRole("tab", { name: "Captions" }).click()
   await page
     .getByRole("group", { name: "Position", exact: true })

@@ -82,8 +82,20 @@ describe("updateClipAction", () => {
     expect(result.value.effects).toEqual({
       edited: true,
       events: [
-        { kind: "focus", target: "game", startMs: 1_000, endMs: 2_000 },
-        { kind: "shake", intensity: "light", startMs: 5_000, endMs: 5_500 },
+        {
+          kind: "focus",
+          target: "game",
+          startMs: 1_000,
+          endMs: 2_000,
+          lane: 0,
+        },
+        {
+          kind: "shake",
+          intensity: "light",
+          startMs: 5_000,
+          endMs: 5_500,
+          lane: 0,
+        },
       ],
     })
   })
@@ -97,11 +109,19 @@ describe("updateClipAction", () => {
       hook: "",
       captionOverrides: { pages: [] },
     }
-    const textOverlay = { text: "a".repeat(81), position: "top", untilMs: 3000 }
-    const audioMix = { ...DEFAULT_AUDIO_MIX, musicDb: 3 }
+    const textOverlay = {
+      text: "a".repeat(81),
+      position: "top",
+      startMs: 0,
+      endMs: 3000,
+    }
+    const audioMix = {
+      ...DEFAULT_AUDIO_MIX,
+      music: [{ trackId: "t1", startMs: 0, endMs: 5000, db: 3 }],
+    }
     const cases = [
       {
-        payload: { textOverlay },
+        payload: { textOverlays: [textOverlay] },
         message:
           textOverlaySchema.safeParse(textOverlay).error?.issues[0]?.message,
       },
@@ -123,7 +143,7 @@ describe("updateClipAction", () => {
     }
     expect(await clipRepository(env.db).getOrThrow(clip.id)).toMatchObject({
       audioMix: null,
-      textOverlay: null,
+      textOverlays: [],
     })
   })
 })

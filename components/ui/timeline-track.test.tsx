@@ -109,3 +109,81 @@ describe("TimelineTrack", () => {
     expect(onSelect).toHaveBeenCalled()
   })
 })
+
+describe("TimelineBlock across lanes", () => {
+  function lanes() {
+    const onChange = vi.fn()
+    const onCommit = vi.fn()
+    const onLaneChange = vi.fn()
+    const { container } = render(
+      <>
+        <TimelineTrack
+          aria-label="Lane 1"
+          durationMs={10_000}
+          lane="0"
+          group="g"
+        >
+          <TimelineBlock
+            aria-label="Block"
+            startMs={2000}
+            endMs={4000}
+            onChange={onChange}
+            onCommit={onCommit}
+            onLaneChange={onLaneChange}
+          >
+            Block
+          </TimelineBlock>
+        </TimelineTrack>
+        <TimelineTrack
+          aria-label="Lane 2"
+          durationMs={10_000}
+          lane="1"
+          group="g"
+        />
+      </>
+    )
+    const [first, second] = container.querySelectorAll<HTMLElement>(
+      "[data-slot=timeline-track]"
+    )
+    first!.getBoundingClientRect = () =>
+      ({ left: 0, width: 1000, top: 0, bottom: 40 }) as DOMRect
+    second!.getBoundingClientRect = () =>
+      ({ left: 0, width: 1000, top: 40, bottom: 80 }) as DOMRect
+    return {
+      onChange,
+      onCommit,
+      onLaneChange,
+      block: screen.getByRole("button", { name: "Block" }),
+    }
+  }
+
+  it("drops a block on another lane of its group where the pointer is", () => {
+    const { block, onCommit, onLaneChange } = lanes()
+    fireEvent.pointerDown(block, { button: 0, clientX: 300, clientY: 20 })
+    fireEvent.pointerMove(block, { clientX: 500, clientY: 60 })
+    expect(block).toHaveAttribute("data-dragging")
+    expect(block.style.transform).toBe("translate(200px, 40px)")
+    fireEvent.pointerUp(block)
+    expect(onCommit).toHaveBeenCalledTimes(1)
+    expect(onLaneChange).toHaveBeenCalledWith("1", 4000, 6000)
+    expect(block).not.toHaveAttribute("data-dragging")
+  })
+
+  it("commits without a lane change when dropped on its own lane", () => {
+    const { block, onCommit, onLaneChange } = lanes()
+    fireEvent.pointerDown(block, { button: 0, clientX: 300, clientY: 20 })
+    fireEvent.pointerMove(block, { clientX: 400, clientY: 25 })
+    fireEvent.pointerUp(block)
+    expect(onCommit).toHaveBeenCalledTimes(1)
+    expect(onLaneChange).not.toHaveBeenCalled()
+  })
+
+  it("moves between lanes with Alt and the arrow keys", async () => {
+    const { block, onLaneChange } = lanes()
+    block.focus()
+    await userEvent.keyboard("{Alt>}{ArrowUp}{/Alt}")
+    expect(onLaneChange).not.toHaveBeenCalled()
+    await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}")
+    expect(onLaneChange).toHaveBeenCalledWith("1", 2000, 4000)
+  })
+})

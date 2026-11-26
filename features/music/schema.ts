@@ -12,36 +12,76 @@ export const youtubeSoundSchema = z.object({
 })
 export type YoutubeSound = z.infer<typeof youtubeSoundSchema>
 
+export const MAX_MUSIC_LANES = 4
+export const MIN_MUSIC_MS = 500
+
+const decibels = (range: { min: number; max: number; default: number }) =>
+  z.number().int().min(range.min).max(range.max).default(range.default)
+
+export const musicClipSchema = z
+  .object({
+    trackId: z.string().min(1).max(64),
+    startMs: z.number().int().nonnegative(),
+    endMs: z.number().int().positive(),
+    inMs: z.number().int().nonnegative().default(0),
+    db: decibels(MUSIC_DB),
+    fadeInMs: z.number().int().min(0).max(FADE_MAX_MS).default(0),
+    fadeOutMs: z.number().int().min(0).max(FADE_MAX_MS).default(1500),
+    lane: z
+      .number()
+      .int()
+      .min(0)
+      .max(MAX_MUSIC_LANES - 1)
+      .default(0),
+  })
+  .refine((clip) => clip.endMs - clip.startMs >= MIN_MUSIC_MS, {
+    message: "Keep the music for at least half a second",
+    path: ["endMs"],
+  })
+export type MusicClip = z.infer<typeof musicClipSchema>
+
 export const audioMixSchema = z.object({
-  trackId: z.string().min(1).max(64).nullable(),
-  trackStartMs: z.number().int().min(0).default(0),
-  musicDb: z
-    .number()
-    .int()
-    .min(MUSIC_DB.min)
-    .max(MUSIC_DB.max)
-    .default(MUSIC_DB.default),
-  sourceDb: z
-    .number()
-    .int()
-    .min(SOURCE_DB.min)
-    .max(SOURCE_DB.max)
-    .default(SOURCE_DB.default),
+  sourceDb: decibels(SOURCE_DB),
+  sourceMuted: z.boolean().default(false),
   duck: z.boolean().default(true),
-  fadeInMs: z.number().int().min(0).max(FADE_MAX_MS).default(0),
-  fadeOutMs: z.number().int().min(0).max(FADE_MAX_MS).default(1500),
+  music: z.array(musicClipSchema).max(8).default([]),
   youtubeSound: youtubeSoundSchema.nullable().optional(),
 })
 export type AudioMix = z.infer<typeof audioMixSchema>
 
 export const DEFAULT_AUDIO_MIX: AudioMix = {
-  trackId: null,
-  trackStartMs: 0,
-  musicDb: MUSIC_DB.default,
   sourceDb: SOURCE_DB.default,
+  sourceMuted: false,
   duck: true,
-  fadeInMs: 0,
-  fadeOutMs: 1500,
+  music: [],
+}
+
+export function newMusicClip(
+  trackId: string,
+  placed: { startMs: number; endMs: number; lane: number }
+): MusicClip {
+  return {
+    trackId,
+    ...placed,
+    inMs: 0,
+    db: MUSIC_DB.default,
+    fadeInMs: 0,
+    fadeOutMs: 1500,
+  }
+}
+
+export function musicInClip<M extends AudioMix | null>(
+  mix: M,
+  durationMs: number
+): M {
+  if (!mix) return mix
+  return {
+    ...mix,
+    music: mix.music.flatMap((clip) => {
+      const endMs = Math.min(clip.endMs, durationMs)
+      return endMs - clip.startMs >= MIN_MUSIC_MS ? [{ ...clip, endMs }] : []
+    }),
+  }
 }
 
 export const MUSIC_MAX_BYTES = 50 * 1024 * 1024

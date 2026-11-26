@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { toast } from "sonner"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { DEFAULT_AUDIO_MIX, newMusicClip } from "@/features/music/schema"
 import {
   publishClipAction,
   retryPublicationAction,
@@ -55,13 +56,8 @@ const clip = {
 }
 
 const mix = {
-  trackId: "t1",
-  trackStartMs: 0,
-  musicDb: -16,
-  sourceDb: 0,
-  duck: true,
-  fadeInMs: 0,
-  fadeOutMs: 1500,
+  ...DEFAULT_AUDIO_MIX,
+  music: [newMusicClip("t1", { startMs: 0, endMs: 10_000, lane: 0 })],
 }
 
 const publishing: PublishingState = {
@@ -127,7 +123,7 @@ describe("PublishDialog", () => {
           ...clip,
           audioMix: {
             ...mix,
-            trackId: null,
+            music: [],
             youtubeSound: {
               videoId: "dQw4w9WgXcQ",
               title: "Hit song",
@@ -149,7 +145,7 @@ describe("PublishDialog", () => {
 
   it.each([
     ["no mix", null],
-    ["source volume only", { ...mix, trackId: null }],
+    ["source volume only", { ...mix, music: [], sourceDb: -6 }],
   ])("shows no music warning with %s", async (_, audioMix) => {
     render(
       <PublishDialog clip={{ ...clip, audioMix }} publishing={publishing} />

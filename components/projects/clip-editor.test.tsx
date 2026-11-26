@@ -72,8 +72,8 @@ const clip = {
   layoutOverride: null,
   effects: null,
   audioMix: null,
-  textOverlay: null,
-} as Clip
+  textOverlays: [],
+} as unknown as Clip
 
 const settings = {
   captionStyle: { presetId: "punch", overrides: {} },
@@ -114,6 +114,7 @@ function renderEditor(edit: Partial<Clip> = {}) {
       siblings={{ index: 0, count: 2, previousId: null, nextId: "c2" }}
       musicTracks={[]}
       trendingMusic={Promise.resolve({ status: "no_channel" })}
+      loudness={null}
     />
   )
 }
@@ -166,11 +167,13 @@ describe("ClipEditor", () => {
       expect(screen.getByTestId("save-state")).toHaveTextContent("Saved")
     )
     expect(
-      within(screen.getByRole("group", { name: "Shake" })).getAllByRole(
-        "button"
-      )
+      within(
+        screen.getByRole("group", { name: "Effects track 1" })
+      ).getAllByRole("button")
     ).toHaveLength(1)
-    expect(screen.getByText(/^Planned from the audio/)).toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { name: "Reset effects to auto" })
+    ).toBeInTheDocument()
     expect(updateClipAction).toHaveBeenCalledTimes(1)
   })
 
@@ -181,6 +184,7 @@ describe("ClipEditor", () => {
       endMs: startMs + 1500,
       scale: 1.4,
       focus: { x: 0.5, y: 0.5 },
+      lane: 0,
     })
     vi.mocked(updateClipAction).mockResolvedValue({
       ok: true,
@@ -194,8 +198,9 @@ describe("ClipEditor", () => {
     renderEditor({
       effects: { edited: false, events: [zoom(20_000), zoom(30_000)] },
     })
-    await userEvent.click(screen.getByRole("button", { name: "Add zoom" }))
-    const zoomTrack = screen.getByRole("group", { name: "Zoom" })
+    await userEvent.click(screen.getByRole("button", { name: "Effect" }))
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Zoom" }))
+    const zoomTrack = screen.getByRole("group", { name: "Effects track 1" })
     const added = within(zoomTrack).getByRole("button", {
       name: "Zoom 1.4× at 0:00.0",
     })
@@ -227,67 +232,127 @@ describe("ClipEditor audio and text", () => {
     } as never)
   })
 
-  it("adds an Audio & text tab that autosaves the overlay", async () => {
-    renderEditor({ hook: "Wait for the jump" })
+  it("keeps a single inspector next to one timeline under the video", () => {
+    renderEditor()
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       "Details",
       "Layout",
       "Captions",
-      "Audio & text",
     ])
-    await userEvent.click(screen.getByRole("tab", { name: "Audio & text" }))
-    await userEvent.click(
-      screen.getByRole("switch", { name: "Show text on the video" })
-    )
+    const timeline = screen.getByRole("region", { name: "Timeline" })
+    for (const name of [
+      "Text track 1",
+      "Captions track",
+      "Effects track 1",
+      "Video track",
+      "Music track 1",
+    ]) {
+      expect(within(timeline).getByRole("group", { name })).toBeInTheDocument()
+    }
+  })
+
+  it("adds a text at the playhead and autosaves it", async () => {
+    renderEditor({ hook: "Wait for the jump" })
+    await userEvent.click(screen.getByRole("button", { name: "Text" }))
     await waitFor(() => expect(updateClipAction).toHaveBeenCalled())
     const [, , edit] = vi.mocked(updateClipAction).mock.calls.at(-1)!
     expect(edit).toMatchObject({
-      textOverlay: {
-        text: "Wait for the jump",
-        position: "top",
-        untilMs: 3000,
+      textOverlays: [
+        {
+          text: "Wait for the jump",
+          position: "top",
+          startMs: 0,
+          endMs: 3000,
+          lane: 0,
+        },
+      ],
+    })
+  })
+
+  it("adds a written caption at the playhead", async () => {
+    renderEditor()
+    await userEvent.click(screen.getByRole("button", { name: "Caption" }))
+    await waitFor(() => expect(updateClipAction).toHaveBeenCalled())
+    const [, , edit] = vi.mocked(updateClipAction).mock.calls.at(-1)!
+    expect(edit).toMatchObject({
+      captionOverrides: {
+        added: [{ startMs: 0, endMs: 1500, text: "New caption" }],
       },
     })
-    await waitFor(() =>
-      expect(screen.getByTestId("save-state")).toHaveTextContent("Saved")
+  })
+
+  it("adds a captions track placed apart from the first", async () => {
+    renderEditor()
+    await userEvent.click(screen.getByRole("button", { name: "Track" }))
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Captions track" })
     )
+    expect(
+      screen.getByRole("group", { name: "Captions track 2" })
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText("Captions 2 position")).toBeInTheDocument()
+    await waitFor(() => expect(updateClipAction).toHaveBeenCalled())
+    const [, , edit] = vi.mocked(updateClipAction).mock.calls.at(-1)!
+    const lanes = (edit as { captionOverrides: { lanes: unknown[] } })
+      .captionOverrides.lanes
+    expect(lanes).toEqual([{ baseline: expect.any(Number), captions: [] }])
   })
 
   it("turns captions off for this clip only", async () => {
     renderEditor()
     expect(screen.getByLabelText("Caption position")).toBeInTheDocument()
-    await userEvent.click(screen.getByRole("tab", { name: "Captions" }))
-    const toggle = screen.getByRole("switch", {
-      name: "Show captions on this clip",
-    })
-    expect(toggle).toBeChecked()
-    await userEvent.click(toggle)
+    await userEvent.click(screen.getByRole("button", { name: "Hide captions" }))
     expect(screen.queryByLabelText("Caption position")).not.toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { name: "Show captions" })
+    ).toHaveAttribute("aria-pressed", "true")
     await waitFor(() => expect(updateClipAction).toHaveBeenCalled())
     const [, , edit] = vi.mocked(updateClipAction).mock.calls.at(-1)!
     expect(edit).toMatchObject({ captionOverrides: { enabled: false } })
   })
 
+  it("mutes the original audio from its track", async () => {
+    renderEditor()
+    await userEvent.click(
+      screen.getByRole("button", { name: "Mute original audio" })
+    )
+    await waitFor(() => expect(updateClipAction).toHaveBeenCalled())
+    const [, , edit] = vi.mocked(updateClipAction).mock.calls.at(-1)!
+    expect(edit).toMatchObject({ audioMix: { sourceMuted: true, music: [] } })
+  })
+
   it("keeps the music and text when only the title changes", async () => {
     const audioMix = {
-      trackId: "t1",
-      trackStartMs: 4_000,
-      musicDb: -12,
       sourceDb: 2,
+      sourceMuted: false,
       duck: false,
-      fadeInMs: 500,
-      fadeOutMs: 1_000,
+      music: [
+        {
+          trackId: "t1",
+          startMs: 0,
+          endMs: 10_000,
+          inMs: 4_000,
+          db: -12,
+          fadeInMs: 500,
+          fadeOutMs: 1_000,
+          lane: 0,
+        },
+      ],
     }
-    const textOverlay = {
-      text: "Watch this",
-      position: "center" as const,
-      untilMs: null,
-    }
-    renderEditor({ audioMix, textOverlay })
+    const textOverlays = [
+      {
+        text: "Watch this",
+        position: "center" as const,
+        startMs: 0,
+        endMs: 5000,
+        lane: 0,
+      },
+    ]
+    renderEditor({ audioMix, textOverlays })
     await userEvent.type(screen.getByLabelText("Title"), "!")
     await waitFor(() => expect(updateClipAction).toHaveBeenCalled())
     const [, , edit] = vi.mocked(updateClipAction).mock.calls.at(-1)!
-    expect(edit).toMatchObject({ title: "Clip!", audioMix, textOverlay })
+    expect(edit).toMatchObject({ title: "Clip!", audioMix, textOverlays })
   })
 })
 

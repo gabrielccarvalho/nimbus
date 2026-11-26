@@ -148,6 +148,13 @@
       "when": 1795655784587,
       "tag": "0020_worker_heartbeats",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1795680467199,
+      "tag": "0021_timeline_lanes",
+      "breakpoints": true
     }
   ]
 }

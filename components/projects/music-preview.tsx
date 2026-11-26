@@ -30,36 +30,27 @@ function routeVideo(ctx: AudioContext, video: HTMLMediaElement, gain: number) {
   return node
 }
 
+export type MusicVoice = { key: string; src: string; plan: MusicPlan }
+
 export function MusicPreview({
-  src,
-  plan,
-  trackStartMs,
+  voices,
   clipStartMs,
   sourceDb,
   onUnavailable,
 }: {
-  src: string | null
-  plan: MusicPlan | null
-  trackStartMs: number
+  voices: readonly MusicVoice[]
   clipStartMs: number
-  sourceDb: number
+  sourceDb: number | null
   onUnavailable: () => void
 }) {
-  const { videoRef, paused, muted } = useVideoPlayer()
-  const audioRef = React.useRef<HTMLAudioElement>(null)
+  const { videoRef } = useVideoPlayer()
   const [source, setSource] = React.useState<GainNode | null>(null)
-  const [music, setMusic] = React.useState<GainNode | null>(null)
-  const needed = src !== null || sourceDb !== 0
-  const latest = React.useRef({
-    src,
-    plan,
-    trackStartMs,
-    clipStartMs,
-    sourceDb,
-  })
+  const needed = voices.length > 0 || sourceDb !== 0
+  const sourceGain = sourceDb === null ? 0 : dbToGain(sourceDb)
+  const latestGain = React.useRef(sourceGain)
   const onUnavailableRef = React.useRef(onUnavailable)
   React.useEffect(() => {
-    latest.current = { src, plan, trackStartMs, clipStartMs, sourceDb }
+    latestGain.current = sourceGain
     onUnavailableRef.current = onUnavailable
   })
 
@@ -70,15 +61,14 @@ export function MusicPreview({
       return
     }
     const video = videoRef.current
-    const audio = audioRef.current
-    if (!video || !audio) return
+    if (!video) return
     let cancelled = false
     // The video only goes through Web Audio once the context runs: a
     // suspended context would silence it until the next user gesture.
     const connect = (ctx: AudioContext) => {
       if (cancelled || ctx.state !== "running") return
       try {
-        setSource(routeVideo(ctx, video, dbToGain(latest.current.sourceDb)))
+        setSource(routeVideo(ctx, video, latestGain.current))
       } catch {
         onUnavailableRef.current()
       }
@@ -113,8 +103,49 @@ export function MusicPreview({
   }, [source, videoRef])
 
   React.useEffect(() => {
+    if (source && context) {
+      source.gain.setValueAtTime(sourceGain, context.currentTime)
+    }
+  }, [source, sourceGain])
+
+  return voices.map((voice) => (
+    <MusicVoicePlayer
+      key={voice.key}
+      src={voice.src}
+      plan={voice.plan}
+      clipStartMs={clipStartMs}
+      routed={source !== null}
+      onUnavailable={onUnavailable}
+    />
+  ))
+}
+
+function MusicVoicePlayer({
+  src,
+  plan,
+  clipStartMs,
+  routed,
+  onUnavailable,
+}: {
+  src: string
+  plan: MusicPlan
+  clipStartMs: number
+  routed: boolean
+  onUnavailable: () => void
+}) {
+  const { videoRef, paused, muted } = useVideoPlayer()
+  const audioRef = React.useRef<HTMLAudioElement>(null)
+  const [music, setMusic] = React.useState<GainNode | null>(null)
+  const latest = React.useRef({ plan, clipStartMs })
+  const onUnavailableRef = React.useRef(onUnavailable)
+  React.useEffect(() => {
+    latest.current = { plan, clipStartMs }
+    onUnavailableRef.current = onUnavailable
+  })
+
+  React.useEffect(() => {
     const audio = audioRef.current
-    if (!source || !context || !audio || src === null) return
+    if (!routed || !context || !audio) return
     const ctx = context
     // An element takes one source node for life, so a re-run effect reuses it.
     let input = musicSources.get(audio)
@@ -136,17 +167,11 @@ export function MusicPreview({
       gain.disconnect()
       setMusic(null)
     }
-  }, [source, src])
-
-  React.useEffect(() => {
-    if (source && context) {
-      source.gain.setValueAtTime(dbToGain(sourceDb), context.currentTime)
-    }
-  }, [source, sourceDb])
+  }, [routed])
 
   React.useEffect(() => {
     if (audioRef.current) audioRef.current.muted = muted
-  }, [muted, src])
+  }, [muted])
 
   React.useEffect(() => {
     const video = videoRef.current
@@ -158,11 +183,9 @@ export function MusicPreview({
     }
     const ctx = context
     const sync = () => {
-      const { src, plan, trackStartMs, clipStartMs } = latest.current
-      const t = video.currentTime * 1000 - clipStartMs
+      const { plan, clipStartMs } = latest.current
+      const t = video.currentTime * 1000 - clipStartMs - plan.startMs
       if (
-        !src ||
-        !plan ||
         video.paused ||
         video.readyState < video.HAVE_FUTURE_DATA ||
         t < 0 ||
@@ -170,7 +193,7 @@ export function MusicPreview({
       ) {
         if (!audio.paused) audio.pause()
       } else {
-        const target = (trackStartMs + t) / 1000
+        const target = (plan.inMs + t) / 1000
         if (
           !audio.seeking &&
           Math.abs(audio.currentTime - target) > MAX_DRIFT_S
@@ -200,9 +223,8 @@ export function MusicPreview({
 
   return (
     <audio
-      key={src}
       ref={audioRef}
-      src={src ?? undefined}
+      src={src}
       crossOrigin="anonymous"
       preload="auto"
       hidden

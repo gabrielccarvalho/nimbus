@@ -26,9 +26,15 @@ const clamp = (value: number, min: number, max: number) =>
 function TimelineTrack({
   className,
   durationMs,
+  lane,
+  group,
   children,
   ...props
-}: React.ComponentProps<"div"> & { durationMs: number }) {
+}: React.ComponentProps<"div"> & {
+  durationMs: number
+  lane?: string
+  group?: string
+}) {
   const trackRef = React.useRef<HTMLDivElement>(null)
   const context = React.useMemo(() => ({ durationMs, trackRef }), [durationMs])
   return (
@@ -36,6 +42,8 @@ function TimelineTrack({
       <div
         ref={trackRef}
         data-slot="timeline-track"
+        data-lane={lane}
+        data-lane-group={group}
         role="group"
         className={cn(
           "relative h-8 w-full overflow-hidden rounded-lg bg-muted select-none",
@@ -64,11 +72,30 @@ const timelineBlockVariants = cva(
 
 type DragMode = "move" | "start" | "end"
 
+function lanesOf(track: HTMLElement | null) {
+  const group = track?.dataset.laneGroup
+  if (!track || !group) return []
+  return Array.from(
+    track.ownerDocument.querySelectorAll<HTMLElement>(
+      `[data-slot=timeline-track][data-lane-group="${CSS.escape(group)}"]`
+    )
+  )
+}
+
+function laneAt(track: HTMLElement | null, clientY: number) {
+  return lanesOf(track).find((lane) => {
+    const rect = lane.getBoundingClientRect()
+    return clientY >= rect.top && clientY < rect.bottom
+  })
+}
+
 function TimelineBlock({
   className,
   startMs,
   endMs,
   onChange,
+  onCommit,
+  onLaneChange,
   onSelect,
   onDelete,
   minMs = 100,
@@ -89,6 +116,8 @@ function TimelineBlock({
     startMs: number
     endMs: number
     onChange: (startMs: number, endMs: number) => void
+    onCommit?: () => void
+    onLaneChange?: (lane: string, startMs: number, endMs: number) => void
     onSelect?: () => void
     onDelete?: () => void
     minMs?: number
@@ -103,6 +132,22 @@ function TimelineBlock({
     startMs: number
     endMs: number
   } | null>(null)
+  const [drop, setDrop] = React.useState<{
+    lane: HTMLElement
+    offsetX: number
+    offsetY: number
+    startMs: number
+  } | null>(null)
+
+  const finish = () => {
+    const dropped = drop
+    drag.current = null
+    setDrop(null)
+    onCommit?.()
+    const lane = dropped?.lane.dataset.lane
+    if (dropped && lane !== undefined && dropped.lane !== trackRef.current)
+      onLaneChange?.(lane, dropped.startMs, dropped.startMs + endMs - startMs)
+  }
 
   const toPercent = (ms: number) =>
     durationMs > 0 ? clamp((ms / durationMs) * 100, 0, 100) : 0
@@ -135,9 +180,16 @@ function TimelineBlock({
         "cursor-grab active:cursor-grabbing",
         className
       )}
+      data-dragging={drop ? "" : undefined}
       style={{
         left: `${left}%`,
         width: `${Math.max(0, toPercent(endMs) - left)}%`,
+        ...(drop
+          ? {
+              transform: `translate(${drop.offsetX}px, ${drop.offsetY}px)`,
+              zIndex: 10,
+            }
+          : {}),
         ...style,
       }}
       onPointerDown={(event) => {
@@ -163,6 +215,28 @@ function TimelineBlock({
           ((event.clientX - current.startX) / rect.width) * durationMs
         if (current.mode === "move") {
           moveTo(current.startMs + delta, current.endMs - current.startMs)
+          if (onLaneChange) {
+            const lane = laneAt(trackRef.current, event.clientY)
+            const own = trackRef.current!.getBoundingClientRect()
+            const length = current.endMs - current.startMs
+            const dropStart = Math.round(
+              clamp(
+                current.startMs + delta,
+                0,
+                Math.max(0, durationMs - length)
+              )
+            )
+            setDrop(
+              lane && lane !== trackRef.current
+                ? {
+                    lane,
+                    offsetX: ((dropStart - startMs) / durationMs) * own.width,
+                    offsetY: lane.getBoundingClientRect().top - own.top,
+                    startMs: dropStart,
+                  }
+                : null
+            )
+          }
         } else if (current.mode === "start") {
           resizeStart(current.startMs + delta, current.endMs)
         } else {
@@ -171,11 +245,12 @@ function TimelineBlock({
       }}
       onPointerUp={(event) => {
         onPointerUp?.(event)
-        drag.current = null
+        if (drag.current) finish()
       }}
       onPointerCancel={(event) => {
         onPointerCancel?.(event)
         drag.current = null
+        setDrop(null)
       }}
       onKeyDown={(event) => {
         onKeyDown?.(event)
@@ -184,6 +259,17 @@ function TimelineBlock({
           if (!onDelete) return
           event.preventDefault()
           onDelete()
+        } else if (
+          event.altKey &&
+          onLaneChange &&
+          (event.key === "ArrowUp" || event.key === "ArrowDown")
+        ) {
+          event.preventDefault()
+          const lanes = lanesOf(trackRef.current)
+          const at = lanes.indexOf(trackRef.current!)
+          const next = lanes[at + (event.key === "ArrowUp" ? -1 : 1)]
+          if (next?.dataset.lane !== undefined)
+            onLaneChange(next.dataset.lane, startMs, endMs)
         } else if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
           event.preventDefault()
           const direction = event.key === "ArrowLeft" ? -1 : 1
@@ -192,6 +278,7 @@ function TimelineBlock({
           } else {
             moveTo(startMs + direction * stepMs, endMs - startMs)
           }
+          onCommit?.()
         } else if (event.key === "Enter" || event.key === " ") {
           event.preventDefault()
           onSelect?.()

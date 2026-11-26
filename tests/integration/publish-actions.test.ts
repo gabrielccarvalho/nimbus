@@ -175,8 +175,17 @@ describe("publishClipAction", () => {
       captionOverrides: { pages: [] },
     }
     for (const change of [
-      { audioMix: { ...DEFAULT_AUDIO_MIX, trackId: track.id } },
-      { textOverlay: { text: "Wait for it", position: "top", untilMs: 3000 } },
+      {
+        audioMix: {
+          ...DEFAULT_AUDIO_MIX,
+          music: [{ trackId: track.id, startMs: 0, endMs: 5000 }],
+        },
+      },
+      {
+        textOverlays: [
+          { text: "Wait for it", position: "top", startMs: 0, endMs: 3000 },
+        ],
+      },
     ]) {
       await clipRepository(env.db).update(clip.id, { status: "rendered" })
       const saved = await updateClipAction(project.id, clip.id, {

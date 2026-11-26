@@ -5,11 +5,14 @@ import { isDeepStrictEqual } from "node:util"
 import { withTransaction, type Db } from "@/lib/db"
 import { AppError } from "@/lib/errors"
 
+import { overlaysInClip } from "../captions/overlay"
+import { captionsInClip } from "../captions/pages"
 import { normalizeEffects, type ClipEffects } from "../effects/schema"
 import { autoEffectsFor } from "../effects/service"
 import { postprocessCandidates } from "../highlights/postprocess"
 import { parseCandidatesJson } from "../highlights/prompt"
 import { musicRepository } from "../music/repository"
+import { musicInClip } from "../music/schema"
 import { assetRepository, projectRepository } from "../projects/repository"
 import { transcriptRepository } from "../transcription/repository"
 import { clipRepository } from "./repository"
@@ -200,39 +203,50 @@ export async function updateClip(
     captionOverrides: {
       ...edit.captionOverrides,
       pages: trimmed ? [] : edit.captionOverrides.pages,
+      added: captionsInClip(edit.captionOverrides.added, length),
+      lanes: edit.captionOverrides.lanes.map((lane) => ({
+        ...lane,
+        captions: captionsInClip(lane.captions, length),
+      })),
     },
     layoutOverride: edit.layoutOverride,
     ...(effects === undefined ? {} : { effects }),
-    audioMix: edit.audioMix,
-    textOverlay: edit.textOverlay,
+    audioMix: musicInClip(edit.audioMix, length),
+    textOverlays: overlaysInClip(edit.textOverlays, length),
     status: clip.status === "rendered" ? "approved" : clip.status,
   }
-  const mix = edit.audioMix
-  if (!mix?.trackId) return clips.update(clipId, patch)
-  const trackId = mix.trackId
+  const music = patch.audioMix?.music ?? []
+  if (music.length === 0) return clips.update(clipId, patch)
   const { workspaceId } = await projectRepository(db).getOrThrow(projectId)
   return withTransaction(db, async (tx) => {
-    const track = await musicRepository(tx).lock(trackId, "share")
-    if (!track || track.workspaceId !== workspaceId) {
-      throw new AppError(
-        "VALIDATION",
-        "That music track is no longer in your library"
-      )
-    }
-    if (track.status === "processing") {
-      throw new AppError(
-        "VALIDATION",
-        "That music track is still processing. Pick it once it's ready."
-      )
-    }
-    if (track.status === "failed" || track.durationMs === null) {
-      throw new AppError(
-        "VALIDATION",
-        "That music track couldn't be read. Pick another track."
-      )
-    }
-    if (mix.trackStartMs >= track.durationMs) {
-      throw new AppError("VALIDATION", "Start the music before the track ends")
+    const repo = musicRepository(tx)
+    for (const trackId of [...new Set(music.map((m) => m.trackId))].sort()) {
+      const track = await repo.lock(trackId, "share")
+      if (!track || track.workspaceId !== workspaceId) {
+        throw new AppError(
+          "VALIDATION",
+          "That music track is no longer in your library"
+        )
+      }
+      if (track.status === "processing") {
+        throw new AppError(
+          "VALIDATION",
+          "That music track is still processing. Pick it once it's ready."
+        )
+      }
+      if (track.status === "failed" || track.durationMs === null) {
+        throw new AppError(
+          "VALIDATION",
+          "That music track couldn't be read. Pick another track."
+        )
+      }
+      const durationMs = track.durationMs
+      if (music.some((m) => m.trackId === trackId && m.inMs >= durationMs)) {
+        throw new AppError(
+          "VALIDATION",
+          "Start the music before the track ends"
+        )
+      }
     }
     return clipRepository(tx).update(clipId, patch)
   })

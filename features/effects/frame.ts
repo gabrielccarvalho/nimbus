@@ -41,10 +41,14 @@ export function activeEffect<K extends Effect["kind"]>(
   kind: K,
   tMs: number
 ) {
-  return events.find(
-    (event): event is Extract<Effect, { kind: K }> =>
-      event.kind === kind && event.startMs <= tMs && tMs < event.endMs
-  )
+  let found: Extract<Effect, { kind: K }> | undefined
+  for (const event of events) {
+    if (event.kind !== kind || event.startMs > tMs || tMs >= event.endMs)
+      continue
+    if (!found || (event.lane ?? 0) < (found.lane ?? 0))
+      found = event as Extract<Effect, { kind: K }>
+  }
+  return found
 }
 
 function baseRegions(

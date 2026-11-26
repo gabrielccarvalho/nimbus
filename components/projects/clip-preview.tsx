@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/caption-preview"
 import { useVideoPlayer } from "@/components/ui/video-player"
 import { overlayFontSize, type TextOverlay } from "@/features/captions/overlay"
-import type { CaptionPage } from "@/features/captions/pages"
+import type { CaptionLane } from "@/features/captions/pages"
 import {
   captionBaseline,
   cssCaptionStyle,
@@ -38,28 +38,28 @@ export function ClipLoop({
 export function ClipPreview({
   layout,
   effects,
-  pages,
+  lanes,
   startMs,
   captionStyle,
   captionsEnabled,
   onBaselineChange,
-  overlay,
+  overlays = [],
   className,
 }: {
   layout: LayoutInput
   effects?: readonly Effect[]
-  pages: CaptionPage[]
+  lanes: readonly CaptionLane<number | null>[]
   startMs: number
   captionStyle: CaptionStyle
   captionsEnabled: boolean
-  onBaselineChange?: (baseline: number) => void
-  overlay?: TextOverlay | null
+  onBaselineChange?: (lane: number, baseline: number) => void
+  overlays?: readonly TextOverlay[]
   className?: string
 }) {
   const { currentMs } = useVideoPlayer()
   const placeable = captionsEnabled && Boolean(onBaselineChange)
-  const showOverlay =
-    overlay && currentMs - startMs < (overlay.untilMs ?? Infinity)
+  const clipMs = currentMs - startMs
+  const style = cssCaptionStyle(captionStyle)
   return (
     <CaptionPreview
       role={placeable ? "group" : "img"}
@@ -72,26 +72,42 @@ export function ClipPreview({
         aria-hidden
         className="absolute inset-0 size-full"
       />
-      {captionsEnabled && (
-        <CaptionPreviewText
-          pages={pages}
-          currentMs={currentMs - startMs}
-          captionStyle={cssCaptionStyle(captionStyle)}
-          baseline={captionBaseline(captionStyle, layout)}
-          onBaselineChange={onBaselineChange}
-          aria-label={onBaselineChange ? "Caption position" : undefined}
-        />
-      )}
-      {showOverlay && (
-        <CaptionPreviewOverlay
-          text={overlay.text}
-          position={overlay.position}
-          fontFamily={cssCaptionStyle(captionStyle).fontFamily}
-          fontSize={overlayFontSize(captionStyle)}
-          color={cssColor("background")}
-          outlineColor={cssColor("foreground")}
-        />
-      )}
+      {captionsEnabled &&
+        lanes.map((lane, index) => (
+          <CaptionPreviewText
+            key={index}
+            pages={lane.pages}
+            currentMs={clipMs}
+            captionStyle={style}
+            baseline={lane.baseline ?? captionBaseline(captionStyle, layout)}
+            onBaselineChange={
+              onBaselineChange &&
+              ((baseline) => onBaselineChange(index, baseline))
+            }
+            aria-label={
+              onBaselineChange
+                ? index === 0
+                  ? "Caption position"
+                  : `Captions ${index + 1} position`
+                : undefined
+            }
+          />
+        ))}
+      {overlays
+        .filter(
+          (overlay) => overlay.startMs <= clipMs && clipMs < overlay.endMs
+        )
+        .map((overlay, index) => (
+          <CaptionPreviewOverlay
+            key={index}
+            text={overlay.text}
+            position={overlay.position}
+            fontFamily={style.fontFamily}
+            fontSize={overlayFontSize(captionStyle)}
+            color={cssColor("background")}
+            outlineColor={cssColor("foreground")}
+          />
+        ))}
     </CaptionPreview>
   )
 }

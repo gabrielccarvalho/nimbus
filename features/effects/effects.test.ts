@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import { coverCrop, planLayout, toPixels } from "../layout/geometry"
 import { FULL_FRAME, type LayoutInput } from "../layout/schema"
 import {
+  activeEffect,
   frameAt,
   SHAKE_SCALE,
   zoomFocusAt,
@@ -39,39 +40,67 @@ const focus = (
 
 const range = { startMs: 1000, endMs: 5000 }
 
+const on = (lane: number, effect: Effect): Effect => ({ ...effect, lane })
+
 describe("normalizeEffects", () => {
   it("clips events to the range", () => {
     expect(
       normalizeEffects([zoom(900, 2000), shake(6000, 6500)], range)
-    ).toEqual([zoom(1000, 2000)])
+    ).toEqual([on(0, zoom(1000, 2000))])
   })
 
   it("drops events shorter than 100 ms after clipping", () => {
     expect(normalizeEffects([zoom(900, 1050)], range)).toEqual([])
   })
 
-  it("resolves same-kind overlap by keeping the earlier event and trimming the later one", () => {
+  it("trims a same-kind overlap between effects without a lane", () => {
     expect(
       normalizeEffects([zoom(1000, 3000), zoom(2500, 4000)], range)
-    ).toEqual([zoom(1000, 3000), zoom(3000, 4000)])
+    ).toEqual([on(0, zoom(1000, 3000)), on(0, zoom(3000, 4000))])
     expect(
       normalizeEffects([zoom(1000, 3000), zoom(2500, 3050)], range)
-    ).toEqual([zoom(1000, 3000)])
+    ).toEqual([on(0, zoom(1000, 3000))])
   })
 
-  it("keeps shakes overlapping focus/zoom", () => {
+  it("packs overlapping effects without a lane into lanes", () => {
     const events = [focus(1000, 3000), shake(2000, 2500), zoom(2200, 4000)]
     expect(normalizeEffects(events, range)).toEqual([
-      focus(1000, 3000),
-      shake(2000, 2500),
-      zoom(2200, 4000),
+      on(0, focus(1000, 3000)),
+      on(1, shake(2000, 2500)),
+      on(2, zoom(2200, 4000)),
     ])
   })
 
-  it("sorts by startMs", () => {
+  it("keeps same-kind overlap across lanes and moves a clash in one lane down", () => {
+    expect(
+      normalizeEffects(
+        [
+          on(0, zoom(1000, 3000)),
+          on(1, zoom(2000, 4000)),
+          on(0, shake(2500, 2800)),
+        ],
+        range
+      )
+    ).toEqual([
+      on(0, zoom(1000, 3000)),
+      on(1, zoom(2000, 4000)),
+      on(2, shake(2500, 2800)),
+    ])
+  })
+
+  it("sorts by lane, then start", () => {
     expect(
       normalizeEffects([shake(3000, 3500), zoom(1000, 2000)], range)
-    ).toEqual([zoom(1000, 2000), shake(3000, 3500)])
+    ).toEqual([on(0, zoom(1000, 2000)), on(0, shake(3000, 3500))])
+  })
+})
+
+describe("activeEffect", () => {
+  it("lets the upper lane win when effects of one kind overlap", () => {
+    const strong = { ...on(0, zoom(1000, 3000)), scale: 2 }
+    const events = [on(1, zoom(2000, 4000)), strong]
+    expect(activeEffect(events, "zoom", 2500)).toBe(strong)
+    expect(activeEffect(events, "zoom", 3500)).toBe(events[0])
   })
 })
 
@@ -496,7 +525,7 @@ function plan(overrides: Partial<PlanInput> = {}) {
     signals: signalsWith([]),
     beats: [],
     ...overrides,
-  })
+  }).map((effect): Effect => ({ ...effect, lane: undefined }))
 }
 
 describe("planEffects", () => {

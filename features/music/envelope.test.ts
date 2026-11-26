@@ -6,7 +6,7 @@ import {
   planAudio,
   speechIntervals,
 } from "./envelope"
-import { DEFAULT_AUDIO_MIX, audioMixSchema } from "./schema"
+import { DEFAULT_AUDIO_MIX, audioMixSchema, newMusicClip } from "./schema"
 
 const w = (startMs: number, endMs: number, text = "word") => ({
   text,
@@ -47,54 +47,99 @@ describe("duckDbAt", () => {
   })
 })
 
-const mix = { ...DEFAULT_AUDIO_MIX, trackId: "t1" }
+const clip = newMusicClip("t1", { startMs: 0, endMs: 15_000, lane: 0 })
+const mix = { ...DEFAULT_AUDIO_MIX, music: [clip] }
+const tracks = (durationMs: number) => new Map([["t1", { durationMs }]])
 
 describe("planAudio", () => {
-  it("plans nothing without a mix and only the source without a track", () => {
-    expect(planAudio(null, null, 15_000, [])).toBeNull()
+  it("plans nothing without a mix and only the source without music", () => {
+    expect(planAudio(null, new Map(), 15_000, [])).toBeNull()
     expect(
-      planAudio({ ...DEFAULT_AUDIO_MIX, sourceDb: 4 }, null, 15_000, [])
-    ).toEqual({ sourceDb: 4, music: null })
-  })
-  it("ends the music with the track and fits the fades into what is left", () => {
-    const plan = planAudio(
-      { ...mix, trackStartMs: 12_000, fadeInMs: 500 },
-      { durationMs: 20_000 },
-      15_000,
-      []
-    )
-    expect(plan?.music).toEqual({
-      musicDb: -16,
-      lengthMs: 8_000,
-      fadeInMs: 500,
-      fadeOutMs: 1_500,
-      duck: [],
-    })
+      planAudio({ ...DEFAULT_AUDIO_MIX, sourceDb: 4 }, new Map(), 15_000, [])
+    ).toEqual({ sourceDb: 4, music: [] })
     expect(
       planAudio(
-        { ...mix, trackStartMs: 19_000, fadeInMs: 800, fadeOutMs: 1_500 },
-        { durationMs: 20_000 },
-        15_000,
-        []
-      )?.music
-    ).toMatchObject({ lengthMs: 1_000, fadeInMs: 800, fadeOutMs: 200 })
-    expect(
-      planAudio(
-        { ...mix, trackStartMs: 20_000 },
-        { durationMs: 20_000 },
+        { ...DEFAULT_AUDIO_MIX, sourceMuted: true },
+        new Map(),
         15_000,
         []
       )
-    ).toEqual({ sourceDb: 0, music: null })
+    ).toEqual({ sourceDb: null, music: [] })
   })
-  it("ducks only when asked", () => {
-    const words = [w(1000, 1300)]
+  it("ends the music with the track and fits the fades into what is left", () => {
+    const plan = planAudio(
+      { ...mix, music: [{ ...clip, inMs: 12_000, fadeInMs: 500 }] },
+      tracks(20_000),
+      15_000,
+      []
+    )
+    expect(plan?.music).toEqual([
+      {
+        trackId: "t1",
+        startMs: 0,
+        inMs: 12_000,
+        musicDb: -16,
+        lengthMs: 8_000,
+        fadeInMs: 500,
+        fadeOutMs: 1_500,
+        duck: [],
+      },
+    ])
     expect(
-      planAudio(mix, { durationMs: 60_000 }, 15_000, words)?.music?.duck
+      planAudio(
+        {
+          ...mix,
+          music: [{ ...clip, inMs: 19_000, fadeInMs: 800, fadeOutMs: 1_500 }],
+        },
+        tracks(20_000),
+        15_000,
+        []
+      )?.music[0]
+    ).toMatchObject({ lengthMs: 1_000, fadeInMs: 800, fadeOutMs: 200 })
+    expect(
+      planAudio(
+        { ...mix, music: [{ ...clip, inMs: 20_000 }] },
+        tracks(20_000),
+        15_000,
+        []
+      )
+    ).toEqual({ sourceDb: 0, music: [] })
+  })
+  it("plays each clip from its start until its end or the clip's end", () => {
+    const plan = planAudio(
+      {
+        ...mix,
+        music: [
+          { ...clip, startMs: 2_000, endMs: 6_000 },
+          { ...clip, startMs: 10_000, endMs: 30_000, lane: 1 },
+        ],
+      },
+      tracks(60_000),
+      15_000,
+      []
+    )
+    expect(
+      plan?.music.map(({ startMs, lengthMs }) => [startMs, lengthMs])
+    ).toEqual([
+      [2_000, 4_000],
+      [10_000, 5_000],
+    ])
+  })
+  it("skips music whose track isn't known", () =>
+    expect(planAudio(mix, new Map(), 15_000, [])?.music).toEqual([]))
+  it("ducks only when asked, in each clip's own time", () => {
+    const words = [w(5000, 5300)]
+    expect(
+      planAudio(
+        { ...mix, music: [{ ...clip, startMs: 4_000 }] },
+        tracks(60_000),
+        15_000,
+        words
+      )?.music[0]?.duck
     ).toEqual([{ startMs: 1000, endMs: 1300 }])
     expect(
-      planAudio({ ...mix, duck: false }, { durationMs: 60_000 }, 15_000, words)
-        ?.music?.duck
+      planAudio({ ...mix, duck: false }, tracks(60_000), 15_000, words)
+        ?.music[0]?.duck
     ).toEqual([])
   })
 })
@@ -102,6 +147,9 @@ describe("planAudio", () => {
 describe("musicGainAt", () => {
   it("gives the preview the render's gain", () => {
     const plan = {
+      trackId: "t1",
+      startMs: 0,
+      inMs: 0,
       musicDb: -16,
       lengthMs: 10_000,
       fadeInMs: 500,
@@ -118,19 +166,27 @@ describe("musicGainAt", () => {
 })
 
 describe("audioMixSchema", () => {
-  it("fills the defaults", () =>
-    expect(audioMixSchema.parse({ trackId: "t1" })).toEqual({
-      ...DEFAULT_AUDIO_MIX,
-      trackId: "t1",
-    }))
+  it("fills the defaults", () => {
+    expect(audioMixSchema.parse({})).toEqual(DEFAULT_AUDIO_MIX)
+    expect(
+      audioMixSchema.parse({
+        music: [{ trackId: "t1", startMs: 0, endMs: 5000 }],
+      }).music
+    ).toEqual([newMusicClip("t1", { startMs: 0, endMs: 5000, lane: 0 })])
+  })
   it.each([
-    { musicDb: 1 },
-    { musicDb: -16.5 },
-    { sourceDb: 7 },
+    { db: 1 },
+    { db: -16.5 },
     { fadeOutMs: 5001 },
-  ])("rejects %o", (bad) =>
-    expect(audioMixSchema.safeParse({ trackId: "t1", ...bad }).success).toBe(
-      false
-    )
+    { endMs: 499 },
+    { lane: 4 },
+  ])("rejects a music clip with %o", (bad) =>
+    expect(
+      audioMixSchema.safeParse({
+        music: [{ trackId: "t1", startMs: 0, endMs: 5000, ...bad }],
+      }).success
+    ).toBe(false)
   )
+  it("rejects a source volume over 6 dB", () =>
+    expect(audioMixSchema.safeParse({ sourceDb: 7 }).success).toBe(false))
 })

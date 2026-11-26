@@ -4,7 +4,7 @@ import {
   overlayFontSize,
   type TextOverlay,
 } from "./overlay"
-import type { CaptionPage } from "./pages"
+import type { CaptionLane, CaptionPage } from "./pages"
 import { assColor, CAPTION_FONTS, type CaptionStyle } from "./styles"
 
 export function assTime(ms: number) {
@@ -50,18 +50,21 @@ function pageText(
   return lines.join("\\N")
 }
 
+export type AssOverlay = Pick<
+  TextOverlay,
+  "text" | "position" | "startMs" | "endMs"
+>
+
 export function buildAss({
-  pages,
+  lanes,
   style,
-  baseline,
-  overlay,
+  overlays = [],
   width = 1080,
   height = 1920,
 }: {
-  pages: readonly CaptionPage[]
+  lanes: readonly CaptionLane[]
   style: CaptionStyle
-  baseline: number
-  overlay?: { text: string; position: TextOverlay["position"]; endMs: number }
+  overlays?: readonly AssOverlay[]
   width?: number
   height?: number
 }) {
@@ -81,7 +84,7 @@ export function buildAss({
     "[V4+ Styles]",
     "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
     `Style: Caption,${CAPTION_FONTS[style.font].fontFamily},${style.fontSize},${assColor(style.text)},${assColor(style.highlightColor)},${outlineColor},${assColor(style.outlineColor, 0.6)},0,0,0,0,100,100,0,0,${borderStyle},${style.outline},${style.shadow},2,60,60,0,1`,
-    ...(overlay
+    ...(overlays.length > 0
       ? [
           `Style: Title,${CAPTION_FONTS[style.font].fontFamily},${overlayFontSize(style)},${assColor("background")},${assColor("background")},${assColor("foreground")},${assColor("foreground", 0.6)},-1,0,0,0,100,100,0,0,1,8,0,8,${OVERLAY_MARGIN_X},${OVERLAY_MARGIN_X},${OVERLAY_TOP_Y},1`,
         ]
@@ -90,7 +93,32 @@ export function buildAss({
     "[Events]",
     "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
   ]
-  const position = `{\\an2\\pos(${Math.round(width / 2)},${Math.round(baseline * height)})}`
+  const events: string[] = []
+  lanes.forEach(({ baseline, pages }, lane) => {
+    events.push(
+      ...laneEvents(
+        pages,
+        style,
+        lane,
+        `{\\an2\\pos(${Math.round(width / 2)},${Math.round(baseline * height)})}`
+      )
+    )
+  })
+  overlays.forEach((overlay) => {
+    const tags = overlay.position === "center" ? "{\\an5\\q0}" : "{\\q0}"
+    events.push(
+      `Dialogue: ${Math.max(1, lanes.length)},${assTime(overlay.startMs)},${assTime(overlay.endMs)},Title,,0,0,0,,${tags}${escapeAssText(overlay.text)}`
+    )
+  })
+  return `${[...header, ...events].join("\n")}\n`
+}
+
+function laneEvents(
+  pages: readonly CaptionPage[],
+  style: CaptionStyle,
+  layer: number,
+  position: string
+) {
   const events: string[] = []
   for (const page of pages) {
     const cuts = [page.startMs]
@@ -110,15 +138,9 @@ export function buildAss({
         if (word.startMs <= start) active = w
       })
       events.push(
-        `Dialogue: 0,${assTime(start)},${assTime(end)},Caption,,0,0,0,,${position}${pageText(page, style, active)}`
+        `Dialogue: ${layer},${assTime(start)},${assTime(end)},Caption,,0,0,0,,${position}${pageText(page, style, active)}`
       )
     }
   }
-  if (overlay) {
-    const tags = overlay.position === "center" ? "{\\an5\\q0}" : "{\\q0}"
-    events.push(
-      `Dialogue: 1,${assTime(0)},${assTime(overlay.endMs)},Title,,0,0,0,,${tags}${escapeAssText(overlay.text)}`
-    )
-  }
-  return `${[...header, ...events].join("\n")}\n`
+  return events
 }

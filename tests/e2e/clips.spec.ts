@@ -120,17 +120,21 @@ test("adds a zoom effect in the clip editor", async ({ page }) => {
   await page.getByRole("dialog").getByRole("link", { name: /Edit/ }).click()
   await expect(page.getByLabel("Title")).toBeVisible()
 
-  const zoomTrack = page.getByRole("group", { name: "Zoom", exact: true })
-  const zoomBlocks = zoomTrack.getByRole("button", { name: /^Zoom / })
+  const timeline = page.getByRole("region", { name: "Timeline" })
+  const addEffect = async (name: string) => {
+    await timeline.getByRole("button", { name: "Effect", exact: true }).click()
+    await page.getByRole("menuitem", { name, exact: true }).click()
+  }
+  const zoomBlocks = timeline.getByRole("button", { name: /^Zoom 1\.4× at / })
   const before = await zoomBlocks.count()
-  await page.getByRole("button", { name: "Add zoom" }).click()
+  await addEffect("Zoom")
   await expect(zoomBlocks).toHaveCount(before + 1)
 
-  const name = (await zoomTrack
-    .getByRole("button", { pressed: true })
+  const name = (await timeline
+    .getByRole("button", { name: /^Zoom /, pressed: true })
     .getAttribute("aria-label"))!
   expect(name).toMatch(/^Zoom 1\.4× at /)
-  const added = zoomTrack.getByRole("button", { name, exact: true })
+  const added = timeline.getByRole("button", { name, exact: true })
   const scale = page.getByRole("slider", { name: "Scale" })
   await added.focus()
   await page.keyboard.press("Tab")
@@ -141,11 +145,13 @@ test("adds a zoom effect in the clip editor", async ({ page }) => {
   await expect(scale).toBeVisible()
   await page.keyboard.press("Tab")
   await page.keyboard.press("Tab")
-  await expect(page.getByRole("button", { name: "Delete" })).toBeFocused()
+  await expect(
+    page.getByRole("button", { name: "Delete", exact: true })
+  ).toBeFocused()
   await page.keyboard.press("Tab")
   expect(
     await page.evaluate(() =>
-      Boolean(document.activeElement?.closest('[data-slot="effects-lane"]'))
+      Boolean(document.activeElement?.closest('[data-slot="clip-timeline"]'))
     )
   ).toBe(true)
   await added.focus()
@@ -154,20 +160,39 @@ test("adds a zoom effect in the clip editor", async ({ page }) => {
   await expect(added).toBeFocused()
   await expect(scale).toBeHidden()
 
-  const gameBlocks = page
-    .getByRole("group", { name: "Full game", exact: true })
-    .getByRole("button", { name: /^Full game at / })
+  const gameBlocks = timeline.getByRole("button", { name: /^Full game at / })
   const gamesBefore = await gameBlocks.count()
-  await page.getByRole("button", { name: "Add full game" }).click()
+  await addEffect("Full game")
   await expect(gameBlocks).toHaveCount(gamesBefore + 1)
+
+  const lanes = timeline.getByRole("group", { name: /^Effects track / })
+  const lanesBefore = await lanes.count()
+  await timeline.getByRole("button", { name: "Track", exact: true }).click()
+  await page.getByRole("menuitem", { name: "Effects track" }).click()
+  await expect(lanes).toHaveCount(lanesBefore + 1)
+  const newLane = timeline.getByRole("group", {
+    name: `Effects track ${lanesBefore + 1}`,
+  })
+  const from = (await added.boundingBox())!
+  const to = (await newLane.boundingBox())!
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(from.x + from.width / 2, to.y + to.height / 2, {
+    steps: 6,
+  })
+  await page.mouse.up()
+  await expect(newLane.getByRole("button", { name: /^Zoom / })).toHaveCount(1)
 
   await expect(page.getByTestId("save-state")).toHaveText("Saved")
   await page.reload()
   await expect(zoomBlocks).toHaveCount(before + 1)
   await expect(gameBlocks).toHaveCount(gamesBefore + 1)
   await expect(
-    page.getByRole("main").getByText(/^Edited by hand\./)
-  ).toBeVisible()
+    timeline
+      .getByRole("group", { name: `Effects track ${lanesBefore + 1}` })
+      .getByRole("button", { name: /^Zoom / })
+  ).toHaveCount(1)
+  await expectNoSeriousA11yViolations(page)
 })
 
 test("moves the gameplay box in the clip editor", async ({ page }) => {

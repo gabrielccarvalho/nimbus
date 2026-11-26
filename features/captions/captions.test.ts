@@ -4,8 +4,8 @@ import { defaultProjectSettings } from "../projects/schema"
 import { assTime, buildAss, escapeAssText } from "./ass"
 import {
   defaultOverlayText,
-  overlayEndMs,
   overlayFontSize,
+  overlaysInClip,
   textOverlaySchema,
 } from "./overlay"
 import {
@@ -13,9 +13,11 @@ import {
   applyPageOverrides,
   breakLines,
   buildCaptionPages,
-  clipCaptionPages,
+  captionLanes,
+  clipCaptionLanes,
   clipCaptionsEnabled,
   editCaptionPages,
+  manualPages,
   pageRoom,
   DEFAULT_PAGING,
   pageAt,
@@ -266,28 +268,100 @@ describe("wordsInRange and lookup", () => {
     })
   })
 
-  it("builds a clip's pages from its range, style and page overrides", () => {
+  it("builds a clip's lanes from its range, style and page overrides", () => {
     const style = { maxWordsPerPage: 2, maxCharsPerLine: 28 }
-    const pages = clipCaptionPages(
+    const [lane, ...rest] = clipCaptionLanes(
       transcript,
       {
         startMs: 10_000,
         endMs: 15_000,
         captionOverrides: { pages: [{ index: 0, text: "WAIT" }] },
       },
-      style
+      style,
+      0.7
     )
-    expect(pages[0]!.words.map((x) => x.text)).toEqual(["WAIT"])
-    expect(pages.slice(1)).toEqual(
+    expect(rest).toEqual([])
+    expect(lane!.baseline).toBe(0.7)
+    expect(lane!.pages[0]!.words.map((x) => x.text)).toEqual(["WAIT"])
+    expect(lane!.pages.slice(1)).toEqual(
       buildCaptionPages(sample, 5000, style).slice(1)
     )
     expect(
-      clipCaptionPages(
+      clipCaptionLanes(
         transcript,
         { startMs: 10_000, endMs: 15_000, captionOverrides: null },
-        style
+        style,
+        null
       )
-    ).toEqual(buildCaptionPages(sample, 5000, style))
+    ).toEqual([
+      { baseline: null, pages: buildCaptionPages(sample, 5000, style) },
+    ])
+  })
+
+  it("times a hand-written caption's words evenly and cuts it at the clip end", () => {
+    expect(
+      manualPages(
+        [
+          { startMs: 1000, endMs: 2000, text: "hello  there friend" },
+          { startMs: 4500, endMs: 6000, text: "late" },
+          { startMs: 7000, endMs: 8000, text: "gone" },
+        ],
+        5000
+      )
+    ).toEqual([
+      {
+        index: -1,
+        startMs: 1000,
+        endMs: 2000,
+        words: [
+          { text: "hello", startMs: 1000, endMs: 1333 },
+          { text: "there", startMs: 1333, endMs: 1667 },
+          { text: "friend", startMs: 1667, endMs: 2000 },
+        ],
+        lines: [3],
+      },
+      {
+        index: -2,
+        startMs: 4500,
+        endMs: 5000,
+        words: [{ text: "late", startMs: 4500, endMs: 5000 }],
+        lines: [1],
+      },
+    ])
+  })
+
+  it("adds hand-written captions to the transcript lane without shifting them", () => {
+    const pages = buildCaptionPages(sample, 5000)
+    const edited = editCaptionPages(
+      pages,
+      {
+        offsetMs: 300,
+        added: [{ startMs: 0, endMs: 200, text: "Intro" }],
+      },
+      5000
+    )
+    expect(edited[0]!.words.map((w) => w.text)).toEqual(["Intro"])
+    expect(edited[0]!.startMs).toBe(0)
+    expect(edited[1]!.startMs).toBe(pages[0]!.startMs + 300)
+  })
+
+  it("gives every extra lane its own height and captions", () => {
+    const lanes = captionLanes(
+      [],
+      {
+        lanes: [
+          {
+            baseline: 0.3,
+            captions: [{ startMs: 0, endMs: 900, text: "Top" }],
+          },
+        ],
+      },
+      5000,
+      0.8
+    )
+    expect(lanes.map((lane) => lane.baseline)).toEqual([0.8, 0.3])
+    expect(lanes[0]!.pages).toEqual([])
+    expect(lanes[1]!.pages[0]!.words[0]!.text).toBe("Top")
   })
 
   it("lets a clip override the project's captions setting", () => {
@@ -389,21 +463,19 @@ describe("ASS", () => {
       maxCharsPerLine: 16,
     })
     const ass = buildAss({
-      pages,
+      lanes: [{ baseline: 0.72, pages }],
       style: resolveCaptionStyle({ presetId: "punch" }),
-      baseline: 0.72,
     })
     await expect(ass).toMatchFileSnapshot("./__golden__/punch.ass")
   })
 
   it("uses the selected font's family name", () => {
     const ass = buildAss({
-      pages: [],
+      lanes: [],
       style: resolveCaptionStyle({
         presetId: "punch",
         overrides: { font: "pricedown" },
       }),
-      baseline: 0.72,
     })
     expect(ass).toContain("Style: Caption,Pricedown Black,92,")
   })
@@ -411,12 +483,11 @@ describe("ASS", () => {
   it("emits one event per page without highlighting", () => {
     const pages = buildCaptionPages(sample, 5000)
     const ass = buildAss({
-      pages,
+      lanes: [{ baseline: 0.8, pages }],
       style: resolveCaptionStyle({
         presetId: "boxed",
         overrides: { highlight: false },
       }),
-      baseline: 0.8,
     })
     const events = ass
       .split("\n")
@@ -425,37 +496,59 @@ describe("ASS", () => {
     expect(ass).toContain(",3,16,0,2,")
     expect(events[0]).toContain("\\pos(540,1536)")
   })
+
+  it("puts every lane at its own height on its own layer", () => {
+    const pages = buildCaptionPages(sample, 5000)
+    const ass = buildAss({
+      lanes: [
+        { baseline: 0.8, pages: pages.slice(0, 1) },
+        { baseline: 0.25, pages: pages.slice(0, 1) },
+      ],
+      style: resolveCaptionStyle({
+        presetId: "boxed",
+        overrides: { highlight: false },
+      }),
+    })
+    const events = ass
+      .split("\n")
+      .filter((line) => line.startsWith("Dialogue:"))
+    expect(events).toHaveLength(2)
+    expect(events[0]).toMatch(/^Dialogue: 0,.*\\pos\(540,1536\)/)
+    expect(events[1]).toMatch(/^Dialogue: 1,.*\\pos\(540,480\)/)
+  })
 })
 
 describe("text overlay", () => {
   const punch = resolveCaptionStyle({ presetId: "punch" })
-  const overlay = { text: "Wait for it", position: "top" as const, endMs: 3000 }
+  const overlay = {
+    text: "Wait for it",
+    position: "top" as const,
+    startMs: 0,
+    endMs: 3000,
+  }
   const events = (ass: string) =>
     ass.split("\n").filter((line) => line.startsWith("Dialogue:"))
 
   it("parses with defaults and bounds", () => {
-    expect(textOverlaySchema.parse({ text: "  Wait for it " })).toEqual({
-      text: "Wait for it",
-      position: "top",
-      untilMs: 3000,
-    })
+    const base = { startMs: 0, endMs: 3000 }
     expect(
-      textOverlaySchema.parse({ text: "Go", position: "center", untilMs: null })
-    ).toEqual({ text: "Go", position: "center", untilMs: null })
+      textOverlaySchema.parse({ text: "  Wait for it ", ...base })
+    ).toEqual({ text: "Wait for it", position: "top", lane: 0, ...base })
     const ok = (input: object) =>
-      textOverlaySchema.safeParse({ text: "Go", ...input }).success
+      textOverlaySchema.safeParse({ text: "Go", ...base, ...input }).success
     expect(ok({ text: "a".repeat(80) })).toBe(true)
     expect(ok({ text: "a".repeat(81) })).toBe(false)
     expect(ok({ text: "   " })).toBe(false)
     expect(ok({ position: "bottom" })).toBe(false)
-    expect(ok({ untilMs: 500 })).toBe(true)
-    expect(ok({ untilMs: 499 })).toBe(false)
-    expect(ok({ untilMs: 180_000 })).toBe(true)
-    expect(ok({ untilMs: 180_001 })).toBe(false)
-    expect(ok({ untilMs: 1500.5 })).toBe(false)
+    expect(ok({ startMs: 1000, endMs: 1500 })).toBe(true)
+    expect(ok({ startMs: 1000, endMs: 1499 })).toBe(false)
+    expect(ok({ lane: 3 })).toBe(true)
+    expect(ok({ lane: 4 })).toBe(false)
+    expect(ok({ endMs: 1500.5 })).toBe(false)
     expect(
-      textOverlaySchema.safeParse({ text: " " }).error?.issues[0]?.message
-    ).toBe("Add the on-screen text or turn it off")
+      textOverlaySchema.safeParse({ text: " ", ...base }).error?.issues[0]
+        ?.message
+    ).toBe("Write the text or delete it")
   })
 
   it("defaults to the hook, then the title, cut at a word boundary", () => {
@@ -467,12 +560,23 @@ describe("text overlay", () => {
     expect(long.endsWith("word…")).toBe(true)
   })
 
-  it("sizes the title and ends it within the clip", () => {
+  it("sizes the title and cuts texts at the clip end", () => {
     expect(overlayFontSize({ fontSize: 92 })).toBe(110)
     expect(overlayFontSize({ fontSize: 160 })).toBe(192)
-    expect(overlayEndMs({ untilMs: 3000 }, 20_000)).toBe(3000)
-    expect(overlayEndMs({ untilMs: 30_000 }, 20_000)).toBe(20_000)
-    expect(overlayEndMs({ untilMs: null }, 20_000)).toBe(20_000)
+    const text = { ...overlay, lane: 0 }
+    expect(
+      overlaysInClip(
+        [
+          { ...text, startMs: 0, endMs: 3000 },
+          { ...text, startMs: 18_000, endMs: 30_000 },
+          { ...text, startMs: 19_800, endMs: 25_000 },
+        ],
+        20_000
+      )
+    ).toEqual([
+      { ...text, startMs: 0, endMs: 3000 },
+      { ...text, startMs: 18_000, endMs: 20_000 },
+    ])
   })
 
   it("matches the golden file and leaves captions untouched", async () => {
@@ -480,7 +584,11 @@ describe("text overlay", () => {
       maxWordsPerPage: 3,
       maxCharsPerLine: 16,
     })
-    const ass = buildAss({ pages, style: punch, baseline: 0.72, overlay })
+    const ass = buildAss({
+      lanes: [{ baseline: 0.72, pages }],
+      style: punch,
+      overlays: [overlay],
+    })
     await expect(ass).toMatchFileSnapshot("./__golden__/overlay.ass")
     expect(ass).toContain(
       "Style: Title,Oxanium ExtraBold,110,&H00FFFFFF,&H00FFFFFF,&H00231415,&H66231415,-1,0,0,0,100,100,0,0,1,8,0,8,90,90,240,1"
@@ -490,28 +598,38 @@ describe("text overlay", () => {
     )
   })
 
-  it("centers with \\an5", () => {
+  it("shows every text in its own window", () => {
     const ass = buildAss({
-      pages: [],
+      lanes: [],
       style: punch,
-      baseline: 0.72,
-      overlay: { ...overlay, position: "center" },
+      overlays: [
+        overlay,
+        {
+          ...overlay,
+          text: "Now",
+          position: "center",
+          startMs: 4000,
+          endMs: 6500,
+        },
+      ],
     })
-    expect(events(ass).at(-1)).toContain("Title,,0,0,0,,{\\an5\\q0}Wait for it")
+    expect(events(ass)).toEqual([
+      "Dialogue: 1,0:00:00.00,0:00:03.00,Title,,0,0,0,,{\\q0}Wait for it",
+      "Dialogue: 1,0:00:04.00,0:00:06.50,Title,,0,0,0,,{\\an5\\q0}Now",
+    ])
   })
 
   it("escapes override codes and keeps emoji", () => {
     const ass = buildAss({
-      pages: [],
+      lanes: [],
       style: punch,
-      baseline: 0.72,
-      overlay: { ...overlay, text: "{\\fs200}big\\Nline\ntwo 🔥" },
+      overlays: [{ ...overlay, text: "{\\fs200}big\\Nline\ntwo 🔥" }],
     })
     expect(events(ass).at(-1)).toContain("{\\q0}｛＼fs200｝big＼Nline two 🔥")
   })
 
-  it("emits only the title event without caption pages", () => {
-    const ass = buildAss({ pages: [], style: punch, baseline: 0.72, overlay })
+  it("emits only the title event without caption lanes", () => {
+    const ass = buildAss({ lanes: [], style: punch, overlays: [overlay] })
     expect(events(ass)).toHaveLength(1)
     expect(ass).not.toContain(",Caption,,")
   })

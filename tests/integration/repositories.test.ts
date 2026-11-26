@@ -164,7 +164,11 @@ describe("clipRepository", () => {
       { startMs: 0, endMs: 20_000, title: "A", score: 0.5 },
     ])
     const updated = await repo.update(clip!.id, {
-      captionOverrides: { pages: [{ index: 0, text: "Hello" }] },
+      captionOverrides: {
+        pages: [{ index: 0, text: "Hello" }],
+        added: [],
+        lanes: [],
+      },
     })
     expect(updated.captionOverrides?.pages[0]?.text).toBe("Hello")
   })

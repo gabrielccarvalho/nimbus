@@ -62,7 +62,7 @@ afterEach(() => {
 
 function renderAt(
   ms: number,
-  overlay?: React.ComponentProps<typeof ClipPreview>["overlay"]
+  overlays?: React.ComponentProps<typeof ClipPreview>["overlays"]
 ) {
   time = ms / 1000
   const { container } = render(
@@ -71,11 +71,11 @@ function renderAt(
       <ClipPreview
         layout={layout}
         effects={effects}
-        pages={[]}
+        lanes={[]}
         startMs={0}
         captionStyle={captionStyle}
         captionsEnabled={false}
-        overlay={overlay}
+        overlays={overlays}
       />
     </VideoPlayerProvider>
   )
@@ -105,25 +105,33 @@ describe("ClipPreview", () => {
   })
 })
 
-describe("ClipPreview overlay", () => {
-  const overlay = {
-    text: "Wait for it",
-    position: "top",
-    untilMs: 3000,
-  } as const
+describe("ClipPreview texts", () => {
+  const texts = [
+    {
+      text: "Wait for it",
+      position: "top",
+      startMs: 1000,
+      endMs: 3000,
+      lane: 0,
+    },
+    { text: "Now", position: "center", startMs: 2000, endMs: 5000, lane: 1 },
+  ] as const
 
-  it("shows the text for the first seconds of the clip", () => {
-    renderAt(1000, overlay)
-    expect(screen.getByText("Wait for it")).toBeInTheDocument()
-  })
-
-  it("hides it once the time is up", () => {
-    renderAt(4000, overlay)
+  it("shows each text only while it's on the timeline", () => {
+    renderAt(500, [...texts])
     expect(screen.queryByText("Wait for it")).toBeNull()
+    expect(screen.queryByText("Now")).toBeNull()
   })
 
-  it("keeps it for the whole clip", () => {
-    renderAt(4000, { ...overlay, untilMs: null })
+  it("shows overlapping texts together", () => {
+    renderAt(2500, [...texts])
     expect(screen.getByText("Wait for it")).toBeInTheDocument()
+    expect(screen.getByText("Now")).toBeInTheDocument()
+  })
+
+  it("hides a text once its time is up", () => {
+    renderAt(4000, [...texts])
+    expect(screen.queryByText("Wait for it")).toBeNull()
+    expect(screen.getByText("Now")).toBeInTheDocument()
   })
 })

@@ -97,7 +97,12 @@ export const renderEditStep: JobHandler = async ({
     })
     await writeFile(
       workFile("ass"),
-      buildAss({ pages, style, baseline: EDIT_BASELINE, width, height })
+      buildAss({
+        lanes: [{ baseline: EDIT_BASELINE, pages }],
+        style,
+        width,
+        height,
+      })
     )
     subtitles = {
       file: workFile("ass"),
