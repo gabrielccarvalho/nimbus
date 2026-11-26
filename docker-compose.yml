@@ -17,13 +17,13 @@ services:
 
   # minio/minio is no longer published; Bitnami's frozen builds are MinIO too.
   minio:
-    profiles: [s3]
+    profiles: [s3, selfhost]
     image: bitnamilegacy/minio:2025.7.23
     environment:
       MINIO_ROOT_USER: nimbus
       MINIO_ROOT_PASSWORD: nimbus-secret
       # MinIO has no bucket CORS (PutBucketCors is NotImplemented), only this.
-      MINIO_API_CORS_ALLOW_ORIGIN: http://localhost:3000
+      MINIO_API_CORS_ALLOW_ORIGIN: ${MINIO_CORS_ORIGIN:-http://localhost:3000}
     ports:
       - "9010:9000"
       - "9011:9001"
@@ -36,7 +36,7 @@ services:
       retries: 30
 
   minio-init:
-    profiles: [s3]
+    profiles: [s3, selfhost]
     image: bitnamilegacy/minio-client:2025.7.21
     depends_on:
       minio:
@@ -47,6 +47,80 @@ services:
         mc alias set local http://minio:9000 nimbus nimbus-secret &&
         mc mb --ignore-existing local/nimbus
 
+  migrate:
+    profiles: [selfhost]
+    build: &worker-build
+      context: .
+      dockerfile: Dockerfile.worker
+    image: nimbus-worker
+    command:
+      [
+        "node",
+        "--conditions=react-server",
+        "--import",
+        "tsx",
+        "scripts/migrate.ts",
+      ]
+    env_file: &selfhost-env-file
+      - path: .env.selfhost
+        required: false
+    environment: &selfhost-env
+      DATABASE_URL: postgres://nimbus:nimbus@db:5432/nimbus
+      STORAGE_DRIVER: s3
+      S3_ENDPOINT: http://minio:9000
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9010}
+      S3_BUCKET: nimbus
+      S3_ACCESS_KEY_ID: nimbus
+      S3_SECRET_ACCESS_KEY: nimbus-secret
+      S3_FORCE_PATH_STYLE: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    profiles: [selfhost]
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    image: nimbus-web
+    env_file: *selfhost-env-file
+    environment: *selfhost-env
+    ports:
+      - "${NIMBUS_WEB_PORT:-3000}:3000"
+    tmpfs:
+      - /tmp
+    depends_on: &selfhost-deps
+      migrate:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  worker:
+    profiles: [selfhost]
+    build: *worker-build
+    image: nimbus-worker
+    env_file: *selfhost-env-file
+    environment: *selfhost-env
+    volumes:
+      - scratch:/tmp/nimbus
+    depends_on: *selfhost-deps
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:8787/healthz').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+    # WORKER_SHUTDOWN_GRACE_MS (25 s) plus time to abort and hand jobs back.
+    stop_grace_period: 40s
+    restart: unless-stopped
+
 volumes:
   pgdata:
   miniodata:
+  scratch:

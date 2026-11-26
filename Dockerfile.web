@@ -1,0 +1,33 @@
+# syntax=docker/dockerfile:1
+
+FROM node:24-trixie-slim AS build
+ARG PNPM_VERSION=11.24.0
+RUN npm install -g "pnpm@$PNPM_VERSION" \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends g++ make python3 \
+  && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY . .
+ENV NIMBUS_STANDALONE=1 NEXT_TELEMETRY_DISABLED=1
+RUN pnpm setup:vision && pnpm build
+
+FROM node:24-trixie-slim
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends tini \
+  && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+ENV NODE_ENV=production \
+  NIMBUS_ROLE=web \
+  NEXT_TELEMETRY_DISABLED=1 \
+  HOSTNAME=0.0.0.0 \
+  PORT=3000
+COPY --from=build --chown=node:node /app/.next/standalone ./
+COPY --from=build --chown=node:node /app/.next/static ./.next/static
+COPY --from=build /app/public ./public
+COPY --from=build /app/assets ./assets
+USER node
+EXPOSE 3000
+ENTRYPOINT ["tini", "--"]
+CMD ["node", "server.js"]
