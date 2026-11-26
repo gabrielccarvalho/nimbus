@@ -16,13 +16,31 @@ export const clipStatuses = [
 export const clipStatusSchema = z.enum(clipStatuses)
 export type ClipStatus = z.infer<typeof clipStatusSchema>
 
-export const captionPageOverrideSchema = z.object({
-  index: z.number().int().nonnegative(),
-  text: z.string().max(200),
-})
+export const CAPTION_MAX_OFFSET_MS = 5_000
+
+export const captionPageOverrideSchema = z
+  .object({
+    index: z.number().int().nonnegative(),
+    text: z.string().max(200).optional(),
+    startMs: z.number().int().nonnegative().optional(),
+    endMs: z.number().int().positive().optional(),
+  })
+  .refine(
+    (page) =>
+      page.startMs === undefined ||
+      page.endMs === undefined ||
+      page.endMs > page.startMs,
+    { message: "A caption must end after it starts", path: ["endMs"] }
+  )
 
 export const captionOverridesSchema = z.object({
   enabled: z.boolean().optional(),
+  offsetMs: z
+    .number()
+    .int()
+    .min(-CAPTION_MAX_OFFSET_MS)
+    .max(CAPTION_MAX_OFFSET_MS)
+    .optional(),
   pages: z.array(captionPageOverrideSchema).default([]),
   style: z
     .object({

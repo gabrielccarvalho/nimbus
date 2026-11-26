@@ -53,10 +53,10 @@ function PresetSample({ presetId }: { presetId: string }) {
   return (
     <span
       aria-hidden
-      className="grid h-14 place-items-center rounded-[10px] bg-night"
+      className="grid h-12 place-items-center overflow-hidden rounded-[10px] bg-night"
     >
       <span
-        className="px-1.5 py-0.5 text-[17px] leading-none font-bold"
+        className="px-1.5 py-0.5 text-[15px] leading-none font-bold whitespace-nowrap"
         style={{
           fontFamily: css.fontFamily,
           color: css.color,
@@ -116,16 +116,16 @@ export function CaptionStyleFields({
               ),
             })
           }}
-          className="grid w-full grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-2"
+          className="grid w-full grid-cols-[repeat(auto-fit,minmax(88px,1fr))] gap-2"
         >
           {CAPTION_PRESETS.map((preset) => (
             <ToggleGroupItem
               key={preset.id}
               value={preset.id}
-              className="grid h-auto justify-items-stretch gap-1.5 rounded-[14px] bg-graphite-2 p-2.5 text-start inset-ring-1 inset-ring-hair hover:bg-graphite-3 aria-pressed:bg-lav/10 aria-pressed:inset-ring-lav/60"
+              className="grid h-auto justify-items-stretch gap-1.5 rounded-[14px] bg-graphite-2 p-1.5 text-center inset-ring-1 inset-ring-hair hover:bg-graphite-3 aria-pressed:bg-lav/10 aria-pressed:inset-ring-lav/60"
             >
               <PresetSample presetId={preset.id} />
-              <b className="px-1 text-sm font-semibold">{preset.label}</b>
+              <b className="text-[13px] font-semibold">{preset.label}</b>
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
@@ -137,7 +137,7 @@ export function CaptionStyleFields({
             aria-labelledby={`${id}-position`}
             variant="outline"
             size="sm"
-            className="flex-wrap"
+            className="grid w-full grid-cols-5"
             value={[style.position]}
             disabled={disabled}
             onValueChange={(next) => {
@@ -149,7 +149,7 @@ export function CaptionStyleFields({
               <ToggleGroupItem
                 key={position.value}
                 value={position.value}
-                className="aria-pressed:bg-lav/15 aria-pressed:text-lav aria-pressed:inset-ring-1 aria-pressed:inset-ring-lav/50"
+                className="px-1 text-xs aria-pressed:bg-lav/15 aria-pressed:text-lav aria-pressed:inset-ring-1 aria-pressed:inset-ring-lav/50"
               >
                 {position.label}
               </ToggleGroupItem>

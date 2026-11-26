@@ -15,6 +15,8 @@ import {
   buildCaptionPages,
   clipCaptionPages,
   clipCaptionsEnabled,
+  editCaptionPages,
+  pageRoom,
   DEFAULT_PAGING,
   pageAt,
   sampleCaptionWords,
@@ -194,6 +196,74 @@ describe("wordsInRange and lookup", () => {
       "HAPPENED",
     ])
     expect(edited[0]!.words.at(-1)!.endMs).toBe(1300)
+  })
+
+  it("moves a page and its words to a hand-set time", () => {
+    const pages = buildCaptionPages(sample, 5000)
+    const [moved] = applyPageOverrides(pages, [
+      {
+        index: 0,
+        startMs: 200,
+        endMs: 200 + (pages[0]!.endMs - pages[0]!.startMs) * 2,
+      },
+    ])
+    expect(moved!.startMs).toBe(200)
+    expect(moved!.words[0]!.startMs).toBe(200)
+    const original = pages[0]!.words.at(-1)!
+    expect(moved!.words.at(-1)!.startMs).toBe(
+      200 + (original.startMs - pages[0]!.startMs) * 2
+    )
+  })
+
+  it("keeps edited text when the page is retimed", () => {
+    const pages = buildCaptionPages(sample, 5000)
+    const [edited] = applyPageOverrides(pages, [
+      { index: 0, text: "one two", startMs: 1000, endMs: 2000 },
+    ])
+    expect(edited!.words.map((w) => w.text)).toEqual(["one", "two"])
+    expect(edited!.startMs).toBe(1000)
+    expect(edited!.endMs).toBe(2000)
+    expect(
+      edited!.words.every((w) => w.startMs >= 1000 && w.endMs <= 2000)
+    ).toBe(true)
+  })
+
+  it("shifts every page by the clip offset and drops what falls outside", () => {
+    const pages = buildCaptionPages(sample, 5000)
+    const later = editCaptionPages(pages, { offsetMs: 250 }, 5000)
+    expect(later.map((p) => p.startMs)).toEqual(
+      pages.map((p) => Math.min(5000, p.startMs + 250))
+    )
+    const earlier = editCaptionPages(
+      pages,
+      { offsetMs: -pages[0]!.endMs },
+      5000
+    )
+    expect(earlier).toHaveLength(pages.length - 1)
+    expect(earlier.every((p) => p.startMs >= 0)).toBe(true)
+  })
+
+  it("applies the offset after a page's own timing", () => {
+    const pages = buildCaptionPages(sample, 5000)
+    const [first] = editCaptionPages(
+      pages,
+      { offsetMs: 100, pages: [{ index: 0, startMs: 0, endMs: 400 }] },
+      5000
+    )
+    expect(first!.startMs).toBe(100)
+    expect(first!.endMs).toBe(500)
+  })
+
+  it("limits a page to the gap between its neighbours", () => {
+    const pages = buildCaptionPages(sample, 5000)
+    expect(pageRoom(pages, 0, 5000)).toEqual({
+      minMs: 0,
+      maxMs: pages[1]!.startMs,
+    })
+    expect(pageRoom(pages, pages.at(-1)!.index, 5000)).toEqual({
+      minMs: pages.at(-2)!.endMs,
+      maxMs: 5000,
+    })
   })
 
   it("builds a clip's pages from its range, style and page overrides", () => {

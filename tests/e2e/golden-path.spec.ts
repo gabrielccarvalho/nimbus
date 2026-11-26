@@ -78,12 +78,13 @@ test("upload, confirm layout, render, download and edit a clip", async ({
     .getByRole("group", { name: "Webcam goes" })
     .getByRole("button", { name: "At the bottom" })
     .click()
-  await page.getByRole("tab", { name: "Captions" }).click()
-  await expect(page.getByRole("list", { name: "Caption text" })).toBeVisible()
   await page
-    .getByLabel("Caption 1", { exact: false })
-    .first()
-    .fill("Edited caption")
+    .getByRole("group", { name: "Caption timing" })
+    .getByRole("button", { name: /^Caption 1 at/ })
+    .click()
+  await page.getByLabel("Caption text").fill("Edited caption")
+  await page.getByRole("button", { name: "Show captions later" }).click()
+  await page.getByRole("tab", { name: "Captions" }).click()
   await page
     .getByRole("group", { name: "Position", exact: true })
     .getByRole("button", { name: "Top" })

@@ -150,35 +150,118 @@ export function buildCaptionPages(
   })
 }
 
+export type PageOverride = {
+  index: number
+  text?: string
+  startMs?: number
+  endMs?: number
+}
+
+export type CaptionEdits = {
+  pages?: readonly PageOverride[]
+  offsetMs?: number
+}
+
+function retimePage(page: CaptionPage, startMs: number, endMs: number) {
+  const from = page.endMs - page.startMs
+  const scale = from > 0 ? (endMs - startMs) / from : 0
+  const at = (ms: number) => Math.round(startMs + (ms - page.startMs) * scale)
+  return {
+    ...page,
+    startMs,
+    endMs,
+    words: page.words.map((w) => ({
+      ...w,
+      startMs: at(w.startMs),
+      endMs: at(w.endMs),
+    })),
+  }
+}
+
 export function applyPageOverrides(
   pages: readonly CaptionPage[],
-  overrides: readonly { index: number; text: string }[],
+  overrides: readonly PageOverride[],
   options: Pick<PagingOptions, "maxCharsPerLine" | "maxLines"> = DEFAULT_PAGING
 ): CaptionPage[] {
-  const byIndex = new Map(overrides.map((o) => [o.index, o.text]))
+  const byIndex = new Map(overrides.map((o) => [o.index, o]))
   return pages.flatMap((page) => {
-    const text = byIndex.get(page.index)
-    if (text === undefined) return [page]
-    const tokens = text.split(/\s+/).filter(Boolean)
-    if (tokens.length === 0) return []
-    const span = (page.words.at(-1)!.endMs - page.startMs) / tokens.length
-    const words = tokens.map((token, i) => ({
-      text: token,
-      startMs: Math.round(page.startMs + i * span),
-      endMs: Math.round(page.startMs + (i + 1) * span),
-    }))
-    return [
-      {
+    const override = byIndex.get(page.index)
+    if (!override) return [page]
+    let edited = page
+    if (override.text !== undefined) {
+      const tokens = override.text.split(/\s+/).filter(Boolean)
+      if (tokens.length === 0) return []
+      const span = (page.words.at(-1)!.endMs - page.startMs) / tokens.length
+      edited = {
         ...page,
-        words,
+        words: tokens.map((token, i) => ({
+          text: token,
+          startMs: Math.round(page.startMs + i * span),
+          endMs: Math.round(page.startMs + (i + 1) * span),
+        })),
         lines: breakLines(
           tokens,
           options.maxCharsPerLine,
           options.maxLines
         ) ?? [tokens.length],
+      }
+    }
+    const startMs = override.startMs ?? page.startMs
+    const endMs = override.endMs ?? page.endMs
+    if (endMs <= startMs) return [edited]
+    return [retimePage(edited, startMs, endMs)]
+  })
+}
+
+export function shiftPages(
+  pages: readonly CaptionPage[],
+  offsetMs: number,
+  durationMs: number
+): CaptionPage[] {
+  if (offsetMs === 0) return [...pages]
+  const shift = (ms: number) => Math.min(durationMs, Math.max(0, ms + offsetMs))
+  return pages.flatMap((page) => {
+    if (page.endMs + offsetMs <= 0 || page.startMs + offsetMs >= durationMs) {
+      return []
+    }
+    return [
+      {
+        ...page,
+        startMs: shift(page.startMs),
+        endMs: shift(page.endMs),
+        words: page.words.map((w) => ({
+          ...w,
+          startMs: shift(w.startMs),
+          endMs: shift(w.endMs),
+        })),
       },
     ]
   })
+}
+
+export function editCaptionPages(
+  pages: readonly CaptionPage[],
+  edits: CaptionEdits | null | undefined,
+  durationMs: number,
+  options: Pick<PagingOptions, "maxCharsPerLine" | "maxLines"> = DEFAULT_PAGING
+): CaptionPage[] {
+  return shiftPages(
+    applyPageOverrides(pages, edits?.pages ?? [], options),
+    edits?.offsetMs ?? 0,
+    durationMs
+  )
+}
+
+export function pageRoom(
+  pages: readonly CaptionPage[],
+  index: number,
+  durationMs: number
+): { minMs: number; maxMs: number } {
+  const at = pages.findIndex((page) => page.index === index)
+  return {
+    minMs: pages[at - 1]?.endMs ?? 0,
+    maxMs: pages[at + 1]?.startMs ?? durationMs,
+  }
 }
 
 export function pageAt(pages: readonly CaptionPage[], ms: number) {
@@ -222,22 +305,22 @@ export function clipCaptionPages(
   clip: {
     startMs: number
     endMs: number
-    captionOverrides?: {
-      pages?: readonly { index: number; text: string }[]
-    } | null
+    captionOverrides?: CaptionEdits | null
   },
   style: Pick<PagingOptions, "maxWordsPerPage" | "maxCharsPerLine">
 ): CaptionPage[] {
-  return applyPageOverrides(
+  const durationMs = clip.endMs - clip.startMs
+  return editCaptionPages(
     buildCaptionPages(
       wordsInRange(words, clip.startMs, clip.endMs),
-      clip.endMs - clip.startMs,
+      durationMs,
       {
         maxWordsPerPage: style.maxWordsPerPage,
         maxCharsPerLine: style.maxCharsPerLine,
       }
     ),
-    clip.captionOverrides?.pages ?? [],
+    clip.captionOverrides,
+    durationMs,
     { maxCharsPerLine: style.maxCharsPerLine, maxLines: 2 }
   )
 }

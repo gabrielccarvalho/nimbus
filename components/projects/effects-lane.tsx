@@ -165,7 +165,7 @@ function tabIndexOf(element: HTMLElement) {
   return original === "" ? 0 : Number(original)
 }
 
-function tabbables(root: HTMLElement | null) {
+export function tabbables(root: HTMLElement | null) {
   return Array.from(
     root?.querySelectorAll<HTMLElement>("button, input, [tabindex]") ?? []
   ).filter(

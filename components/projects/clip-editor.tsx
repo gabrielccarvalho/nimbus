@@ -28,7 +28,6 @@ import {
   ProgressValue,
 } from "@/components/ui/progress"
 import { StatusPill } from "@/components/ui/status-pill"
-import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -46,8 +45,8 @@ import {
   VideoPlayerVideo,
 } from "@/components/ui/video-player"
 import {
-  applyPageOverrides,
   buildCaptionPages,
+  editCaptionPages,
   wordsInRange,
 } from "@/features/captions/pages"
 import {
@@ -69,6 +68,7 @@ import { formatTimestamp } from "@/lib/format"
 
 import { AudioTextPanel } from "./audio-text-panel"
 import { CaptionStyleFields } from "./caption-style-fields"
+import { ClipCaptionsCard, type PageEdits } from "./clip-captions"
 import { ClipEffectsCard, ClipEffectsPreview } from "./clip-effects"
 import { useClipStatus } from "./clip-player-dialog"
 import { ClipLoop } from "./clip-preview"
@@ -213,10 +213,16 @@ export function ClipEditor({
       ...(current ?? projectLayout),
       ...patch,
     }))
-  const [pageTexts, setPageTexts] = React.useState<Record<number, string>>(() =>
+  const [pageEdits, setPageEdits] = React.useState<PageEdits>(() =>
     Object.fromEntries(
-      (clip.captionOverrides?.pages ?? []).map((p) => [p.index, p.text])
+      (clip.captionOverrides?.pages ?? []).map(({ index, ...edit }) => [
+        index,
+        edit,
+      ])
     )
+  )
+  const [offsetMs, setOffsetMs] = React.useState(
+    clip.captionOverrides?.offsetMs ?? 0
   )
 
   const windowStartMs = Math.max(0, clip.startMs - WINDOW_PADDING_MS)
@@ -250,14 +256,16 @@ export function ClipEditor({
   )
   const captionsNearTop =
     captionsEnabled && captionBaseline(style, layout) < 0.4
-  const overrides = Object.entries(pageTexts).map(([index, text]) => ({
+  const overrides = Object.entries(pageEdits).map(([index, edit]) => ({
     index: Number(index),
-    text,
+    ...edit,
   }))
-  const pages = applyPageOverrides(basePages, overrides, {
-    maxCharsPerLine: style.maxCharsPerLine,
-    maxLines: 2,
-  })
+  const pages = editCaptionPages(
+    basePages,
+    { pages: overrides, offsetMs },
+    durationMs,
+    { maxCharsPerLine: style.maxCharsPerLine, maxLines: 2 }
+  )
 
   const clipStatus =
     snapshot.clips.find((c) => c.id === clip.id)?.status ?? clip.status
@@ -278,7 +286,7 @@ export function ClipEditor({
     const end = Math.max(0, Math.min(Math.round(nextEnd), sourceDurationMs))
     setStartMs(start)
     setEndMs(end)
-    setPageTexts({})
+    setPageEdits({})
   }
 
   const payload = {
@@ -288,6 +296,7 @@ export function ClipEditor({
     hook,
     captionOverrides: {
       enabled: captionsOverride,
+      offsetMs: offsetMs || undefined,
       pages: overrides,
       style: styleRef,
     },
@@ -516,7 +525,7 @@ export function ClipEditor({
                 </h3>
                 <span className="text-[13px] text-tertiary">
                   {seconds(durationMs)} s long. Changing the trim resets caption
-                  text edits.
+                  edits.
                 </span>
               </div>
               <TrimTimeline
@@ -574,6 +583,24 @@ export function ClipEditor({
               onEffectsChange={setEffects}
               selected={selectedEffect}
               onSelectedChange={setSelectedEffect}
+              disabled={pending || rendering}
+            />
+
+            <ClipCaptionsCard
+              startMs={startMs}
+              durationMs={durationMs}
+              basePages={basePages}
+              pages={pages}
+              enabled={captionsEnabled}
+              onEnabledChange={(checked) =>
+                setCaptionsOverride(
+                  checked === settings.captionsEnabled ? undefined : checked
+                )
+              }
+              pageEdits={pageEdits}
+              onPageEditsChange={setPageEdits}
+              offsetMs={offsetMs}
+              onOffsetChange={setOffsetMs}
               disabled={pending || rendering}
             />
           </div>
@@ -681,11 +708,22 @@ export function ClipEditor({
               defaultValue="details"
               className="gap-4 rounded-[18px] bg-graphite px-[18px] py-4"
             >
-              <TabsList aria-label="Clip inspector">
-                <TabsTrigger value="details">Details</TabsTrigger>
-                <TabsTrigger value="layout">Layout</TabsTrigger>
-                <TabsTrigger value="captions">Captions</TabsTrigger>
-                <TabsTrigger value="audio">Audio &amp; text</TabsTrigger>
+              <TabsList
+                aria-label="Clip inspector"
+                className="grid w-full grid-cols-[repeat(4,auto)] justify-between"
+              >
+                <TabsTrigger value="details" className="px-2.5 text-[13px]">
+                  Details
+                </TabsTrigger>
+                <TabsTrigger value="layout" className="px-2.5 text-[13px]">
+                  Layout
+                </TabsTrigger>
+                <TabsTrigger value="captions" className="px-2.5 text-[13px]">
+                  Captions
+                </TabsTrigger>
+                <TabsTrigger value="audio" className="px-2.5 text-[13px]">
+                  Audio &amp; text
+                </TabsTrigger>
               </TabsList>
               <TabsContent value="details" className="grid gap-4">
                 <div className="grid gap-2">
@@ -750,81 +788,18 @@ export function ClipEditor({
                 )}
               </TabsContent>
               <TabsContent value="captions" className="grid gap-4">
-                <div className="flex items-center gap-2.5">
-                  <Switch
-                    id="clip-captions"
-                    checked={captionsEnabled}
-                    onCheckedChange={(checked) =>
-                      setCaptionsOverride(
-                        checked === settings.captionsEnabled
-                          ? undefined
-                          : checked
-                      )
-                    }
-                  />
-                  <Label htmlFor="clip-captions">
-                    Show captions on this clip
-                  </Label>
-                </div>
+                {!captionsEnabled && (
+                  <p className="text-[13px] text-tertiary">
+                    Captions are off for this clip. Turn them on in the Captions
+                    panel under the video.
+                  </p>
+                )}
                 <CaptionStyleFields
                   value={styleRef}
                   onValueChange={setStyleRef}
                   installedFonts={installedFonts}
                   disabled={!captionsEnabled}
                 />
-                <ol aria-label="Caption text" className="grid gap-2">
-                  {basePages.map((page) => {
-                    const id = `caption-${page.index}`
-                    const original = page.words.map((w) => w.text).join(" ")
-                    const edited = pageTexts[page.index] !== undefined
-                    return (
-                      <li key={page.index} className="flex items-end gap-2">
-                        <div className="flex flex-1 flex-col gap-1">
-                          <Label
-                            htmlFor={id}
-                            className="font-mono text-xs text-muted-foreground tabular-nums"
-                          >
-                            Caption {page.index + 1} ·{" "}
-                            {formatTimestamp(page.startMs)}
-                          </Label>
-                          <Input
-                            id={id}
-                            value={pageTexts[page.index] ?? original}
-                            maxLength={200}
-                            onChange={(event) =>
-                              setPageTexts((current) => ({
-                                ...current,
-                                [page.index]: event.target.value,
-                              }))
-                            }
-                          />
-                        </div>
-                        {edited && (
-                          <Button
-                            type="button"
-                            size="icon-sm"
-                            variant="ghost"
-                            aria-label={`Reset caption ${page.index + 1}`}
-                            onClick={() =>
-                              setPageTexts((current) => {
-                                const next = { ...current }
-                                delete next[page.index]
-                                return next
-                              })
-                            }
-                          >
-                            <ArrowCounterClockwiseIcon aria-hidden />
-                          </Button>
-                        )}
-                      </li>
-                    )
-                  })}
-                  {basePages.length === 0 && (
-                    <li className="text-sm text-muted-foreground">
-                      No speech in this clip.
-                    </li>
-                  )}
-                </ol>
               </TabsContent>
               <TabsContent value="audio">
                 <AudioTextPanel

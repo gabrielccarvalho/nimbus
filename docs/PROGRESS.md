@@ -409,6 +409,13 @@ Follow-ups from the final review:
 - [ ] Music uploads whose extension doesn't match the sniffed format (an ID3-tagged `.aac`, an M4A named `.mp3`) are rejected now that uploads go straight to the final key. For music only, copy to the sniffed key instead.
 - [ ] Two concurrent `completeUpload` calls with one token can delete the winner's source: the loser's insert fails and its cleanup removes the shared key.
 
+### Phase 37: Caption control per clip (ADR-0071)
+
+- [x] Captions on or off per clip; renders and previews follow the clip
+- [x] Captions lane in the clip editor: drag or resize a caption, click to edit or delete it, shift all captions
+- [x] Sidebar tidy: tabs on one row, presets three across, caption position on one row
+- [ ] Hand check by eye on a real clip with `pnpm dev`
+
 ### Not verified
 
 - MediaPipe face detection on a real face (fixtures have none; the code path is unit tested and the model loads in e2e).

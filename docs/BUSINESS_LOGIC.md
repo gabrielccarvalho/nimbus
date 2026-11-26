@@ -201,6 +201,9 @@ When tracks change:
 | word length               | a word stays lit at most 300 ms + 80 ms per character (max 1.2 s); longer whisper timings are cut so captions clear during pauses                            |
 | who is captioned          | only the streamer's language: segments whose function words belong to another language are dropped, and repeats of a line said 3+ times in a row are dropped |
 | page text edits           | replace the page's words; the new words share the page's time evenly                                                                                         |
+| page timing edits         | a page dragged or resized in the clip editor keeps its words in proportion to the new time; it can't overlap its neighbours or get shorter than 200 ms       |
+| clip offset               | shifts every page by up to ±5 s after per-page edits; pages pushed outside the clip are dropped, and edges are clamped to the clip                           |
+| per-clip switch           | a clip can turn captions on or off; without a choice it follows the project setting                                                                          |
 
 ### Music and on-screen text
 
