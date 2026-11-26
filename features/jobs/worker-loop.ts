@@ -203,11 +203,15 @@ export function createWorker(options: WorkerOptions) {
       log.info("job succeeded")
       await options.onSucceeded?.(job)
     } catch (caught) {
-      const error =
-        abortReason ??
-        (shuttingDown(controller.signal)
-          ? new AppError("TIMEOUT", "Worker stopped while running this job")
-          : toAppError(caught))
+      const error = abortReason ?? toAppError(caught)
+      if (
+        error.code === "CANCELLED" &&
+        shuttingDown(controller.signal) &&
+        (await queue.release(job.id, owner))
+      ) {
+        log.info("job handed back for the next worker")
+        return
+      }
       if (error.code === "CANCELLED") {
         await queue.cancel(job.id)
         log.info("job cancelled")

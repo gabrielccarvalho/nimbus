@@ -399,7 +399,7 @@ describe("worker loop", () => {
     expect((await queue.get(job.id))?.status).toBe("succeeded")
   })
 
-  it("aborts jobs still running at the deadline so they retry", async () => {
+  it("a job interrupted by shutdown is re-queued without using an attempt", async () => {
     const queue = jobQueue(env.db)
     const job = await queue.enqueue({
       type: "probe",
@@ -407,6 +407,7 @@ describe("worker loop", () => {
       maxAttempts: 3,
     })
     const onCancelled = vi.fn()
+    const onFinalFailure = vi.fn()
     const w = worker(
       {
         probe: ({ signal }) =>
@@ -414,17 +415,80 @@ describe("worker loop", () => {
             signal.addEventListener("abort", () => reject(signal.reason))
           }),
       },
-      { onCancelled }
+      { onCancelled, onFinalFailure }
     )
     w.start()
     await vi.waitFor(() => expect(w.activeCount).toBe(1))
     await w.stop({ graceMs: 100 })
-    expect(await queue.get(job.id)).toMatchObject({
+    const released = await queue.get(job.id)
+    expect(released).toMatchObject({
       status: "queued",
-      attempts: 1,
-      error: "Worker stopped while running this job",
+      attempts: 0,
+      leaseOwner: null,
+      leasedUntil: null,
+      error: null,
     })
+    expect(released!.runAfter.getTime()).toBeLessThanOrEqual(Date.now())
     expect(onCancelled).not.toHaveBeenCalled()
+    expect(onFinalFailure).not.toHaveBeenCalled()
+  })
+
+  it("a job cancelled during shutdown stays cancelled", async () => {
+    const queue = jobQueue(env.db)
+    const job = await queue.enqueue({
+      type: "probe",
+      projectId: (await project()).id,
+    })
+    const w = worker({
+      probe: ({ signal }) =>
+        new Promise<void>((_, reject) => {
+          signal.addEventListener("abort", () => reject(signal.reason))
+        }),
+    })
+    w.start()
+    await vi.waitFor(() => expect(w.activeCount).toBe(1))
+    const stopped = w.stop({ graceMs: 100 })
+    await queue.cancel(job.id)
+    await stopped
+    expect(await queue.get(job.id)).toMatchObject({ status: "cancelled" })
+  })
+
+  it("a genuine error during shutdown follows the fail path", async () => {
+    const queue = jobQueue(env.db)
+    const job = await queue.enqueue({
+      type: "probe",
+      projectId: (await project()).id,
+      maxAttempts: 1,
+    })
+    const w = worker({
+      probe: ({ signal }) =>
+        new Promise<void>((_, reject) => {
+          signal.addEventListener("abort", () =>
+            reject(new AppError("VALIDATION", "Broken input"))
+          )
+        }),
+    })
+    w.start()
+    await vi.waitFor(() => expect(w.activeCount).toBe(1))
+    await w.stop({ graceMs: 100 })
+    expect(await queue.get(job.id)).toMatchObject({
+      status: "failed",
+      attempts: 1,
+      error: "Broken input",
+    })
+  })
+
+  it("release only touches a running job this worker owns", async () => {
+    const queue = jobQueue(env.db)
+    const job = await queue.enqueue({ type: "probe", projectId: null })
+    await queue.lease({ owner: "a", leaseMs: 60_000 })
+    expect(await queue.release(job.id, "b")).toBe(false)
+    await queue.cancel(job.id)
+    expect(await queue.release(job.id, "a")).toBe(false)
+    expect(await queue.get(job.id)).toMatchObject({
+      status: "cancelled",
+      attempts: 1,
+    })
   })
 
   it("records when it last polled for jobs", async () => {

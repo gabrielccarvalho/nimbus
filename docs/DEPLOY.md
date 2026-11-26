@@ -83,7 +83,7 @@ A local worker pointed at the production database processes production jobs. Don
 
 ### Operating it
 
-- Every production deploy sends the worker SIGTERM. Running jobs get `WORKER_SHUTDOWN_GRACE_MS` to finish; the rest are aborted and retried from the start of their step. `/healthz` keeps answering while the worker drains.
+- Every production deploy sends the worker SIGTERM. Running jobs get `WORKER_SHUTDOWN_GRACE_MS` to finish; the rest are aborted and handed back to the queue without using up a retry, and the next worker starts them again from the start of their step. `/healthz` keeps answering while the worker drains.
 - Daemons bill provisioned memory while idle.
 - Settings shows "No worker online" when the worker's heartbeat in `worker_heartbeats` is more than 3 minutes old.
 
