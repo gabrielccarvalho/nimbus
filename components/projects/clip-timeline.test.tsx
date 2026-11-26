@@ -68,6 +68,7 @@ type State = {
 
 function setup(initial: Partial<State> = {}, hasWebcam = true) {
   const changes: State[] = []
+  const onPlanEffects = vi.fn()
   function Harness() {
     const [state, setState] = React.useState<State>({
       startMs: 10_000,
@@ -97,6 +98,8 @@ function setup(initial: Partial<State> = {}, hasWebcam = true) {
           hasWebcam={hasWebcam}
           effects={state.effects}
           onEffectsChange={(effects) => set({ effects })}
+          onPlanEffects={onPlanEffects}
+          planning={false}
           spokenPages={spoken}
           captions={state.captions}
           onCaptionsChange={(captions) => set({ captions })}
@@ -127,7 +130,23 @@ function setup(initial: Partial<State> = {}, hasWebcam = true) {
     )
   }
   render(<Harness />)
-  return { latest: () => changes.at(-1)! }
+  return { latest: () => changes.at(-1)!, onPlanEffects }
+}
+
+function layOut(viewWidth: number) {
+  const scroller = screen.getByTestId("timeline-scroller")
+  const axis = scroller.firstElementChild as HTMLElement
+  const axisWidth = () => Number(/(\d+)px/.exec(axis.style.width)?.[1] ?? 0)
+  axis.getBoundingClientRect = () =>
+    ({ left: 32 - scroller.scrollLeft, width: axisWidth() }) as DOMRect
+  scroller.getBoundingClientRect = () =>
+    ({ left: 0, width: viewWidth }) as DOMRect
+  Object.defineProperty(scroller, "clientWidth", { get: () => viewWidth })
+  Object.defineProperty(scroller, "scrollWidth", {
+    get: () => axisWidth() + 64,
+  })
+  fireEvent.scroll(scroller)
+  return { scroller, axis, axisWidth }
 }
 
 const volume = (name: string) =>
@@ -310,12 +329,98 @@ describe("ClipTimeline", () => {
     const content = screen.getByTestId("timeline-scroller")
       .firstElementChild as HTMLElement
     const width = () => content.style.width
-    const at = width()
+    expect(width()).toBe("max(100%, 4000px)")
     await userEvent.click(screen.getByRole("button", { name: "Zoom in" }))
-    expect(width()).not.toBe(at)
-    expect(width()).toMatch(/max\(100%, \d+px\)/)
+    expect(width()).toBe("max(100%, 8000px)")
     await userEvent.click(screen.getByRole("button", { name: "Fit" }))
-    expect(width()).toBe("100%")
+    expect(width()).not.toContain("px")
+    expect(parseFloat(width())).toBeCloseTo((50 / 30) * 100, 2)
+  })
+
+  it("zooms around the pointer when the wheel turns over the tracks", () => {
+    setup()
+    const { scroller, axisWidth } = layOut(1000)
+    const msAt = (x: number) =>
+      ((x - 32 + scroller.scrollLeft) / axisWidth()) * 50_000
+    const before = msAt(516)
+    expect(fireEvent.wheel(scroller, { deltaY: -100, clientX: 516 })).toBe(
+      false
+    )
+    expect(axisWidth()).toBeGreaterThan(4000)
+    expect(msAt(516)).toBeCloseTo(before, -2)
+    fireEvent.wheel(scroller, { deltaY: 100_000, clientX: 516 })
+    expect(axisWidth()).toBe(936)
+  })
+
+  it("pans sideways with the wheel instead of zooming", () => {
+    setup()
+    const { scroller, axisWidth } = layOut(1000)
+    fireEvent.wheel(scroller, { deltaX: 120, deltaY: 4 })
+    expect(scroller.scrollLeft).toBe(120)
+    expect(axisWidth()).toBe(4000)
+  })
+
+  it("moves the view by dragging the handle above the ruler", () => {
+    setup()
+    expect(screen.queryByRole("scrollbar")).not.toBeInTheDocument()
+    const { scroller } = layOut(1016)
+    const handle = screen.getByRole("scrollbar", { name: "Timeline position" })
+    expect(handle).toHaveAttribute("aria-valuenow", "0")
+    handle.parentElement!.getBoundingClientRect = () =>
+      ({ left: 0, width: 1000 }) as DOMRect
+    handle.getBoundingClientRect = () => ({ left: 0, width: 44 }) as DOMRect
+    fireEvent.pointerDown(handle, { button: 0, pointerId: 1, clientX: 20 })
+    fireEvent.pointerMove(handle, { pointerId: 1, clientX: 259 })
+    expect(scroller.scrollLeft).toBe(762)
+    fireEvent.scroll(scroller)
+    expect(handle).toHaveAttribute("aria-valuenow", "25")
+    fireEvent.pointerUp(handle, { pointerId: 1 })
+    fireEvent.pointerMove(handle, { pointerId: 1, clientX: 600 })
+    expect(scroller.scrollLeft).toBe(762)
+
+    fireEvent.pointerDown(handle.parentElement!, { button: 0, clientX: 978 })
+    expect(scroller.scrollLeft).toBe(3048)
+
+    fireEvent.keyDown(handle, { key: "Home" })
+    expect(scroller.scrollLeft).toBe(0)
+  })
+
+  it("widens the line behind the handle as the timeline zooms in", async () => {
+    setup()
+    const { scroller } = layOut(1016)
+    const line = document.querySelector<HTMLElement>(
+      "[data-slot=timeline-zoom-level]"
+    )!
+    const percent = () => parseFloat(/([\d.]+)%/.exec(line.style.width)![1]!)
+    expect(percent()).toBeCloseTo(25, 5)
+    await userEvent.click(screen.getByRole("button", { name: "Zoom in" }))
+    fireEvent.scroll(scroller)
+    expect(percent()).toBeGreaterThan(25)
+    expect(percent()).toBeLessThan(50)
+  })
+
+  it("edits an effect from its inspector", async () => {
+    const { latest } = setup({
+      effects: {
+        edited: true,
+        events: [
+          { kind: "shake", startMs: 12_000, endMs: 12_500, intensity: "light" },
+        ],
+      },
+    })
+    await userEvent.click(
+      screen.getByRole("button", { name: "Shake light at 0:02.0" })
+    )
+    await userEvent.click(await screen.findByRole("button", { name: "Strong" }))
+    expect(latest().effects?.events[0]).toMatchObject({ intensity: "strong" })
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }))
+    expect(latest().effects?.events).toEqual([])
+  })
+
+  it("plans the effects again from the Add menu", async () => {
+    const { onPlanEffects } = setup({ effects: { edited: true, events: [] } })
+    await add("Effect", "Reset effects to auto")
+    expect(onPlanEffects).toHaveBeenCalledOnce()
   })
 
   it("removes an empty captions track", async () => {

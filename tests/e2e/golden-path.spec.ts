@@ -93,9 +93,6 @@ test("upload, find the webcam, render, download and edit a clip", async ({
   ).toBeVisible()
   await page.keyboard.press("Escape")
   await page.getByRole("tab", { name: "Captions" }).click()
-  await expect(
-    page.getByRole("textbox", { name: /^Caption at / }).first()
-  ).toHaveValue("Edited caption")
   await page.getByRole("button", { name: "Show captions later" }).click()
   await page.getByRole("button", { name: "Edit style" }).click()
   await page

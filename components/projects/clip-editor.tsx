@@ -29,7 +29,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import {
-  useVideoPlayer,
   VideoPlayerProvider,
   VideoPlayerVideo,
 } from "@/components/ui/video-player"
@@ -75,7 +74,6 @@ import type {
 } from "@/features/projects/queries"
 import type { ProjectSettings } from "@/features/projects/schema"
 import { renderClipsAction } from "@/features/render/actions"
-import { captionBlocks } from "@/features/timeline/captions"
 import type { Word } from "@/features/transcription/schema"
 import { formatTimestamp } from "@/lib/format"
 import { cn } from "@/lib/utils"
@@ -86,7 +84,6 @@ import {
   CaptionsPanel,
   ClipInspector,
   DetailsPanel,
-  EffectsPanel,
   LayoutPanel,
   type InspectorTab,
 } from "./clip-inspector"
@@ -183,7 +180,6 @@ function Editor({
 }: ClipEditorProps) {
   const router = useRouter()
   const snapshot = useProjectEvents(initialSnapshot)
-  const { currentMs } = useVideoPlayer()
   const [pending, startTransition] = React.useTransition()
   const [planning, startPlanning] = React.useTransition()
   const { edit, patch, undo, redo } = useClipEdit(() =>
@@ -217,21 +213,9 @@ function Editor({
   const [loop, setLoop] = React.useState(true)
   const [safeZones, setSafeZones] = React.useState(false)
   const wide = useWide()
-  const inspectorRef = React.useRef<HTMLDivElement>(null)
   const safeId = React.useId()
   const selectedEffect = selection?.type === "effect" ? selection.index : null
   const transport = useClipTransport(startMs, endMs)
-
-  const select = (next: TimelineSelection | null) => {
-    setSelection(next)
-    if (next?.type === "effect") setTab("effects")
-  }
-  React.useEffect(() => {
-    if (selectedEffect === null || tab !== "effects") return
-    inspectorRef.current
-      ?.querySelector(`[data-effect-card="${selectedEffect}"]`)
-      ?.scrollIntoView?.({ block: "nearest" })
-  }, [selectedEffect, tab])
 
   const editLayout = (next: Partial<LayoutInput>) =>
     patch((current) => ({ layout: { ...current.layout, ...next } }))
@@ -374,7 +358,6 @@ function Editor({
     { maxCharsPerLine: style.maxCharsPerLine, maxLines: 2 }
   )
   const spokenPages = lanes[0]!.pages
-  const blocks = captionBlocks(spokenPages, captions)
 
   const clipStatus =
     snapshot.clips.find((c) => c.id === clip.id)?.status ?? clip.status
@@ -577,7 +560,7 @@ function Editor({
   })
 
   const inspector = (
-    <div ref={inspectorRef} className="flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <ClipInspector tab={tab} onTabChange={setTab}>
         <DetailsPanel
           title={title}
@@ -611,8 +594,6 @@ function Editor({
               setSelection(null)
             patch({ captions: next })
           }}
-          blocks={blocks}
-          playheadMs={currentMs - startMs}
           disabled={busy}
         />
         <LayoutPanel
@@ -627,19 +608,6 @@ function Editor({
             editLayout(withLayoutMode(layout, mode, sourceWidth, sourceHeight))
           }
           onCamPositionChange={(camPosition) => editLayout({ camPosition })}
-        />
-        <EffectsPanel
-          effects={effects}
-          clipStartMs={startMs}
-          hasWebcam={hasWebcam && Boolean(layout.webcamRect)}
-          selected={selectedEffect}
-          onSelect={(index) =>
-            setSelection(index === null ? null : { type: "effect", index })
-          }
-          onEffectsChange={(next) => patch({ effects: next })}
-          onPlan={planEffects}
-          planning={planning}
-          disabled={busy}
         />
       </ClipInspector>
     </div>
@@ -960,6 +928,8 @@ function Editor({
           hasWebcam={hasWebcam && Boolean(layout.webcamRect)}
           effects={effects}
           onEffectsChange={(next) => patch({ effects: next })}
+          onPlanEffects={planEffects}
+          planning={planning}
           spokenPages={spokenPages}
           captions={captions}
           onCaptionsChange={(next) => patch({ captions: next })}
@@ -983,7 +953,7 @@ function Editor({
           loudness={loudness}
           previewUnavailable={previewUnavailable}
           selection={selection}
-          onSelectionChange={select}
+          onSelectionChange={setSelection}
           disabled={busy}
         />
       </div>

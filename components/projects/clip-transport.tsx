@@ -23,6 +23,7 @@ import { formatTimestamp } from "@/lib/format"
 import { IconAction } from "./icon-action"
 
 const END_SLACK_MS = 50
+export const START_SLACK_MS = 250
 
 export function ClipPlayback({
   startMs,
@@ -35,7 +36,7 @@ export function ClipPlayback({
 }) {
   const { currentMs, paused, seek, pause } = useVideoPlayer()
   React.useEffect(() => {
-    if (currentMs < startMs - 250) seek(startMs)
+    if (currentMs < startMs - START_SLACK_MS) seek(startMs)
     else if (currentMs >= endMs) {
       if (loop) seek(startMs)
       else if (!paused) {

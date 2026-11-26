@@ -203,9 +203,12 @@ describe("ClipEditor", () => {
         screen.getByRole("group", { name: "Effects track 1" })
       ).getAllByRole("button")
     ).toHaveLength(1)
-    await userEvent.click(screen.getByRole("tab", { name: "Effects" }))
+    await userEvent.click(screen.getByRole("button", { name: "Add" }))
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Effect" })
+    )
     expect(
-      screen.getByRole("button", { name: "Reset effects to auto" })
+      await screen.findByRole("menuitem", { name: "Reset effects to auto" })
     ).toBeInTheDocument()
     expect(updateClipAction).toHaveBeenCalledTimes(1)
   })
@@ -284,28 +287,24 @@ describe("ClipEditor workspace", () => {
     )
   })
 
-  it("opens the effect's card when an effect is picked on the timeline", async () => {
+  it("edits an effect next to the timeline and leaves the inspector alone", async () => {
     renderEditor({ effects: { edited: true, events: [zoom] } })
-    expect(screen.getByRole("tab", { name: "Details" })).toHaveAttribute(
-      "aria-selected",
-      "true"
-    )
     fireEvent.pointerDown(
       screen.getByRole("button", { name: "Zoom 1.4× at 0:02.0" })
     )
-    expect(screen.getByRole("tab", { name: "Effects" })).toHaveAttribute(
-      "aria-selected",
-      "true"
-    )
-    const card = within(screen.getByRole("list", { name: "Effects" }))
-    expect(card.getByText("Zoom 1.4×")).toBeInTheDocument()
-    expect(card.getByText("0:02.0 → 0:03.5")).toBeInTheDocument()
     expect(
-      within(card.getByRole("group", { name: "Strength" })).getByRole(
+      within(await screen.findByRole("group", { name: "Strength" })).getByRole(
         "slider",
         { hidden: true }
       )
     ).toHaveValue("1.4")
+    expect(screen.getByRole("tab", { name: "Details" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    )
+    expect(
+      screen.queryByRole("tab", { name: "Effects" })
+    ).not.toBeInTheDocument()
   })
 
   it("undoes and redoes an edit from the keyboard", async () => {
@@ -407,7 +406,7 @@ describe("ClipEditor workspace", () => {
     expect(screen.queryByRole("tab")).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole("button", { name: "Clip settings" }))
     const drawer = await screen.findByRole("dialog", { name: "Clip settings" })
-    expect(within(drawer).getAllByRole("tab")).toHaveLength(4)
+    expect(within(drawer).getAllByRole("tab")).toHaveLength(3)
     expect(within(drawer).getByLabelText("Title")).toHaveValue("Clip")
   })
 
@@ -433,15 +432,20 @@ describe("ClipEditor workspace", () => {
     expect(webcam.style.left).toBe(before)
   })
 
-  it("rewrites a caption from the list and keeps its timing", async () => {
+  it("rewrites a caption from the timeline and keeps its timing", async () => {
     renderEditor({
       captionOverrides: {
         added: [{ startMs: 1000, endMs: 2500, text: "hello" }],
       },
     } as Partial<Clip>)
     await userEvent.click(screen.getByRole("tab", { name: "Captions" }))
-    const row = screen.getByRole("textbox", { name: "Caption at 0:01.0" })
-    await userEvent.type(row, " there")
+    expect(
+      screen.queryByRole("textbox", { name: /^Caption at / })
+    ).not.toBeInTheDocument()
+    await userEvent.click(
+      screen.getByRole("button", { name: "Caption hello at 0:01.0" })
+    )
+    await userEvent.type(await screen.findByLabelText("Caption text"), " there")
     await waitFor(() => expect(updateClipAction).toHaveBeenCalled())
     const [, , edit] = vi.mocked(updateClipAction).mock.calls.at(-1)!
     expect(edit).toMatchObject({
@@ -466,7 +470,6 @@ describe("ClipEditor audio and text", () => {
       "Details",
       "Captions",
       "Layout",
-      "Effects",
     ])
     const timeline = screen.getByRole("region", { name: "Timeline" })
     for (const name of [

@@ -188,15 +188,7 @@ test("adds a zoom effect in the clip editor", async ({ page }) => {
     .getAttribute("aria-label"))!
   expect(name).toMatch(/^Zoom 1\.4× at /)
   const added = timeline.getByRole("button", { name, exact: true })
-  await expect(page.getByRole("tab", { name: "Effects" })).toHaveAttribute(
-    "aria-selected",
-    "true"
-  )
-  const card = page
-    .getByRole("list", { name: "Effects" })
-    .locator("[data-selected]")
-  await expect(card).toBeInViewport()
-  await card.getByRole("slider", { name: "Strength" }).focus()
+  await page.getByRole("slider", { name: "Strength" }).focus()
   await page.keyboard.press("ArrowRight")
   await expect(
     timeline.getByRole("button", { name: /^Zoom 1\.5× at /, pressed: true })
@@ -204,6 +196,7 @@ test("adds a zoom effect in the clip editor", async ({ page }) => {
   await expectNoSeriousA11yViolations(page)
   await page.keyboard.press("ArrowLeft")
   await expect(added.first()).toHaveAttribute("aria-pressed", "true")
+  await page.keyboard.press("Escape")
 
   const gameBlocks = timeline.getByRole("button", { name: /^Full game at / })
   const gamesBefore = await gameBlocks.count()
@@ -237,6 +230,46 @@ test("adds a zoom effect in the clip editor", async ({ page }) => {
       .getByRole("group", { name: `Effects track ${lanesBefore + 1}` })
       .getByRole("button", { name: /^Zoom / })
   ).toHaveCount(1)
+  await expectNoSeriousA11yViolations(page)
+})
+
+test("starts the timeline at the clip and moves it without a scrollbar", async ({
+  page,
+}) => {
+  const tiles = await uploadAndOpenClips(page)
+  await tiles.first().click()
+
+  const timeline = page.getByRole("region", { name: "Timeline" })
+  const scroller = page.getByTestId("timeline-scroller")
+  await scroller.scrollIntoViewIfNeeded()
+  await expect(scroller).toHaveCSS("overflow-x", "hidden")
+  const view = (await scroller.boundingBox())!
+  const clipLeft = async () =>
+    (await timeline.getByRole("group", { name: "Text track 1" }).boundingBox())!
+      .x - view.x
+  await expect.poll(clipLeft).toBeCloseTo(32, 0)
+
+  const axisWidth = () =>
+    scroller.evaluate(
+      (node) => node.firstElementChild!.getBoundingClientRect().width
+    )
+  const widthBefore = await axisWidth()
+  await page.mouse.move(view.x + view.width / 2, view.y + view.height / 2)
+  await page.mouse.wheel(0, -200)
+  await expect.poll(axisWidth).toBeGreaterThan(widthBefore)
+
+  const handle = timeline.getByRole("scrollbar", { name: "Timeline position" })
+  const scrolled = () => scroller.evaluate((node) => node.scrollLeft)
+  const scrolledBefore = await scrolled()
+  const grip = (await handle.boundingBox())!
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(grip.x + grip.width / 2 + 60, grip.y, { steps: 4 })
+  await page.mouse.up()
+  expect(await scrolled()).toBeGreaterThan(scrolledBefore)
+
+  await timeline.getByRole("button", { name: "Fit" }).click()
+  await expect.poll(clipLeft).toBeCloseTo(32, 0)
   await expectNoSeriousA11yViolations(page)
 })
 

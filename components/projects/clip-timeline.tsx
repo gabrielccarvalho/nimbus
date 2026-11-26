@@ -1,14 +1,17 @@
 "use client"
 
 import {
+  ArrowCounterClockwiseIcon,
   ArrowLineLeftIcon,
   ArrowLineRightIcon,
   ArrowSquareOutIcon,
   CaretDownIcon,
   ClosedCaptioningIcon,
+  DotsSixIcon,
   EyeIcon,
   EyeSlashIcon,
   FilmStripIcon,
+  MagicWandIcon,
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,
   MusicNotesIcon,
@@ -107,9 +110,11 @@ import { retimeMusic } from "@/features/timeline/music"
 import { splitCaption, splitItem, splitMusic } from "@/features/timeline/split"
 import { formatTimestamp } from "@/lib/format"
 
+import { START_SLACK_MS } from "./clip-transport"
 import { IconAction } from "./icon-action"
 import {
   CaptionInspector,
+  EffectInspector,
   effectLabel,
   MusicInspector,
   SourceInspector,
@@ -128,8 +133,16 @@ export type TimelineSelection =
 
 type LaneGroup = "effects" | "texts" | "music"
 
-const ZOOM_LEVELS = [0, 20, 40, 80, 160, 320] as const
-const DEFAULT_ZOOM = 3
+const ZOOM_FIT = 0
+const ZOOM_MIN = 5
+const ZOOM_MAX = 320
+const DEFAULT_ZOOM = 80
+const WHEEL_ZOOM = 0.0025
+const WHEEL_LINE_PX = 16
+const VIEW_GUTTER_PX = 32
+const VIEW_STEP = 0.1
+const VIEW_GRIP_PX = 44
+const VIEW_ZOOM_MAX_PERCENT = 50
 const AXIS_PADDING_MS = 10_000
 const TICK_STEPS_MS = [500, 1000, 2000, 5000, 10_000, 30_000, 60_000]
 const MIN_TICK_PX = 64
@@ -414,6 +427,118 @@ function Outside({
   )
 }
 
+type View = { start: number; size: number }
+
+function ViewHandle({
+  view,
+  zoomLevel,
+  scrollRef,
+  controls,
+}: {
+  view: View
+  zoomLevel: number
+  scrollRef: React.RefObject<HTMLDivElement | null>
+  controls: string
+}) {
+  const drag = React.useRef<{ x: number; scrollLeft: number } | null>(null)
+  const hidden = 1 - view.size
+  const progress = hidden > 0.001 ? clamp(view.start / hidden, 0, 1) : 0
+  const zoomPx = VIEW_GRIP_PX * (1 - zoomLevel)
+  const zoomPercent = VIEW_ZOOM_MAX_PERCENT * zoomLevel
+  const panBy = (pages: number) => {
+    const scroller = scrollRef.current
+    if (scroller) scroller.scrollLeft += pages * scroller.clientWidth
+  }
+
+  return (
+    <div
+      data-slot="timeline-view"
+      className="relative h-[18px] shrink-0 touch-none"
+      onPointerDown={(event) => {
+        const scroller = scrollRef.current
+        if (event.button !== 0 || event.target !== event.currentTarget) return
+        if (!scroller) return
+        const rect = event.currentTarget.getBoundingClientRect()
+        const travel = rect.width - VIEW_GRIP_PX
+        if (travel <= 0) return
+        scroller.scrollLeft =
+          clamp((event.clientX - rect.left - VIEW_GRIP_PX / 2) / travel, 0, 1) *
+          (scroller.scrollWidth - scroller.clientWidth)
+      }}
+    >
+      {hidden > 0.001 && (
+        <span
+          aria-hidden
+          data-slot="timeline-zoom-level"
+          className="pointer-events-none absolute top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-white/15"
+          style={{
+            width: `calc(${zoomPercent}% + ${zoomPx}px)`,
+            left: `calc(${progress * (100 - zoomPercent)}% - ${progress * zoomPx}px)`,
+          }}
+        />
+      )}
+      {hidden > 0.001 && (
+        <div
+          role="scrollbar"
+          aria-label="Timeline position"
+          aria-controls={controls}
+          aria-orientation="horizontal"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(progress * 100)}
+          tabIndex={0}
+          className="absolute inset-y-0.5 grid cursor-grab place-items-center rounded-md bg-white/25 text-night/80 transition-colors duration-200 outline-none hover:bg-white/45 focus-visible:focus-ring active:cursor-grabbing active:bg-white/60"
+          style={{
+            width: VIEW_GRIP_PX,
+            left: `calc(${progress} * (100% - ${VIEW_GRIP_PX}px))`,
+          }}
+          onPointerDown={(event) => {
+            const scroller = scrollRef.current
+            if (event.button !== 0 || !scroller) return
+            event.currentTarget.setPointerCapture?.(event.pointerId)
+            drag.current = {
+              x: event.clientX,
+              scrollLeft: scroller.scrollLeft,
+            }
+          }}
+          onPointerMove={(event) => {
+            const scroller = scrollRef.current
+            const track = event.currentTarget.parentElement
+            if (!drag.current || !scroller || !track) return
+            const travel =
+              track.getBoundingClientRect().width -
+              event.currentTarget.getBoundingClientRect().width
+            if (travel <= 0) return
+            scroller.scrollLeft =
+              drag.current.scrollLeft +
+              ((event.clientX - drag.current.x) / travel) *
+                (scroller.scrollWidth - scroller.clientWidth)
+          }}
+          onPointerUp={() => {
+            drag.current = null
+          }}
+          onPointerCancel={() => {
+            drag.current = null
+          }}
+          onKeyDown={(event) => {
+            const scroller = scrollRef.current
+            if (!scroller) return
+            if (event.key === "ArrowLeft") panBy(-VIEW_STEP)
+            else if (event.key === "ArrowRight") panBy(VIEW_STEP)
+            else if (event.key === "Home") scroller.scrollLeft = 0
+            else if (event.key === "End")
+              scroller.scrollLeft = scroller.scrollWidth
+            else return
+            event.preventDefault()
+          }}
+        >
+          <DotsSixIcon weight="bold" aria-hidden className="size-3.5" />
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function ClipTimeline({
   src,
   sourceDurationMs,
@@ -423,6 +548,8 @@ export function ClipTimeline({
   hasWebcam,
   effects,
   onEffectsChange,
+  onPlanEffects,
+  planning,
   spokenPages,
   captions,
   onCaptionsChange,
@@ -452,6 +579,8 @@ export function ClipTimeline({
   hasWebcam: boolean
   effects: ClipEffects | null
   onEffectsChange(effects: ClipEffects): void
+  onPlanEffects(): void
+  planning: boolean
   spokenPages: readonly CaptionPage[]
   captions: CaptionState
   onCaptionsChange(captions: CaptionState): void
@@ -483,6 +612,11 @@ export function ClipTimeline({
   const popupRef = React.useRef<HTMLDivElement>(null)
   const [zoom, setZoom] = React.useState(DEFAULT_ZOOM)
   const [axisWidth, setAxisWidth] = React.useState(0)
+  const [view, setView] = React.useState<View>({ start: 0, size: 1 })
+  const pendingView = React.useRef<{ ms: number; offset: number } | null>({
+    ms: startMs,
+    offset: VIEW_GUTTER_PX,
+  })
   const [minLanes, setMinLanes] = React.useState<Record<LaneGroup, number>>({
     effects: 1,
     texts: 1,
@@ -499,7 +633,13 @@ export function ClipTimeline({
   const axisEndMs = Math.min(sourceDurationMs, endMs + AXIS_PADDING_MS)
   const axisMs = Math.max(1, axisEndMs - axisStartMs)
   const leadMs = startMs - axisStartMs
-  const pxPerSecond = ZOOM_LEVELS[zoom]!
+  const shownZoom =
+    axisWidth > 0 ? axisWidth / (axisMs / 1000) : zoom || DEFAULT_ZOOM
+  const wholeZoom = shownZoom * view.size
+  const zoomLevel =
+    view.size < 1 && wholeZoom < ZOOM_MAX
+      ? clamp(Math.log(1 / view.size) / Math.log(ZOOM_MAX / wholeZoom), 0, 1)
+      : 0
   const playheadMs = currentMs - startMs
   const atMs = clamp(playheadMs, 0, durationMs)
   const ticks = rulerTicks(-leadMs, axisMs - leadMs, axisWidth)
@@ -569,25 +709,118 @@ export function ClipTimeline({
 
   React.useEffect(() => {
     const axis = axisRef.current
-    if (!axis) return
-    const observer = new ResizeObserver(() =>
+    const scroller = scrollRef.current
+    if (!axis || !scroller) return
+    const sync = () => {
       setAxisWidth(axis.getBoundingClientRect().width)
-    )
+      if (scroller.scrollWidth === 0) return
+      const start = scroller.scrollLeft / scroller.scrollWidth
+      const size = Math.min(1, scroller.clientWidth / scroller.scrollWidth)
+      setView((current) =>
+        current.start === start && current.size === size
+          ? current
+          : { start, size }
+      )
+    }
+    const observer = new ResizeObserver(sync)
     observer.observe(axis)
-    return () => observer.disconnect()
+    observer.observe(scroller)
+    scroller.addEventListener("scroll", sync, { passive: true })
+    return () => {
+      observer.disconnect()
+      scroller.removeEventListener("scroll", sync)
+    }
   }, [])
+
+  const place = (ms: number, offset: number) => {
+    const axis = axisRef.current
+    const scroller = scrollRef.current
+    if (!axis || !scroller) return
+    const rect = axis.getBoundingClientRect()
+    const frame = scroller.getBoundingClientRect()
+    if (rect.width === 0) return
+    scroller.scrollLeft +=
+      rect.left -
+      frame.left +
+      ((ms - axisStartMs) / axisMs) * rect.width -
+      offset
+  }
+  const applyPendingView = React.useEffectEvent(() => {
+    const pending = pendingView.current
+    pendingView.current = null
+    if (pending) place(pending.ms, pending.offset)
+  })
+  React.useLayoutEffect(() => applyPendingView(), [zoom])
+
+  React.useEffect(() => {
+    const axis = axisRef.current
+    const scroller = scrollRef.current
+    if (!axis || !scroller) return
+    if (currentMs < startMs - START_SLACK_MS || currentMs > axisEndMs) return
+    const rect = axis.getBoundingClientRect()
+    const frame = scroller.getBoundingClientRect()
+    if (rect.width === 0) return
+    const x =
+      rect.left - frame.left + ((currentMs - axisStartMs) / axisMs) * rect.width
+    if (x < 0 || x > frame.width) scroller.scrollLeft += x - VIEW_GUTTER_PX
+  }, [currentMs, startMs, axisStartMs, axisEndMs, axisMs])
+
+  const zoomTo = (next: number, clientX?: number) => {
+    if (next === zoom) {
+      if (next === ZOOM_FIT) place(startMs, VIEW_GUTTER_PX)
+      return
+    }
+    const axis = axisRef.current
+    const scroller = scrollRef.current
+    if (axis && scroller) {
+      const rect = axis.getBoundingClientRect()
+      const frame = scroller.getBoundingClientRect()
+      if (next === ZOOM_FIT) {
+        pendingView.current = { ms: startMs, offset: VIEW_GUTTER_PX }
+      } else if (rect.width > 0) {
+        const x = clientX ?? frame.left + frame.width / 2
+        pendingView.current = {
+          ms: axisStartMs + ((x - rect.left) / rect.width) * axisMs,
+          offset: x - frame.left,
+        }
+      }
+    }
+    setZoom(next)
+  }
+
+  const onWheel = React.useEffectEvent((event: WheelEvent) => {
+    const axis = axisRef.current
+    const scroller = scrollRef.current
+    if (!axis || !scroller) return
+    event.preventDefault()
+    const lines = event.deltaMode === WheelEvent.DOM_DELTA_LINE
+    const deltaX = lines ? event.deltaX * WHEEL_LINE_PX : event.deltaX
+    const deltaY = lines ? event.deltaY * WHEEL_LINE_PX : event.deltaY
+    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+      scroller.scrollLeft += deltaX
+      return
+    }
+    const width = axis.getBoundingClientRect().width
+    if (width === 0 || deltaY === 0) return
+    const seconds = axisMs / 1000
+    const whole = (scroller.clientWidth - 2 * VIEW_GUTTER_PX) / seconds
+    zoomTo(
+      clamp(
+        (width / seconds) * Math.exp(-deltaY * WHEEL_ZOOM),
+        Math.min(whole, ZOOM_MAX),
+        ZOOM_MAX
+      ),
+      event.clientX
+    )
+  })
 
   React.useEffect(() => {
     const scroller = scrollRef.current
-    const axis = axisRef.current
-    if (!scroller || !axis || pxPerSecond === 0) return
-    const x =
-      axis.offsetLeft + ((currentMs - axisStartMs) / axisMs) * axis.offsetWidth
-    const { scrollLeft, clientWidth } = scroller
-    if (x < scrollLeft || x > scrollLeft + clientWidth - 24) {
-      scroller.scrollLeft = x - clientWidth / 4
-    }
-  }, [currentMs, axisStartMs, axisMs, pxPerSecond])
+    if (!scroller) return
+    const listener = (event: WheelEvent) => onWheel(event)
+    scroller.addEventListener("wheel", listener, { passive: false })
+    return () => scroller.removeEventListener("wheel", listener)
+  }, [])
 
   const select = (next: TimelineSelection | null) => onSelectionChange(next)
   const isSelected = (next: TimelineSelection) =>
@@ -855,11 +1088,14 @@ export function ClipTimeline({
     selection?.type === "caption"
       ? findCaption(blocks, selection.ref)
       : undefined
+  const selectedEffect =
+    selection?.type === "effect" ? events[selection.index] : undefined
   const selectedText =
     selection?.type === "text" ? textOverlays[selection.index] : undefined
   const selectedMusic =
     selection?.type === "music" ? audioMix.music[selection.index] : undefined
   const inspecting =
+    selectedEffect !== undefined ||
     selectedCaption !== undefined ||
     selectedText !== undefined ||
     selectedMusic !== undefined ||
@@ -939,6 +1175,15 @@ export function ClipTimeline({
                     {kind.label}
                   </DropdownMenuItem>
                 ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem disabled={planning} onClick={onPlanEffects}>
+                  {effects === null ? (
+                    <MagicWandIcon aria-hidden />
+                  ) : (
+                    <ArrowCounterClockwiseIcon aria-hidden />
+                  )}
+                  {effects === null ? "Auto effects" : "Reset effects to auto"}
+                </DropdownMenuItem>
               </DropdownMenuSubContent>
             </DropdownMenuSub>
             <DropdownMenuSeparator />
@@ -1107,31 +1352,33 @@ export function ClipTimeline({
           <IconAction
             label="Zoom out"
             size="icon-sm"
-            disabled={zoom === 0}
-            onClick={() => setZoom(zoom - 1)}
+            disabled={view.size >= 1 || shownZoom <= ZOOM_MIN}
+            onClick={() => zoomTo(Math.max(ZOOM_MIN, shownZoom / 2))}
           >
             <MagnifyingGlassMinusIcon aria-hidden />
           </IconAction>
           <Slider
             aria-labelledby={`${id}-zoom`}
             min={0}
-            max={ZOOM_LEVELS.length - 1}
-            step={1}
-            value={[zoom]}
-            getAriaValueText={(_, value) =>
-              value === 0 ? "Fit" : `${ZOOM_LEVELS[value]} pixels per second`
+            max={Math.log2(ZOOM_MAX / ZOOM_MIN)}
+            step={0.1}
+            value={[Math.log2(clamp(shownZoom, ZOOM_MIN, ZOOM_MAX) / ZOOM_MIN)]}
+            getAriaValueText={() =>
+              zoom === ZOOM_FIT
+                ? "Fit"
+                : `${Math.round(shownZoom)} pixels per second`
             }
             onValueChange={(next) => {
               const value = Array.isArray(next) ? next[0] : next
-              if (typeof value === "number") setZoom(value)
+              if (typeof value === "number") zoomTo(ZOOM_MIN * 2 ** value)
             }}
             className="data-horizontal:w-[110px]"
           />
           <IconAction
             label="Zoom in"
             size="icon-sm"
-            disabled={zoom === ZOOM_LEVELS.length - 1}
-            onClick={() => setZoom(zoom + 1)}
+            disabled={shownZoom >= ZOOM_MAX}
+            onClick={() => zoomTo(Math.min(ZOOM_MAX, shownZoom * 2))}
           >
             <MagnifyingGlassPlusIcon aria-hidden />
           </IconAction>
@@ -1139,9 +1386,9 @@ export function ClipTimeline({
             type="button"
             size="sm"
             variant="ghost"
-            aria-pressed={zoom === 0}
+            aria-pressed={zoom === ZOOM_FIT}
             className="px-2.5 font-medium aria-pressed:text-foreground"
-            onClick={() => setZoom(0)}
+            onClick={() => zoomTo(ZOOM_FIT)}
           >
             Fit
           </Button>
@@ -1151,7 +1398,7 @@ export function ClipTimeline({
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div className="flex min-h-full">
           <div className="w-24 shrink-0 shadow-[inset_-1px_0_0_var(--hair)]">
-            <div className="h-[26px]" />
+            <div className="h-11" />
             {Array.from({ length: textLanes }, (_, lane) => (
               <TrackLabel key={`text-${lane}`}>
                 <TextTIcon aria-hidden />
@@ -1239,406 +1486,425 @@ export function ClipTimeline({
             ))}
           </div>
 
-          <div
-            ref={scrollRef}
-            data-testid="timeline-scroller"
-            className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden overscroll-x-contain px-4"
-          >
+          <div className="flex min-w-0 flex-1 flex-col">
+            <ViewHandle
+              view={view}
+              zoomLevel={zoomLevel}
+              scrollRef={scrollRef}
+              controls={`${id}-tracks`}
+            />
             <div
-              ref={axisRef}
-              role="presentation"
-              className="relative min-h-full touch-none select-none"
-              style={{
-                width:
-                  pxPerSecond === 0
-                    ? "100%"
-                    : `max(100%, ${(axisMs / 1000) * pxPerSecond}px)`,
-              }}
-              onPointerDown={(event) => {
-                if (event.button !== 0) return
-                event.currentTarget.setPointerCapture?.(event.pointerId)
-                seekFrom(event)
-                if (selection) select(null)
-              }}
-              onPointerMove={(event) => {
-                if (event.currentTarget.hasPointerCapture?.(event.pointerId))
-                  seekFrom(event)
-              }}
+              ref={scrollRef}
+              id={`${id}-tracks`}
+              data-testid="timeline-scroller"
+              className="flex min-w-0 flex-1 overflow-hidden px-8"
             >
-              <ClipSpan
-                {...span}
-                className="pointer-events-none top-[26px] bg-white/[0.03]"
-              />
-              <div aria-hidden className="relative h-[26px] cursor-pointer">
-                {ticks.map((ms) => (
-                  <span
-                    key={ms}
-                    className="absolute top-[7px] -translate-x-1/2 font-mono text-[10.5px] leading-none text-tertiary tabular-nums"
-                    style={{ left: `${((ms + leadMs) / axisMs) * 100}%` }}
-                  >
-                    {formatTick(ms)}
-                  </span>
+              <div
+                ref={axisRef}
+                role="presentation"
+                className="relative shrink-0 touch-none select-none"
+                style={{
+                  width:
+                    zoom === ZOOM_FIT
+                      ? `${(axisMs / durationMs) * 100}%`
+                      : `max(100%, ${Math.round((axisMs / 1000) * zoom)}px)`,
+                }}
+                onPointerDown={(event) => {
+                  if (event.button !== 0) return
+                  event.currentTarget.setPointerCapture?.(event.pointerId)
+                  seekFrom(event)
+                  if (selection) select(null)
+                }}
+                onPointerMove={(event) => {
+                  if (event.currentTarget.hasPointerCapture?.(event.pointerId))
+                    seekFrom(event)
+                }}
+              >
+                <ClipSpan
+                  {...span}
+                  className="pointer-events-none top-[26px] bg-white/[0.03]"
+                />
+                <div aria-hidden className="relative h-[26px] cursor-pointer">
+                  {ticks.map((ms) => (
+                    <span
+                      key={ms}
+                      className="absolute top-[7px] -translate-x-1/2 font-mono text-[10.5px] leading-none text-tertiary tabular-nums"
+                      style={{ left: `${((ms + leadMs) / axisMs) * 100}%` }}
+                    >
+                      {formatTick(ms)}
+                    </span>
+                  ))}
+                </div>
+
+                {Array.from({ length: textLanes }, (_, lane) => (
+                  <div key={`text-${lane}`} className={LANE}>
+                    <ClipSpan {...span}>
+                      <TimelineTrack
+                        aria-label={`Text track ${lane + 1}`}
+                        durationMs={durationMs}
+                        lane={String(lane)}
+                        group={`${id}-texts`}
+                        className={TRACK}
+                      >
+                        {textOverlays.map((overlay, index) => {
+                          if (overlay.lane !== lane) return null
+                          const item = { type: "text", index } as const
+                          return (
+                            <TimelineBlock
+                              key={index}
+                              ref={anchorFor(item)}
+                              aria-label={`Text ${overlay.text} at ${formatTimestamp(overlay.startMs)}`}
+                              startMs={overlay.startMs}
+                              endMs={overlay.endMs}
+                              minMs={MIN_OVERLAY_MS}
+                              snapMs={snapMs}
+                              selected={isSelected(item)}
+                              onSelect={() => select(item)}
+                              onDelete={() => {
+                                onTextOverlaysChange(
+                                  textOverlays.filter((_, i) => i !== index)
+                                )
+                                select(null)
+                              }}
+                              onKeyDown={(event) => focusInspector(item, event)}
+                              onChange={(s, e) =>
+                                moveText(index, { lane, startMs: s, endMs: e })
+                              }
+                              onLaneChange={(to, s, e) =>
+                                moveText(index, {
+                                  lane: Number(to),
+                                  startMs: s,
+                                  endMs: e,
+                                })
+                              }
+                            >
+                              {overlay.text}
+                            </TimelineBlock>
+                          )
+                        })}
+                      </TimelineTrack>
+                    </ClipSpan>
+                  </div>
                 ))}
-              </div>
 
-              {Array.from({ length: textLanes }, (_, lane) => (
-                <div key={`text-${lane}`} className={LANE}>
-                  <ClipSpan {...span}>
-                    <TimelineTrack
-                      aria-label={`Text track ${lane + 1}`}
-                      durationMs={durationMs}
-                      lane={String(lane)}
-                      group={`${id}-texts`}
-                      className={TRACK}
-                    >
-                      {textOverlays.map((overlay, index) => {
-                        if (overlay.lane !== lane) return null
-                        const item = { type: "text", index } as const
-                        return (
-                          <TimelineBlock
-                            key={index}
-                            ref={anchorFor(item)}
-                            aria-label={`Text ${overlay.text} at ${formatTimestamp(overlay.startMs)}`}
-                            startMs={overlay.startMs}
-                            endMs={overlay.endMs}
-                            minMs={MIN_OVERLAY_MS}
-                            snapMs={snapMs}
-                            selected={isSelected(item)}
-                            onSelect={() => select(item)}
-                            onDelete={() => {
-                              onTextOverlaysChange(
-                                textOverlays.filter((_, i) => i !== index)
-                              )
-                              select(null)
-                            }}
-                            onKeyDown={(event) => focusInspector(item, event)}
-                            onChange={(s, e) =>
-                              moveText(index, { lane, startMs: s, endMs: e })
-                            }
-                            onLaneChange={(to, s, e) =>
-                              moveText(index, {
-                                lane: Number(to),
-                                startMs: s,
-                                endMs: e,
-                              })
-                            }
-                          >
-                            {overlay.text}
-                          </TimelineBlock>
-                        )
-                      })}
-                    </TimelineTrack>
-                  </ClipSpan>
-                </div>
-              ))}
-
-              {blocks.map((laneBlocks, lane) => (
-                <div
-                  key={`caption-${lane}`}
-                  className={cn(LANE, !captionsEnabled && "opacity-50")}
-                >
-                  <ClipSpan {...span}>
-                    <TimelineTrack
-                      aria-label={
-                        lane === 0
-                          ? "Captions track"
-                          : `Captions track ${lane + 1}`
-                      }
-                      durationMs={durationMs}
-                      lane={String(lane)}
-                      group={`${id}-captions`}
-                      className={TRACK}
-                    >
-                      {laneBlocks.map((block) => {
-                        const item = {
-                          type: "caption",
-                          ref: { lane, index: block.index },
-                        } as const
-                        return (
-                          <TimelineBlock
-                            key={block.index}
-                            ref={anchorFor(item)}
-                            aria-label={`Caption ${block.text} at ${formatTimestamp(block.startMs)}`}
-                            startMs={block.startMs}
-                            endMs={block.endMs}
-                            minMs={MIN_CAPTION_MS}
-                            snapMs={snapMs}
-                            variant="tone"
-                            tone={block.index < 0 ? "sky" : "mint"}
-                            className="px-[7px] font-normal text-foreground"
-                            selected={isSelected(item)}
-                            onSelect={() => select(item)}
-                            onDelete={() => {
-                              onCaptionsChange(
-                                deleteCaption(captions, item.ref)
-                              )
-                              select(null)
-                            }}
-                            onKeyDown={(event) => focusInspector(item, event)}
-                            onChange={(s, e) =>
-                              placeCaption(item.ref, {
-                                lane,
-                                startMs: s,
-                                endMs: e,
-                              })
-                            }
-                            onLaneChange={(to, s, e) =>
-                              placeCaption(item.ref, {
-                                lane: Number(to),
-                                startMs: s,
-                                endMs: e,
-                              })
-                            }
-                          >
-                            {block.text}
-                          </TimelineBlock>
-                        )
-                      })}
-                    </TimelineTrack>
-                  </ClipSpan>
-                </div>
-              ))}
-
-              {Array.from({ length: effectLanes }, (_, lane) => (
-                <div key={`effect-${lane}`} className={LANE}>
-                  <ClipSpan {...span}>
-                    <TimelineTrack
-                      aria-label={`Effects track ${lane + 1}`}
-                      durationMs={durationMs}
-                      lane={String(lane)}
-                      group={`${id}-effects`}
-                      className={TRACK}
-                    >
-                      {events.map((effect, index) => {
-                        if (effect.lane !== lane) return null
-                        const item = { type: "effect", index } as const
-                        const text = effectText(effect)
-                        const inert = effect.kind === "focus" && !hasWebcam
-                        return (
-                          <TimelineBlock
-                            key={index}
-                            aria-label={`${text} at ${formatTimestamp(effect.startMs - startMs)}`}
-                            startMs={effect.startMs - startMs}
-                            endMs={effect.endMs - startMs}
-                            minMs={MIN_EFFECT_MS}
-                            snapMs={snapMs}
-                            variant={inert ? "muted" : "tone"}
-                            tone={inert ? undefined : effectTone(effect)}
-                            selected={isSelected(item)}
-                            onSelect={() => select(item)}
-                            onDelete={() => {
-                              setEvents(events.filter((_, i) => i !== index))
-                              select(null)
-                            }}
-                            onChange={(s, e) =>
-                              moveEffect(index, { lane, startMs: s, endMs: e })
-                            }
-                            onLaneChange={(to, s, e) =>
-                              moveEffect(index, {
-                                lane: Number(to),
-                                startMs: s,
-                                endMs: e,
-                              })
-                            }
-                          >
-                            {text}
-                          </TimelineBlock>
-                        )
-                      })}
-                    </TimelineTrack>
-                  </ClipSpan>
-                </div>
-              ))}
-
-              <div className="relative h-[52px]">
-                <div
-                  aria-hidden
-                  data-testid="video-thumbnails"
-                  className="pointer-events-none absolute inset-x-0 inset-y-1 flex gap-0.5 overflow-hidden rounded-lg"
-                >
-                  {tiles.map((tile) => {
-                    const frame = frames.get(tile.atMs)
-                    return (
-                      <span
-                        key={tile.atMs}
-                        className="min-w-0 basis-0 bg-graphite-2 bg-[length:auto_100%] bg-repeat-x"
-                        style={{
-                          flexGrow: tile.lengthMs,
-                          backgroundImage: frame ? `url(${frame})` : undefined,
-                        }}
-                      />
-                    )
-                  })}
-                </div>
-                <Outside
-                  fromMs={0}
-                  toMs={shown.startMs - axisStartMs}
-                  axisMs={axisMs}
-                  className="inset-y-1 rounded-l-lg bg-sheet/78"
-                />
-                <Outside
-                  fromMs={shown.endMs - axisStartMs}
-                  toMs={axisMs}
-                  axisMs={axisMs}
-                  className="inset-y-1 rounded-r-lg bg-sheet/78"
-                />
-                <TimelineTrack
-                  aria-label="Video track"
-                  durationMs={axisMs}
-                  className={TRACK}
-                >
-                  <TimelineBlock
-                    ref={anchorFor({ type: "video" })}
-                    aria-label={`Clip ${formatTimestamp(shown.startMs)} → ${formatTimestamp(shown.endMs)}`}
-                    startMs={shown.startMs - axisStartMs}
-                    endMs={shown.endMs - axisStartMs}
-                    minMs={CLIP_MIN_EDIT_MS}
-                    snapMs={[currentMs - axisStartMs]}
-                    variant="clip"
-                    selected={isSelected({ type: "video" })}
-                    onSelect={() => select({ type: "video" })}
-                    onKeyDown={(event) =>
-                      focusInspector({ type: "video" }, event)
-                    }
-                    onChange={(s, e) => {
-                      if (e - s > CLIP_MAX_EDIT_MS) return
-                      const next = {
-                        startMs: s + axisStartMs,
-                        endMs: e + axisStartMs,
-                      }
-                      draftRef.current = next
-                      setDraft(next)
-                    }}
-                    onCommit={commitTrim}
-                  />
-                </TimelineTrack>
-              </div>
-
-              <div className="relative h-10">
-                {wave && (
-                  <Waveform
-                    data-testid="source-waveform"
-                    values={wave.values}
-                    gain={sourceLevel * 0.85}
-                    className="absolute top-1.5 h-[calc(100%-0.75rem)] text-amber/45"
-                    style={{
-                      left: `${((wave.startMs - axisStartMs) / axisMs) * 100}%`,
-                      width: `${((wave.endMs - wave.startMs) / axisMs) * 100}%`,
-                    }}
-                  />
-                )}
-                <Outside
-                  fromMs={0}
-                  toMs={leadMs}
-                  axisMs={axisMs}
-                  className="inset-y-0 bg-sheet/70"
-                />
-                <Outside
-                  fromMs={leadMs + durationMs}
-                  toMs={axisMs}
-                  axisMs={axisMs}
-                  className="inset-y-0 bg-sheet/70"
-                />
-                <ClipSpan {...span}>
+                {blocks.map((laneBlocks, lane) => (
                   <div
-                    ref={anchorFor({ type: "source" })}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`Original audio ${audioMix.sourceMuted ? "muted" : `${audioMix.sourceDb} dB`}`}
-                    aria-pressed={isSelected({ type: "source" })}
-                    data-selected={isSelected({ type: "source" }) || undefined}
-                    className="absolute inset-x-0 inset-y-[5px] cursor-pointer rounded-[7px] outline-none hover:bg-white/[0.04] focus-visible:focus-ring data-[selected]:inset-ring-[1.5px] data-[selected]:inset-ring-lav"
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onClick={() => select({ type: "source" })}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault()
-                        select({ type: "source" })
-                      }
-                      focusInspector({ type: "source" }, event)
-                    }}
-                  />
-                </ClipSpan>
-              </div>
+                    key={`caption-${lane}`}
+                    className={cn(LANE, !captionsEnabled && "opacity-50")}
+                  >
+                    <ClipSpan {...span}>
+                      <TimelineTrack
+                        aria-label={
+                          lane === 0
+                            ? "Captions track"
+                            : `Captions track ${lane + 1}`
+                        }
+                        durationMs={durationMs}
+                        lane={String(lane)}
+                        group={`${id}-captions`}
+                        className={TRACK}
+                      >
+                        {laneBlocks.map((block) => {
+                          const item = {
+                            type: "caption",
+                            ref: { lane, index: block.index },
+                          } as const
+                          return (
+                            <TimelineBlock
+                              key={block.index}
+                              ref={anchorFor(item)}
+                              aria-label={`Caption ${block.text} at ${formatTimestamp(block.startMs)}`}
+                              startMs={block.startMs}
+                              endMs={block.endMs}
+                              minMs={MIN_CAPTION_MS}
+                              snapMs={snapMs}
+                              variant="tone"
+                              tone={block.index < 0 ? "sky" : "mint"}
+                              className="px-[7px] font-normal text-foreground"
+                              selected={isSelected(item)}
+                              onSelect={() => select(item)}
+                              onDelete={() => {
+                                onCaptionsChange(
+                                  deleteCaption(captions, item.ref)
+                                )
+                                select(null)
+                              }}
+                              onKeyDown={(event) => focusInspector(item, event)}
+                              onChange={(s, e) =>
+                                placeCaption(item.ref, {
+                                  lane,
+                                  startMs: s,
+                                  endMs: e,
+                                })
+                              }
+                              onLaneChange={(to, s, e) =>
+                                placeCaption(item.ref, {
+                                  lane: Number(to),
+                                  startMs: s,
+                                  endMs: e,
+                                })
+                              }
+                            >
+                              {block.text}
+                            </TimelineBlock>
+                          )
+                        })}
+                      </TimelineTrack>
+                    </ClipSpan>
+                  </div>
+                ))}
 
-              {Array.from({ length: musicLanes }, (_, lane) => (
-                <div key={`music-${lane}`} className={LANE}>
+                {Array.from({ length: effectLanes }, (_, lane) => (
+                  <div key={`effect-${lane}`} className={LANE}>
+                    <ClipSpan {...span}>
+                      <TimelineTrack
+                        aria-label={`Effects track ${lane + 1}`}
+                        durationMs={durationMs}
+                        lane={String(lane)}
+                        group={`${id}-effects`}
+                        className={TRACK}
+                      >
+                        {events.map((effect, index) => {
+                          if (effect.lane !== lane) return null
+                          const item = { type: "effect", index } as const
+                          const text = effectText(effect)
+                          const inert = effect.kind === "focus" && !hasWebcam
+                          return (
+                            <TimelineBlock
+                              key={index}
+                              ref={anchorFor(item)}
+                              aria-label={`${text} at ${formatTimestamp(effect.startMs - startMs)}`}
+                              startMs={effect.startMs - startMs}
+                              endMs={effect.endMs - startMs}
+                              minMs={MIN_EFFECT_MS}
+                              snapMs={snapMs}
+                              variant={inert ? "muted" : "tone"}
+                              tone={inert ? undefined : effectTone(effect)}
+                              selected={isSelected(item)}
+                              onSelect={() => select(item)}
+                              onKeyDown={(event) => focusInspector(item, event)}
+                              onDelete={() => {
+                                setEvents(events.filter((_, i) => i !== index))
+                                select(null)
+                              }}
+                              onChange={(s, e) =>
+                                moveEffect(index, {
+                                  lane,
+                                  startMs: s,
+                                  endMs: e,
+                                })
+                              }
+                              onLaneChange={(to, s, e) =>
+                                moveEffect(index, {
+                                  lane: Number(to),
+                                  startMs: s,
+                                  endMs: e,
+                                })
+                              }
+                            >
+                              {text}
+                            </TimelineBlock>
+                          )
+                        })}
+                      </TimelineTrack>
+                    </ClipSpan>
+                  </div>
+                ))}
+
+                <div className="relative h-[52px]">
+                  <div
+                    aria-hidden
+                    data-testid="video-thumbnails"
+                    className="pointer-events-none absolute inset-x-0 inset-y-1 flex gap-0.5 overflow-hidden rounded-lg"
+                  >
+                    {tiles.map((tile) => {
+                      const frame = frames.get(tile.atMs)
+                      return (
+                        <span
+                          key={tile.atMs}
+                          className="min-w-0 basis-0 bg-graphite-2 bg-[length:auto_100%] bg-repeat-x"
+                          style={{
+                            flexGrow: tile.lengthMs,
+                            backgroundImage: frame
+                              ? `url(${frame})`
+                              : undefined,
+                          }}
+                        />
+                      )
+                    })}
+                  </div>
+                  <Outside
+                    fromMs={0}
+                    toMs={shown.startMs - axisStartMs}
+                    axisMs={axisMs}
+                    className="inset-y-1 rounded-l-lg bg-sheet/78"
+                  />
+                  <Outside
+                    fromMs={shown.endMs - axisStartMs}
+                    toMs={axisMs}
+                    axisMs={axisMs}
+                    className="inset-y-1 rounded-r-lg bg-sheet/78"
+                  />
+                  <TimelineTrack
+                    aria-label="Video track"
+                    durationMs={axisMs}
+                    className={TRACK}
+                  >
+                    <TimelineBlock
+                      ref={anchorFor({ type: "video" })}
+                      aria-label={`Clip ${formatTimestamp(shown.startMs)} → ${formatTimestamp(shown.endMs)}`}
+                      startMs={shown.startMs - axisStartMs}
+                      endMs={shown.endMs - axisStartMs}
+                      minMs={CLIP_MIN_EDIT_MS}
+                      snapMs={[currentMs - axisStartMs]}
+                      variant="clip"
+                      selected={isSelected({ type: "video" })}
+                      onSelect={() => select({ type: "video" })}
+                      onKeyDown={(event) =>
+                        focusInspector({ type: "video" }, event)
+                      }
+                      onChange={(s, e) => {
+                        if (e - s > CLIP_MAX_EDIT_MS) return
+                        const next = {
+                          startMs: s + axisStartMs,
+                          endMs: e + axisStartMs,
+                        }
+                        draftRef.current = next
+                        setDraft(next)
+                      }}
+                      onCommit={commitTrim}
+                    />
+                  </TimelineTrack>
+                </div>
+
+                <div className="relative h-10">
+                  {wave && (
+                    <Waveform
+                      data-testid="source-waveform"
+                      values={wave.values}
+                      gain={sourceLevel * 0.85}
+                      className="absolute top-1.5 h-[calc(100%-0.75rem)] text-amber/45"
+                      style={{
+                        left: `${((wave.startMs - axisStartMs) / axisMs) * 100}%`,
+                        width: `${((wave.endMs - wave.startMs) / axisMs) * 100}%`,
+                      }}
+                    />
+                  )}
+                  <Outside
+                    fromMs={0}
+                    toMs={leadMs}
+                    axisMs={axisMs}
+                    className="inset-y-0 bg-sheet/70"
+                  />
+                  <Outside
+                    fromMs={leadMs + durationMs}
+                    toMs={axisMs}
+                    axisMs={axisMs}
+                    className="inset-y-0 bg-sheet/70"
+                  />
                   <ClipSpan {...span}>
-                    <TimelineTrack
-                      aria-label={`Music track ${lane + 1}`}
-                      durationMs={durationMs}
-                      lane={String(lane)}
-                      group={`${id}-music`}
-                      className={TRACK}
-                    >
-                      {audioMix.music.map((clip, index) => {
-                        if (clip.lane !== lane) return null
-                        const item = { type: "music", index } as const
-                        const track = readyTracks.get(clip.trackId)
-                        const name = track?.title ?? "Missing track"
-                        return (
-                          <TimelineBlock
-                            key={index}
-                            ref={anchorFor(item)}
-                            aria-label={`Music ${name} at ${formatTimestamp(clip.startMs)}`}
-                            startMs={clip.startMs}
-                            endMs={clip.endMs}
-                            minMs={MIN_MUSIC_MS}
-                            snapMs={snapMs}
-                            variant="tone"
-                            tone="mint"
-                            className="text-foreground"
-                            selected={isSelected(item)}
-                            onSelect={() => select(item)}
-                            onDelete={() => {
-                              setMusic(
-                                audioMix.music.filter((_, i) => i !== index)
-                              )
-                              select(null)
-                            }}
-                            onKeyDown={(event) => focusInspector(item, event)}
-                            onChange={(s, e) =>
-                              moveMusic(index, { lane, startMs: s, endMs: e })
-                            }
-                            onLaneChange={(to, s, e) =>
-                              moveMusic(index, {
-                                lane: Number(to),
-                                startMs: s,
-                                endMs: e,
-                              })
-                            }
-                          >
-                            {track && (
-                              <Waveform
-                                data-testid="music-waveform"
-                                values={peaksFor(track, clip)}
-                                gain={level(clip.db)}
-                                className="absolute inset-0 size-full text-mint/45"
-                              />
-                            )}
-                            <span className="relative">{name}</span>
-                          </TimelineBlock>
-                        )
-                      })}
-                    </TimelineTrack>
+                    <div
+                      ref={anchorFor({ type: "source" })}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Original audio ${audioMix.sourceMuted ? "muted" : `${audioMix.sourceDb} dB`}`}
+                      aria-pressed={isSelected({ type: "source" })}
+                      data-selected={
+                        isSelected({ type: "source" }) || undefined
+                      }
+                      className="absolute inset-x-0 inset-y-[5px] cursor-pointer rounded-[7px] outline-none hover:bg-white/[0.04] focus-visible:focus-ring data-[selected]:inset-ring-[1.5px] data-[selected]:inset-ring-lav"
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={() => select({ type: "source" })}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault()
+                          select({ type: "source" })
+                        }
+                        focusInspector({ type: "source" }, event)
+                      }}
+                    />
                   </ClipSpan>
                 </div>
-              ))}
 
-              {currentMs >= axisStartMs && currentMs <= axisEndMs && (
-                <div
-                  aria-hidden
-                  data-testid="timeline-playhead"
-                  className="pointer-events-none absolute inset-y-0 z-10 w-0.5 -translate-x-1/2 bg-amber"
-                  style={{
-                    left: `${((currentMs - axisStartMs) / axisMs) * 100}%`,
-                  }}
-                >
-                  <span className="absolute top-0.5 left-1/2 -translate-x-1/2 rounded-md bg-amber px-1.5 py-[3px] font-mono text-[10.5px] leading-none font-semibold whitespace-nowrap text-night tabular-nums">
-                    {formatTick(Math.round(playheadMs))}
-                  </span>
-                </div>
-              )}
+                {Array.from({ length: musicLanes }, (_, lane) => (
+                  <div key={`music-${lane}`} className={LANE}>
+                    <ClipSpan {...span}>
+                      <TimelineTrack
+                        aria-label={`Music track ${lane + 1}`}
+                        durationMs={durationMs}
+                        lane={String(lane)}
+                        group={`${id}-music`}
+                        className={TRACK}
+                      >
+                        {audioMix.music.map((clip, index) => {
+                          if (clip.lane !== lane) return null
+                          const item = { type: "music", index } as const
+                          const track = readyTracks.get(clip.trackId)
+                          const name = track?.title ?? "Missing track"
+                          return (
+                            <TimelineBlock
+                              key={index}
+                              ref={anchorFor(item)}
+                              aria-label={`Music ${name} at ${formatTimestamp(clip.startMs)}`}
+                              startMs={clip.startMs}
+                              endMs={clip.endMs}
+                              minMs={MIN_MUSIC_MS}
+                              snapMs={snapMs}
+                              variant="tone"
+                              tone="mint"
+                              className="text-foreground"
+                              selected={isSelected(item)}
+                              onSelect={() => select(item)}
+                              onDelete={() => {
+                                setMusic(
+                                  audioMix.music.filter((_, i) => i !== index)
+                                )
+                                select(null)
+                              }}
+                              onKeyDown={(event) => focusInspector(item, event)}
+                              onChange={(s, e) =>
+                                moveMusic(index, { lane, startMs: s, endMs: e })
+                              }
+                              onLaneChange={(to, s, e) =>
+                                moveMusic(index, {
+                                  lane: Number(to),
+                                  startMs: s,
+                                  endMs: e,
+                                })
+                              }
+                            >
+                              {track && (
+                                <Waveform
+                                  data-testid="music-waveform"
+                                  values={peaksFor(track, clip)}
+                                  gain={level(clip.db)}
+                                  className="absolute inset-0 size-full text-mint/45"
+                                />
+                              )}
+                              <span className="relative">{name}</span>
+                            </TimelineBlock>
+                          )
+                        })}
+                      </TimelineTrack>
+                    </ClipSpan>
+                  </div>
+                ))}
+
+                {currentMs >= axisStartMs && currentMs <= axisEndMs && (
+                  <div
+                    aria-hidden
+                    data-testid="timeline-playhead"
+                    className="pointer-events-none absolute inset-y-0 z-10 w-0.5 -translate-x-1/2 bg-amber"
+                    style={{
+                      left: `${((currentMs - axisStartMs) / axisMs) * 100}%`,
+                    }}
+                  >
+                    <span className="absolute top-0.5 left-1/2 -translate-x-1/2 rounded-md bg-amber px-1.5 py-[3px] font-mono text-[10.5px] leading-none font-semibold whitespace-nowrap text-night tabular-nums">
+                      {formatTick(Math.round(playheadMs))}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1656,7 +1922,8 @@ export function ClipTimeline({
             (details.reason === "outside-press" ||
               details.reason === "focus-out") &&
             target instanceof Element &&
-            rootRef.current?.contains(target)
+            (rootRef.current?.contains(target) ||
+              target.closest("[data-effect-focus-picker]"))
           ) {
             return
           }
@@ -1686,6 +1953,19 @@ export function ClipTimeline({
               anchor.focus()
             }}
           >
+            {selection?.type === "effect" && selectedEffect && (
+              <EffectInspector
+                effect={selectedEffect}
+                clipStartMs={startMs}
+                hasWebcam={hasWebcam}
+                onChange={(effect) =>
+                  setEvents(
+                    events.map((e, i) => (i === selection.index ? effect : e))
+                  )
+                }
+                onDelete={deleteSelected}
+              />
+            )}
             {selection?.type === "caption" && selectedCaption && (
               <CaptionInspector
                 key={`${selection.ref.lane}:${selection.ref.index}`}

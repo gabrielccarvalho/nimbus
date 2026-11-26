@@ -5,7 +5,6 @@ import {
   MagicWandIcon,
   MinusIcon,
   PlusIcon,
-  TrashIcon,
 } from "@phosphor-icons/react"
 import * as React from "react"
 
@@ -14,22 +13,16 @@ import { DotMeter } from "@/components/ui/dot-meter"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Segmented, SegmentedItem } from "@/components/ui/segmented"
-import { Slider } from "@/components/ui/slider"
 import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import { toneVariants } from "@/components/ui/tone"
 import {
   CAPTION_FONTS,
   type CaptionFontId,
   type CaptionStyle,
 } from "@/features/captions/styles"
-import {
-  CAPTION_MAX_OFFSET_MS,
-  CAPTION_TEXT_MAX,
-} from "@/features/clips/schema"
-import type { ClipEffects, Effect } from "@/features/effects/schema"
+import { CAPTION_MAX_OFFSET_MS } from "@/features/clips/schema"
 import {
   layoutModeSchema,
   type CamPosition,
@@ -37,19 +30,11 @@ import {
   type LayoutMode,
 } from "@/features/layout/schema"
 import type { ProjectSettings } from "@/features/projects/schema"
-import {
-  setCaptionText,
-  type CaptionBlock,
-  type CaptionRef,
-  type CaptionState,
-} from "@/features/timeline/captions"
-import { formatTimestamp } from "@/lib/format"
+import type { CaptionState } from "@/features/timeline/captions"
 import { cn } from "@/lib/utils"
 
 import { CaptionStyleFields } from "./caption-style-fields"
 import { ClipStats } from "./clip-stats"
-import { effectText, effectTone } from "./clip-timeline"
-import { IconAction } from "./icon-action"
 import { CamPositionField, LAYOUT_MODES } from "./layout-fields"
 import type { PublicationState } from "./publish-dialog"
 
@@ -57,7 +42,6 @@ export const INSPECTOR_TABS = [
   { value: "details", label: "Details" },
   { value: "captions", label: "Captions" },
   { value: "layout", label: "Layout" },
-  { value: "effects", label: "Effects" },
 ] as const
 
 export type InspectorTab = (typeof INSPECTOR_TABS)[number]["value"]
@@ -71,11 +55,6 @@ const MODE_LABELS: Record<LayoutMode, string> = {
   "no-cam-fill": "Fill",
   "no-cam-blur-fill": "Fit",
 }
-const SHAKE_INTENSITIES = [
-  { value: "light", label: "Light" },
-  { value: "strong", label: "Strong" },
-] as const
-
 const HELP = "text-[13px] text-tertiary"
 const FIELD_LABEL = "text-[13.5px]"
 const INSET = "rounded-[14px] bg-graphite-2"
@@ -210,43 +189,6 @@ export function DetailsPanel({
   )
 }
 
-function CaptionRow({
-  block,
-  current,
-  disabled,
-  onTextChange,
-}: {
-  block: CaptionBlock
-  current: boolean
-  disabled: boolean
-  onTextChange: (text: string) => void
-}) {
-  const [draft, setDraft] = React.useState<string | null>(null)
-  const time = formatTimestamp(block.startMs)
-  return (
-    <li
-      data-current={current || undefined}
-      className="group/row grid grid-cols-[48px_minmax(0,1fr)] items-center gap-2.5 rounded-[10px] px-1 py-[3px] data-current:bg-amber/10 data-current:inset-ring-1 data-current:inset-ring-amber/35"
-    >
-      <span className="font-mono text-xs text-tertiary tabular-nums group-data-current/row:text-amber">
-        {time}
-      </span>
-      <Input
-        aria-label={`Caption at ${time}`}
-        value={draft ?? block.text}
-        maxLength={CAPTION_TEXT_MAX}
-        disabled={disabled}
-        className="h-9 rounded-[10px] px-2.5 text-[13.5px]"
-        onChange={(event) => {
-          setDraft(event.target.value)
-          if (event.target.value.trim()) onTextChange(event.target.value)
-        }}
-        onBlur={() => setDraft(null)}
-      />
-    </li>
-  )
-}
-
 export function CaptionsPanel({
   style,
   styleRef,
@@ -256,8 +198,6 @@ export function CaptionsPanel({
   onEnabledChange,
   captions,
   onCaptionsChange,
-  blocks,
-  playheadMs,
   disabled = false,
 }: {
   style: CaptionStyle
@@ -268,20 +208,10 @@ export function CaptionsPanel({
   onEnabledChange: (enabled: boolean) => void
   captions: CaptionState
   onCaptionsChange: (captions: CaptionState) => void
-  blocks: readonly (readonly CaptionBlock[])[]
-  playheadMs: number
   disabled?: boolean
 }) {
   const id = React.useId()
   const [editingStyle, setEditingStyle] = React.useState(false)
-  const rows = blocks
-    .flatMap((lane, index) =>
-      lane.map((block) => ({
-        block,
-        ref: { lane: index, index: block.index } satisfies CaptionRef,
-      }))
-    )
-    .sort((a, b) => a.block.startMs - b.block.startMs)
   const edited =
     captions.offsetMs !== 0 || Object.keys(captions.pageEdits).length > 0
   const shift = (delta: number) =>
@@ -393,30 +323,9 @@ export function CaptionsPanel({
           </Button>
         )}
       </div>
-      {rows.length > 0 ? (
-        <ul aria-label="Captions" className="grid gap-1.5">
-          {rows.map(({ block, ref }) => (
-            <CaptionRow
-              key={`${ref.lane}:${ref.index}`}
-              block={block}
-              current={
-                enabled &&
-                block.startMs <= playheadMs &&
-                playheadMs < block.endMs
-              }
-              disabled={disabled || !enabled}
-              onTextChange={(text) =>
-                onCaptionsChange(setCaptionText(captions, ref, text))
-              }
-            />
-          ))}
-        </ul>
-      ) : (
-        <p className={HELP}>No one speaks in this clip.</p>
-      )}
       <p className={HELP}>
         {enabled
-          ? "The highlighted line is under the playhead. Edits keep their timing."
+          ? "Select a caption on the timeline to rewrite it. Edits keep their timing."
           : "Captions are off for this clip."}
       </p>
     </TabsContent>
@@ -495,202 +404,6 @@ export function LayoutPanel({
           onValueChange={onCamPositionChange}
         />
       )}
-    </TabsContent>
-  )
-}
-
-function EffectCard({
-  effect,
-  index,
-  clipStartMs,
-  hasWebcam,
-  selected,
-  disabled,
-  onSelect,
-  onChange,
-  onDelete,
-}: {
-  effect: Effect
-  index: number
-  clipStartMs: number
-  hasWebcam: boolean
-  selected: boolean
-  disabled: boolean
-  onSelect: () => void
-  onChange: (effect: Effect) => void
-  onDelete: () => void
-}) {
-  const id = React.useId()
-  const text = effectText(effect)
-  return (
-    <li
-      data-effect-card={index}
-      data-selected={selected || undefined}
-      className={cn(
-        INSET,
-        toneVariants({ tone: effectTone(effect) }),
-        "grid scroll-my-2 gap-2.5 px-3.5 py-3 data-selected:inset-ring-[1.5px] data-selected:inset-ring-lav"
-      )}
-      onPointerDown={onSelect}
-      onFocusCapture={onSelect}
-    >
-      <div className="flex items-center gap-2">
-        <b className="text-[13.5px] font-semibold text-[rgb(var(--tone))]">
-          {text}
-        </b>
-        <span className="ms-auto font-mono text-xs text-tertiary tabular-nums">
-          {formatTimestamp(effect.startMs - clipStartMs)} →{" "}
-          {formatTimestamp(effect.endMs - clipStartMs)}
-        </span>
-        <IconAction
-          label={`Delete ${text}`}
-          size="icon-xs"
-          className="-me-1.5"
-          disabled={disabled}
-          onClick={onDelete}
-        >
-          <TrashIcon aria-hidden />
-        </IconAction>
-      </div>
-      {effect.kind === "zoom" && (
-        <>
-          <div className="flex items-center gap-3">
-            <Label id={`${id}-scale`} className="text-[13px] text-tertiary">
-              Strength
-            </Label>
-            <Slider
-              aria-labelledby={`${id}-scale`}
-              min={1.1}
-              max={2}
-              step={0.1}
-              value={[effect.scale]}
-              disabled={disabled}
-              getAriaValueText={(_, value) => `${value}×`}
-              onValueChange={(next) => {
-                const scale = Array.isArray(next) ? next[0] : next
-                if (typeof scale === "number")
-                  onChange({ ...effect, scale: Math.round(scale * 10) / 10 })
-              }}
-            />
-            <span className="w-9 text-right font-mono text-xs tabular-nums">
-              {effect.scale}×
-            </span>
-          </div>
-          {selected && (
-            <p className={HELP}>Click the preview to set the focus point.</p>
-          )}
-        </>
-      )}
-      {effect.kind === "shake" && (
-        <div className="flex items-center gap-3">
-          <span id={`${id}-intensity`} className="text-[13px] text-tertiary">
-            Intensity
-          </span>
-          <Segmented
-            aria-labelledby={`${id}-intensity`}
-            value={[effect.intensity]}
-            disabled={disabled}
-            onValueChange={(next) => {
-              const intensity = SHAKE_INTENSITIES.find(
-                (option) => option.value === next[0]
-              )?.value
-              if (intensity) onChange({ ...effect, intensity })
-            }}
-          >
-            {SHAKE_INTENSITIES.map((option) => (
-              <SegmentedItem
-                key={option.value}
-                value={option.value}
-                className="px-3 py-1.5 text-[12.5px]"
-              >
-                {option.label}
-              </SegmentedItem>
-            ))}
-          </Segmented>
-        </div>
-      )}
-      {effect.kind === "focus" && !hasWebcam && (
-        <p className={HELP}>No webcam in this layout</p>
-      )}
-    </li>
-  )
-}
-
-export function EffectsPanel({
-  effects,
-  clipStartMs,
-  hasWebcam,
-  selected,
-  onSelect,
-  onEffectsChange,
-  onPlan,
-  planning,
-  disabled = false,
-}: {
-  effects: ClipEffects | null
-  clipStartMs: number
-  hasWebcam: boolean
-  selected: number | null
-  onSelect: (index: number | null) => void
-  onEffectsChange: (effects: ClipEffects) => void
-  onPlan: () => void
-  planning: boolean
-  disabled?: boolean
-}) {
-  const events = effects?.events ?? []
-  const setEvents = (next: Effect[]) =>
-    onEffectsChange({ events: next, edited: true })
-  const order = events
-    .map((effect, index) => ({ effect, index }))
-    .sort((a, b) => a.effect.startMs - b.effect.startMs)
-
-  return (
-    <TabsContent value="effects" className="grid gap-3.5">
-      <p className={HELP}>
-        {events.length > 0
-          ? "Planned from the audio. Select one on the timeline to edit it."
-          : "No effects yet. Add one from the timeline, or plan them from the audio."}
-      </p>
-      {order.length > 0 && (
-        <ul aria-label="Effects" className="grid gap-2.5">
-          {order.map(({ effect, index }) => (
-            <EffectCard
-              key={index}
-              effect={effect}
-              index={index}
-              clipStartMs={clipStartMs}
-              hasWebcam={hasWebcam}
-              selected={selected === index}
-              disabled={disabled}
-              onSelect={() => {
-                if (selected !== index) onSelect(index)
-              }}
-              onChange={(next) =>
-                setEvents(events.map((e, i) => (i === index ? next : e)))
-              }
-              onDelete={() => {
-                setEvents(events.filter((_, i) => i !== index))
-                onSelect(null)
-              }}
-            />
-          ))}
-        </ul>
-      )}
-      <Button
-        type="button"
-        variant="link"
-        size="xs"
-        className="h-auto justify-self-start px-0 text-[12.5px]"
-        disabled={disabled || planning}
-        onClick={onPlan}
-      >
-        {effects === null ? (
-          <MagicWandIcon data-icon="inline-start" aria-hidden />
-        ) : (
-          <ArrowCounterClockwiseIcon data-icon="inline-start" aria-hidden />
-        )}
-        {effects === null ? "Auto effects" : "Reset effects to auto"}
-      </Button>
     </TabsContent>
   )
 }

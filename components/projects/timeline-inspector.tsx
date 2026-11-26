@@ -38,6 +38,10 @@ import {
 import { formatDuration, formatTimestamp } from "@/lib/format"
 
 const TRACK_STEP_MS = 100
+const SHAKE_INTENSITIES = [
+  { value: "light", label: "Light" },
+  { value: "strong", label: "Strong" },
+] as const
 const POSITIONS = [
   { value: "top", label: "Top" },
   { value: "center", label: "Center" },
@@ -140,6 +144,87 @@ export function effectLabel(effect: Effect) {
   if (effect.kind === "zoom") return "Zoom"
   if (effect.kind === "shake") return "Shake"
   return effect.target === "game" ? "Full game" : "Full cam"
+}
+
+export function EffectInspector({
+  effect,
+  clipStartMs,
+  hasWebcam,
+  onChange,
+  onDelete,
+}: {
+  effect: Effect
+  clipStartMs: number
+  hasWebcam: boolean
+  onChange: (effect: Effect) => void
+  onDelete: () => void
+}) {
+  const id = React.useId()
+  return (
+    <>
+      <PopoverHeader>
+        <PopoverTitle>{effectLabel(effect)}</PopoverTitle>
+        <Times
+          startMs={effect.startMs - clipStartMs}
+          endMs={effect.endMs - clipStartMs}
+        />
+        {effect.kind === "zoom" && (
+          <PopoverDescription>
+            Click the preview to set the focus point.
+          </PopoverDescription>
+        )}
+        {effect.kind === "focus" && !hasWebcam && (
+          <PopoverDescription>No webcam in this layout</PopoverDescription>
+        )}
+      </PopoverHeader>
+      {effect.kind === "zoom" && (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <Label id={`${id}-scale`}>Strength</Label>
+            <span className="font-mono text-xs tabular-nums">
+              {effect.scale}×
+            </span>
+          </div>
+          <Slider
+            aria-labelledby={`${id}-scale`}
+            min={1.1}
+            max={2}
+            step={0.1}
+            value={[effect.scale]}
+            onValueChange={(next) => {
+              const scale = first(next)
+              if (scale !== undefined)
+                onChange({ ...effect, scale: Math.round(scale * 10) / 10 })
+            }}
+          />
+        </div>
+      )}
+      {effect.kind === "shake" && (
+        <div className="flex flex-col gap-2">
+          <Label id={`${id}-intensity`}>Intensity</Label>
+          <ToggleGroup
+            aria-labelledby={`${id}-intensity`}
+            variant="outline"
+            size="sm"
+            value={[effect.intensity]}
+            onValueChange={(value) => {
+              const intensity = SHAKE_INTENSITIES.find(
+                (option) => option.value === value[0]
+              )?.value
+              if (intensity) onChange({ ...effect, intensity })
+            }}
+          >
+            {SHAKE_INTENSITIES.map((option) => (
+              <ToggleGroupItem key={option.value} value={option.value}>
+                {option.label}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </div>
+      )}
+      <DeleteButton onDelete={onDelete} />
+    </>
+  )
 }
 
 export function CaptionInspector({
