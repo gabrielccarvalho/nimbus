@@ -5,7 +5,7 @@ export const SOURCE_DB = { min: -30, max: 6, default: 0 } as const
 export const FADE_MAX_MS = 5000
 
 export const youtubeSoundSchema = z.object({
-  videoId: z.string().regex(/^[\w-]{11}$/),
+  videoId: z.string().regex(/^[\w-]{1,64}$/),
   title: z.string().min(1).max(200),
   channelTitle: z.string().max(200),
   thumbnailUrl: z.url().max(500).nullable(),

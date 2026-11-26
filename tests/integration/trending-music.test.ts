@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { clearTrendingCache, trendingMusicFor } from "@/features/music/trending"
+import {
+  clearTrendingCache,
+  searchMusicFor,
+  trendingMusicFor,
+} from "@/features/music/trending"
 import { pacificDay } from "@/features/publishing/quota"
 import { publishingRepository } from "@/features/publishing/repository"
 import {
@@ -118,5 +122,33 @@ describe("trendingMusicFor", () => {
       expected
     )
     expect(trending).toHaveBeenCalledOnce()
+  })
+})
+
+describe("searchMusicFor", () => {
+  it("books a search's quota and caches the results per region and query", async () => {
+    const search = vi.spyOn(YouTubeFake.prototype, "searchMusic")
+    const workspaceId = await seed()
+
+    const found = await searchMusicFor(env.db, workspaceId, "BR", "Flower")
+    expect(found).toHaveLength(1)
+    expect(search).toHaveBeenCalledWith("token", "Flower", "BR", 10)
+    await searchMusicFor(env.db, workspaceId, "BR", "flower")
+    expect(search).toHaveBeenCalledOnce()
+    const quota = await publishingRepository(env.db).spendQuota({
+      day: pacificDay(new Date()),
+      workspaceId,
+      kind: "list",
+      units: 10_000 - 101 + 1,
+      budget: 10_000,
+    })
+    expect(quota).toBe(false)
+  })
+
+  it("needs a connected channel", async () => {
+    const workspaceId = await seed({ channel: false })
+    await expect(
+      searchMusicFor(env.db, workspaceId, "US", "flower")
+    ).rejects.toMatchObject({ code: "CONFLICT" })
   })
 })

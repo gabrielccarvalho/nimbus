@@ -1,7 +1,12 @@
 "use client"
 
-import { MusicNotesIcon, YoutubeLogoIcon } from "@phosphor-icons/react"
+import {
+  MagnifyingGlassIcon,
+  MusicNotesIcon,
+  YoutubeLogoIcon,
+} from "@phosphor-icons/react"
 import * as React from "react"
+import { toast } from "sonner"
 
 import {
   Combobox,
@@ -13,8 +18,10 @@ import {
   ComboboxItem,
   ComboboxLabel,
   ComboboxList,
+  useComboboxAnchor,
 } from "@/components/ui/combobox"
 import { Spinner } from "@/components/ui/spinner"
+import { searchMusicAction } from "@/features/music/actions"
 import {
   type MusicTrackSummary,
   type TrendingMusic,
@@ -36,6 +43,23 @@ type Option =
   | { key: string; kind: "youtube"; label: string; video: TrendingVideo }
 
 type OptionGroup = { value: string; items: Option[] }
+
+const MIN_QUERY = 2
+
+const fold = (text: string) =>
+  text
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLocaleLowerCase()
+
+function youtubeOptions(videos: readonly TrendingVideo[], prefix: string) {
+  return videos.map((video): Option => ({
+    key: `${prefix}:${video.videoId}`,
+    kind: "youtube",
+    label: video.title,
+    video,
+  }))
+}
 
 function trackDetail(track: MusicTrackSummary) {
   if (track.status === "processing") return "Processing…"
@@ -109,6 +133,14 @@ export function TrackPicker({
     () => (result?.status === "ok" ? result.tracks : []),
     [result]
   )
+  const anchor = useComboboxAnchor()
+  const [query, setQuery] = React.useState("")
+  const [search, setSearch] = React.useState<{
+    query: string
+    videos: TrendingVideo[]
+  } | null>(null)
+  const [searching, startSearching] = React.useTransition()
+  const typed = query.trim()
 
   const groups = React.useMemo<OptionGroup[]>(() => {
     const own: Option[] = library.map((track) => ({
@@ -117,26 +149,45 @@ export function TrackPicker({
       label: track.title,
       track,
     }))
-    const chart: Option[] = trendingVideos.map((video) => ({
-      key: `youtube:${video.videoId}`,
-      kind: "youtube" as const,
-      label: video.title,
-      video,
-    }))
     return [
       { value: "Your music", items: own },
-      { value: "Trending on YouTube", items: chart },
+      {
+        value: "Trending on YouTube",
+        items: youtubeOptions(trendingVideos, "youtube"),
+      },
+      {
+        value: search ? `On YouTube for “${search.query}”` : "",
+        items: youtubeOptions(search?.videos ?? [], "search"),
+      },
     ].filter((group) => group.items.length > 0)
-  }, [library, trendingVideos])
+  }, [library, trendingVideos, search])
 
-  const selectedKey =
+  const runSearch = () => {
+    const searchedFor = typed
+    startSearching(async () => {
+      const found = await searchMusicAction(searchedFor)
+      if (!found.ok) {
+        toast.error(found.error.message)
+        return
+      }
+      setSearch({ query: searchedFor, videos: found.value })
+    })
+  }
+
+  const selectedId =
     value.kind === "track"
       ? `track:${value.id}`
       : value.kind === "youtube"
-        ? `youtube:${value.sound.videoId}`
+        ? value.sound.videoId
         : null
   const selected =
-    groups.flatMap((group) => group.items).find((o) => o.key === selectedKey) ??
+    groups
+      .flatMap((group) => group.items)
+      .find((o) =>
+        o.kind === "track"
+          ? o.key === selectedId
+          : o.video.videoId === selectedId
+      ) ??
     (value.kind === "youtube"
       ? ({
           key: `youtube:${value.sound.videoId}`,
@@ -146,6 +197,11 @@ export function TrackPicker({
         } satisfies Option)
       : null)
 
+  const canSearch =
+    typed.length >= MIN_QUERY &&
+    typed !== search?.query &&
+    typed !== selected?.label
+
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       <Combobox<Option>
@@ -154,6 +210,11 @@ export function TrackPicker({
         disabled={disabled}
         itemToStringLabel={(option) => option.label}
         itemToStringValue={(option) => option.key}
+        filter={(option, text) =>
+          option.key.startsWith("search:") ||
+          fold(option.label).includes(fold(text))
+        }
+        onInputValueChange={setQuery}
         onValueChange={(option) => {
           if (!option) {
             onValueChange({ kind: "none" })
@@ -167,18 +228,20 @@ export function TrackPicker({
           }
         }}
       >
-        <ComboboxInput
-          id={id}
-          placeholder="No music"
-          aria-description="Type to search your music and trending songs"
-          showClear={selected !== null}
-          disabled={disabled}
-          className="w-full"
-        />
-        <ComboboxContent className="min-w-[min(22rem,var(--available-width))]">
+        <div ref={anchor}>
+          <ComboboxInput
+            id={id}
+            placeholder="No music"
+            aria-description="Type to search your music, trending songs or YouTube"
+            showClear={selected !== null}
+            disabled={disabled}
+            className="w-full"
+          />
+        </div>
+        <ComboboxContent anchor={anchor}>
           <ComboboxEmpty>
-            {groups.length === 0
-              ? "Upload a track to use music."
+            {groups.length === 0 && typed.length === 0
+              ? "Upload a track or type to search YouTube."
               : "No songs match."}
           </ComboboxEmpty>
           <ComboboxList>
@@ -227,6 +290,28 @@ export function TrackPicker({
               </ComboboxGroup>
             )}
           </ComboboxList>
+          {canSearch && (
+            <div className="border-t border-hair p-1">
+              <button
+                type="button"
+                disabled={searching}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={runSearch}
+                className="flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-start text-sm outline-hidden hover:bg-accent focus-visible:bg-accent disabled:opacity-60"
+              >
+                {searching ? (
+                  <Spinner aria-hidden />
+                ) : (
+                  <MagnifyingGlassIcon aria-hidden className="size-4" />
+                )}
+                <span className="truncate">
+                  {searching
+                    ? "Searching YouTube…"
+                    : `Search YouTube for “${typed}”`}
+                </span>
+              </button>
+            </div>
+          )}
         </ComboboxContent>
       </Combobox>
       <p className="text-[13px] text-tertiary">{trendingNote(result)}</p>

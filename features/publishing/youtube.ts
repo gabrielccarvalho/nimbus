@@ -95,6 +95,12 @@ export interface YouTubeClient {
     regionCode: string,
     maxResults: number
   ): Promise<TrendingVideo[]>
+  searchMusic(
+    token: string,
+    query: string,
+    regionCode: string,
+    maxResults: number
+  ): Promise<TrendingVideo[]>
 }
 
 let fake: YouTubeFake | undefined

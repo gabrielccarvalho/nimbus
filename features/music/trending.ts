@@ -6,18 +6,20 @@ import { AppError } from "@/lib/errors"
 import { logger } from "@/lib/logger"
 
 import { withGoogleToken } from "../publishing/google-token"
-import { LIST_UNITS, pacificDay } from "../publishing/quota"
+import { LIST_UNITS, pacificDay, SEARCH_UNITS } from "../publishing/quota"
 import { publishingRepository } from "../publishing/repository"
 import { getYouTubeClient } from "../publishing/youtube"
 import type { TrendingMusic, TrendingVideo } from "./schema"
 
 const TRENDING_COUNT = 20
+const SEARCH_COUNT = 10
 const DEFAULT_REGION = "US"
 const CHART_TTL_MS = 60 * 60_000
 const FAILURE_BACKOFF_MS = 10 * 60_000
 
 const charts = new Map<string, { at: number; tracks: TrendingVideo[] }>()
 const failures = new Map<string, { at: number; message: string }>()
+const searches = new Map<string, { at: number; tracks: TrendingVideo[] }>()
 
 export function regionFromLanguages(header: string | null): string {
   for (const part of (header ?? "").split(",")) {
@@ -92,7 +94,46 @@ export async function trendingMusicFor(
   }
 }
 
+export async function searchMusicFor(
+  db: Db,
+  workspaceId: string,
+  region: string,
+  query: string
+): Promise<TrendingVideo[]> {
+  const key = `${region}:${query.toLowerCase()}`
+  const cached = searches.get(key)
+  if (cached && Date.now() - cached.at < CHART_TTL_MS) return cached.tracks
+
+  const repo = publishingRepository(db)
+  const channel = await repo.getChannel(workspaceId)
+  if (!channel) {
+    throw new AppError(
+      "CONFLICT",
+      "Connect YouTube in Settings › Connected channels to search for songs."
+    )
+  }
+  const booked = await repo.spendQuota({
+    day: pacificDay(new Date()),
+    workspaceId,
+    kind: "list",
+    units: SEARCH_UNITS + LIST_UNITS,
+    budget: getEnv().YOUTUBE_DAILY_QUOTA,
+  })
+  if (!booked) {
+    throw new AppError(
+      "CONFLICT",
+      "Today's YouTube quota is used up. Song search is back after the reset."
+    )
+  }
+  const tracks = await withGoogleToken(db, channel, (token) =>
+    getYouTubeClient().searchMusic(token, query, region, SEARCH_COUNT)
+  )
+  searches.set(key, { at: Date.now(), tracks })
+  return tracks
+}
+
 export function clearTrendingCache() {
   charts.clear()
   failures.clear()
+  searches.clear()
 }

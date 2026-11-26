@@ -310,4 +310,22 @@ export class YouTubeFake implements YouTubeClient {
   async trendingMusic(_token: string, _regionCode: string, maxResults: number) {
     return FAKE_TRENDING_MUSIC.slice(0, maxResults)
   }
+
+  async searchMusic(
+    _token: string,
+    query: string,
+    _regionCode: string,
+    maxResults: number
+  ) {
+    return [
+      {
+        videoId: "fake-search-1",
+        title: `Fake search hit for ${query}`,
+        channelTitle: "Fake artist",
+        thumbnailUrl: null,
+        durationMs: 201_000,
+        views: 3_100_000,
+      },
+    ].slice(0, maxResults)
+  }
 }

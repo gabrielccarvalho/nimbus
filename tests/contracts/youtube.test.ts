@@ -331,6 +331,57 @@ describe("http YouTube client", () => {
     ])
   })
 
+  it("searches music and keeps YouTube's ranking", async () => {
+    let searched: URLSearchParams | undefined
+    let listed: URLSearchParams | undefined
+    server.use(
+      http.get(`${API}/youtube/v3/search`, ({ request }) => {
+        searched = new URL(request.url).searchParams
+        return HttpResponse.json({
+          items: [
+            { id: { videoId: "b" } },
+            { id: { videoId: "a" } },
+            { id: {} },
+          ],
+        })
+      }),
+      http.get(`${API}/youtube/v3/videos`, ({ request }) => {
+        listed = new URL(request.url).searchParams
+        return HttpResponse.json({
+          items: ["a", "b"].map((id) => ({
+            id,
+            snippet: { title: `Song ${id}`, channelTitle: "Artist" },
+          })),
+        })
+      })
+    )
+    const found = await client().searchMusic("tok", "flower", "BR", 10)
+    expect(found.map((video) => video.videoId)).toEqual(["b", "a"])
+    expect(Object.fromEntries(searched!)).toMatchObject({
+      q: "flower",
+      type: "video",
+      videoCategoryId: "10",
+      regionCode: "BR",
+      maxResults: "10",
+    })
+    expect(listed!.get("id")).toBe("b,a")
+  })
+
+  it("skips the details call when a search finds nothing", async () => {
+    let listed = false
+    server.use(
+      http.get(`${API}/youtube/v3/search`, () => HttpResponse.json({})),
+      http.get(`${API}/youtube/v3/videos`, () => {
+        listed = true
+        return HttpResponse.json({})
+      })
+    )
+    await expect(client().searchMusic("tok", "zzz", "US", 10)).resolves.toEqual(
+      []
+    )
+    expect(listed).toBe(false)
+  })
+
   it("maps 401 to a token error", async () => {
     server.use(
       http.get(`${API}/youtube/v3/channels`, () =>

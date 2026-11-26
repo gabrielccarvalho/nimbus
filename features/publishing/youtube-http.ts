@@ -397,12 +397,47 @@ export class YouTubeHttp implements YouTubeClient {
   }
 
   async trendingMusic(token: string, regionCode: string, maxResults: number) {
-    const query = new URLSearchParams({
-      part: "snippet,contentDetails,statistics",
+    return this.musicVideos(token, {
       chart: "mostPopular",
       videoCategoryId: MUSIC_CATEGORY,
       regionCode,
       maxResults: String(maxResults),
+    })
+  }
+
+  async searchMusic(
+    token: string,
+    query: string,
+    regionCode: string,
+    maxResults: number
+  ) {
+    const search = new URLSearchParams({
+      part: "id",
+      type: "video",
+      videoCategoryId: MUSIC_CATEGORY,
+      q: query,
+      regionCode,
+      maxResults: String(maxResults),
+    })
+    const response = await send(`${API}/youtube/v3/search?${search}`, {
+      headers: { authorization: `Bearer ${token}` },
+    })
+    if (!response.ok) throw await failure(response)
+    const body = (await response.json()) as {
+      items?: { id?: { videoId?: string } }[]
+    }
+    const ids = (body.items ?? []).flatMap((item) =>
+      item.id?.videoId ? [item.id.videoId] : []
+    )
+    if (ids.length === 0) return []
+    const videos = await this.musicVideos(token, { id: ids.join(",") })
+    return ids.flatMap((id) => videos.filter((video) => video.videoId === id))
+  }
+
+  private async musicVideos(token: string, params: Record<string, string>) {
+    const query = new URLSearchParams({
+      part: "snippet,contentDetails,statistics",
+      ...params,
     })
     const response = await send(`${API}/youtube/v3/videos?${query}`, {
       headers: { authorization: `Bearer ${token}` },
