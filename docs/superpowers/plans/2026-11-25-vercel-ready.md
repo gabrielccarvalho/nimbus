@@ -35,10 +35,12 @@
 ### Task 1: Storage contract without file paths
 
 **Files:**
+
 - Modify: `lib/storage/types.ts`, `lib/storage/local.ts`
 - Create: `tests/contracts/storage.ts` (shared suite), `tests/contracts/storage-local.test.ts`
 
 **Interfaces:**
+
 - Produces, on `StorageAdapter` (replacing `resolve`):
   - `localCopy(key: string, scratchDir: string, signal?: AbortSignal): Promise<string>`: a readable local path for `key`. `LocalStorage` returns its own path without copying.
   - `putFile(file: string, key: string): Promise<{ bytes: number }>`: atomically stores `file` at `key`. `LocalStorage` renames, falling back to copy+unlink on `EXDEV`. The source is gone afterwards.
@@ -56,10 +58,12 @@
 ### Task 2: Per-job scratch; steps stop using paths
 
 **Files:**
+
 - Create: `lib/storage/scratch.ts`, `lib/storage/scratch.test.ts`
 - Modify: `lib/env.ts` (`SCRATCH_DIR`), `lib/storage/disk.ts`, `features/jobs/worker-loop.ts` (`JobContext.scratch`), `features/pipeline/steps/{common,probe,transcribe,analyze,select,render-clip,render-edit,download,publish-clip}.ts`, `app/api/projects/[id]/export/route.ts`, `tests/utils/test-env.ts` (sets `SCRATCH_DIR` to a temp dir and removes it), and the integration tests that call step functions directly.
 
 **Interfaces:**
+
 - Consumes: Task 1 `localCopy`, `putFile`.
 - Produces:
   - `withScratch<T>(name: string, run: (dir: string) => Promise<T>): Promise<T>` in `lib/storage/scratch.ts`: creates `SCRATCH_DIR/<name>`, always removes it.
@@ -78,10 +82,12 @@
 ### Task 3: `S3Storage` and MinIO
 
 **Files:**
+
 - Create: `lib/storage/s3.ts`, `tests/contracts/storage-s3.test.ts`
 - Modify: `lib/storage/index.ts`, `lib/env.ts`, `docker-compose.yml` (a `minio` service, port 9010, and a `minio-init` one-shot that creates the `nimbus` bucket and sets CORS), `package.json` (`test:s3` script, AWS SDK deps), `vitest.config.ts` (`s3` project), `.env.example`
 
 **Interfaces:**
+
 - Consumes: Task 1 contract.
 - Produces: `class S3Storage implements StorageAdapter`, constructed with `{ client: S3Client; bucket: string }`. `getStorage()` picks the driver from `STORAGE_DRIVER`.
   - `write` streams through the existing transforms and `byteLimit` into `@aws-sdk/lib-storage` `Upload` (multipart) at a temp key, then copies to the final key and deletes the temp. Multipart only becomes visible on completion, so a straight upload to `key` is fine if `Upload` aborts on error. Decide by reading the installed `lib-storage` docs, and keep the `putFile is atomic` contract green.
@@ -92,7 +98,7 @@
   - `readUrl` signs a GET for 4 h with `ResponseContentDisposition` when `download` is set.
   - `uploadTarget` signs a PUT for 1 h with `ContentLength` and `ContentType` signed; the returned headers must be sent verbatim.
 - [ ] **Step 1:** `storage-s3.test.ts` runs `storageContract` against MinIO (`S3_TEST_ENDPOINT`, default `http://localhost:9010`), plus `upload target accepts a PUT of the signed size`, `upload target rejects a larger body`, `signed GET honours Range`, `move copies objects over 5 GB`, the last one skipped unless `S3_TEST_LARGE=1`. The suite skips (`describe.skipIf`) when the endpoint doesn't answer, like `test:heavy`.
-- [ ] **Step 2:** `docker compose up -d minio minio-init && pnpm test:s3`. Expected: FAIL (no `S3Storage`).
+- [ ] **Step 2:** `docker compose --profile s3 up -d && pnpm test:s3`. Expected: FAIL (no `S3Storage`).
 - [ ] **Step 3:** Implement `S3Storage` and the env schema (a `superRefine` that requires the bucket and keys when `STORAGE_DRIVER=s3`).
 - [ ] **Step 4:** `pnpm test:s3` and `pnpm test`. Expected: PASS.
 - [ ] **Step 5:** Commit `feat(storage): S3-compatible storage driver`.
@@ -100,11 +106,13 @@
 ### Task 4: Direct uploads
 
 **Files:**
+
 - Create: `features/uploads/token.ts` (+ `token.test.ts`), `features/uploads/actions.ts`, `features/uploads/service.ts`, `app/api/uploads/[token]/route.ts` (PUT, local driver only), `tests/integration/direct-upload.test.ts`
 - Modify: `features/projects/upload.ts` (keep `magicByteCheck`, `projectSettingsFromApp`, `parseImportOptions`; drop `handleUpload`), `features/music/service.ts` (drop `handleMusicUpload`; Task 5 adds the completion), `features/pipeline/steps/sweep.ts`, `components/projects/project-uploader.tsx`, `components/music/music-upload-button.tsx`, their tests, `proxy.ts` if its matcher names the old routes
 - Delete: `app/api/uploads/route.ts`, `app/api/uploads/music/route.ts`; move `tests/integration/upload-and-media.test.ts` upload cases into `direct-upload.test.ts`
 
 **Interfaces:**
+
 - Produces:
   - `type UploadClaim = { kind: "video" | "music"; key: string; workspaceId: string; userId: string; fileName: string; mime: string; bytes: number; options?: ImportOptions; exp: number }`
   - `signUploadToken(claim: UploadClaim): string` and `verifyUploadToken(token: string, now?: number): UploadClaim`: base64url JSON + HMAC-SHA256 with `NIMBUS_SECRET_KEY`; a bad signature or `exp < now` throws `AppError("VALIDATION", "This upload link has expired")`.
@@ -121,10 +129,12 @@
 ### Task 5: `probe_music` job
 
 **Files:**
+
 - Modify: `lib/db/schema.ts` (`music_tracks`: `status text not null default 'ready'` with values `processing | ready | failed`, `duration_ms` and `peaks` nullable, `error text`), new migration via `pnpm db:generate` (next free number), `features/jobs/schema.ts` (`"probe_music"`), `features/music/service.ts`, `features/music/queries.ts`, `features/pipeline/handlers.ts`, `features/music/probe-step.ts` (new, holds today's `runFfprobe` / `readPeaks` use), `components/music/*` (a processing row and a failed row with delete), the "Audio & text" track picker (only `ready` tracks are selectable), `features/clips` audio-mix validation (rejects a non-ready track)
 - Test: `tests/integration/music-library.test.ts`, `tests/integration/probe-music-step.test.ts`
 
 **Interfaces:**
+
 - Consumes: Task 4 `completeUpload` → `createProcessingTrack(db, { id, workspaceId, userId, title, storageKey, mime, bytes }): Promise<MusicTrackSummary>`, which inserts `status: "processing"` and enqueues `probe_music` with `projectId: null` and `payload: { trackId }` (the `jobs.payload` jsonb column already exists).
 - Produces: `MusicTrackSummary.status`; `durationMs: number | null`; `peaks: number[] | null`.
 - [ ] **Step 1:** Tests: `probe_music sets duration and peaks and marks the track ready`, `a file without an audio stream marks the track failed with "This file has no audio"`, `a deleted track makes the job a no-op`, `saving an audioMix with a processing track is rejected`. Component test: `a processing track shows a spinner and can't be picked`.
@@ -136,9 +146,11 @@
 ### Task 6: Signed media URLs
 
 **Files:**
+
 - Modify: `lib/http/responses.ts` (`fileResponse`), `app/api/media/[...path]/route.ts`, `app/api/music/[id]/route.ts`, `app/api/avatars/[...path]/route.ts`, tests in `tests/integration/upload-and-media.test.ts`, `tests/integration/avatars.test.ts`
 
 **Interfaces:**
+
 - `fileResponse(request, storage, key, options)` keeps its signature. When `await storage.readUrl(key, { download })` returns a URL, it answers `302` with `Location` and `Cache-Control: private, max-age=0`. Otherwise it streams as today. Auth checks stay in the routes, before `fileResponse`.
 - [ ] **Step 1:** Tests with a stub adapter whose `readUrl` returns `https://bucket.test/k?sig`: `media route redirects to the signed URL after the access check`, `media route returns 404 for another workspace without signing`, `download sets the content disposition on the signed URL`. Existing local-driver range tests stay as they are.
 - [ ] **Step 2:** Run. Expected: FAIL.
@@ -149,10 +161,12 @@
 ### Task 7: Worker heartbeat and capabilities
 
 **Files:**
+
 - Create: `features/jobs/heartbeat.ts`, `tests/integration/worker-heartbeat.test.ts`
 - Modify: `lib/db/schema.ts` (`worker_heartbeats`: `owner text pk`, `capabilities jsonb not null`, `seen_at timestamptz not null`) + migration, `worker/index.ts` (record at start and every 60 s; delete the row on shutdown), `features/settings/queries.ts` (read the freshest row instead of calling `getFfmpegCapabilities`), the settings UI that shows encoder availability (a "No worker online" alert when there's no row newer than 3 min)
 
 **Interfaces:**
+
 - Produces: `recordHeartbeat(db, owner: string, capabilities: SerializedCapabilities): Promise<void>`, `latestWorker(db, now?: Date): Promise<{ owner: string; capabilities: SerializedCapabilities; seenAt: Date } | null>`, where `SerializedCapabilities` is `FfmpegCapabilities` with the sets as sorted arrays. `null` when the freshest row is older than 3 minutes.
 - [ ] **Step 1:** Tests: `latestWorker returns the freshest heartbeat`, `latestWorker is null when every heartbeat is stale`, `settings encoders come from the heartbeat`, and a component test `settings shows "No worker online" without a heartbeat`.
 - [ ] **Step 2:** Run. Expected: FAIL.
@@ -163,10 +177,12 @@
 ### Task 8: Hosted configuration
 
 **Files:**
+
 - Modify: `lib/env.ts`, `features/downloads/index.ts`, `lib/db/index.ts` (pool), `features/accounts/auth.ts` (or wherever Better Auth is configured), `scripts/doctor.ts`, `.env.example`
 - Test: `lib/env.test.ts` (or the existing env tests), `tests/integration/url-import.test.ts`
 
 **Interfaces:**
+
 - `YTDLP_COOKIES_TEXT` (optional): at worker start, if set and `YTDLP_COOKIES` isn't, write it to `SCRATCH_DIR/ytdlp-cookies.txt` with mode 0600 and use that path. `YTDLP_COOKIES_FROM_BROWSER` still wins when set (local development).
 - `DATABASE_POOL_MAX` (default 10). Read the installed `@vercel/functions` docs for a Fluid pool helper (`attachDatabasePool` or similar) and use it only if it exists in the installed version; otherwise just lower the default on Vercel through the env var.
 - Better Auth: when `VERCEL_URL` is set, add `https://${VERCEL_URL}` to the trusted origins so previews can sign in. `BETTER_AUTH_URL` stays the production URL.
@@ -180,10 +196,12 @@
 ### Task 9: Containers and the Vercel daemon
 
 **Files:**
+
 - Create: `Dockerfile.worker`, `Dockerfile.web`, `.dockerignore`, `vercel.json`, `features/jobs/health.ts` (+ test)
 - Modify: `worker/index.ts`, `docker-compose.yml` (profile `selfhost`: `web`, `worker`, `minio`, `minio-init`, `db`), `package.json` (`docker:worker` build script), `next.config.ts` only if `Dockerfile.web` needs `output: "standalone"`. Check in the bundled Next docs that this doesn't change the Vercel build; if it does, gate it on `NIMBUS_STANDALONE=1`.
 
 **Interfaces:**
+
 - `startHealthServer(port: number, isHealthy: () => boolean): http.Server`. It answers 200 on `GET /healthz` while the worker loop has polled within the last `3 × WORKER_POLL_MS + 30 s`, and 503 otherwise. Port from `WORKER_HEALTH_PORT` (default 8787); the server isn't started when the variable is `0`.
 - `Dockerfile.worker`: `--platform=linux/amd64`, a Node base matching `engines` (add `engines.node` if missing; Vercel's default is 26), ffmpeg with libass and libx264 (verify with `ffmpeg -filters | grep ass` in the build), whisper.cpp built from a pinned release tag, yt-dlp pinned, the whisper model from `WHISPER_MODEL_URL` at build time into `/models`, `pnpm install --prod --frozen-lockfile`, `CMD ["pnpm", "worker"]`, `ENV NIMBUS_ROLE=worker SCRATCH_DIR=/tmp/nimbus`.
 - `vercel.json`: framework `nextjs`; `buildCommand` `pnpm db:migrate && pnpm build`; `daemons.worker` with `root: "./"`, `entrypoint: "Dockerfile.worker"`, `instances: { "<region nearest the DB>": 1 }`, `resources.requests.memory: "8Gi"`, `terminationGracePeriodSeconds: 600`, `livenessProbe: { httpGet: { port: 8787, path: "/healthz" }, initialDelaySeconds: 30 }`. Check the field names against the installed CLI's `vercel.json` schema before committing.
@@ -197,6 +215,7 @@
 ### Task 10: Data migration, docs, phase close
 
 **Files:**
+
 - Create: `scripts/storage-push.ts` (+ `pnpm storage:push`)
 - Modify: `docs/ARCHITECTURE.md` (web/worker/storage diagram and the "never spawns a binary on the web side" rule), `docs/DEVELOPMENT_GUIDELINES.md` (scratch and `localCopy` instead of paths), `docs/TESTING.md` (`test:s3`), `README.md` (a "Deploying" section: Vercel project + Neon from the Marketplace + R2 bucket with CORS for PUT/GET/HEAD, `Range` allowed, `Content-Range`/`Accept-Ranges`/`ETag` exposed; the env vars; previews have no worker; "Self-hosting" with the compose profile), `docs/PROGRESS.md`, `CLAUDE.md` commands table
 - [ ] **Step 1:** `storage-push` copies every file under `DATA_DIR` (skipping `tmp/`) to the configured `s3` bucket, skips keys whose size already matches, and prints a summary. It is idempotent. Test it against MinIO in `storage-s3.test.ts`: `storage push copies new files and skips matching ones`.

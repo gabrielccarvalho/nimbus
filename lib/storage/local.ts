@@ -19,7 +19,7 @@ import { AppError } from "@/lib/errors"
 
 import type { ByteRange, StorageAdapter, UploadTarget } from "./types"
 
-const KEY_PATTERN = /^[A-Za-z0-9._\-/]+$/
+export const KEY_PATTERN = /^[A-Za-z0-9._\-/]+$/
 
 export function byteLimit(maxBytes: number) {
   let total = 0
@@ -151,6 +151,10 @@ export class LocalStorage implements StorageAdapter {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return []
       throw error
     }
+  }
+
+  localCopyCost() {
+    return 0
   }
 
   async localCopy(key: string): Promise<string> {

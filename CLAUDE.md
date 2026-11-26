@@ -46,6 +46,7 @@ Next.js 16 App Router · React 19 · TypeScript strict · Tailwind v4 · shadcn 
 | `pnpm test:unit` / `pnpm test:integration` | Single layer                                      |
 | `pnpm test:e2e`                            | Playwright (fake transcriber, heuristic selector) |
 | `pnpm test:heavy`                          | Real whisper.cpp (skips if missing)               |
+| `pnpm test:s3`                             | Storage contract on MinIO (skips if down)         |
 | `pnpm test:coverage`                       | Coverage with thresholds                          |
 | `pnpm run doctor`                          | System dependency check                           |
 | `pnpm db:generate` / `pnpm db:migrate`     | Drizzle migrations                                |

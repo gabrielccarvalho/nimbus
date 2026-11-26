@@ -9,12 +9,19 @@ const booleanish = z
   .default("false")
   .transform((v) => v === "true" || v === "1")
 
-const envSchema = z.object({
+const envFields = z.object({
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
   DATA_DIR: z.string().min(1).default("./data"),
   SCRATCH_DIR: z.string().min(1).default(path.join(os.tmpdir(), "nimbus")),
+  STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),
+  S3_ENDPOINT: z.url().optional(),
+  S3_REGION: z.string().min(1).default("auto"),
+  S3_BUCKET: z.string().min(1).optional(),
+  S3_ACCESS_KEY_ID: z.string().min(1).optional(),
+  S3_SECRET_ACCESS_KEY: z.string().min(1).optional(),
+  S3_FORCE_PATH_STYLE: booleanish,
   DATABASE_URL: z
     .string()
     .min(1)
@@ -66,6 +73,25 @@ const envSchema = z.object({
   YOUTUBE_DAILY_UPLOADS: z.coerce.number().int().positive().default(100),
   TWITCH_CLIENT_ID: z.string().min(1).optional(),
   TWITCH_CLIENT_SECRET: z.string().min(1).optional(),
+})
+
+const S3_REQUIRED = [
+  "S3_BUCKET",
+  "S3_ACCESS_KEY_ID",
+  "S3_SECRET_ACCESS_KEY",
+] as const
+
+const envSchema = envFields.superRefine((env, ctx) => {
+  if (env.STORAGE_DRIVER !== "s3") return
+  for (const name of S3_REQUIRED) {
+    if (!env[name]) {
+      ctx.addIssue({
+        code: "custom",
+        path: [name],
+        message: `${name} is required when STORAGE_DRIVER=s3`,
+      })
+    }
+  }
 })
 
 type RawEnv = z.infer<typeof envSchema>

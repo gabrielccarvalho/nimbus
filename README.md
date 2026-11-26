@@ -97,20 +97,21 @@ See `.env.example` for the full list. Values that also appear in Settings are on
 
 ## Scripts
 
-| Script                                                       | Purpose                                                 |
-| ------------------------------------------------------------ | ------------------------------------------------------- |
-| `pnpm dev`                                                   | Next + worker                                           |
-| `pnpm build` / `pnpm start`                                  | Production build / server (run `pnpm worker` alongside) |
-| `pnpm worker`                                                | Worker only                                             |
-| `pnpm lint`, `pnpm typecheck`, `pnpm format`                 | Quality                                                 |
-| `pnpm test`                                                  | Unit + integration                                      |
-| `pnpm test:unit`, `pnpm test:integration`, `pnpm test:watch` | Single layers                                           |
-| `pnpm test:e2e`, `pnpm test:e2e:ui`                          | Playwright                                              |
-| `pnpm test:heavy`                                            | Real whisper.cpp (skips if missing)                     |
-| `pnpm test:coverage`                                         | Coverage with thresholds                                |
-| `pnpm fixtures`                                              | Generate test videos                                    |
-| `pnpm run doctor`                                            | Dependency check                                        |
-| `pnpm db:generate`, `pnpm db:migrate`                        | Drizzle migrations                                      |
+| Script                                                       | Purpose                                                                        |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| `pnpm dev`                                                   | Next + worker                                                                  |
+| `pnpm build` / `pnpm start`                                  | Production build / server (run `pnpm worker` alongside)                        |
+| `pnpm worker`                                                | Worker only                                                                    |
+| `pnpm lint`, `pnpm typecheck`, `pnpm format`                 | Quality                                                                        |
+| `pnpm test`                                                  | Unit + integration                                                             |
+| `pnpm test:unit`, `pnpm test:integration`, `pnpm test:watch` | Single layers                                                                  |
+| `pnpm test:e2e`, `pnpm test:e2e:ui`                          | Playwright                                                                     |
+| `pnpm test:heavy`                                            | Real whisper.cpp (skips if missing)                                            |
+| `pnpm test:s3`                                               | Storage contract on MinIO (`docker compose --profile s3 up -d`; skips if down) |
+| `pnpm test:coverage`                                         | Coverage with thresholds                                                       |
+| `pnpm fixtures`                                              | Generate test videos                                                           |
+| `pnpm run doctor`                                            | Dependency check                                                               |
+| `pnpm db:generate`, `pnpm db:migrate`                        | Drizzle migrations                                                             |
 
 ## Docs
 

@@ -1,7 +1,7 @@
 import "server-only"
 
 import { randomUUID } from "node:crypto"
-import { rm } from "node:fs/promises"
+import { link, rm } from "node:fs/promises"
 import path from "node:path"
 
 import { getStorage, storageKeys } from "@/lib/storage"
@@ -18,13 +18,7 @@ import {
 import { buildSegments, normalizeWords } from "../../transcription/normalize"
 import { transcriptRepository } from "../../transcription/repository"
 import { textTail, type StepDetail } from "../detail"
-import {
-  beginStep,
-  completeStep,
-  produceFile,
-  sourceAsset,
-  throwIfAborted,
-} from "./common"
+import { beginStep, completeStep, sourceAsset, throwIfAborted } from "./common"
 
 const DETECTION_WINDOW_MS = 30_000
 
@@ -108,30 +102,33 @@ export const transcribeStep: JobHandler = async ({
   }
 
   const sourcePath = await storage.localCopy(source.storageKey, scratch, signal)
-  await produceFile(scratch, audioKey, (file) =>
-    runFfmpeg(
-      [
-        "-i",
-        sourcePath,
-        ...(trackExists ? ["-map", `0:a:${track}`] : []),
-        "-vn",
-        "-ac",
-        "1",
-        "-ar",
-        "16000",
-        "-c:a",
-        "pcm_s16le",
-        file,
-      ],
-      {
-        signal,
-        expectedDurationMs: durationMs,
-        onProgress: (p) => reportProgress(p * 0.1),
-      }
-    )
+  const audioPath = path.join(scratch, "audio.wav")
+  await runFfmpeg(
+    [
+      "-i",
+      sourcePath,
+      ...(trackExists ? ["-map", `0:a:${track}`] : []),
+      "-vn",
+      "-ac",
+      "1",
+      "-ar",
+      "16000",
+      "-c:a",
+      "pcm_s16le",
+      audioPath,
+    ],
+    {
+      signal,
+      expectedDurationMs: durationMs,
+      onProgress: (p) => reportProgress(p * 0.1),
+    }
   )
+  // A second link keeps the local copy for transcription while putFile takes
+  // the other, so S3 doesn't download what was just uploaded.
+  const upload = path.join(scratch, `${randomUUID()}-audio.wav`)
+  await link(audioPath, upload)
+  const { bytes } = await storage.putFile(upload, audioKey)
   const assets = assetRepository(db)
-  const bytes = (await storage.stat(audioKey))?.bytes ?? 0
   const audio = await assets.findByKind(project.id, "audio")
   if (audio) {
     await assets.update(audio.id, { bytes, durationMs })
@@ -146,7 +143,6 @@ export const transcribeStep: JobHandler = async ({
     })
   }
 
-  const audioPath = await storage.localCopy(audioKey, scratch, signal)
   reportDetail({ ...live, phase: "detecting" })
   const chosen = await chooseLanguage(project, audioPath, durationMs, {
     signal,

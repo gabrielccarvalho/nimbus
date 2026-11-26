@@ -19,6 +19,7 @@ export interface StorageAdapter {
   remove(key: string): Promise<void>
   removePrefix(prefix: string): Promise<void>
   list(prefix: string): Promise<string[]>
+  localCopyCost(bytes: number): number
   localCopy(
     key: string,
     scratchDir: string,

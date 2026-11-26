@@ -91,7 +91,11 @@ export const renderClipStep: JobHandler = async ({
   }
   const storage = getStorage()
   const durationMs = clip.endMs - clip.startMs
-  await assertDiskSpace(env.SCRATCH_DIR, estimateRenderBytes(durationMs))
+  await assertDiskSpace(
+    env.SCRATCH_DIR,
+    estimateRenderBytes(durationMs) +
+      storage.localCopyCost(source.bytes + (track?.bytes ?? 0))
+  )
 
   const words =
     captions || audioMix?.duck

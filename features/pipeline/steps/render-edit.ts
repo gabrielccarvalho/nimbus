@@ -66,12 +66,13 @@ export const renderEditStep: JobHandler = async ({
     )
   }
   const outputMs = editedDuration(keep)
+  const storage = getStorage()
   await assertDiskSpace(
     env.SCRATCH_DIR,
-    estimateRenderBytes(outputMs, width * height)
+    estimateRenderBytes(outputMs, width * height) +
+      storage.localCopyCost(source.bytes)
   )
 
-  const storage = getStorage()
   const stamp = Date.now()
   const workFile = (name: string) => path.join(scratch, `edit.${name}`)
   let subtitles: { file: string; fontsDir: string } | undefined

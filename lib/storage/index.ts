@@ -2,20 +2,46 @@ import "server-only"
 
 import { mkdirSync } from "node:fs"
 
-import { getEnv } from "@/lib/env"
+import { S3Client } from "@aws-sdk/client-s3"
+
+import { getEnv, type Env } from "@/lib/env"
 
 import { LocalStorage } from "./local"
+import { S3Storage } from "./s3"
 import type { StorageAdapter } from "./types"
 
 let instance: { root: string; storage: StorageAdapter } | undefined
 
 export function getStorage(): StorageAdapter {
-  const root = getEnv().DATA_DIR
+  const env = getEnv()
+  const root = env.STORAGE_DRIVER === "s3" ? "s3" : env.DATA_DIR
   if (!instance || instance.root !== root) {
-    mkdirSync(root, { recursive: true })
-    instance = { root, storage: new LocalStorage(root) }
+    instance = { root, storage: createStorage(env) }
   }
   return instance.storage
+}
+
+function createStorage(env: Env): StorageAdapter {
+  if (env.STORAGE_DRIVER === "local") {
+    mkdirSync(env.DATA_DIR, { recursive: true })
+    return new LocalStorage(env.DATA_DIR)
+  }
+  return new S3Storage({
+    client: new S3Client({
+      endpoint: env.S3_ENDPOINT,
+      region: env.S3_REGION,
+      forcePathStyle: env.S3_FORCE_PATH_STYLE,
+      credentials: {
+        accessKeyId: env.S3_ACCESS_KEY_ID!,
+        secretAccessKey: env.S3_SECRET_ACCESS_KEY!,
+      },
+      // The default adds a CRC32 of the empty body to presigned PUTs, which
+      // then rejects every real upload.
+      requestChecksumCalculation: "WHEN_REQUIRED",
+      responseChecksumValidation: "WHEN_REQUIRED",
+    }),
+    bucket: env.S3_BUCKET!,
+  })
 }
 
 export const storageKeys = {
