@@ -2,6 +2,13 @@ import "@/lib/load-env"
 
 import os from "node:os"
 
+import {
+  deleteHeartbeat,
+  HEARTBEAT_INTERVAL_MS,
+  recordHeartbeat,
+  serializeCapabilities,
+  type SerializedCapabilities,
+} from "@/features/jobs/heartbeat"
 import { jobQueue } from "@/features/jobs/queue"
 import { createWorker } from "@/features/jobs/worker-loop"
 import {
@@ -23,6 +30,7 @@ import {
 import { SWEEP_INTERVAL_MS } from "@/features/pipeline/sweep-plan"
 import { closeDb, getDb } from "@/lib/db"
 import { getEnv } from "@/lib/env"
+import { getFfmpegCapabilities } from "@/lib/media/capabilities"
 import { logger } from "@/lib/logger"
 
 const env = getEnv()
@@ -75,6 +83,31 @@ const scheduleStats = () =>
     ),
   ])
 
+const unavailableCapabilities: SerializedCapabilities = {
+  available: false,
+  version: null,
+  filters: [],
+  encoders: [],
+  hasLibass: false,
+  hasLibx264: false,
+  hardwareEncoders: [],
+}
+const detectCapabilities = () =>
+  getFfmpegCapabilities(env.FFMPEG_PATH).then(serializeCapabilities)
+let capabilities = unavailableCapabilities
+const beat = () =>
+  recordHeartbeat(db, owner, capabilities).catch((error: unknown) =>
+    logger.error({ err: error }, "couldn't record the worker heartbeat")
+  )
+const heartbeatReady = detectCapabilities()
+  .then((detected) => {
+    capabilities = detected
+  })
+  .catch((error: unknown) =>
+    logger.error({ err: error }, "couldn't detect ffmpeg capabilities")
+  )
+  .then(beat)
+
 worker.start()
 void sweep()
 void scheduleStats()
@@ -85,6 +118,9 @@ const statsTimer = setInterval(
   STATS_SCHEDULE_INTERVAL_MS
 )
 statsTimer.unref()
+const heartbeatTimer = setInterval(() => void beat(), HEARTBEAT_INTERVAL_MS)
+heartbeatTimer.unref()
+await heartbeatReady
 logger.info({ owner, dataDir: env.DATA_DIR }, "worker started")
 if (!process.stdout.isTTY || env.E2E) console.log("worker started")
 
@@ -95,11 +131,16 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     stopping = true
     clearInterval(sweepTimer)
     clearInterval(statsTimer)
+    clearInterval(heartbeatTimer)
     logger.info({ signal }, "worker stopping")
     // tsx watch SIGKILLs after 5 s, which would orphan running ffmpeg children;
     // abort early enough for runProcess to terminate them first.
     void worker
       .stop({ graceMs: 1_000 })
+      .then(() => deleteHeartbeat(db, owner))
+      .catch((error: unknown) =>
+        logger.error({ err: error }, "couldn't remove the worker heartbeat")
+      )
       .then(closeDb)
       .then(() => process.exit(0))
   })

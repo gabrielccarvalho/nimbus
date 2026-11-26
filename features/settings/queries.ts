@@ -4,29 +4,46 @@ import { installedCaptionFonts } from "@/features/render/fonts"
 
 import { connection } from "next/server"
 
-import { getDb } from "@/lib/db"
+import { getDb, type Db } from "@/lib/db"
 import { getEnv } from "@/lib/env"
-import { getFfmpegCapabilities } from "@/lib/media/capabilities"
 
 import { requireViewer } from "../accounts/session"
 import { claudeAvailable } from "../accounts/usage"
-import { chooseEncoder, encoderPreference } from "../render/filtergraph"
+import { latestWorker } from "../jobs/heartbeat"
+import {
+  chooseEncoder,
+  encoderPreference,
+  type Encoder,
+} from "../render/filtergraph"
 import { isEnglishOnlyModel } from "../transcription/language"
 import { getAppSettings } from "./service"
+
+export async function getRenderingCapabilities(
+  db: Db,
+  videoEncoder: "auto" | Encoder,
+  now = new Date()
+) {
+  const worker = await latestWorker(db, now)
+  if (!worker) return { workerOnline: false, hardwareEncoder: null }
+  const encoder = chooseEncoder(
+    encoderPreference(true, videoEncoder),
+    new Set(worker.capabilities.encoders)
+  )
+  return {
+    workerOnline: true,
+    hardwareEncoder: encoder === "libx264" ? null : encoder,
+  }
+}
 
 export async function getSettingsPage() {
   await connection()
   const { workspace } = await requireViewer()
   const env = getEnv()
-  const capabilities = await getFfmpegCapabilities(env.FFMPEG_PATH)
-  const hardwareEncoder = chooseEncoder(
-    encoderPreference(true, env.VIDEO_ENCODER),
-    capabilities.encoders
-  )
+  const db = getDb()
   return {
-    settings: await getAppSettings(getDb(), workspace.id),
+    settings: await getAppSettings(db, workspace.id),
     claudeAvailable: claudeAvailable(workspace),
-    hardwareEncoder: hardwareEncoder === "libx264" ? null : hardwareEncoder,
+    ...(await getRenderingCapabilities(db, env.VIDEO_ENCODER)),
     englishOnlyModel:
       env.TRANSCRIBER === "whisper" && isEnglishOnlyModel(env.WHISPER_MODEL),
     installedFonts: installedCaptionFonts(),

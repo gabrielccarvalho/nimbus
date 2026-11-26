@@ -574,3 +574,9 @@ export const settings = pgTable("settings", {
   value: jsonb("value").$type<unknown>().notNull(),
   ...timestamps,
 })
+
+export const workerHeartbeats = pgTable("worker_heartbeats", {
+  owner: text("owner").primaryKey(),
+  capabilities: jsonb("capabilities").$type<unknown>().notNull(),
+  seenAt: timestamptz("seen_at").notNull(),
+})

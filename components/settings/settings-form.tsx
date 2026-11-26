@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
   Field,
@@ -54,6 +55,7 @@ export function SettingsForm({
   section,
   settings: initial,
   claudeAvailable,
+  workerOnline,
   hardwareEncoder,
   englishOnlyModel,
   installedFonts,
@@ -61,6 +63,7 @@ export function SettingsForm({
   section: keyof typeof TITLES
   settings: AppSettings
   claudeAvailable: boolean
+  workerOnline: boolean
   hardwareEncoder: string | null
   englishOnlyModel: boolean
   installedFonts: readonly CaptionFontId[]
@@ -153,6 +156,14 @@ export function SettingsForm({
         )}
         {section === "rendering" && (
           <>
+            {!workerOnline && (
+              <Alert>
+                <AlertTitle>No worker online</AlertTitle>
+                <AlertDescription>
+                  Renders and transcriptions wait until a worker is running.
+                </AlertDescription>
+              </Alert>
+            )}
             <QualityField value={settings} set={set} />
             <Field orientation="horizontal" data-disabled={!hardwareEncoder}>
               <FieldContent>
@@ -162,7 +173,9 @@ export function SettingsForm({
                 <FieldDescription>
                   {hardwareEncoder
                     ? `Faster renders with ${hardwareEncoder}. Output can differ slightly between machines.`
-                    : "No hardware encoder found in this ffmpeg."}
+                    : workerOnline
+                      ? "No hardware encoder found in this ffmpeg."
+                      : "Available once a worker is online."}
                 </FieldDescription>
               </FieldContent>
               <Switch
