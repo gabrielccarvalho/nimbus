@@ -1,6 +1,7 @@
 import "server-only"
 
 import { mkdirSync } from "node:fs"
+import path from "node:path"
 
 import { S3Client } from "@aws-sdk/client-s3"
 
@@ -41,6 +42,10 @@ function createStorage(env: Env): StorageAdapter {
       responseChecksumValidation: "WHEN_REQUIRED",
     }),
     bucket: env.S3_BUCKET!,
+    cache: {
+      dir: path.join(env.SCRATCH_DIR, "cache"),
+      maxBytes: env.SCRATCH_CACHE_BYTES,
+    },
   })
 }
 

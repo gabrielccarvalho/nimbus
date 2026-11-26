@@ -24,6 +24,7 @@ describe("getStorage", () => {
 
   it("uses S3 when STORAGE_DRIVER=s3", () => {
     vi.stubEnv("STORAGE_DRIVER", "s3")
+    vi.stubEnv("S3_ENDPOINT", "http://localhost:9010")
     vi.stubEnv("S3_BUCKET", "nimbus")
     vi.stubEnv("S3_ACCESS_KEY_ID", "key")
     vi.stubEnv("S3_SECRET_ACCESS_KEY", "secret")

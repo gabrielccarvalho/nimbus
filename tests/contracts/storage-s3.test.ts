@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { mkdtemp, rm } from "node:fs/promises"
+import { mkdtemp, readFile, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { Readable } from "node:stream"
@@ -33,19 +33,46 @@ const reachable = await fetch(`${endpoint}/minio/health/live`, {
   .then((response) => response.ok)
   .catch(() => false)
 
-function make(options: { maxCopyBytes?: number } = {}) {
+let gets = 0
+client.middlewareStack.add(
+  (next, context) => (args) => {
+    if (context.commandName === "GetObjectCommand") gets++
+    return next(args)
+  },
+  { step: "initialize" }
+)
+
+const tmp = await mkdtemp(path.join(os.tmpdir(), "storage-s3-"))
+
+function make(
+  options: { maxCopyBytes?: number; cacheBytes?: number; bucket?: string } = {}
+) {
   return new S3Storage({
     client,
     bucket,
     prefix: `${run}/${randomUUID()}`,
+    cache: {
+      dir: path.join(tmp, randomUUID(), "cache"),
+      maxBytes: options.cacheBytes ?? 1024 ** 3,
+    },
     ...options,
   })
 }
 
+function scratchDir() {
+  return mkdtemp(path.join(tmp, "scratch-"))
+}
+
 describe.skipIf(!reachable)("S3Storage", () => {
-  afterAll(() =>
-    new S3Storage({ client, bucket, prefix: run }).removePrefix(".")
-  )
+  afterAll(async () => {
+    await new S3Storage({
+      client,
+      bucket,
+      prefix: run,
+      cache: { dir: path.join(tmp, "cache"), maxBytes: 1 },
+    }).removePrefix(".")
+    await rm(tmp, { recursive: true, force: true })
+  })
 
   storageContract("S3Storage", async () => {
     const storage = make()
@@ -114,19 +141,80 @@ describe.skipIf(!reachable)("S3Storage", () => {
     )
   })
 
-  it("localCopy reuses an earlier copy in the same scratch", async () => {
+  it("localCopy reuses a cached download across scratch dirs", async () => {
     const storage = make()
-    const scratch = await mkdtemp(path.join(os.tmpdir(), "storage-s3-"))
-    try {
-      await storage.writeBuffer("c/a.txt", "first")
-      const first = await storage.localCopy("c/a.txt", scratch)
-      await storage.writeBuffer("c/a.txt", "second")
-      expect(await storage.localCopy("c/a.txt", scratch)).toBe(first)
-      expect(storage.localCopyCost(100)).toBe(100)
-    } finally {
-      await rm(scratch, { recursive: true, force: true })
-      await storage.removePrefix(".")
+    await storage.writeBuffer("c/a.txt", "cached")
+    const before = gets
+    const first = await storage.localCopy("c/a.txt", await scratchDir())
+    const second = await storage.localCopy("c/a.txt", await scratchDir())
+    expect(gets - before).toBe(1)
+    expect(second).not.toBe(first)
+    expect(await readFile(second, "utf8")).toBe("cached")
+    expect(storage.localCopyCost(100)).toBe(100)
+    await storage.removePrefix(".")
+  })
+
+  it("localCopy refetches when the object changes", async () => {
+    const storage = make()
+    await storage.writeBuffer("c/a.txt", "first")
+    const first = await storage.localCopy("c/a.txt", await scratchDir())
+    await storage.writeBuffer("c/a.txt", "other")
+    const scratch = await scratchDir()
+    const second = await storage.localCopy("c/a.txt", scratch)
+    expect(await readFile(second, "utf8")).toBe("other")
+    expect(await readFile(first, "utf8")).toBe("first")
+    await storage.writeBuffer("c/a.txt", "third")
+    const third = await storage.localCopy("c/a.txt", scratch)
+    expect(await readFile(third, "utf8")).toBe("third")
+    await storage.removePrefix(".")
+  })
+
+  it("concurrent localCopy calls share one download", async () => {
+    const storage = make()
+    await storage.writeBuffer("c/big.bin", Buffer.alloc(8 * 1024 ** 2, 3))
+    const before = gets
+    const files = await Promise.all(
+      [1, 2, 3].map(async () =>
+        storage.localCopy("c/big.bin", await scratchDir())
+      )
+    )
+    expect(gets - before).toBe(1)
+    for (const file of files) {
+      expect((await readFile(file)).length).toBe(8 * 1024 ** 2)
     }
+    await storage.removePrefix(".")
+  })
+
+  it("cache evicts the least recently used entry to fit the budget", async () => {
+    const storage = make({ cacheBytes: 10 })
+    for (const name of ["a", "b", "c"]) {
+      await storage.writeBuffer(`e/${name}.txt`, "1234")
+    }
+    const copy = async (name: string) => {
+      const before = gets
+      const file = await storage.localCopy(`e/${name}.txt`, await scratchDir())
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      return { file, fetched: gets - before }
+    }
+    expect((await copy("a")).fetched).toBe(1)
+    expect((await copy("b")).fetched).toBe(1)
+    expect((await copy("a")).fetched).toBe(0)
+    const c = await copy("c")
+    expect(c.fetched).toBe(1)
+    expect(await readFile(c.file, "utf8")).toBe("1234")
+    expect((await copy("a")).fetched).toBe(0)
+    expect((await copy("b")).fetched).toBe(1)
+    await storage.removePrefix(".")
+  })
+
+  it("stat on a missing bucket throws", async () => {
+    const storage = make({ bucket: `missing-${randomUUID()}` })
+    await expect(storage.stat("a.txt")).rejects.toMatchObject({
+      code: "STORAGE",
+    })
+    await expect(
+      storage.localCopy("a.txt", await scratchDir())
+    ).rejects.toMatchObject({ code: "STORAGE" })
   })
 
   it("removePrefix deletes more than one page of keys", async () => {

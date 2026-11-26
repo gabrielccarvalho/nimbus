@@ -2,7 +2,17 @@ import "server-only"
 
 import { createHash, randomUUID } from "node:crypto"
 import { createReadStream, createWriteStream } from "node:fs"
-import { mkdir, rename, rm, stat, unlink } from "node:fs/promises"
+import {
+  copyFile,
+  link,
+  mkdir,
+  readdir,
+  rename,
+  rm,
+  stat,
+  unlink,
+  utimes,
+} from "node:fs/promises"
 import path from "node:path"
 import { PassThrough, Transform, type Readable } from "node:stream"
 import { pipeline } from "node:stream/promises"
@@ -15,6 +25,7 @@ import {
   DeleteObjectCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
+  HeadBucketCommand,
   HeadObjectCommand,
   paginateListObjectsV2,
   PutObjectCommand,
@@ -28,7 +39,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 import { AppError } from "@/lib/errors"
 import { mimeForKey } from "@/lib/http/range"
 
-import { byteLimit, KEY_PATTERN } from "./local"
+import { byteLimit, KEY_PATTERN } from "./common"
 import type { ByteRange, StorageAdapter, UploadTarget } from "./types"
 
 const PART_BYTES = 16 * 1024 ** 2
@@ -38,16 +49,31 @@ const MAX_PARTS = 10_000
 const READ_URL_SECONDS = 4 * 60 * 60
 const UPLOAD_URL_SECONDS = 60 * 60
 
+// HeadObject answers a bare 404 for a missing key and a missing bucket alike,
+// which the SDK names NotFound; GetObject says NoSuchKey or NoSuchBucket.
 function isMissing(error: unknown) {
-  const { name, $metadata } = error as {
-    name?: string
-    $metadata?: { httpStatusCode?: number }
-  }
-  return (
-    name === "NoSuchKey" ||
-    name === "NotFound" ||
-    $metadata?.httpStatusCode === 404
-  )
+  const { name } = error as { name?: string }
+  return name === "NoSuchKey" || name === "NotFound"
+}
+
+function sha1(value: string) {
+  return createHash("sha1").update(value).digest("hex")
+}
+
+function errorCode(error: unknown) {
+  return (error as NodeJS.ErrnoException).code
+}
+
+function untilAborted<T>(promise: Promise<T>, signal?: AbortSignal) {
+  if (!signal) return promise
+  signal.throwIfAborted()
+  return new Promise<T>((resolve, reject) => {
+    const abort = () => reject(signal.reason)
+    signal.addEventListener("abort", abort, { once: true })
+    promise
+      .then(resolve, reject)
+      .finally(() => signal.removeEventListener("abort", abort))
+  })
 }
 
 function notFound(key: string) {
@@ -61,15 +87,20 @@ export class S3Storage implements StorageAdapter {
   private readonly bucket: string
   private readonly prefix: string
   private readonly maxCopyBytes: number
+  private readonly cache: { dir: string; maxBytes: number }
+  private readonly downloads = new Map<string, Promise<string>>()
+  private bucketFound = false
 
   constructor(options: {
     client: S3Client
     bucket: string
+    cache: { dir: string; maxBytes: number }
     prefix?: string
     maxCopyBytes?: number
   }) {
     this.client = options.client
     this.bucket = options.bucket
+    this.cache = options.cache
     this.prefix = options.prefix ? `${options.prefix}/` : ""
     this.maxCopyBytes = options.maxCopyBytes ?? MAX_COPY_BYTES
   }
@@ -235,6 +266,11 @@ export class S3Storage implements StorageAdapter {
   }
 
   async stat(key: string) {
+    const info = await this.head(key)
+    return info && { bytes: info.bytes, mtimeMs: info.mtimeMs }
+  }
+
+  private async head(key: string) {
     try {
       const info = await this.client.send(
         new HeadObjectCommand({ Bucket: this.bucket, Key: this.objectKey(key) })
@@ -242,11 +278,27 @@ export class S3Storage implements StorageAdapter {
       return {
         bytes: info.ContentLength ?? 0,
         mtimeMs: info.LastModified?.getTime() ?? 0,
+        etag: info.ETag ?? "",
       }
     } catch (error) {
-      if (isMissing(error)) return null
-      throw error
+      if (!isMissing(error)) throw error
+      await this.assertBucket()
+      return null
     }
+  }
+
+  private async assertBucket() {
+    if (this.bucketFound) return
+    try {
+      await this.client.send(new HeadBucketCommand({ Bucket: this.bucket }))
+    } catch (error) {
+      if (!isMissing(error)) throw error
+      throw new AppError("STORAGE", "The storage bucket doesn't exist", {
+        details: { bucket: this.bucket },
+        cause: error,
+      })
+    }
+    this.bucketFound = true
   }
 
   read(key: string, range?: ByteRange): Readable {
@@ -310,26 +362,95 @@ export class S3Storage implements StorageAdapter {
     scratchDir: string,
     signal?: AbortSignal
   ): Promise<string> {
-    const objectKey = this.objectKey(key)
-    const file = path.join(
-      scratchDir,
-      "in",
-      createHash("sha1").update(key).digest("hex") + path.extname(key)
-    )
+    const info = await this.head(key)
+    if (!info) throw notFound(key)
+    const name = `${sha1(key)}.${sha1(`${info.etag}:${info.bytes}`).slice(0, 16)}${path.extname(key)}`
+    // The job gets its own hard link, so evicting the cache entry never pulls
+    // a file out from under a running ffmpeg; the scratch dir frees it later.
+    const file = path.join(scratchDir, "in", name)
     if (await stat(file).catch(() => null)) return file
     await mkdir(path.dirname(file), { recursive: true })
-    const temp = `${file}.${randomUUID()}.part`
+    for (let attempt = 0; ; attempt++) {
+      const cached = await untilAborted(this.cached(key, name, info), signal)
+      try {
+        await link(cached, file)
+        return file
+      } catch (error) {
+        const code = errorCode(error)
+        if (code === "EEXIST") return file
+        if (code === "EXDEV") {
+          await copyFile(cached, file)
+          return file
+        }
+        if (code !== "ENOENT" || attempt > 0) throw error
+      }
+    }
+  }
+
+  private async cached(
+    key: string,
+    name: string,
+    info: { bytes: number; etag: string }
+  ) {
+    const entry = path.join(this.cache.dir, name)
+    const now = new Date()
+    try {
+      await utimes(entry, now, now)
+      return entry
+    } catch (error) {
+      if (errorCode(error) !== "ENOENT") throw error
+    }
+    let download = this.downloads.get(name)
+    if (!download) {
+      download = this.download(key, entry, info).finally(() =>
+        this.downloads.delete(name)
+      )
+      download.catch(() => {})
+      this.downloads.set(name, download)
+    }
+    return download
+  }
+
+  private async download(
+    key: string,
+    entry: string,
+    info: { bytes: number; etag: string }
+  ) {
+    await mkdir(this.cache.dir, { recursive: true })
+    await this.evict(info.bytes)
+    const temp = `${entry}.${randomUUID()}.part`
     try {
       const { Body } = await this.client.send(
-        new GetObjectCommand({ Bucket: this.bucket, Key: objectKey }),
-        { abortSignal: signal }
+        new GetObjectCommand({
+          Bucket: this.bucket,
+          Key: this.objectKey(key),
+          IfMatch: info.etag || undefined,
+        })
       )
-      await pipeline(Body as Readable, createWriteStream(temp), { signal })
-      await rename(temp, file)
-      return file
+      await pipeline(Body as Readable, createWriteStream(temp))
+      await rename(temp, entry)
+      return entry
     } catch (error) {
       await rm(temp, { force: true })
       throw isMissing(error) ? notFound(key) : error
+    }
+  }
+
+  private async evict(incoming: number) {
+    const names = await readdir(this.cache.dir)
+    const entries = []
+    for (const name of names) {
+      if (name.endsWith(".part")) continue
+      const file = path.join(this.cache.dir, name)
+      const info = await stat(file).catch(() => null)
+      if (info) entries.push({ file, bytes: info.size, mtimeMs: info.mtimeMs })
+    }
+    entries.sort((a, b) => a.mtimeMs - b.mtimeMs)
+    let total = entries.reduce((sum, entry) => sum + entry.bytes, 0)
+    for (const entry of entries) {
+      if (total + incoming <= this.cache.maxBytes) break
+      await rm(entry.file, { force: true })
+      total -= entry.bytes
     }
   }
 

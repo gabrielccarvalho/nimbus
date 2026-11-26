@@ -15,6 +15,11 @@ const envFields = z.object({
     .default("development"),
   DATA_DIR: z.string().min(1).default("./data"),
   SCRATCH_DIR: z.string().min(1).default(path.join(os.tmpdir(), "nimbus")),
+  SCRATCH_CACHE_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(64 * 1024 ** 3),
   STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),
   S3_ENDPOINT: z.url().optional(),
   S3_REGION: z.string().min(1).default("auto"),
@@ -91,6 +96,14 @@ const envSchema = envFields.superRefine((env, ctx) => {
         message: `${name} is required when STORAGE_DRIVER=s3`,
       })
     }
+  }
+  if (!env.S3_ENDPOINT && env.S3_REGION === "auto") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["S3_REGION"],
+      message:
+        "S3_REGION is required when STORAGE_DRIVER=s3 has no S3_ENDPOINT (AWS needs a real region, e.g. us-east-1)",
+    })
   }
 })
 
