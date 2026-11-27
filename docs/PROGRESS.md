@@ -507,7 +507,8 @@ Spec: `docs/UX_PATTERNS.md` and the "Nimbus pages redesign" canvas. The clip edi
 ### Phase 46: Landing page motion on scroll (ADR-0086)
 
 - [x] `InView`: the loops start when their stage is scrolled to and rewind when it leaves
-- [x] Chapters reveal as they are reached; the editor timeline, the chart and the suggested rule animate once
+- [x] Chapters reveal as they are reached; the editor timeline, the chart and the suggested rule animate
+- [x] Everything resets when it leaves the screen and plays again on the way back, the hero's entrance included
 - [x] `Thread`: the amber playhead between chapters, driven by scroll
 - [ ] The thread in Firefox and Safari (checked in Chrome only; without scroll timelines it is a static line)
 - [ ] The motion and the three-row clips on a phone (e2e passes at 390 px with reduced motion; not looked at by eye)

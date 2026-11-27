@@ -1361,12 +1361,16 @@
   animation: archBreathe 7s ease-in-out infinite;
 }
 /*
- * Scroll. An `InView` wrapper is `data-view="pending"` until it is scrolled
- * to: the loops inside it hold their first frame and the parts below wait in
- * their starting pose. Same rule as the loops: an element's own style is its
- * final state, and a page without the script never gets the attribute.
+ * Scroll. An `InView` wrapper is `data-view="pending"` while it is off screen:
+ * the loops inside it hold their first frame and the parts below wait in
+ * their starting pose, so all of it plays again each time it is scrolled to.
+ * Same rule as the loops: an element's own style is its final state, and a
+ * page without the script never gets the attribute.
  */
 [data-view="pending"] :is(.a, .seal, .seek, .arc1, .arc2, .arc3, .arch) {
+  animation-play-state: paused;
+}
+.entrance[data-view="pending"] > * {
   animation-play-state: paused;
 }
 :is(.cascade, .entrance) > :nth-child(2) {
@@ -1390,7 +1394,10 @@
 :is(.cascade, .entrance) > :nth-child(n + 8) {
   --i: 7;
 }
-/* The hero is on screen when the page opens, so it comes in on load. */
+/*
+ * The hero is on screen when the page opens, so it comes in on load, and again
+ * after it has been scrolled away.
+ */
 @keyframes enter {
   from {
     opacity: 0;

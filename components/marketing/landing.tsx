@@ -114,57 +114,66 @@ function Hero() {
     <section
       className={cn(
         SECTION,
-        styles.entrance,
         "grid justify-items-center gap-6 pt-[clamp(64px,9vw,128px)] text-center"
       )}
     >
-      <a
-        href="#how"
-        className="inline-flex items-center gap-2.5 rounded-full bg-glass px-3.5 py-[7px] text-sm font-medium inset-ring-1 inset-ring-hair transition-colors hover:bg-white/10"
+      <InView
+        className={cn(styles.entrance, "grid justify-items-center gap-6")}
       >
-        <SignalDot tone="amber" lit />
-        For streamers who record more than they post
-      </a>
-      <h1 className="max-w-[980px] text-[clamp(46px,6.4vw,92px)] leading-[1.02] font-semibold tracking-[-0.045em] text-balance">
-        Long streams in. <span className="text-gradient">Short clips out.</span>
-      </h1>
-      <p className={LEDE}>
-        Drop a long recording. nimbus reads all of it, marks the moments worth a
-        vertical clip, frames your webcam and writes the captions.{" "}
-        <b>Nothing is published until you approve it.</b>
-      </p>
-      <div className="flex flex-wrap justify-center gap-3">
-        <Link
-          href="/signup"
-          className={buttonVariants({ variant: "primary", size: "lg" })}
+        <a
+          href="#how"
+          className="inline-flex items-center gap-2.5 rounded-full bg-glass px-3.5 py-[7px] text-sm font-medium inset-ring-1 inset-ring-hair transition-colors hover:bg-white/10"
         >
-          Get started
-        </Link>
-        <a href="#how" className={buttonVariants({ size: "lg" })}>
-          See how it works
-          <ArrowRightIcon data-icon="inline-end" aria-hidden />
+          <SignalDot tone="amber" lit />
+          For streamers who record more than they post
         </a>
-      </div>
-      <p className="flex flex-wrap justify-center gap-x-3 gap-y-1.5 text-sm text-tertiary">
-        <span>Your recordings stay private</span>
-        <span aria-hidden className="text-foreground/25">
-          ·
-        </span>
-        <span>You approve every clip</span>
-        <span aria-hidden className="text-foreground/25">
-          ·
-        </span>
-        <span>Free to start</span>
-      </p>
-      <div className="relative mt-[clamp(24px,4vw,56px)] w-full">
+        <h1 className="max-w-[980px] text-[clamp(46px,6.4vw,92px)] leading-[1.02] font-semibold tracking-[-0.045em] text-balance">
+          Long streams in.{" "}
+          <span className="text-gradient">Short clips out.</span>
+        </h1>
+        <p className={LEDE}>
+          Drop a long recording. nimbus reads all of it, marks the moments worth
+          a vertical clip, frames your webcam and writes the captions.{" "}
+          <b>Nothing is published until you approve it.</b>
+        </p>
+        <div className="flex flex-wrap justify-center gap-3">
+          <Link
+            href="/signup"
+            className={buttonVariants({ variant: "primary", size: "lg" })}
+          >
+            Get started
+          </Link>
+          <a href="#how" className={buttonVariants({ size: "lg" })}>
+            See how it works
+            <ArrowRightIcon data-icon="inline-end" aria-hidden />
+          </a>
+        </div>
+        <p className="flex flex-wrap justify-center gap-x-3 gap-y-1.5 text-sm text-tertiary">
+          <span>Your recordings stay private</span>
+          <span aria-hidden className="text-foreground/25">
+            ·
+          </span>
+          <span>You approve every clip</span>
+          <span aria-hidden className="text-foreground/25">
+            ·
+          </span>
+          <span>Free to start</span>
+        </p>
+      </InView>
+      <InView
+        className={cn(
+          styles.entrance,
+          "relative mt-[clamp(24px,4vw,56px)] w-full"
+        )}
+      >
         <div
           aria-hidden
           className="pointer-events-none absolute top-1/2 left-1/2 h-[900px] w-[1300px] -translate-1/2 bg-[radial-gradient(closest-side,rgb(120_132_230/0.085),rgb(120_132_230/0.03)_55%,transparent)]"
         />
-        <InView replay amount={0.4} className="relative">
+        <InView amount={0.4} className="relative">
           <HeroEdit />
         </InView>
-      </div>
+      </InView>
     </section>
   )
 }
@@ -203,7 +212,6 @@ function HowItWorks() {
       </Intro>
       <InView className={cn(styles.cascade, STAGE_GAP)}>
         <InView
-          replay
           amount={0.4}
           className="overflow-hidden rounded-[22px] bg-graphite shadow-[0_40px_100px_-40px_rgb(0_0_0/0.7)] inset-ring-1 inset-ring-white/6"
         >
@@ -797,7 +805,7 @@ function Closing() {
           Free to start. Only import videos you own or have the rights to use.
         </p>
       </InView>
-      <InView replay className={STAGE_GAP}>
+      <InView className={STAGE_GAP}>
         <svg
           viewBox="0 0 1200 150"
           preserveAspectRatio="xMidYMax slice"
