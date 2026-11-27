@@ -264,6 +264,13 @@ Layout fields (`components/projects/layout-fields.tsx`, used by the clip editor'
 
 `TimelineDock` / `DockLegend` (`components/projects/timeline-dock.tsx`): the dock at the bottom of a project page: a mono label, a summary, a legend with one entry per colour or texture drawn (`clip`, `selected`, `selection`, `silence`, `audience`, `playhead`), the timeline as children and a five-point mono axis. `AudioOverview`, the clips review and the transcript use it.
 
+## Marketing (`components/marketing/`)
+
+Server Components only; no client JavaScript.
+
+- `Landing` (`landing.tsx`): the public page at the front door (ADR-0078): nav, hero, How it works, The editor, the promise with the spinning seal, What it learns, Pricing from `PLANS`, Questions as native `<details>`, the closing call to action over the dotted horizon, footer. One `h1`; each chapter is a labelled `section`.
+- `HeroEdit` (`hero-edit.tsx`, `landing.module.css`): the 14 s loop of a clip being edited. One `role="img"` with a full text alternative; the six step names under it light up in turn. To retime it, change the percentages in the stylesheet's header comment and keyframes together.
+
 ## Modified generated files
 
 - Heycamps restyle (ADR-0057): `button`, `badge`, `tabs`, `input`, `select`, `switch`, `dialog`, `alert-dialog`, `sheet`, `dropdown-menu`, `popover`, `tooltip`, `kbd` and `command` keep their structure and API but swap classes for the heycamps tokens (inset-ring hairlines instead of borders, `surface-menu` for floating surfaces, `focus-ring`). `Button`'s `default` variant is glass and the white pill is `variant="primary"`; `outline` and `secondary` are gone. `Select`'s `size="sm"` is the small glass pill used for inline overrides. `command` was added with `cmdk`; its install did not overwrite `dialog`.

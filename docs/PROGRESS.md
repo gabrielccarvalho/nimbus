@@ -479,6 +479,15 @@ Spec: `docs/UX_PATTERNS.md` and the "Nimbus pages redesign" canvas. The clip edi
 - [ ] Period on the Shorts and Insights tabs (their queries take no period)
 - [ ] Migrate the `track-picker` footer rule off `border-t` and drop its exception
 
+### Phase 42: Landing page (ADR-0078)
+
+- [x] `Landing` and `HeroEdit` in `components/marketing/`, route `/welcome`, signed-out `/` rewritten to it in `proxy.ts`
+- [x] Plan limits from `PLANS`, languages from `components/settings/languages.ts`
+- [x] Unit tests, `tests/e2e/landing.spec.ts` (front door, axe, phone width), `auth.spec.ts` updated
+- [ ] Real gameplay footage or frames in the hero stage instead of the dotted placeholder
+- [ ] Prices and a checkout for Creator and Studio once billing exists
+- [ ] A larger hero stage on phones
+
 ### Not verified
 
 - The v2 editor next to the rendered design: it was built from the handoff's markup and CSS and checked on Playwright screenshots at 1440 × 900 with the e2e colour-bar fixture, not side by side with the design open in a browser or on a real recording.

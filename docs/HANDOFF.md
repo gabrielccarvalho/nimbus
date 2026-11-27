@@ -55,6 +55,10 @@ Run with a Postgres on `localhost:5442` (user and password `nimbus`). In the clo
 4. The clip editor still has its own header markup. Moving it onto `AppHeader` is optional; its tests depend on roles, not classes.
 5. Open items already in `docs/PROGRESS.md` Phase 41: sparklines on stat cards, project settings as an inspector tab, a period on the Shorts and Insights tabs, the `track-picker` border exception.
 
+## Landing page (Phase 42, ADR-0078)
+
+Built after the rest of this file was written: `components/marketing/`, route `/welcome`, signed-out `/` rewritten to it in `proxy.ts`. Checked in a browser at 1440 × 900 and 390 × 844 with `next dev`. `tests/e2e/landing.spec.ts` and the changed sign-out step in `auth.spec.ts` have not been run.
+
 ## Decisions the user has not confirmed
 
 - A single click on a clip tile now selects instead of opening the editor. The canvas shows this, but it reverses ADR-0074's "tiles open the editor directly". Ask before building further on it.

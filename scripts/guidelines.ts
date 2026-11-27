@@ -121,12 +121,17 @@ export const RULES: Rule[] = [
   {
     id: "gradient-is-rare",
     doc: "docs/DESIGN_SYSTEM.md › Colour",
-    message: "the brand gradient is for the sign-in headline only",
+    message:
+      "the brand gradient is for the sign-in headline and the landing page only",
     files: (file) =>
       under(file, "components", "app") &&
       file.endsWith(".tsx") &&
       !isTest(file),
-    allow: { "components/auth/auth-form.tsx": "the one headline" },
+    allow: {
+      "components/auth/auth-form.tsx": "the one headline",
+      "components/marketing/landing.tsx":
+        "a few words per chapter on the landing page (ADR-0078)",
+    },
     check: (source) => matchLines(source, /\btext-gradient\b/),
   },
   {
