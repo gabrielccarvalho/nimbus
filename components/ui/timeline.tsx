@@ -172,9 +172,9 @@ const timelineRangeVariants = cva(
       variant: {
         silence:
           "bg-[repeating-linear-gradient(135deg,var(--color-foreground)_0_1px,transparent_1px_6px)] opacity-20",
-        clip: "border-x-2 border-primary bg-primary/15 p-0.5 text-highlight-ink",
+        clip: "bg-lav/45 p-0.5 text-highlight-ink",
         selected:
-          "border-x-2 border-primary bg-primary/30 p-0.5 text-primary-foreground",
+          "bg-foreground/25 p-0.5 text-primary-foreground inset-ring-2 inset-ring-foreground",
         audience: "bottom-auto h-1.5 bg-chart-3",
       },
     },

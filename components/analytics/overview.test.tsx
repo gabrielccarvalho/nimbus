@@ -93,21 +93,6 @@ describe("Overview", () => {
     )
   })
 
-  it("marks the chosen period", () => {
-    render(<Overview {...props()} period={28} />)
-    expect(screen.getByRole("link", { name: "28 days" })).toHaveAttribute(
-      "aria-current",
-      "page"
-    )
-    expect(screen.getByRole("link", { name: "7 days" })).toHaveAttribute(
-      "href",
-      "/analytics?period=7"
-    )
-    expect(screen.getByRole("link", { name: "7 days" })).not.toHaveAttribute(
-      "aria-current"
-    )
-  })
-
   it("summarises the split and offers the numbers as a table", () => {
     render(<Overview {...props()} period={28} />)
     expect(

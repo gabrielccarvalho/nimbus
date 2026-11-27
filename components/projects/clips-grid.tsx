@@ -1,10 +1,9 @@
 "use client"
 
-import { CheckIcon, XIcon } from "@phosphor-icons/react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import * as React from "react"
 
-import { Button } from "@/components/ui/button"
 import { DotMeter } from "@/components/ui/dot-meter"
 import type { CaptionLane } from "@/features/captions/pages"
 import type { Clip } from "@/features/clips/repository"
@@ -16,7 +15,7 @@ import {
   type PublicationState,
   type PublishingState,
 } from "./publish-dialog"
-import { clipStatusLabel } from "./status-badge"
+import { ClipStatusBadge } from "./status-badge"
 import { useClipStatus } from "./use-clip-status"
 
 export type RenderLinks = { url: string; downloadUrl: string }
@@ -35,8 +34,14 @@ function ClipTile({
   publication,
   caption,
   playing,
+  selected,
+  onSelect,
+  onOpen,
   onHoverChange,
 }: {
+  selected: boolean
+  onSelect: () => void
+  onOpen: () => void
   projectId: string
   clip: Clip
   rank: number
@@ -49,7 +54,7 @@ function ClipTile({
 }) {
   const videoRef = React.useRef<HTMLVideoElement>(null)
   const id = React.useId()
-  const { pending, setStatus } = useClipStatus(projectId, clip)
+  const { setStatus } = useClipStatus(projectId, clip)
   const approved = ["approved", "rendering", "rendered"].includes(clip.status)
   const rejected = clip.status === "rejected"
   const locked = clip.status === "rendering" || clip.status === "rendered"
@@ -69,6 +74,7 @@ function ClipTile({
   return (
     <li
       data-status={clip.status}
+      data-selected={selected || undefined}
       className="group/clip grid min-w-0 gap-2.5"
       onKeyDown={(event) => {
         if (event.metaKey || event.ctrlKey || event.altKey) return
@@ -81,12 +87,32 @@ function ClipTile({
         event.preventDefault()
       }}
     >
-      <div className="relative transition-opacity group-data-[status=rejected]/clip:opacity-42">
+      <div
+        className={cn(
+          "relative transition-opacity",
+          rejected && !selected && "opacity-42"
+        )}
+      >
         <Link
           href={`/projects/${projectId}/clips/${clip.id}`}
           data-clip-id={clip.id}
           aria-labelledby={`${id}-title`}
-          aria-describedby={`${id}-status ${id}-meta`}
+          aria-describedby={`${id}-meta`}
+          aria-current={selected ? "true" : undefined}
+          onFocus={onSelect}
+          onClick={(event) => {
+            // A plain click selects; the editor is a second, explicit step.
+            if (event.metaKey || event.ctrlKey || event.shiftKey) return
+            event.preventDefault()
+            onSelect()
+          }}
+          onDoubleClick={onOpen}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault()
+              onOpen()
+            }
+          }}
           className="relative block aspect-[9/16] w-full overflow-hidden rounded-[14px] bg-graphite-2 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lav"
           onPointerEnter={(event) => {
             if (event.pointerType === "mouse") onHoverChange(true)
@@ -124,20 +150,21 @@ function ClipTile({
             {caption}
           </span>
         )}
-        {approved && (
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-0 rounded-[14px] inset-ring-2 inset-ring-mint"
-          />
-        )}
-        {approved && (
-          <span
-            aria-hidden
-            className="pointer-events-none absolute end-2 bottom-2 grid size-[26px] place-items-center rounded-full bg-mint text-night"
-          >
-            <CheckIcon weight="bold" className="size-3.5" />
-          </span>
-        )}
+        <span
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute inset-0 rounded-[14px]",
+            selected
+              ? "inset-ring-2 inset-ring-foreground"
+              : approved
+                ? "inset-ring-2 inset-ring-mint/70"
+                : "inset-ring-1 inset-ring-white/10"
+          )}
+        />
+        <ClipStatusBadge
+          status={clip.status}
+          className="pointer-events-none absolute start-2 bottom-2 bg-night/78 py-1 text-xs"
+        />
       </div>
       <div className="grid gap-1.5 px-0.5">
         <span
@@ -145,9 +172,6 @@ function ClipTile({
           className="line-clamp-2 text-sm leading-snug font-medium group-data-[status=rejected]/clip:text-muted-foreground"
         >
           {clip.title}
-        </span>
-        <span id={`${id}-status`} className="sr-only">
-          {clipStatusLabel(clip.status)}
         </span>
         <span
           id={`${id}-meta`}
@@ -165,34 +189,6 @@ function ClipTile({
         {publication && publication.status !== "removed" && (
           <PublicationStatusView publication={publication} />
         )}
-        <div className="mt-0.5 flex gap-1.5">
-          <Button
-            size="sm"
-            variant={approved ? "primary" : "default"}
-            aria-pressed={approved}
-            disabled={pending || locked}
-            onClick={() => setStatus(approved ? "candidate" : "approved")}
-            className="flex-1"
-          >
-            <CheckIcon data-icon="inline-start" aria-hidden />
-            {clip.status === "rendered"
-              ? "Rendered"
-              : clip.status === "rendering"
-                ? "Rendering"
-                : approved
-                  ? "Approved"
-                  : "Approve"}
-          </Button>
-          <Button
-            size="sm"
-            aria-pressed={rejected}
-            aria-label={rejected ? "Restore clip" : "Reject clip"}
-            disabled={pending || locked}
-            onClick={() => setStatus(rejected ? "candidate" : "rejected")}
-          >
-            <XIcon aria-hidden />
-          </Button>
-        </div>
       </div>
     </li>
   )
@@ -206,8 +202,14 @@ export function ClipsGrid({
   renders,
   captions,
   publishing,
+  selectedId = null,
+  onSelect,
+  onOpen,
   className,
 }: {
+  selectedId?: string | null
+  onSelect?: (id: string) => void
+  onOpen?: (id: string) => void
   projectId: string
   src: string
   clips: Clip[]
@@ -218,6 +220,7 @@ export function ClipsGrid({
   className?: string
 }) {
   const [hoveredId, setHoveredId] = React.useState<string | null>(null)
+  const router = useRouter()
   const listRef = React.useRef<HTMLOListElement>(null)
 
   const moveFocus = (event: React.KeyboardEvent<HTMLOListElement>) => {
@@ -242,7 +245,7 @@ export function ClipsGrid({
       tabIndex={-1}
       onKeyDown={moveFocus}
       className={cn(
-        "grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-[18px] outline-none",
+        "grid grid-cols-[repeat(auto-fill,minmax(168px,1fr))] gap-[18px] outline-none",
         className
       )}
     >
@@ -263,6 +266,13 @@ export function ClipsGrid({
               : ""
           }
           playing={hoveredId === clip.id}
+          selected={selectedId === clip.id}
+          onSelect={() => onSelect?.(clip.id)}
+          onOpen={() =>
+            onOpen
+              ? onOpen(clip.id)
+              : router.push(`/projects/${projectId}/clips/${clip.id}`)
+          }
           onHoverChange={(hovered) =>
             setHoveredId((current) =>
               hovered ? clip.id : current === clip.id ? null : current

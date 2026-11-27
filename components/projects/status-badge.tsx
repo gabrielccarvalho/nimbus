@@ -80,14 +80,32 @@ export function projectSignal({
   }
 }
 
-export type ProjectFilter = "needs" | "processing" | "ready" | "done" | "other"
+export type ProjectFilter =
+  "needs" | "processing" | "ready" | "done" | "failed" | "other"
 
 export function projectFilter(input: ProjectSignalInput): ProjectFilter {
   if (projectSignal(input).needsYou) return "needs"
   if (input.status === "ready_for_review") return "ready"
   if (input.status === "done") return "done"
-  if (input.status === "failed" || input.status === "cancelled") return "other"
+  if (input.status === "failed") return "failed"
+  if (input.status === "cancelled") return "other"
   return "processing"
+}
+
+/** What the person does next, shown on the project tile. */
+export function projectNextStep(
+  input: ProjectSignalInput & { clipCount?: number }
+): string | null {
+  const signal = projectSignal(input)
+  if (signal.needsYou) return "Next: paste highlights"
+  if (input.status === "failed") return "Open it to retry the step"
+  if (input.status === "cancelled") return "Open it to run it again"
+  if (input.status === "ready_for_review")
+    return (input.reviewCount ?? 0) > 0
+      ? "Next: review clips"
+      : "Next: approve clips to render"
+  if (input.status === "done") return "Rendered. Open it to download or publish"
+  return null
 }
 
 export function projectStatusLabel(status: ProjectStatus) {

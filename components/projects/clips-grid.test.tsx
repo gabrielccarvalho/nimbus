@@ -226,8 +226,22 @@ describe("ClipsGrid", () => {
       ok: true,
       value: undefined,
     })
-    render(<ClipsGrid clips={[clips[0]!]} {...data} />)
-    await userEvent.click(screen.getByRole("button", { name: /Reject/ }))
+    render(
+      <ClipsReview
+        clips={[clips[0]!]}
+        {...data}
+        durationMs={120_000}
+        snapshot={
+          { id: "p1", status: "ready_for_review", jobs: [], clips: [] } as never
+        }
+      />
+    )
+    await userEvent.click(
+      within(screen.getByRole("group", { name: "Review decision" })).getByRole(
+        "button",
+        { name: /Reject/ }
+      )
+    )
     expect(setClipStatusAction).toHaveBeenCalledWith("p1", "a", "rejected")
     expect(toast).toHaveBeenCalledWith(
       "Rejected “Clip A”",
@@ -281,7 +295,7 @@ describe("ClipsGrid", () => {
 })
 
 describe("ClipsReview", () => {
-  it("clicking a clip on the source strip opens that clip", async () => {
+  it("a clip on the source strip selects on click and opens on double click", async () => {
     render(
       <ClipsReview
         clips={clips}
@@ -295,6 +309,13 @@ describe("ClipsReview", () => {
     const strip = screen.getByRole("img", { name: "Clips in the recording" })
     const ranges = strip.querySelectorAll("[data-slot=timeline-range]")
     await userEvent.click(ranges[1]!)
+    expect(push).not.toHaveBeenCalled()
+    expect(
+      within(
+        screen.getByRole("complementary", { name: "Selected clip" })
+      ).getByRole("heading")
+    ).toHaveTextContent(clips[1]!.title)
+    await userEvent.dblClick(ranges[1]!)
     expect(push).toHaveBeenCalledWith("/projects/p1/clips/b")
   })
 })

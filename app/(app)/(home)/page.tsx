@@ -2,14 +2,20 @@ import { FolderSimpleIcon } from "@phosphor-icons/react/ssr"
 import type { Metadata } from "next"
 
 import {
-  Page,
-  PageHeader,
-  PageLede,
-  PageTitle,
-} from "@/components/app-shell/page"
+  AppHeader,
+  AppHeaderActions,
+  AppHeaderContext,
+  AppHeaderHeading,
+  AppHeaderState,
+  AppHeaderTitle,
+  AppHeaderTitleRow,
+} from "@/components/app-shell/app-header"
+import { SearchTrigger } from "@/components/app-shell/command-palette"
+import { Page } from "@/components/app-shell/page"
 import { ImportCard } from "@/components/projects/import-card"
 import { NeedsYouBanner, ProjectGrid } from "@/components/projects/project-grid"
 import { projectSignal } from "@/components/projects/status-badge"
+import { buttonVariants } from "@/components/ui/button"
 import {
   Empty,
   EmptyDescription,
@@ -20,6 +26,7 @@ import {
 import { requireViewer } from "@/features/accounts/session"
 import { listProjects } from "@/features/projects/queries"
 import { getImportDefaults } from "@/features/settings/queries"
+import { Kbd } from "@/components/ui/kbd"
 import { getEnv } from "@/lib/env"
 
 export const metadata: Metadata = { title: "Projects" }
@@ -57,43 +64,72 @@ export default async function ProjectsPage() {
   const waiting = items.find((p) => projectSignal(p).needsYou)
   const firstName = user.name.trim().split(/\s+/)[0]
 
+  const needsYou = items.filter((p) => projectSignal(p).needsYou).length
+  const summary = [
+    `${items.length} ${items.length === 1 ? "recording" : "recordings"}`,
+    needsYou > 0
+      ? `${needsYou} ${needsYou === 1 ? "needs" : "need"} you`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" · ")
+
   return (
-    <Page>
-      <PageHeader>
-        <PageTitle>
-          {greeting(new Date().getHours())}
-          {firstName ? `, ${firstName}` : ""}.
-        </PageTitle>
-        <PageLede>
-          Drop a long recording and nimbus marks the moments worth a vertical
-          clip.{" "}
-          <b className="font-medium text-foreground">
-            Nothing leaves here until you approve it.
-          </b>
-        </PageLede>
-      </PageHeader>
-      <ImportCard
-        maxBytes={getEnv().MAX_UPLOAD_BYTES}
-        defaults={defaults.defaults}
-        claudeAvailable={defaults.claudeAvailable}
-      />
-      {waiting && <NeedsYouBanner project={waiting} />}
-      {items.length === 0 ? (
-        <Empty className="rounded-[18px] bg-graphite">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <FolderSimpleIcon />
-            </EmptyMedia>
-            <EmptyTitle>No recordings yet</EmptyTitle>
-            <EmptyDescription>
-              Drop a recording or paste a link above. Each one shows up here
-              with its clips and where it is in the pipeline.
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      ) : (
-        <ProjectGrid projects={items} />
-      )}
-    </Page>
+    <>
+      <AppHeader>
+        <AppHeaderHeading>
+          <AppHeaderContext data-testid="greeting">
+            {greeting(new Date().getHours())}
+            {firstName ? `, ${firstName}` : ""}. Nothing leaves here until you
+            approve it.
+          </AppHeaderContext>
+          <AppHeaderTitleRow>
+            <AppHeaderTitle>Projects</AppHeaderTitle>
+            {items.length > 0 && <AppHeaderState>· {summary}</AppHeaderState>}
+          </AppHeaderTitleRow>
+        </AppHeaderHeading>
+        <AppHeaderActions>
+          <SearchTrigger className="max-sm:w-full" />
+          {items.length > 0 && (
+            <a
+              href="#import"
+              aria-keyshortcuts="N"
+              className={buttonVariants({ variant: "primary" })}
+            >
+              New project
+              <Kbd className="bg-night/10 text-primary-foreground inset-ring-0">
+                N
+              </Kbd>
+            </a>
+          )}
+        </AppHeaderActions>
+      </AppHeader>
+      <Page>
+        {waiting && <NeedsYouBanner project={waiting} />}
+        <ImportCard
+          compact={items.length > 0}
+          maxBytes={getEnv().MAX_UPLOAD_BYTES}
+          defaults={defaults.defaults}
+          claudeAvailable={defaults.claudeAvailable}
+        />
+        {items.length === 0 ? (
+          <Empty className="rounded-[18px] bg-graphite">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <FolderSimpleIcon />
+              </EmptyMedia>
+              <EmptyTitle>No recordings yet</EmptyTitle>
+              <EmptyDescription>
+                Drop a long recording or paste a link above and nimbus marks the
+                moments worth a vertical clip. Each one shows up here with its
+                clips and where it is in the pipeline.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          <ProjectGrid projects={items} />
+        )}
+      </Page>
+    </>
   )
 }

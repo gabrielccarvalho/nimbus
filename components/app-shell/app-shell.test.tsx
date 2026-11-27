@@ -6,7 +6,6 @@ import { projectSignal } from "@/components/projects/status-badge"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 import { AppSidebar } from "./app-sidebar"
-import { buildCrumbs } from "./breadcrumbs"
 
 const push = vi.fn()
 
@@ -14,39 +13,6 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/projects/p1/clips",
   useRouter: () => ({ push }),
 }))
-
-describe("buildCrumbs", () => {
-  it("skips project tabs but keeps clips", () => {
-    const labels = { p1: "Ranked", c1: "Big jump" }
-    expect(buildCrumbs("/projects/p1/clips", labels)).toEqual([
-      { href: "/", label: "Projects" },
-      { href: "/projects/p1", label: "Ranked" },
-    ])
-    expect(buildCrumbs("/projects/p1/clips/c1", labels).at(-1)).toEqual({
-      href: "/projects/p1/clips/c1",
-      label: "Big jump",
-    })
-  })
-
-  it("roots settings at Settings", () => {
-    expect(buildCrumbs("/settings/channels", {})).toEqual([
-      { href: "/settings", label: "Settings" },
-      { href: "/settings/channels", label: "Channels" },
-    ])
-    expect(buildCrumbs("/channels", {})).toEqual([
-      { href: "/channels", label: "Channels" },
-    ])
-  })
-})
-
-describe("buildCrumbs analytics", () => {
-  it("roots analytics at Analytics", () => {
-    expect(buildCrumbs("/analytics/shorts", {})).toEqual([
-      { href: "/analytics", label: "Analytics" },
-      { href: "/analytics/shorts", label: "Shorts" },
-    ])
-  })
-})
 
 describe("projectSignal", () => {
   it("marks what needs you in amber", () => {

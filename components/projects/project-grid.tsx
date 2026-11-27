@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils"
 
 import {
   projectFilter,
+  projectNextStep,
   projectSignal,
   type ProjectFilter,
 } from "./status-badge"
@@ -55,7 +56,8 @@ const FILTERS: { id: ProjectFilter | "all"; label: string }[] = [
   { id: "needs", label: "Needs you" },
   { id: "processing", label: "Processing" },
   { id: "ready", label: "Ready" },
-  { id: "done", label: "Exported" },
+  { id: "done", label: "Done" },
+  { id: "failed", label: "Failed" },
 ]
 
 const SORTS = {
@@ -108,6 +110,7 @@ export function NeedsYouBanner({ project }: { project: ProjectGridItem }) {
 function ProjectTile({ project }: { project: ProjectGridItem }) {
   const signal = projectSignal(project)
   const processing = projectFilter(project) === "processing"
+  const next = projectNextStep(project)
   return (
     <article className="group relative grid min-w-0 gap-3 rounded-[14px] focus-within:outline-2 focus-within:outline-offset-4 focus-within:outline-lav">
       <div
@@ -150,6 +153,9 @@ function ProjectTile({ project }: { project: ProjectGridItem }) {
           </StatusPill>
         </div>
         <span className="text-[12.5px] text-tertiary">{meta(project)}</span>
+        {next && (
+          <span className="text-[12.5px] text-muted-foreground">{next}</span>
+        )}
         {processing && (
           <div
             aria-hidden

@@ -13,7 +13,7 @@ async function InsightsSection() {
 
 export default function InsightsPage() {
   return (
-    <Suspense fallback={<Skeleton className="h-40 rounded-[18px]" />}>
+    <Suspense fallback={<Skeleton className="m-[18px] h-40 rounded-[18px]" />}>
       <InsightsSection />
     </Suspense>
   )

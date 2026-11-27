@@ -4,6 +4,11 @@ import { useRouter } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
 
+import { AppHeaderState } from "@/components/app-shell/app-header"
+import {
+  HEADER_STATE_SLOT_ID,
+  HeaderSlot,
+} from "@/components/app-shell/header-slot"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
@@ -12,6 +17,7 @@ import {
   FieldDescription,
   FieldLabel,
 } from "@/components/ui/field"
+import { SignalDot } from "@/components/ui/signal-dot"
 import { Switch } from "@/components/ui/switch"
 import { saveSettingsAction } from "@/features/settings/actions"
 import type { AppSettings } from "@/features/settings/schema"
@@ -80,6 +86,9 @@ export function SettingsForm({
   const router = useRouter()
   const [pending, startTransition] = React.useTransition()
   const [settings, setSettings] = React.useState(initial)
+  const [saved, setSaved] = React.useState(initial)
+  const formId = React.useId()
+  const dirty = JSON.stringify(settings) !== JSON.stringify(saved)
   const [error, setError] = React.useState<string | null>(null)
 
   const set = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) =>
@@ -94,13 +103,55 @@ export function SettingsForm({
         return
       }
       setError(null)
+      setSaved(settings)
       toast.success(`${TITLES[section].title} saved`)
       router.refresh()
     })
   }
 
   return (
-    <form onSubmit={submit} className="grid gap-[18px]">
+    <form id={formId} onSubmit={submit} className="grid gap-[18px]">
+      <HeaderSlot target={HEADER_STATE_SLOT_ID}>
+        <AppHeaderState
+          role="status"
+          data-testid="save-state"
+          className={error ? "text-pink" : undefined}
+        >
+          {error ? (
+            error
+          ) : pending ? (
+            "Saving…"
+          ) : dirty ? (
+            <>
+              <SignalDot tone="amber" />
+              Unsaved changes
+            </>
+          ) : (
+            "Saved"
+          )}
+        </AppHeaderState>
+      </HeaderSlot>
+      <HeaderSlot>
+        <Button
+          type="button"
+          variant="ghost"
+          disabled={!dirty || pending}
+          onClick={() => {
+            setSettings(saved)
+            setError(null)
+          }}
+        >
+          Discard
+        </Button>
+        <Button
+          type="submit"
+          form={formId}
+          variant="primary"
+          disabled={pending || !dirty}
+        >
+          Save {TITLES[section].title.toLowerCase()}
+        </Button>
+      </HeaderSlot>
       <SettingsSection aria-labelledby={`${section}-title`}>
         <SettingsSectionHeader id={`${section}-title`} {...TITLES[section]} />
         {section === "defaults" && (
@@ -160,19 +211,22 @@ export function SettingsForm({
                 disabled={!settings.captionsEnabled}
               />
             </div>
-            <CaptionStylePreview
-              style={resolveCaptionStyle(settings.captionStyle)}
-              onBaselineChange={
-                settings.captionsEnabled
-                  ? (baseline) =>
-                      set(
-                        "captionStyle",
-                        placeCaption(settings.captionStyle, baseline)
-                      )
-                  : undefined
-              }
-              className="max-w-[220px] flex-[1_1_180px] rounded-2xl md:sticky md:top-6"
-            />
+            <div className="grid max-w-[260px] flex-[1_1_200px] gap-2 md:sticky md:top-6">
+              <span className="mono-label">Output · 9:16</span>
+              <CaptionStylePreview
+                style={resolveCaptionStyle(settings.captionStyle)}
+                onBaselineChange={
+                  settings.captionsEnabled
+                    ? (baseline) =>
+                        set(
+                          "captionStyle",
+                          placeCaption(settings.captionStyle, baseline)
+                        )
+                    : undefined
+                }
+                className="rounded-[18px]"
+              />
+            </div>
           </div>
         )}
         {section === "rendering" && (
@@ -210,16 +264,11 @@ export function SettingsForm({
         )}
       </SettingsSection>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Button type="submit" variant="primary" disabled={pending}>
-          Save {TITLES[section].title.toLowerCase()}
-        </Button>
-        {error && (
-          <p role="alert" className="text-sm text-pink">
-            {error}
-          </p>
-        )}
-      </div>
+      {error && (
+        <p role="alert" className="text-sm text-pink">
+          {error}
+        </p>
+      )}
     </form>
   )
 }

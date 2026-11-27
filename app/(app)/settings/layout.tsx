@@ -1,9 +1,4 @@
-import {
-  Page,
-  PageHeader,
-  PageLede,
-  PageTitle,
-} from "@/components/app-shell/page"
+import { SettingsHeader } from "@/components/settings/settings-header"
 import { SettingsNav } from "@/components/settings/settings-nav"
 
 export default function SettingsLayout({
@@ -12,20 +7,14 @@ export default function SettingsLayout({
   children: React.ReactNode
 }) {
   return (
-    <Page className="max-w-[1120px]">
-      <PageHeader>
-        <PageTitle>Settings</PageTitle>
-        <PageLede>
-          Your account, and the workspace your projects live in: its plan, its
-          Claude key and the defaults every new project starts with.
-        </PageLede>
-      </PageHeader>
-      <div className="flex flex-wrap items-start gap-10">
+    <>
+      <SettingsHeader />
+      <div className="flex flex-1 flex-wrap items-start">
         <SettingsNav />
-        <div className="grid min-w-0 flex-[999_1_520px] gap-[22px]">
+        <div className="grid min-w-0 flex-[999_1_520px] content-start gap-[18px] self-stretch p-[18px] pb-16 md:shadow-[inset_1px_0_0_var(--hair)]">
           {children}
         </div>
       </div>
-    </Page>
+    </>
   )
 }

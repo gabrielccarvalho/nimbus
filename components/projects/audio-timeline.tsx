@@ -6,6 +6,8 @@ import {
 import type { AudioSummary } from "@/features/projects/queries"
 import { formatDuration } from "@/lib/format"
 
+import { TimelineDock } from "./timeline-dock"
+
 export function AudioTimelineLayers({ audio }: { audio: AudioSummary }) {
   return (
     <>
@@ -44,21 +46,30 @@ export function AudioOverview({
     ? Math.round((audio.silentMs / durationMs) * 100)
     : 0
   return (
-    <section
-      aria-labelledby="audio-heading"
-      className="grid gap-3.5 rounded-[18px] bg-graphite p-[22px]"
-    >
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2
-          id="audio-heading"
-          className="text-[15px] font-semibold tracking-[-0.015em]"
-        >
-          Where the clips are
-        </h2>
-        <span className="text-[13px] text-tertiary">
-          {clips.length} across {formatDuration(durationMs)}
+    <TimelineDock
+      label="Where the clips are"
+      durationMs={durationMs}
+      summary={
+        <span data-testid="audio-summary">
+          {clips.length} across {formatDuration(durationMs)} ·{" "}
+          {audio.silences.length}{" "}
+          {audio.silences.length === 1 ? "silence" : "silences"} · {silentShare}
+          % silent
         </span>
-      </div>
+      }
+      legend={[
+        { kind: "clip", label: "Clip" },
+        { kind: "silence", label: "Silence" },
+        ...(audio.audience.length > 0
+          ? [
+              {
+                kind: "audience" as const,
+                label: "Most rewatched on YouTube",
+              },
+            ]
+          : []),
+      ]}
+    >
       <Timeline
         readOnly
         durationMs={durationMs}
@@ -74,20 +85,6 @@ export function AudioOverview({
           />
         ))}
       </Timeline>
-      <div
-        aria-hidden
-        className="flex justify-between font-mono text-[11px] text-tertiary tabular-nums"
-      >
-        <span>0:00</span>
-        <span>{formatDuration(durationMs / 2)}</span>
-        <span>{formatDuration(durationMs)}</span>
-      </div>
-      <p className="text-[13px] text-tertiary" data-testid="audio-summary">
-        {audio.silences.length}{" "}
-        {audio.silences.length === 1 ? "silence" : "silences"} · {silentShare}%
-        silent
-        {audio.audience.length > 0 && " · top band: most rewatched on YouTube"}
-      </p>
-    </section>
+    </TimelineDock>
   )
 }

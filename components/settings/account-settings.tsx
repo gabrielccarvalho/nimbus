@@ -1,13 +1,14 @@
 "use client"
 
 import { DesktopIcon, DeviceMobileIcon } from "@phosphor-icons/react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
 import { renderSVG } from "uqr"
 
 import { authClient } from "@/components/auth/auth-client"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
@@ -639,13 +640,20 @@ function SessionList({ sessions }: { sessions: SecuritySettings["sessions"] }) {
   )
 }
 
-export function ChannelList({ channels }: { channels: ChannelRow[] }) {
+export function ChannelList({
+  channels,
+  publishedCount = null,
+}: {
+  channels: ChannelRow[]
+  /** Clips published to the YouTube channel, when there is one. */
+  publishedCount?: number | null
+}) {
   const { pending, error, run } = useAction()
   const connect = (channel: ChannelRow) =>
     run(() =>
       authClient.linkSocial({
         provider: channel.providerId!,
-        callbackURL: "/settings/channels",
+        callbackURL: "/channels",
         scopes: channel.id === "youtube" ? YOUTUBE_SCOPES : undefined,
       })
     )
@@ -663,79 +671,134 @@ export function ChannelList({ channels }: { channels: ChannelRow[] }) {
         : result
     }, `${channel.name} disconnected`)
 
+  const available = channels.filter((channel) => channel.configured)
+  const later = channels.filter((channel) => !channel.configured)
+  const detail = (channel: ChannelRow) =>
+    channel.id === "youtube"
+      ? channel.channelTitle && publishedCount !== null
+        ? `${publishedCount} ${publishedCount === 1 ? "clip" : "clips"} published`
+        : "Publish approved clips as Shorts and see how they do."
+      : "Import VODs without pasting links."
+
   return (
-    <SettingsSection className="gap-1">
-      <SettingsSectionHeader
-        title="Connected channels"
-        description="Import VODs without pasting links, and publish approved clips to your channels."
-      />
-      <ul className="grid gap-2 pt-3 sm:grid-cols-2">
-        {channels.map((channel) => (
-          <li
-            key={channel.id}
-            className="flex items-center gap-3.5 rounded-[14px] bg-graphite-2 p-3.5"
-          >
-            <ChannelIcon provider={channel.id} />
-            <span className="grid min-w-0 flex-1">
-              <span className="font-medium">{channel.name}</span>
-              {channel.channelError && (
-                <span role="alert" className="text-[13px] text-amber">
-                  {channel.channelError}
+    <div data-slot="channel-list" className="grid gap-[18px]">
+      {available.length > 0 && (
+        <section aria-labelledby="channels-yours" className="grid gap-2.5">
+          <h2 id="channels-yours" className="px-0.5 mono-label">
+            Your channels
+          </h2>
+          <ul className="grid gap-2.5">
+            {available.map((channel) => (
+              <li
+                key={channel.id}
+                className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-[18px] bg-graphite p-[18px]"
+              >
+                <ChannelIcon provider={channel.id} />
+                <span className="grid min-w-0 flex-[1_1_220px] gap-0.5">
+                  {channel.channelTitle && (
+                    <span className="text-xs text-tertiary">
+                      {channel.name}
+                    </span>
+                  )}
+                  <span className="truncate text-base leading-tight font-semibold tracking-[-0.02em]">
+                    {channel.channelTitle ?? channel.name}
+                  </span>
+                  <span className="text-[13px] text-muted-foreground">
+                    {detail(channel)}
+                  </span>
+                  {channel.channelError && (
+                    <span role="alert" className="text-[13px] text-pink">
+                      {channel.channelError}
+                    </span>
+                  )}
                 </span>
-              )}
-              {channel.channelTitle && (
-                <span className="truncate text-[13px] text-muted-foreground">
-                  {channel.channelTitle}
-                </span>
-              )}
-            </span>
-            {!channel.configured ? (
-              <StatusPill tone="neutral">
-                {channel.providerId ? "Not set up" : "Soon"}
-              </StatusPill>
-            ) : channel.connectedAt || channel.needsReconnect ? (
-              <>
-                {channel.needsReconnect ? (
+                {channel.connectedAt || channel.needsReconnect ? (
                   <>
-                    <StatusPill tone="amber">Needs reconnect</StatusPill>
+                    {channel.needsReconnect ? (
+                      <>
+                        <StatusPill tone="amber">Needs reconnect</StatusPill>
+                        <Button
+                          size="sm"
+                          disabled={pending}
+                          aria-label={`Reconnect ${channel.name}`}
+                          onClick={() => connect(channel)}
+                        >
+                          Reconnect
+                        </Button>
+                      </>
+                    ) : (
+                      <StatusPill tone="mint">Connected</StatusPill>
+                    )}
+                    {channel.id === "youtube" && channel.channelTitle && (
+                      <Link
+                        href="/analytics"
+                        className={buttonVariants({ size: "sm" })}
+                      >
+                        See analytics
+                      </Link>
+                    )}
+                    {channel.connectedAt && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={pending}
+                        aria-label={`Disconnect ${channel.name}`}
+                        onClick={() => disconnect(channel)}
+                      >
+                        Disconnect
+                      </Button>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <StatusPill tone="neutral">Not connected</StatusPill>
                     <Button
                       size="sm"
                       disabled={pending}
-                      aria-label={`Reconnect ${channel.name}`}
+                      aria-label={`Connect ${channel.name}`}
                       onClick={() => connect(channel)}
                     >
-                      Reconnect
+                      Connect
                     </Button>
                   </>
-                ) : (
-                  <StatusPill tone="mint">Connected</StatusPill>
                 )}
-                {channel.connectedAt && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={pending}
-                    aria-label={`Disconnect ${channel.name}`}
-                    onClick={() => disconnect(channel)}
-                  >
-                    Disconnect
-                  </Button>
-                )}
-              </>
-            ) : (
-              <Button
-                size="sm"
-                disabled={pending}
-                aria-label={`Connect ${channel.name}`}
-                onClick={() => connect(channel)}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {later.length > 0 && (
+        <section aria-labelledby="channels-later" className="grid gap-2.5">
+          <h2 id="channels-later" className="px-0.5 mono-label">
+            Not available yet
+          </h2>
+          <ul className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-2.5">
+            {later.map((channel) => (
+              <li
+                key={channel.id}
+                className="flex items-center gap-3.5 rounded-[14px] bg-graphite p-3.5"
               >
-                Connect
-              </Button>
-            )}
-          </li>
-        ))}
-      </ul>
-      {error && <FieldError className="pt-2">{error}</FieldError>}
-    </SettingsSection>
+                <ChannelIcon provider={channel.id} />
+                <span className="min-w-0 flex-1 font-medium">
+                  {channel.name}
+                </span>
+                <StatusPill tone="neutral">
+                  {channel.providerId ? "Not set up" : "Soon"}
+                </StatusPill>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {error && (
+        <p role="alert" className="text-[13px] text-pink">
+          {error}
+        </p>
+      )}
+      <p className="text-[13px] text-tertiary">
+        Nothing is published on its own. Every upload starts from a clip you
+        approved.
+      </p>
+    </div>
   )
 }

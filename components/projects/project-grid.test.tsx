@@ -60,7 +60,7 @@ describe("ProjectGrid", () => {
       "/projects/a"
     )
 
-    await userEvent.click(screen.getByRole("button", { name: "Exported 1" }))
+    await userEvent.click(screen.getByRole("button", { name: "Done 1" }))
     expect(screen.getByRole("link", { name: "Exported" })).toBeInTheDocument()
   })
 })

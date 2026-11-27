@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation"
 
-import { BreadcrumbLabel } from "@/components/app-shell/breadcrumbs"
 import { ProjectHeader } from "@/components/projects/project-header"
 import {
   getProjectHeader,
@@ -19,15 +18,12 @@ export default async function ProjectLayout({
   if (!header || !settings) notFound()
 
   return (
-    <>
-      <BreadcrumbLabel
-        segment={header.project.id}
-        label={header.project.name}
-      />
+    <div
+      data-slot="project-frame"
+      className="flex min-h-svh flex-col lg:h-dvh lg:min-h-[720px] lg:overflow-hidden"
+    >
       <ProjectHeader data={header} settings={settings} />
-      <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-7 px-[max(20px,2.5vw)] pt-6 pb-18">
-        {children}
-      </div>
-    </>
+      <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+    </div>
   )
 }

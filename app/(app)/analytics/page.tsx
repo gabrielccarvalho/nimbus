@@ -20,8 +20,7 @@ async function OverviewSection({
 
 function OverviewSkeleton() {
   return (
-    <div className="grid gap-7">
-      <Skeleton className="h-8 w-64" />
+    <div className="grid gap-[18px] p-[18px]">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         {Array.from({ length: 5 }, (_, i) => (
           <Skeleton key={i} className="h-24 rounded-xl" />

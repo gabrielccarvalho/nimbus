@@ -2,16 +2,16 @@ import { Skeleton } from "@/components/ui/skeleton"
 
 export default function Loading() {
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]" aria-busy>
-      <div className="flex flex-col gap-6">
-        <Skeleton className="h-48 rounded-xl" />
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {Array.from({ length: 4 }, (_, i) => (
-            <Skeleton key={i} className="h-20 rounded-xl" />
-          ))}
-        </div>
+    <div className="flex min-h-0 flex-1 flex-col lg:flex-row" aria-busy>
+      <div className="grid flex-1 content-start gap-[18px] p-[18px]">
+        <Skeleton className="h-20 rounded-[18px]" />
+        <Skeleton className="aspect-video max-w-[720px] rounded-[18px]" />
       </div>
-      <Skeleton className="aspect-video rounded-xl" />
+      <div className="grid w-full content-start gap-3 p-4 lg:w-[340px]">
+        {Array.from({ length: 6 }, (_, i) => (
+          <Skeleton key={i} className="h-10 rounded-xl" />
+        ))}
+      </div>
     </div>
   )
 }

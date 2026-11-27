@@ -12,7 +12,7 @@ describe("projectFilter", () => {
     expect(projectFilter({ status: "rendering" })).toBe("processing")
     expect(projectFilter({ status: "ready_for_review" })).toBe("ready")
     expect(projectFilter({ status: "done" })).toBe("done")
-    expect(projectFilter({ status: "failed" })).toBe("other")
+    expect(projectFilter({ status: "failed" })).toBe("failed")
     expect(projectFilter({ status: "cancelled" })).toBe("other")
   })
 })

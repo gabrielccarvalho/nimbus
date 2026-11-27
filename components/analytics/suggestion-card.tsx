@@ -1,10 +1,11 @@
 "use client"
 
+import { CheckIcon, XIcon } from "@phosphor-icons/react"
 import Link from "next/link"
 import * as React from "react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { DotMeter } from "@/components/ui/dot-meter"
 import { StatusPill } from "@/components/ui/status-pill"
 import {
   approveSuggestionAction,
@@ -42,8 +43,8 @@ function confidenceLabel(confidence: number) {
 function Evidence({ label, clips }: { label: string; clips: EvidenceClip[] }) {
   if (clips.length === 0) return null
   return (
-    <div className="grid gap-1">
-      <span className="text-[13px] text-muted-foreground">{label}</span>
+    <div className="grid content-start gap-1.5 rounded-[14px] bg-graphite-2 px-3.5 py-3">
+      <span className="mono-label">{label}</span>
       <ul className="grid gap-0.5">
         {clips.map((clip) => (
           <li key={clip.id} className="flex items-baseline gap-2">
@@ -74,7 +75,7 @@ function Evidence({ label, clips }: { label: string; clips: EvidenceClip[] }) {
               </>
             )}
             {clip.views !== null && (
-              <span className="shrink-0 text-[13px] text-muted-foreground tabular-nums">
+              <span className="ms-auto shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
                 {views.format(clip.views)} views
               </span>
             )}
@@ -113,8 +114,11 @@ export function SuggestionCard({
 
   return (
     <article>
-      <Card>
-        <CardContent className="grid gap-4">
+      <div
+        data-slot="suggestion-card"
+        className="grid gap-3.5 rounded-[18px] bg-graphite p-5"
+      >
+        <div className="contents">
           <div className="flex flex-wrap items-center gap-2">
             <StatusPill tone="lav">
               {TARGET_LABELS[suggestion.target]}
@@ -122,8 +126,13 @@ export function SuggestionCard({
             <StatusPill tone="neutral">
               {KIND_LABELS[suggestion.kind]}
             </StatusPill>
-            <span className="ms-auto text-[13px] text-muted-foreground">
-              {confidenceLabel(suggestion.confidence)}
+            <span className="ms-auto flex items-center gap-2 text-[12.5px] text-muted-foreground">
+              <DotMeter
+                value={Math.round(suggestion.confidence * 10)}
+                aria-label="Confidence"
+                tone="mint"
+              />
+              <span>{confidenceLabel(suggestion.confidence)} evidence</span>
             </span>
           </div>
           {current && (
@@ -144,7 +153,7 @@ export function SuggestionCard({
             (editing ? (
               <RuleTextField value={text} onChange={setText} />
             ) : (
-              <p className="font-medium">
+              <p className="text-[17px] leading-snug font-semibold tracking-[-0.02em]">
                 {suggestion.kind === "edit" && (
                   <span className="text-[13px] font-normal text-muted-foreground">
                     Change to:{" "}
@@ -154,36 +163,52 @@ export function SuggestionCard({
               </p>
             ))}
           <p className="text-muted-foreground">{suggestion.rationale}</p>
-          <Evidence label="Evidence" clips={suggestion.evidenceFor} />
-          <Evidence label="Against" clips={suggestion.evidenceAgainst} />
-          <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              variant="primary"
-              disabled={pending || (editing && text.trim() === "")}
-              onClick={() => approve()}
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-3">
+            <Evidence label="Evidence" clips={suggestion.evidenceFor} />
+            <Evidence label="Against" clips={suggestion.evidenceAgainst} />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div
+              role="group"
+              aria-label="Decision"
+              className="flex gap-0.5 rounded-full bg-glass p-[3px] inset-ring-1 inset-ring-hair"
             >
-              Approve
-              <Subject text={subject} />
-            </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-[30px] hover:bg-pink/14 hover:text-pink"
+                disabled={pending}
+                onClick={() => run(() => rejectSuggestionAction(suggestion.id))}
+              >
+                <XIcon data-icon="inline-start" aria-hidden />
+                Reject
+                <Subject text={subject} />
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-[30px] hover:bg-mint/18 hover:text-mint"
+                disabled={pending || (editing && text.trim() === "")}
+                onClick={() => approve()}
+              >
+                <CheckIcon data-icon="inline-start" aria-hidden />
+                Approve
+                <Subject text={subject} />
+              </Button>
+            </div>
             {suggestion.kind !== "retire" && !editing && (
-              <Button size="sm" onClick={() => setEditing(true)}>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setEditing(true)}
+              >
                 Edit, then approve
                 <Subject text={subject} />
               </Button>
             )}
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={pending}
-              onClick={() => run(() => rejectSuggestionAction(suggestion.id))}
-            >
-              Reject
-              <Subject text={subject} />
-            </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
       <RetirePickDialog
         open={picking}
         onOpenChange={setPicking}

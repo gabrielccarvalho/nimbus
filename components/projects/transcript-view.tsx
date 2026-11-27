@@ -6,6 +6,11 @@ import { useRouter } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
 
+import { AppHeaderState } from "@/components/app-shell/app-header"
+import {
+  HEADER_STATE_SLOT_ID,
+  HeaderSlot,
+} from "@/components/app-shell/header-slot"
 import { languageLabel } from "@/components/settings/settings-fields"
 import { Button } from "@/components/ui/button"
 import {
@@ -41,6 +46,7 @@ import { formatTimestamp } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 import { AudioTimelineLayers } from "./audio-timeline"
+import { TimelineDock } from "./timeline-dock"
 
 export type TranscriptClip = {
   id: string
@@ -64,6 +70,8 @@ type TranscriptViewProps = {
 const SPEEDS = ["0.75", "1", "1.5"]
 const count = new Intl.NumberFormat("en")
 
+type Selection = { anchor: number; focus: number }
+
 export function TranscriptView({
   projectId,
   src,
@@ -75,30 +83,128 @@ export function TranscriptView({
   clips,
   audio,
 }: TranscriptViewProps) {
+  const router = useRouter()
+  const [selection, setSelection] = React.useState<Selection | null>(null)
+  const [pending, startTransition] = React.useTransition()
+  const first = selection ? Math.min(selection.anchor, selection.focus) : -1
+  const last = selection ? Math.max(selection.anchor, selection.focus) : -1
+  const range = selection && {
+    startMs: segments[first]!.startMs,
+    endMs: segments[last]!.endMs,
+  }
+  const length = range ? range.endMs - range.startMs : 0
+  const fits = length >= CLIP_MIN_EDIT_MS && length <= CLIP_MAX_EDIT_MS
+  const selectionLabel = !range
+    ? "Click a line, then shift-click another to select a range."
+    : `${last - first + 1} ${last === first ? "line" : "lines"} · ${formatTimestamp(range.startMs)} → ${formatTimestamp(range.endMs)}${
+        fits
+          ? ""
+          : length < CLIP_MIN_EDIT_MS
+            ? ` · at least ${CLIP_MIN_EDIT_MS / 1000} s needed`
+            : ` · at most ${CLIP_MAX_EDIT_MS / 1000} s`
+      }`
+  const makeClip = () =>
+    range &&
+    startTransition(async () => {
+      const result = await createClipAction(projectId, range)
+      if (!result.ok) {
+        toast.error(result.error.message)
+        return
+      }
+      toast.success("Clip added")
+      router.push(`/projects/${projectId}/clips/${result.value.clipId}`)
+    })
+
   return (
     <VideoPlayerProvider>
-      <div className="flex flex-wrap items-start gap-[22px]">
-        <div className="grid min-w-0 flex-[999_1_520px] gap-3.5 lg:sticky lg:top-4">
-          <VideoPlayer aria-label="Source video" className="rounded-[18px]">
-            <VideoPlayerVideo src={src} poster={poster} />
-            <SpokenLine segments={segments} />
-            <VideoPlayerControls>
-              <VideoPlayerPlayButton />
-              <VideoPlayerSeekBar />
-              <VideoPlayerTime />
-              <VideoPlayerMuteButton />
-            </VideoPlayerControls>
-          </VideoPlayer>
-          <PlayerCard durationMs={durationMs} audio={audio} clips={clips} />
-        </div>
+      <HeaderSlot target={HEADER_STATE_SLOT_ID}>
+        {range && (
+          <AppHeaderState className="font-mono tabular-nums max-md:hidden">
+            · {(length / 1000).toFixed(1)} s selected
+          </AppHeaderState>
+        )}
+      </HeaderSlot>
+      <HeaderSlot>
+        {selection && (
+          <Button variant="ghost" onClick={() => setSelection(null)}>
+            Clear
+          </Button>
+        )}
+        <Button
+          variant="primary"
+          disabled={!range || !fits || pending}
+          onClick={makeClip}
+        >
+          Make a clip
+        </Button>
+      </HeaderSlot>
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+        <section
+          aria-label="Recording"
+          className="flex min-w-0 flex-1 flex-col gap-2 p-[18px] pb-3"
+        >
+          <PlayerBar durationMs={durationMs} />
+          <div className="flex min-h-0 flex-1 items-center justify-center">
+            <VideoPlayer
+              aria-label="Source video"
+              className="max-h-full rounded-[14px] lg:h-full lg:w-auto"
+            >
+              <VideoPlayerVideo src={src} poster={poster} />
+              <SpokenLine segments={segments} />
+              <VideoPlayerControls>
+                <VideoPlayerPlayButton />
+                <VideoPlayerSeekBar />
+                <VideoPlayerTime />
+                <VideoPlayerMuteButton />
+              </VideoPlayerControls>
+            </VideoPlayer>
+          </div>
+        </section>
         <TranscriptPanel
           projectId={projectId}
           words={words}
           segments={segments}
           language={language}
           clips={clips}
+          selection={selection}
+          onSelectionChange={setSelection}
+          selectionLabel={selectionLabel}
         />
       </div>
+      <TimelineDock
+        label="Recording"
+        durationMs={durationMs}
+        summary={
+          range
+            ? `${formatTimestamp(range.startMs)} → ${formatTimestamp(range.endMs)}`
+            : `${clips.length} ${clips.length === 1 ? "clip" : "clips"}`
+        }
+        legend={[
+          { kind: "clip", label: "Clip" },
+          { kind: "selected", label: "Your selection" },
+          ...(audio
+            ? [
+                { kind: "silence" as const, label: "Silence" },
+                ...(audio.audience.length > 0
+                  ? [
+                      {
+                        kind: "audience" as const,
+                        label: "Most rewatched on YouTube",
+                      },
+                    ]
+                  : []),
+              ]
+            : []),
+          { kind: "playhead", label: "Playhead" },
+        ]}
+      >
+        <SeekTimeline
+          durationMs={durationMs}
+          audio={audio}
+          clips={clips}
+          range={range}
+        />
+      </TimelineDock>
     </VideoPlayerProvider>
   )
 }
@@ -117,64 +223,77 @@ function SpokenLine({ segments }: { segments: Segment[] }) {
   )
 }
 
-function PlayerCard({
+function PlayerBar({ durationMs }: { durationMs: number }) {
+  const { currentMs, videoRef } = useVideoPlayer()
+  const [speed, setSpeed] = React.useState("1")
+  return (
+    <div className="flex min-h-6 flex-wrap items-center gap-x-3 gap-y-1">
+      <span className="mono-label">Source</span>
+      <span className="font-mono text-[13px] tabular-nums">
+        {formatTimestamp(currentMs)}{" "}
+        <span className="text-tertiary">/ {formatTimestamp(durationMs)}</span>
+      </span>
+      <span className="flex-1" />
+      <ToggleGroup
+        aria-label="Playback speed"
+        size="sm"
+        value={[speed]}
+        onValueChange={(value) => {
+          const next = value[0]
+          if (!next) return
+          setSpeed(next)
+          if (videoRef.current) videoRef.current.playbackRate = Number(next)
+        }}
+      >
+        {SPEEDS.map((value) => (
+          <ToggleGroupItem key={value} value={value}>
+            {value}×
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+    </div>
+  )
+}
+
+function SeekTimeline({
   durationMs,
   audio,
   clips,
+  range,
 }: {
   durationMs: number
   audio?: AudioSummary
   clips: TranscriptClip[]
+  range: { startMs: number; endMs: number } | null
 }) {
-  const { currentMs, seek, videoRef } = useVideoPlayer()
-  const [speed, setSpeed] = React.useState("1")
+  const { currentMs, seek } = useVideoPlayer()
   return (
-    <div className="grid gap-2.5 rounded-[18px] bg-graphite px-4 py-3.5">
-      <div className="flex flex-wrap items-center justify-between gap-2.5">
-        <span className="font-mono text-[13px] tabular-nums">
-          {formatTimestamp(currentMs)}{" "}
-          <span className="text-tertiary">/ {formatTimestamp(durationMs)}</span>
-        </span>
-        <ToggleGroup
-          aria-label="Playback speed"
-          size="sm"
-          value={[speed]}
-          onValueChange={(value) => {
-            const next = value[0]
-            if (!next) return
-            setSpeed(next)
-            if (videoRef.current) videoRef.current.playbackRate = Number(next)
-          }}
-        >
-          {SPEEDS.map((value) => (
-            <ToggleGroupItem key={value} value={value}>
-              {value}×
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
-      </div>
-      <Timeline
-        aria-label="Timeline"
-        durationMs={durationMs}
-        value={currentMs}
-        onValueChange={seek}
-      >
-        {audio && <AudioTimelineLayers audio={audio} />}
-        {clips.map((clip) => (
-          <TimelineRange
-            key={clip.id}
-            startMs={clip.startMs}
-            endMs={clip.endMs}
-            title={clip.title}
-          />
-        ))}
-        <TimelinePlayhead />
-      </Timeline>
-      <p className="text-[13px] text-tertiary">
-        Lavender ranges are clips. Select lines in the transcript to make a new
-        one.
-      </p>
-    </div>
+    <Timeline
+      aria-label="Timeline"
+      durationMs={durationMs}
+      value={currentMs}
+      onValueChange={seek}
+    >
+      {audio && <AudioTimelineLayers audio={audio} />}
+      {clips.map((clip) => (
+        <TimelineRange
+          key={clip.id}
+          className="min-w-1"
+          startMs={clip.startMs}
+          endMs={clip.endMs}
+          title={clip.title}
+        />
+      ))}
+      {range && (
+        <TimelineRange
+          variant="selected"
+          className="min-w-1"
+          startMs={range.startMs}
+          endMs={range.endMs}
+        />
+      )}
+      <TimelinePlayhead />
+    </Timeline>
   )
 }
 
@@ -184,22 +303,22 @@ function TranscriptPanel({
   segments,
   language,
   clips,
+  selection,
+  onSelectionChange,
+  selectionLabel,
 }: {
   projectId: string
   words: Word[]
   segments: Segment[]
   language: string
   clips: TranscriptClip[]
+  selection: Selection | null
+  onSelectionChange: React.Dispatch<React.SetStateAction<Selection | null>>
+  selectionLabel: string
 }) {
-  const router = useRouter()
   const { currentMs, seek } = useVideoPlayer()
   const [query, setQuery] = React.useState("")
   const [follow, setFollow] = React.useState(true)
-  const [selection, setSelection] = React.useState<{
-    anchor: number
-    focus: number
-  } | null>(null)
-  const [pending, startTransition] = React.useTransition()
   const activeWord = findActiveIndex(words, currentMs)
   const activeSegment = findActiveIndex(segments, currentMs)
   const listRef = React.useRef<HTMLOListElement>(null)
@@ -233,50 +352,22 @@ function TranscriptPanel({
 
   const first = selection ? Math.min(selection.anchor, selection.focus) : -1
   const last = selection ? Math.max(selection.anchor, selection.focus) : -1
-  const range = selection && {
-    startMs: segments[first]!.startMs,
-    endMs: segments[last]!.endMs,
-  }
-  const length = range ? range.endMs - range.startMs : 0
-  const fits = length >= CLIP_MIN_EDIT_MS && length <= CLIP_MAX_EDIT_MS
-  const selectionLabel = !range
-    ? "Click a line, then shift-click another to select a range."
-    : `${last - first + 1} ${last === first ? "line" : "lines"} · ${formatTimestamp(range.startMs)} → ${formatTimestamp(range.endMs)}${
-        fits
-          ? ""
-          : length < CLIP_MIN_EDIT_MS
-            ? ` · at least ${CLIP_MIN_EDIT_MS / 1000} s needed`
-            : ` · at most ${CLIP_MAX_EDIT_MS / 1000} s`
-      }`
-
   const pick = React.useCallback(
     (index: number, extend: boolean) => {
-      setSelection((current) =>
+      onSelectionChange((current) =>
         extend && current
           ? { anchor: current.anchor, focus: index }
           : { anchor: index, focus: index }
       )
       seek(segments[index]!.startMs)
     },
-    [seek, segments]
+    [seek, segments, onSelectionChange]
   )
-
-  const makeClip = () =>
-    range &&
-    startTransition(async () => {
-      const result = await createClipAction(projectId, range)
-      if (!result.ok) {
-        toast.error(result.error.message)
-        return
-      }
-      toast.success("Clip added")
-      router.push(`/projects/${projectId}/clips/${result.value.clipId}`)
-    })
 
   return (
     <section
       aria-label="Transcript"
-      className="grid max-h-[820px] min-w-0 flex-[1_1_380px] grid-rows-[auto_minmax(0,1fr)_auto] rounded-[18px] bg-graphite"
+      className="grid max-h-[820px] w-full min-w-0 shrink-0 grid-rows-[auto_minmax(0,1fr)_auto] lg:max-h-none lg:w-[440px] lg:shadow-[inset_1px_0_0_var(--hair)]"
     >
       <div className="grid gap-3 px-4 pt-4 pb-3 shadow-[inset_0_-1px_0_var(--hair)]">
         <InputGroup className="rounded-full">
@@ -350,26 +441,12 @@ function TranscriptPanel({
           </li>
         )}
       </ol>
-      <div className="flex flex-wrap items-center gap-2.5 px-4 py-3 shadow-[inset_0_1px_0_var(--hair)]">
-        <span
-          className="min-w-0 flex-1 text-[13px] text-muted-foreground"
-          aria-live="polite"
-        >
-          {selectionLabel}
-        </span>
-        {selection && (
-          <Button size="sm" variant="ghost" onClick={() => setSelection(null)}>
-            Clear
-          </Button>
-        )}
-        <Button
-          size="sm"
-          disabled={!range || !fits || pending}
-          onClick={makeClip}
-        >
-          Make a clip
-        </Button>
-      </div>
+      <p
+        className="px-4 py-3 text-[12.5px] text-tertiary shadow-[inset_0_1px_0_var(--hair)]"
+        aria-live="polite"
+      >
+        {selectionLabel}
+      </p>
     </section>
   )
 }

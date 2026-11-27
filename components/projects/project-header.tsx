@@ -2,23 +2,29 @@
 
 import {
   ArrowSquareOutIcon,
-  DotsThreeIcon,
   SlidersHorizontalIcon,
   TrashIcon,
 } from "@phosphor-icons/react"
-import Link from "next/link"
 import { usePathname } from "next/navigation"
 import * as React from "react"
 
-import { languageLabel } from "@/components/settings/settings-fields"
-import { Button } from "@/components/ui/button"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+  AppHeader,
+  AppHeaderActions,
+  AppHeaderBack,
+  AppHeaderContext,
+  AppHeaderDivider,
+  AppHeaderHeading,
+  AppHeaderTab,
+  AppHeaderTabs,
+  AppHeaderTitle,
+  AppHeaderTitleRow,
+} from "@/components/app-shell/app-header"
+import {
+  AppHeaderSlot,
+  HEADER_STATE_SLOT_ID,
+} from "@/components/app-shell/header-slot"
+import { languageLabel } from "@/components/settings/settings-fields"
 import { StatusPill } from "@/components/ui/status-pill"
 import type {
   ProjectHeaderData,
@@ -30,9 +36,9 @@ import {
   formatRelativeDay,
   sourceLabel,
 } from "@/lib/format"
-import { cn } from "@/lib/utils"
 
 import { DeleteProjectDialog } from "./delete-project-dialog"
+import { IconAction } from "./icon-action"
 import { ProjectSettingsSheet } from "./project-settings-sheet"
 import { projectSignal } from "./status-badge"
 
@@ -67,118 +73,98 @@ export function ProjectHeader({
   ]
 
   return (
-    <div className="mx-auto box-border grid w-full max-w-[1240px] gap-3.5 px-[max(20px,2.5vw)] pt-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="grid min-w-0 flex-[1_1_520px] gap-2">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="min-w-0 font-heading text-[26px] leading-[1.1] text-balance">
-              {project.name}
-            </h1>
-            <StatusPill tone={signal.tone} data-testid="project-status">
-              {signal.label}
-            </StatusPill>
-          </div>
-          <p className="flex flex-wrap gap-x-3.5 gap-y-1 text-[13px] text-tertiary">
-            <span>
-              {sourceLabel(project.sourceUrl)} · imported{" "}
-              {formatRelativeDay(project.createdAt).toLowerCase()}
-            </span>
-            {source?.durationMs ? (
-              <span
-                className="font-mono tabular-nums"
-                data-testid="stat-duration"
-              >
+    <AppHeader>
+      <AppHeaderBack href="/" label="Back to projects" />
+      <AppHeaderHeading>
+        <AppHeaderContext className="flex min-w-0 gap-x-1.5 overflow-hidden whitespace-nowrap">
+          <span>
+            {sourceLabel(project.sourceUrl)} · imported{" "}
+            {formatRelativeDay(project.createdAt).toLowerCase()}
+          </span>
+          {source?.durationMs ? (
+            <span className="font-mono tabular-nums">
+              ·{" "}
+              <span data-testid="stat-duration">
                 {formatDuration(source.durationMs)}
               </span>
-            ) : null}
-            {source?.width && source.height ? (
-              <span className="font-mono tabular-nums">
-                <span data-testid="stat-resolution">
-                  {source.width}×{source.height}
-                </span>
-                {aspect && aspect !== "other" && (
-                  <>
-                    {" · "}
-                    <span data-testid="stat-aspect">{aspect}</span>
-                  </>
-                )}
+            </span>
+          ) : null}
+          {source?.width && source.height ? (
+            <span className="font-mono tabular-nums">
+              ·{" "}
+              <span data-testid="stat-resolution">
+                {source.width}×{source.height}
               </span>
-            ) : null}
-            {source?.bytes ? (
-              <span className="font-mono tabular-nums">
-                {formatBytes(source.bytes)}
-              </span>
-            ) : null}
-            {language && <span>{languageLabel(language)}</span>}
-          </p>
-        </div>
-        <div className="flex items-center gap-1.5">
-          {sourceHref && (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Open source video"
-              nativeButton={false}
-              render={<a href={sourceHref} target="_blank" rel="noreferrer" />}
-            >
-              <ArrowSquareOutIcon aria-hidden />
-            </Button>
-          )}
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Project settings and more"
-                />
-              }
-            >
-              <DotsThreeIcon weight="bold" aria-hidden />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-52">
-              <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
-                <SlidersHorizontalIcon aria-hidden />
-                Project settings
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                variant="destructive"
-                onClick={() => setDeleteOpen(true)}
-              >
-                <TrashIcon aria-hidden />
-                Delete project
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-      <nav
-        aria-label="Project sections"
-        className="-mx-1 overflow-x-auto shadow-[inset_0_-1px_0_var(--hair)]"
-      >
-        <ul className="flex w-max gap-0.5 px-1 pb-2.5">
-          {tabs.map((tab) => (
-            <li key={tab.href}>
-              <Link
-                href={tab.href as "/"}
-                aria-current={tab.active ? "page" : undefined}
-                className={cn(
-                  "inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm leading-tight font-medium tracking-[-0.01em] whitespace-nowrap text-muted-foreground transition-colors hover:bg-glass hover:text-foreground",
-                  tab.active && "bg-glass-3 text-foreground hover:bg-glass-3"
-                )}
-              >
-                {tab.label}
-                {tab.count !== undefined && tab.count > 0 && (
-                  <span className="font-mono text-[11px] font-semibold text-tertiary">
-                    {tab.count}
-                  </span>
-                )}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
+              {aspect && aspect !== "other" && (
+                <>
+                  {" · "}
+                  <span data-testid="stat-aspect">{aspect}</span>
+                </>
+              )}
+            </span>
+          ) : null}
+          {source?.bytes ? (
+            <span className="font-mono tabular-nums">
+              · {formatBytes(source.bytes)}
+            </span>
+          ) : null}
+          {language && <span>· {languageLabel(language)}</span>}
+        </AppHeaderContext>
+        <AppHeaderTitleRow>
+          <AppHeaderTitle>{project.name}</AppHeaderTitle>
+          <StatusPill
+            tone={signal.tone}
+            data-testid="project-status"
+            className="py-[3px] text-xs"
+          >
+            {signal.label}
+          </StatusPill>
+          <span id={HEADER_STATE_SLOT_ID} className="contents" />
+        </AppHeaderTitleRow>
+      </AppHeaderHeading>
+      <AppHeaderTabs aria-label="Project sections">
+        {tabs.map((tab) => (
+          <AppHeaderTab
+            key={tab.href}
+            href={tab.href as "/"}
+            active={tab.active}
+            count={tab.count}
+          >
+            {tab.label}
+          </AppHeaderTab>
+        ))}
+      </AppHeaderTabs>
+      <AppHeaderDivider />
+      <AppHeaderActions className="gap-0.5">
+        {sourceHref && (
+          <IconAction
+            label="Open source video"
+            side="bottom"
+            nativeButton={false}
+            render={<a href={sourceHref} target="_blank" rel="noreferrer" />}
+          >
+            <ArrowSquareOutIcon aria-hidden />
+          </IconAction>
+        )}
+        <IconAction
+          label="Project settings"
+          side="bottom"
+          aria-expanded={settingsOpen}
+          onClick={() => setSettingsOpen(true)}
+        >
+          <SlidersHorizontalIcon aria-hidden />
+        </IconAction>
+        <IconAction
+          label="Delete project"
+          side="bottom"
+          onClick={() => setDeleteOpen(true)}
+        >
+          <TrashIcon aria-hidden />
+        </IconAction>
+      </AppHeaderActions>
+      <AppHeaderActions>
+        <AppHeaderSlot />
+      </AppHeaderActions>
       <ProjectSettingsSheet
         data={settings}
         open={settingsOpen}
@@ -191,6 +177,6 @@ export function ProjectHeader({
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
       />
-    </div>
+    </AppHeader>
   )
 }

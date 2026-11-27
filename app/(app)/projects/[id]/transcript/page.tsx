@@ -27,19 +27,21 @@ export default async function TranscriptPage({
 
   if (!transcript || !video) {
     return (
-      <Empty className="rounded-[18px] bg-graphite">
-        <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <TextAlignLeftIcon />
-          </EmptyMedia>
-          <EmptyTitle>No transcript yet</EmptyTitle>
-          <EmptyDescription>
-            {project.status === "failed"
-              ? "Transcription didn't finish. Retry the project from the overview."
-              : `The transcript appears here once transcription finishes. Current step: ${projectStatusLabel(project.status)}.`}
-          </EmptyDescription>
-        </EmptyHeader>
-      </Empty>
+      <div className="p-[18px]">
+        <Empty className="rounded-[18px] bg-graphite">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <TextAlignLeftIcon />
+            </EmptyMedia>
+            <EmptyTitle>No transcript yet</EmptyTitle>
+            <EmptyDescription>
+              {project.status === "failed"
+                ? "Transcription didn't finish. Retry the project from the overview."
+                : `The transcript appears here once transcription finishes. Current step: ${projectStatusLabel(project.status)}.`}
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      </div>
     )
   }
 

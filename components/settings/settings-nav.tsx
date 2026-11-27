@@ -4,12 +4,12 @@ import type { Route } from "next"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
-const GROUPS = [
+export const SETTINGS_GROUPS = [
   {
     label: "Account",
     items: [
       { href: "/settings/profile", label: "Profile" },
-      { href: "/settings/channels", label: "Connected channels" },
+      { href: "/channels", label: "Channels" },
       { href: "/settings/security", label: "Sign-in & security" },
     ],
   },
@@ -32,9 +32,9 @@ export function SettingsNav() {
   return (
     <nav
       aria-label="Settings sections"
-      className="grid flex-[1_1_180px] content-start gap-0.5 md:sticky md:top-6 md:max-w-[220px]"
+      className="grid flex-[1_1_180px] content-start gap-0.5 px-3 py-[18px] md:sticky md:top-0 md:max-w-[220px]"
     >
-      {GROUPS.map((group, index) => (
+      {SETTINGS_GROUPS.map((group, index) => (
         <div key={group.label} className="contents">
           <p
             className={

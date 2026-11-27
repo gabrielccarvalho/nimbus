@@ -40,25 +40,32 @@ export default async function ClipsPage({
     snapshot,
   } = data
 
+  const manual = manualPrompt ? (
+    <ManualSelection projectId={project.id} prompt={manualPrompt} />
+  ) : null
+
+  if (clips.length > 0 && video) {
+    return (
+      <ClipsReview
+        projectId={project.id}
+        src={mediaUrl(video.storageKey)}
+        durationMs={durationMs}
+        clips={clips}
+        audio={audio}
+        renders={renders}
+        edit={edit}
+        captions={captions}
+        snapshot={snapshot}
+        publishing={publishing}
+      >
+        {manual}
+      </ClipsReview>
+    )
+  }
+
   return (
-    <div className="flex flex-col gap-[22px]">
-      {manualPrompt && (
-        <ManualSelection projectId={project.id} prompt={manualPrompt} />
-      )}
-      {clips.length > 0 && video ? (
-        <ClipsReview
-          projectId={project.id}
-          src={mediaUrl(video.storageKey)}
-          durationMs={durationMs}
-          clips={clips}
-          audio={audio}
-          renders={renders}
-          edit={edit}
-          captions={captions}
-          snapshot={snapshot}
-          publishing={publishing}
-        />
-      ) : manualPrompt ? null : (
+    <div className="grid content-start gap-[18px] p-[18px]">
+      {manual ?? (
         <Empty className="rounded-[18px] bg-graphite">
           <EmptyHeader>
             <EmptyMedia variant="icon">

@@ -248,7 +248,7 @@ export function Playbook({
 }) {
   return (
     <div className="grid gap-6">
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6">
         <RuleList target="selection" rules={rules.selection} />
         <RuleList target="review" rules={rules.review} />
       </div>

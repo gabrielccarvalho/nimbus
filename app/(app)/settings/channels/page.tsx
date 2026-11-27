@@ -1,10 +1,6 @@
-import type { Metadata } from "next"
+import { redirect } from "next/navigation"
 
-import { ChannelList } from "@/components/settings/account-settings"
-import { getChannelSettings } from "@/features/accounts/queries"
-
-export const metadata: Metadata = { title: "Connected channels" }
-
-export default async function ChannelsPage() {
-  return <ChannelList channels={await getChannelSettings()} />
+// Channels moved to a page of their own (ADR-0077). Old links still land.
+export default function ChannelsSettingsRedirect() {
+  redirect("/channels")
 }

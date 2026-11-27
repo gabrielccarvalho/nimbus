@@ -10,6 +10,7 @@ import Link from "next/link"
 import * as React from "react"
 import { toast } from "sonner"
 
+import { HeaderSlot } from "@/components/app-shell/header-slot"
 import { Button } from "@/components/ui/button"
 import {
   Progress,
@@ -111,14 +112,15 @@ function NextStep({
       <YourTurn
         title="Paste Claude's highlights to continue."
         actions={
-          <Button
-            variant="primary"
-            size="sm"
-            nativeButton={false}
-            render={<Link href={`/projects/${id}/clips`} />}
-          >
-            Open the prompt
-          </Button>
+          <HeaderSlot>
+            <Button
+              variant="primary"
+              nativeButton={false}
+              render={<Link href={`/projects/${id}/clips`} />}
+            >
+              Open the prompt
+            </Button>
+          </HeaderSlot>
         }
       >
         Copy the prompt into Claude, then paste its answer back. Nimbus takes it
@@ -176,14 +178,15 @@ function NextStep({
             Approve the ones you like; only approved clips render.
           </span>
         </div>
-        <Button
-          variant="primary"
-          size="sm"
-          nativeButton={false}
-          render={<Link href={`/projects/${id}/clips`} />}
-        >
-          {done ? "Open clips" : "Review clips"}
-        </Button>
+        <HeaderSlot>
+          <Button
+            variant="primary"
+            nativeButton={false}
+            render={<Link href={`/projects/${id}/clips`} />}
+          >
+            {done ? "Open clips" : "Review clips"}
+          </Button>
+        </HeaderSlot>
       </ActionCard>
     )
   }
@@ -196,7 +199,10 @@ export function ProjectOverview({
   facts,
   clips = [],
   videoSrc = null,
+  children,
 }: {
+  /** The rest of the stage: the source preview and the top picks. */
+  children?: React.ReactNode
   initial: ProjectSnapshot
   facts: OverviewFacts
   clips?: readonly RenderClip[]
@@ -227,112 +233,127 @@ export function ProjectOverview({
 
   const run = (fn: () => Promise<void>) => startTransition(fn)
 
+  const live = running && !waiting
+
   return (
-    <>
-      <NextStep snapshot={snapshot} pending={pending} run={run} />
-      <section className="grid gap-2 rounded-[18px] bg-graphite p-[22px]">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-[19px] font-semibold tracking-[-0.025em]">
-            Pipeline
-          </h2>
-          <div className="flex items-center gap-3">
-            {totalMs > 0 && (
-              <span className="text-[13px] text-tertiary">
-                {formatDuration(totalMs)} so far
-              </span>
-            )}
-            {running && !waiting && (
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={pending}
-                onClick={() =>
-                  run(async () => {
-                    const result = await cancelProjectAction(snapshot.id)
-                    if (result.ok) toast.success("Cancelled")
-                    else toast.error(result.error.message)
-                  })
-                }
-              >
-                <XIcon data-icon="inline-start" aria-hidden />
-                Cancel
-              </Button>
-            )}
-          </div>
-        </div>
-        <PipelineStepper aria-label="Pipeline progress">
-          {PIPELINE_STEPS.map((step, index) => {
-            const state = states[index]!
-            const current = state === "current"
-            const label =
-              step.id === "upload" && facts.sourceUrl ? "Download" : step.label
-            const detail =
-              current && activeJob
-                ? `${JOB_LABELS[activeJob.type] ?? activeJob.type} · ${activeJob.progress}%`
-                : current && waiting
-                  ? "Waiting for you"
-                  : state === "upcoming" &&
-                      step.id !== "review" &&
-                      step.id !== "render"
-                    ? null
-                    : details[step.id]
-            return (
-              <PipelineStep
-                key={step.id}
-                state={state}
-                attention={current && waiting}
-              >
-                <PipelineStepContent>
-                  <PipelineStepLabel>{label}</PipelineStepLabel>
-                  {detail && (
-                    <PipelineStepDescription>{detail}</PipelineStepDescription>
-                  )}
-                </PipelineStepContent>
-                <PipelineStepTime>
-                  {times[step.id] !== undefined
-                    ? formatDuration(times[step.id]!)
-                    : "—"}
-                </PipelineStepTime>
-              </PipelineStep>
-            )
-          })}
-        </PipelineStepper>
-
-        {running && !waiting && (
-          <Progress
-            value={activeJob?.progress ?? null}
-            aria-live="polite"
-            className="pt-2"
-          >
-            <ProgressLabel>
-              {activeJob
-                ? (JOB_LABELS[activeJob.type] ?? activeJob.type)
-                : queued
-                  ? "Waiting for the worker…"
-                  : "Starting…"}
-            </ProgressLabel>
-            <ProgressValue />
-            {elapsedMs !== null && (
-              <p
-                className="w-full text-xs text-muted-foreground tabular-nums"
-                data-testid="step-timing"
-              >
-                {formatDuration(elapsedMs)} elapsed
-                {remainingMs !== null &&
-                  ` · about ${formatDuration(remainingMs)} left`}
-              </p>
-            )}
-          </Progress>
-        )}
-
+    <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+      <section
+        aria-label="Project"
+        className="grid min-w-0 flex-1 content-start gap-[18px] p-[18px] lg:overflow-y-auto"
+      >
+        <NextStep snapshot={snapshot} pending={pending} run={run} />
         {running && (
-          <StepDetailView
-            snapshot={snapshot}
-            clips={clips}
-            videoSrc={videoSrc}
-          />
+          <section
+            aria-label="Current step"
+            className="grid gap-3 rounded-[18px] bg-graphite p-5"
+          >
+            {live && (
+              <Progress value={activeJob?.progress ?? null} aria-live="polite">
+                <ProgressLabel>
+                  {activeJob
+                    ? (JOB_LABELS[activeJob.type] ?? activeJob.type)
+                    : queued
+                      ? "Waiting for the worker…"
+                      : "Starting…"}
+                </ProgressLabel>
+                <ProgressValue />
+                {elapsedMs !== null && (
+                  <p
+                    className="w-full text-xs text-muted-foreground tabular-nums"
+                    data-testid="step-timing"
+                  >
+                    {formatDuration(elapsedMs)} elapsed
+                    {remainingMs !== null &&
+                      ` · about ${formatDuration(remainingMs)} left`}
+                  </p>
+                )}
+              </Progress>
+            )}
+            <StepDetailView
+              snapshot={snapshot}
+              clips={clips}
+              videoSrc={videoSrc}
+            />
+          </section>
         )}
+        {children}
       </section>
-    </>
+      <aside
+        aria-label="Pipeline"
+        className="flex w-full shrink-0 flex-col lg:w-[340px] lg:shadow-[inset_1px_0_0_var(--hair)]"
+      >
+        <div className="flex min-h-[52px] items-center gap-3 px-4 pt-3">
+          <h2 className="mono-label">Pipeline</h2>
+          <span className="flex-1" />
+          {live && (
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={pending}
+              onClick={() =>
+                run(async () => {
+                  const result = await cancelProjectAction(snapshot.id)
+                  if (result.ok) toast.success("Cancelled")
+                  else toast.error(result.error.message)
+                })
+              }
+            >
+              <XIcon data-icon="inline-start" aria-hidden />
+              Cancel
+            </Button>
+          )}
+        </div>
+        <div className="min-h-0 flex-1 px-4 pb-3 lg:overflow-y-auto">
+          <PipelineStepper aria-label="Pipeline progress">
+            {PIPELINE_STEPS.map((step, index) => {
+              const state = states[index]!
+              const current = state === "current"
+              const label =
+                step.id === "upload" && facts.sourceUrl
+                  ? "Download"
+                  : step.label
+              // The percent lives on the progress bar; a step says it once.
+              const detail =
+                current && activeJob
+                  ? (JOB_LABELS[activeJob.type] ?? activeJob.type)
+                  : current && waiting
+                    ? "Waiting for you"
+                    : state === "upcoming" &&
+                        step.id !== "review" &&
+                        step.id !== "render"
+                      ? null
+                      : details[step.id]
+              return (
+                <PipelineStep
+                  key={step.id}
+                  state={state}
+                  attention={current && waiting}
+                >
+                  <PipelineStepContent>
+                    <PipelineStepLabel>{label}</PipelineStepLabel>
+                    {detail && (
+                      <PipelineStepDescription>
+                        {detail}
+                      </PipelineStepDescription>
+                    )}
+                  </PipelineStepContent>
+                  <PipelineStepTime>
+                    {times[step.id] !== undefined
+                      ? formatDuration(times[step.id]!)
+                      : "—"}
+                  </PipelineStepTime>
+                </PipelineStep>
+              )
+            })}
+          </PipelineStepper>
+        </div>
+        <p className="flex justify-between gap-3 px-4 py-3 text-[12.5px] text-tertiary shadow-[inset_0_1px_0_var(--hair)]">
+          <span>Pipeline time so far</span>
+          <span className="font-mono tabular-nums">
+            {totalMs > 0 ? formatDuration(totalMs) : "—"}
+          </span>
+        </p>
+      </aside>
+    </div>
   )
 }

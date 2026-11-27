@@ -212,7 +212,7 @@ describe("Suggestion card", () => {
     expect(
       within(card).getByText("Short cold opens held viewers longer.")
     ).toBeVisible()
-    expect(within(card).getByText("Strong")).toBeVisible()
+    expect(within(card).getByText("Strong evidence")).toBeVisible()
     expect(
       within(card).getByRole("link", { name: "Cold open" })
     ).toHaveAttribute("href", "/projects/p1/clips/c1")
@@ -240,7 +240,7 @@ describe("Suggestion card", () => {
       screen.getByText("Editing clips", { selector: "span" })
     ).toBeVisible()
     expect(screen.getByText("Retire rule")).toBeVisible()
-    expect(screen.getByText("Moderate")).toBeVisible()
+    expect(screen.getByText("Moderate evidence")).toBeVisible()
   })
 
   it("labels a weak change", () => {
@@ -250,7 +250,7 @@ describe("Suggestion card", () => {
       />
     )
     expect(screen.getByText("Change rule")).toBeVisible()
-    expect(screen.getByText("Weak")).toBeVisible()
+    expect(screen.getByText("Weak evidence")).toBeVisible()
   })
 
   it("approves", async () => {
