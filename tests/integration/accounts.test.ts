@@ -171,22 +171,23 @@ describe("usage", () => {
 })
 
 describe("admin plan", () => {
-  it("goes to accounts on the nimbus.dev domain only", () => {
+  it("goes to gabe@nimbus.dev only", () => {
     expect(planForEmail("gabe@nimbus.dev")).toBe("admin")
     expect(planForEmail(" Gabe@Nimbus.DEV ")).toBe("admin")
+    expect(planForEmail("ada@nimbus.dev")).toBe("free")
     expect(planForEmail("gabe@example.com")).toBe("free")
     expect(planForEmail("gabe@nimbus.dev.evil.com")).toBe("free")
     expect(planForEmail("gabe@mail.nimbus.dev")).toBe("free")
-    expect(planForEmail("gabe@notnimbus.dev")).toBe("free")
+    expect(planForEmail("notgabe@nimbus.dev")).toBe("free")
   })
 
-  it("is given to new nimbus.dev workspaces, with no limits", async () => {
+  it("is given to that account's workspace, with no limits", async () => {
     const accounts = accountRepository(env.db)
     const admin = await accounts.createPersonalWorkspace(
-      await createUser("Ada", "ada@nimbus.dev")
+      await createUser("Gabe", "gabe@nimbus.dev")
     )
     const regular = await accounts.createPersonalWorkspace(
-      await createUser("Bo")
+      await createUser("Ada", "ada@nimbus.dev")
     )
     expect(admin.plan).toBe("admin")
     expect(regular.plan).toBe("free")
@@ -216,6 +217,36 @@ describe("admin plan", () => {
     )
     expect(plans[existing.id]).toBe("admin")
     expect(plans[other.id]).toBe("free")
+  })
+
+  it("is taken from every workspace gabe@nimbus.dev doesn't own", async () => {
+    const accounts = accountRepository(env.db)
+    const gabe = await accounts.createPersonalWorkspace(
+      await createUser("Gabe", "gabe@nimbus.dev")
+    )
+    const teammate = await accounts.createPersonalWorkspace(
+      await createUser("Ada", "ada@nimbus.dev")
+    )
+    const paying = await accounts.createPersonalWorkspace(
+      await createUser("Bo")
+    )
+    await env.db
+      .update(workspaces)
+      .set({ plan: "admin" })
+      .where(eq(workspaces.id, teammate.id))
+    await env.db
+      .update(workspaces)
+      .set({ plan: "studio" })
+      .where(eq(workspaces.id, paying.id))
+    await env.db.execute(
+      sql.raw(readFileSync("lib/db/migrations/0024_single_admin.sql", "utf8"))
+    )
+    const plans = Object.fromEntries(
+      (await env.db.select().from(workspaces)).map((w) => [w.id, w.plan])
+    )
+    expect(plans[gabe.id]).toBe("admin")
+    expect(plans[teammate.id]).toBe("free")
+    expect(plans[paying.id]).toBe("studio")
   })
 })
 

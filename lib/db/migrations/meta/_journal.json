@@ -169,6 +169,13 @@
       "when": 1795792219349,
       "tag": "0023_clip_parts",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1795798639499,
+      "tag": "0024_single_admin",
+      "breakpoints": true
     }
   ]
 }

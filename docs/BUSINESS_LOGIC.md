@@ -304,7 +304,7 @@ Tracks belong to the workspace's music library: MP3, M4A/AAC, WAV, OGG or FLAC u
 ### Accounts, workspaces and plans
 
 - Signing up creates a personal workspace with the user as `owner`. Everything a person makes belongs to the workspace, not the user.
-- Plans: Free (60 render minutes, 25 GB, 10 Claude runs a month, 2 publishes a day), Creator (300, 100 GB, 40, 5), Studio (1200, 500 GB, 200, 15), Admin (no limits; given to `@nimbus.dev` addresses at sign-up).
+- Plans: Free (60 render minutes, 25 GB, 10 Claude runs a month, 2 publishes a day), Creator (300, 100 GB, 40, 5), Studio (1200, 500 GB, 200, 15), Admin (no limits; given to `gabe@nimbus.dev` at sign-up and to no other address).
 - Usage (`render_seconds`, `claude_run`) is recorded per workspace and summed per calendar month in UTC. Render minutes, storage and Claude runs are shown against the plan but not enforced yet; publishes per day are enforced.
 - Claude features use the workspace's own API key and are unavailable without one. The heuristic and manual selectors need no key.
 

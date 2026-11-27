@@ -53,12 +53,10 @@ export function planFor(id: PlanId): Plan {
   return PLANS[id] ?? PLANS.free
 }
 
-export const ADMIN_EMAIL_DOMAIN = "nimbus.dev"
+export const ADMIN_EMAIL = "gabe@nimbus.dev"
 
 export function planForEmail(email: string): PlanId {
-  return email.trim().toLowerCase().endsWith(`@${ADMIN_EMAIL_DOMAIN}`)
-    ? "admin"
-    : "free"
+  return email.trim().toLowerCase() === ADMIN_EMAIL ? "admin" : "free"
 }
 
 export const usageKinds = ["render_seconds", "claude_run"] as const

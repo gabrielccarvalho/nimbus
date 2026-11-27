@@ -296,6 +296,7 @@ Spec: Claude Design handoff (`~/Downloads/nimbus-redesign-handoff/design/`). Aut
 - [x] Clip editor kept edits made while a save was in flight: the page keyed the editor by `updatedAt`, so each refresh after an autosave remounted it from the server copy. Keyed by clip id now; the save returns the stored effects and the editor adopts them (trims re-plan auto effects)
 - [x] Caption Position sits on its own row so its five options never run under the Size slider
 - [x] Admin plan: accounts on `@nimbus.dev` get a workspace on the Admin plan with no limits (ADR-0061); migration 0010 moves existing ones over
+- [x] Admin plan narrowed to `gabe@nimbus.dev` (ADR-0084); migration 0024 moves every other Admin workspace to Free
 
 ### Phase 30: YouTube publishing (ADR-0065)
 
