@@ -2,6 +2,8 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 
 import { ClipEditor } from "@/components/projects/clip-editor"
+import { editor } from "@/components/projects/messages/editor"
+import { getMessages } from "@/lib/i18n/server"
 import { getTrendingMusic } from "@/features/music/queries"
 import { getClipEditor, getProjectSettings } from "@/features/projects/queries"
 import { getPublishing } from "@/features/publishing/queries"
@@ -12,8 +14,11 @@ export async function generateMetadata({
   params,
 }: PageProps<"/projects/[id]/clips/[clipId]">): Promise<Metadata> {
   const { id, clipId } = await params
-  const data = await getClipEditor(id, clipId)
-  return { title: data ? `Edit ${data.clip.title}` : "Clip" }
+  const [data, t] = await Promise.all([
+    getClipEditor(id, clipId),
+    getMessages(editor),
+  ])
+  return { title: data ? t.page.title(data.clip.title) : t.page.fallbackTitle }
 }
 
 export default async function ClipEditorPage({

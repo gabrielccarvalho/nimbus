@@ -317,6 +317,13 @@ Tracks belong to the workspace's music library: MP3, M4A/AAC, WAV, OGG or FLAC u
 - Usage (`render_seconds`, `claude_run`) is recorded per workspace and summed per calendar month in UTC. Render minutes, storage and Claude runs are shown against the plan but not enforced yet; publishes per day are enforced.
 - Claude features use the workspace's own API key and are unavailable without one. The heuristic and manual selectors need no key.
 
+### Language
+
+- Nimbus speaks en-US and pt-BR. A browser gets the language it chose with the selector; without a choice, the best match of its `Accept-Language` (any Portuguese is pt-BR); otherwise English.
+- A signed-in choice is saved on the account and brought to any browser at its next sign-in. Each browser otherwise keeps its own.
+- The interface language never changes a recording: transcription language, captions, titles and what Claude writes follow the project's own settings.
+- Prices are in reais in both languages.
+
 ### Publishing
 
 - Preconditions, checked in one transaction with the clip row locked: the clip is `rendered` and has a render; the workspace has a channel and its status is `ok` (otherwise "Reconnect YouTube"); the clip has no publication already in flight ("This clip is already publishing"); the workspace is under its plan's publishes for the Pacific day.

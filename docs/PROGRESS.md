@@ -518,6 +518,16 @@ Spec: `docs/UX_PATTERNS.md` and the "Nimbus pages redesign" canvas. The clip edi
 - [x] "Who it is for" in `docs/BUSINESS_LOGIC.md`; invariant 10 renamed
 - [x] Landing page copy speaks to both and leads with the link; a question for clippers
 
+### Phase 48: English and Portuguese (ADR-0088)
+
+- [x] Locale from the cookie, then the browser's language; `user.locale` restores it at sign-in (migration 0025)
+- [x] Typed dictionaries per area, `useMessages` / `getMessages`, dates and numbers in the active locale
+- [x] Every page, dialog, toast and label in pt-BR
+- [x] Server errors translated at the request boundary and where stored errors are shown, with a coverage test
+- [x] Language selector on the landing page header and in Settings › Profile
+- [ ] A Portuguese speaker reading every screen: the translation was written and type-checked, not proofread in the app
+- [ ] `hreflang` or a `/pt` landing page if Portuguese search traffic matters
+
 ### Not verified
 
 - Joined clips on a real recording: rendering was checked with real ffmpeg on the 20 s fixture, and the editor through component tests, not by hand in a browser. How long the preview stalls at a cut on a multi-hour proxy is unknown.

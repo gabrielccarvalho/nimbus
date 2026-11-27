@@ -36,21 +36,26 @@ import {
 import type { ChannelRow, SecuritySettings } from "@/features/accounts/queries"
 import { YOUTUBE_SCOPES } from "@/features/accounts/schema"
 import { formatRelativeDay } from "@/lib/format"
+import { useLocale, useMessages } from "@/lib/i18n/client"
+import { translateError } from "@/lib/i18n/errors"
+import { common } from "@/lib/i18n/common"
 
+import { settings } from "./messages"
 import { SettingRow, SettingsSection, SettingsSectionHeader } from "./section"
 
 type Outcome =
   | { error?: { message?: string } | null }
   | { ok: boolean; error?: { message: string } }
 
-function failed(result: Outcome) {
+function failed(result: Outcome, fallback: string) {
   if ("ok" in result)
-    return result.ok ? null : (result.error?.message ?? "That didn't work")
-  return result.error ? (result.error.message ?? "That didn't work") : null
+    return result.ok ? null : (result.error?.message ?? fallback)
+  return result.error ? (result.error.message ?? fallback) : null
 }
 
 function useAction() {
   const router = useRouter()
+  const fallback = useMessages(common).failed
   const [pending, startTransition] = React.useTransition()
   const [error, setError] = React.useState<string | null>(null)
   const run = (
@@ -59,7 +64,7 @@ function useAction() {
     after?: () => void
   ) =>
     startTransition(async () => {
-      const message = failed(await action())
+      const message = failed(await action(), fallback)
       setError(message)
       if (message) return
       if (success) toast.success(success)
@@ -81,6 +86,7 @@ export function NameForm({
   success: string
 }) {
   const id = React.useId()
+  const c = useMessages(common)
   const [name, setName] = React.useState(initial)
   const { pending, error, run } = useAction()
   return (
@@ -106,29 +112,31 @@ export function NameForm({
         {error && <FieldError>{error}</FieldError>}
       </Field>
       <Button type="submit" disabled={pending || name.trim() === initial}>
-        Save
+        {c.save}
       </Button>
     </form>
   )
 }
 
 export function ProfileName({ name }: { name: string }) {
+  const t = useMessages(settings).profile
   return (
     <NameForm
-      label="Name"
+      label={t.name}
       initial={name}
-      success="Name saved"
+      success={t.nameSaved}
       save={(value) => authClient.updateUser({ name: value })}
     />
   )
 }
 
 export function WorkspaceName({ name }: { name: string }) {
+  const t = useMessages(settings).workspace
   return (
     <NameForm
-      label="Workspace name"
+      label={t.name}
       initial={name}
-      success="Workspace renamed"
+      success={t.renamed}
       save={(value) => renameWorkspaceAction(value)}
     />
   )
@@ -141,6 +149,7 @@ function PasswordDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
+  const t = useMessages(settings).security
   const { pending, error, run } = useAction()
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -157,21 +166,19 @@ function PasswordDialog({
                   newPassword: String(data.get("next")),
                   revokeOtherSessions: true,
                 }),
-              "Password changed. Other sessions were signed out.",
+              t.passwordChanged,
               () => onOpenChange(false)
             )
           }}
         >
           <DialogHeader>
-            <DialogTitle>Change password</DialogTitle>
-            <DialogDescription>
-              Other sessions are signed out.
-            </DialogDescription>
+            <DialogTitle>{t.changePassword}</DialogTitle>
+            <DialogDescription>{t.changePasswordHint}</DialogDescription>
           </DialogHeader>
           <FieldGroup className="gap-4">
             <Field>
               <FieldLabel htmlFor="current-password">
-                Current password
+                {t.currentPassword}
               </FieldLabel>
               <Input
                 id="current-password"
@@ -182,7 +189,7 @@ function PasswordDialog({
               />
             </Field>
             <Field data-invalid={error ? true : undefined}>
-              <FieldLabel htmlFor="new-password">New password</FieldLabel>
+              <FieldLabel htmlFor="new-password">{t.newPassword}</FieldLabel>
               <Input
                 id="new-password"
                 name="next"
@@ -191,13 +198,13 @@ function PasswordDialog({
                 minLength={10}
                 required
               />
-              <FieldDescription>At least 10 characters.</FieldDescription>
+              <FieldDescription>{t.newPasswordHint}</FieldDescription>
               {error && <FieldError>{error}</FieldError>}
             </Field>
           </FieldGroup>
           <DialogFooter>
             <Button type="submit" variant="primary" disabled={pending}>
-              Change password
+              {t.changePassword}
             </Button>
           </DialogFooter>
         </form>
@@ -215,6 +222,8 @@ function TwoFactorDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
+  const { twoFactor: t, security } = useMessages(settings)
+  const c = useMessages(common)
   const { pending, error, setError, run } = useAction()
   const [setup, setSetup] = React.useState<{
     uri: string
@@ -244,31 +253,28 @@ function TwoFactorDialog({
               ).replace(/\s/g, "")
               run(
                 () => authClient.twoFactor.verifyTotp({ code }),
-                "Two-step verification is on",
+                t.on,
                 () => close(false)
               )
             }}
           >
             <DialogHeader>
-              <DialogTitle>Scan with your authenticator</DialogTitle>
-              <DialogDescription>
-                Then enter the 6-digit code it shows. Keep the backup codes
-                somewhere safe; each works once.
-              </DialogDescription>
+              <DialogTitle>{t.scanTitle}</DialogTitle>
+              <DialogDescription>{t.scanDescription}</DialogDescription>
             </DialogHeader>
             <div className="flex flex-wrap items-start gap-5">
               <div
                 role="img"
-                aria-label="QR code for your authenticator app"
+                aria-label={t.qrCode}
                 className="size-40 shrink-0 rounded-xl bg-white p-2 [&_svg]:size-full"
                 dangerouslySetInnerHTML={{ __html: renderSVG(setup.uri) }}
               />
               <div className="grid min-w-0 flex-1 gap-2 text-[13px] text-tertiary">
-                <span>Or enter this key</span>
+                <span>{t.secret}</span>
                 <code className="font-mono text-xs break-all text-foreground">
                   {secret}
                 </code>
-                <span className="pt-2">Backup codes</span>
+                <span className="pt-2">{t.backupCodes}</span>
                 <ul className="grid grid-cols-2 gap-x-3 font-mono text-xs text-foreground">
                   {setup.backupCodes.map((code) => (
                     <li key={code}>{code}</li>
@@ -277,7 +283,7 @@ function TwoFactorDialog({
               </div>
             </div>
             <Field data-invalid={error ? true : undefined}>
-              <FieldLabel htmlFor="totp">Code</FieldLabel>
+              <FieldLabel htmlFor="totp">{t.code}</FieldLabel>
               <Input
                 id="totp"
                 name="code"
@@ -290,7 +296,7 @@ function TwoFactorDialog({
             </Field>
             <DialogFooter>
               <Button type="submit" variant="primary" disabled={pending}>
-                Turn on
+                {t.turnOn}
               </Button>
             </DialogFooter>
           </form>
@@ -305,7 +311,7 @@ function TwoFactorDialog({
               if (enabled) {
                 run(
                   () => authClient.twoFactor.disable({ password }),
-                  "Two-step verification is off",
+                  t.off,
                   () => close(false)
                 )
                 return
@@ -324,14 +330,14 @@ function TwoFactorDialog({
           >
             <DialogHeader>
               <DialogTitle>
-                {enabled
-                  ? "Turn off two-step verification?"
-                  : "Turn on two-step verification"}
+                {enabled ? t.turnOffTitle : t.turnOnTitle}
               </DialogTitle>
-              <DialogDescription>Confirm with your password.</DialogDescription>
+              <DialogDescription>{t.confirm}</DialogDescription>
             </DialogHeader>
             <Field data-invalid={error ? true : undefined}>
-              <FieldLabel htmlFor="tfa-password">Password</FieldLabel>
+              <FieldLabel htmlFor="tfa-password">
+                {security.password}
+              </FieldLabel>
               <Input
                 id="tfa-password"
                 name="password"
@@ -347,7 +353,7 @@ function TwoFactorDialog({
                 variant={enabled ? "destructive" : "primary"}
                 disabled={pending}
               >
-                {enabled ? "Turn off" : "Continue"}
+                {enabled ? t.turnOff : c.continue}
               </Button>
             </DialogFooter>
           </form>
@@ -364,6 +370,7 @@ function ApiKeyDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
+  const t = useMessages(settings).apiKey
   const { pending, error, run } = useAction()
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -375,19 +382,17 @@ function ApiKeyDialog({
             const key = String(new FormData(event.currentTarget).get("key"))
             run(
               () => saveAnthropicKeyAction(key),
-              "Claude API key saved",
+              t.saved,
               () => onOpenChange(false)
             )
           }}
         >
           <DialogHeader>
-            <DialogTitle>Claude API key</DialogTitle>
-            <DialogDescription>
-              Stored encrypted. Only the last four characters are shown again.
-            </DialogDescription>
+            <DialogTitle>{t.title}</DialogTitle>
+            <DialogDescription>{t.description}</DialogDescription>
           </DialogHeader>
           <Field data-invalid={error ? true : undefined}>
-            <FieldLabel htmlFor="anthropic-key">Key</FieldLabel>
+            <FieldLabel htmlFor="anthropic-key">{t.key}</FieldLabel>
             <Input
               id="anthropic-key"
               name="key"
@@ -401,7 +406,7 @@ function ApiKeyDialog({
           </Field>
           <DialogFooter>
             <Button type="submit" variant="primary" disabled={pending}>
-              Save key
+              {t.save}
             </Button>
           </DialogFooter>
         </form>
@@ -411,42 +416,44 @@ function ApiKeyDialog({
 }
 
 export function SecuritySettingsView({ data }: { data: SecuritySettings }) {
+  const locale = useLocale()
+  const { nav, security: t, twoFactor } = useMessages(settings)
   const [dialog, setDialog] = React.useState<"password" | "2fa" | null>(null)
   return (
     <>
       <SettingsSection className="gap-1">
-        <SettingsSectionHeader title="Sign-in & security" />
+        <SettingsSectionHeader title={nav.security} />
         {data.hasPassword && (
           <SettingRow
-            title="Password"
+            title={t.password}
             description={
               data.passwordChangedAt
-                ? `Last changed ${formatRelativeDay(data.passwordChangedAt).toLowerCase()}`
+                ? t.lastChanged(
+                    formatRelativeDay(
+                      data.passwordChangedAt,
+                      undefined,
+                      locale
+                    ).toLowerCase()
+                  )
                 : undefined
             }
           >
             <Button size="sm" onClick={() => setDialog("password")}>
-              Change
+              {t.change}
             </Button>
           </SettingRow>
         )}
         {data.hasPassword && (
-          <SettingRow
-            title="Two-step verification"
-            description="A code from your authenticator app at sign-in"
-          >
+          <SettingRow title={twoFactor.title} description={twoFactor.hint}>
             <Switch
-              aria-label="Two-step verification"
+              aria-label={twoFactor.title}
               checked={data.twoFactorEnabled}
               onCheckedChange={() => setDialog("2fa")}
             />
           </SettingRow>
         )}
         {!data.hasPassword && (
-          <SettingRow
-            title="Password"
-            description="You sign in with a connected account."
-          />
+          <SettingRow title={t.password} description={t.connectedAccount} />
         )}
         <PasswordDialog
           open={dialog === "password"}
@@ -464,31 +471,28 @@ export function SecuritySettingsView({ data }: { data: SecuritySettings }) {
 }
 
 export function ClaudeKeyRow({ keyHint }: { keyHint: string | null }) {
+  const t = useMessages(settings).apiKey
+  const c = useMessages(common)
   const [open, setOpen] = React.useState(false)
   const { pending, run } = useAction()
   return (
-    <SettingRow
-      title="Claude API key"
-      description="Used by the Claude highlight selector. Stored encrypted."
-    >
+    <SettingRow title={t.title} description={t.hint}>
       {keyHint && (
         <span className="font-mono text-[13px] text-muted-foreground">
           {keyHint}
         </span>
       )}
       <Button size="sm" onClick={() => setOpen(true)}>
-        {keyHint ? "Replace" : "Add key"}
+        {keyHint ? t.replace : t.add}
       </Button>
       {keyHint && (
         <Button
           size="sm"
           variant="ghost"
           disabled={pending}
-          onClick={() =>
-            run(() => removeAnthropicKeyAction(), "Claude API key removed")
-          }
+          onClick={() => run(() => removeAnthropicKeyAction(), t.removed)}
         >
-          Remove
+          {c.remove}
         </Button>
       )}
       <ApiKeyDialog open={open} onOpenChange={setOpen} />
@@ -498,18 +502,17 @@ export function ClaudeKeyRow({ keyHint }: { keyHint: string | null }) {
 
 export function DeleteAccount({ hasPassword }: { hasPassword: boolean }) {
   const router = useRouter()
+  const { deleteAccount: t, security } = useMessages(settings)
   const [open, setOpen] = React.useState(false)
   const { pending, error, run } = useAction()
   return (
     <SettingsSection className="flex flex-wrap items-center gap-4">
       <div className="grid min-w-0 flex-1 gap-0.5">
-        <b className="font-semibold">Delete account</b>
-        <span className="text-[13px] text-tertiary">
-          Removes every project, clip and export. This can&apos;t be undone.
-        </span>
+        <b className="font-semibold">{t.title}</b>
+        <span className="text-[13px] text-tertiary">{t.hint}</span>
       </div>
       <Button size="sm" variant="destructive" onClick={() => setOpen(true)}>
-        Delete account…
+        {t.open}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
@@ -528,15 +531,14 @@ export function DeleteAccount({ hasPassword }: { hasPassword: boolean }) {
             }}
           >
             <DialogHeader>
-              <DialogTitle>Delete your account?</DialogTitle>
-              <DialogDescription>
-                Every project, clip and render in your workspace is removed from
-                disk.
-              </DialogDescription>
+              <DialogTitle>{t.confirmTitle}</DialogTitle>
+              <DialogDescription>{t.confirmDescription}</DialogDescription>
             </DialogHeader>
             {hasPassword && (
               <Field data-invalid={error ? true : undefined}>
-                <FieldLabel htmlFor="delete-password">Password</FieldLabel>
+                <FieldLabel htmlFor="delete-password">
+                  {security.password}
+                </FieldLabel>
                 <Input
                   id="delete-password"
                   name="password"
@@ -550,7 +552,7 @@ export function DeleteAccount({ hasPassword }: { hasPassword: boolean }) {
             {!hasPassword && error && <FieldError>{error}</FieldError>}
             <DialogFooter>
               <Button type="submit" variant="destructive" disabled={pending}>
-                Delete everything
+                {t.confirm}
               </Button>
             </DialogFooter>
           </form>
@@ -561,6 +563,9 @@ export function DeleteAccount({ hasPassword }: { hasPassword: boolean }) {
 }
 
 function SessionList({ sessions }: { sessions: SecuritySettings["sessions"] }) {
+  const locale = useLocale()
+  const t = useMessages(settings).sessions
+  const c = useMessages(common)
   const { pending, run } = useAction()
   const others = sessions.filter((s) => !s.current).length
 
@@ -568,8 +573,8 @@ function SessionList({ sessions }: { sessions: SecuritySettings["sessions"] }) {
     <SettingsSection aria-labelledby="sessions-title">
       <SettingsSectionHeader
         id="sessions-title"
-        title="Sessions"
-        description="Everywhere you're signed in."
+        title={t.title}
+        description={t.description}
       >
         {others > 0 && (
           <Button
@@ -577,13 +582,10 @@ function SessionList({ sessions }: { sessions: SecuritySettings["sessions"] }) {
             variant="ghost"
             disabled={pending}
             onClick={() =>
-              run(
-                () => authClient.revokeOtherSessions(),
-                "Signed out everywhere else"
-              )
+              run(() => authClient.revokeOtherSessions(), t.signedOutOthers)
             }
           >
-            Sign out all others
+            {t.signOutOthers}
           </Button>
         )}
       </SettingsSectionHeader>
@@ -591,8 +593,8 @@ function SessionList({ sessions }: { sessions: SecuritySettings["sessions"] }) {
         {sessions.map((s) => {
           const Icon = s.device?.mobile ? DeviceMobileIcon : DesktopIcon
           const name = s.device
-            ? `${s.device.browser} on ${s.device.os}`
-            : "Unknown device"
+            ? t.device(s.device.browser, s.device.os)
+            : t.unknownDevice
           return (
             <li
               key={s.id}
@@ -605,15 +607,21 @@ function SessionList({ sessions }: { sessions: SecuritySettings["sessions"] }) {
                 <span className="flex flex-wrap items-center gap-2 font-medium">
                   {name}
                   {s.current && (
-                    <StatusPill tone="mint">This device</StatusPill>
+                    <StatusPill tone="mint">{t.thisDevice}</StatusPill>
                   )}
                 </span>
                 <span className="text-[13px] text-muted-foreground">
                   {[
                     s.ipAddress,
                     s.current
-                      ? "Active now"
-                      : `Last active ${formatRelativeDay(s.updatedAt).toLowerCase()}`,
+                      ? t.activeNow
+                      : t.lastActive(
+                          formatRelativeDay(
+                            s.updatedAt,
+                            undefined,
+                            locale
+                          ).toLowerCase()
+                        ),
                   ]
                     .filter(Boolean)
                     .join(" · ")}
@@ -623,12 +631,12 @@ function SessionList({ sessions }: { sessions: SecuritySettings["sessions"] }) {
                 <Button
                   size="sm"
                   disabled={pending}
-                  aria-label={`Sign out ${name}`}
+                  aria-label={t.signOut(name)}
                   onClick={() =>
-                    run(() => revokeSessionAction(s.id), `Signed out ${name}`)
+                    run(() => revokeSessionAction(s.id), t.signedOut(name))
                   }
                 >
-                  Sign out
+                  {c.signOut}
                 </Button>
               )}
             </li>
@@ -640,6 +648,8 @@ function SessionList({ sessions }: { sessions: SecuritySettings["sessions"] }) {
 }
 
 export function ChannelList({ channels }: { channels: ChannelRow[] }) {
+  const locale = useLocale()
+  const { nav, channels: t, soon } = useMessages(settings)
   const { pending, error, run } = useAction()
   const connect = (channel: ChannelRow) =>
     run(() =>
@@ -655,20 +665,13 @@ export function ChannelList({ channels }: { channels: ChannelRow[] }) {
         accountId: channel.accountId!,
       })
       return result.error?.code === "SESSION_NOT_FRESH"
-        ? {
-            error: {
-              message: `Sign out and back in, then disconnect ${channel.name} again.`,
-            },
-          }
+        ? { error: { message: t.staleSession(channel.name) } }
         : result
-    }, `${channel.name} disconnected`)
+    }, t.disconnected(channel.name))
 
   return (
     <SettingsSection className="gap-1">
-      <SettingsSectionHeader
-        title="Connected channels"
-        description="Import VODs without pasting links, and publish approved clips to your channels."
-      />
+      <SettingsSectionHeader title={nav.channels} description={t.description} />
       <ul className="grid gap-2 pt-3 sm:grid-cols-2">
         {channels.map((channel) => (
           <li
@@ -680,7 +683,7 @@ export function ChannelList({ channels }: { channels: ChannelRow[] }) {
               <span className="font-medium">{channel.name}</span>
               {channel.channelError && (
                 <span role="alert" className="text-[13px] text-amber">
-                  {channel.channelError}
+                  {translateError(channel.channelError, locale)}
                 </span>
               )}
               {channel.channelTitle && (
@@ -691,34 +694,34 @@ export function ChannelList({ channels }: { channels: ChannelRow[] }) {
             </span>
             {!channel.configured ? (
               <StatusPill tone="neutral">
-                {channel.providerId ? "Not set up" : "Soon"}
+                {channel.providerId ? t.notSetUp : soon}
               </StatusPill>
             ) : channel.connectedAt || channel.needsReconnect ? (
               <>
                 {channel.needsReconnect ? (
                   <>
-                    <StatusPill tone="amber">Needs reconnect</StatusPill>
+                    <StatusPill tone="amber">{t.needsReconnect}</StatusPill>
                     <Button
                       size="sm"
                       disabled={pending}
-                      aria-label={`Reconnect ${channel.name}`}
+                      aria-label={t.reconnectChannel(channel.name)}
                       onClick={() => connect(channel)}
                     >
-                      Reconnect
+                      {t.reconnect}
                     </Button>
                   </>
                 ) : (
-                  <StatusPill tone="mint">Connected</StatusPill>
+                  <StatusPill tone="mint">{t.connected}</StatusPill>
                 )}
                 {channel.connectedAt && (
                   <Button
                     size="sm"
                     variant="ghost"
                     disabled={pending}
-                    aria-label={`Disconnect ${channel.name}`}
+                    aria-label={t.disconnectChannel(channel.name)}
                     onClick={() => disconnect(channel)}
                   >
-                    Disconnect
+                    {t.disconnect}
                   </Button>
                 )}
               </>
@@ -726,10 +729,10 @@ export function ChannelList({ channels }: { channels: ChannelRow[] }) {
               <Button
                 size="sm"
                 disabled={pending}
-                aria-label={`Connect ${channel.name}`}
+                aria-label={t.connectChannel(channel.name)}
                 onClick={() => connect(channel)}
               >
-                Connect
+                {t.connect}
               </Button>
             )}
           </li>

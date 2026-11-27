@@ -249,7 +249,7 @@ App composites, not primitives; they read app data and routes.
 - `PageHeader` (`page-header.tsx`): the 60 px header every signed-in page starts with, the editor included ([UX patterns › Header](UX_PATTERNS.md#header)). Parts, in order: `PageHeaderBack` (`href`, `label`), `PageHeaderHeading` holding `PageHeaderContext` over a `PageHeaderTitleLine` with `PageHeaderTitle` (the page's `h1`) and `PageHeaderState`, then `PageHeaderTabs` (`tabs` of `{ href, label, count?, exact? }`, current from the path), `PageHeaderDivider` and `PageHeaderActions`. It sticks to the top on pages that scroll and wraps when it runs out of width.
 - `Page`, `PageLede`: the 1240 px page column and an intro paragraph.
 - `useHotkey(key, handler, { meta })`: single-key shortcuts that ignore fields and open dialogs; `meta` for ⌘/Ctrl chords. It skips events another handler already prevented.
-- `AppSidebar` takes `shortcuts`, a page's own keys to list before the app's in the shortcuts dialog; the clip editor's layout passes `EDITOR_SHORTCUTS`.
+- `AppSidebar` takes `shortcuts`, a page's own keys to list before the app's in the shortcuts dialog; the clip editor's layout passes `EDITOR_SHORTCUTS`. Their labels arrive translated; the dialog adds the app's own from `messages.ts`.
 - `WorkspaceButton`, `UsageCard`, `AccountMenu`, `ShortcutsDialog` (`sidebar-account.tsx`): the sidebar's workspace menu, render-minute `DotMeter`, and account menu (Account, Plan & usage, Settings `,`, Keyboard shortcuts `?`, Sign out).
 
 `components/auth/` holds the sign-in screens: `AuthForm` (sign in and create account, social buttons only for configured providers), `AuthHeading` (the only gradient text), the two-step, forgot and reset forms, and the decorative `AuthGlimpse`. `components/settings/section.tsx` has `SettingsSection`, `SettingsSectionHeader` and `SettingRow`, the graphite cards and hairline rows the settings pages are built from; `SettingsNav` is the settings sub-nav.
@@ -281,6 +281,8 @@ Server Components, except `InView`, the page's only client JavaScript.
 - `components/ui/dropdown-menu.tsx`: `DropdownMenuContent` forwards `anchor` too, for a controlled menu without a trigger (the effect picker at a hovered spot on the timeline).
 
 - `components/ui/combobox.tsx`: `ComboboxInput` names its dropdown and clear buttons "Show options" and "Clear selection"; the registry leaves them unnamed, which axe flags.
+
+- Built-in strings are translated: `dialog` and `sheet` (the sr-only "Close") and `spinner` ("Loading", which makes it a Client Component) read `common`; `combobox` (the two button names) and `command` (`CommandDialog`'s default title and description) read `components/ui/messages.ts`. The custom `VideoPlayer`, `Timeline`, `CaptionPreview` and `CropRegionEditor` read their accessible text from the same file.
 
 ### ChannelIcon (`components/channels/channel-icon.tsx`)
 

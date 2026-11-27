@@ -30,8 +30,11 @@ import {
 } from "@/components/ui/tooltip"
 import { getSearchIndexAction } from "@/features/projects/actions"
 import { formatTimestamp } from "@/lib/format"
+import { useLocale, useMessages } from "@/lib/i18n/client"
+import { common } from "@/lib/i18n/common"
 import { cn } from "@/lib/utils"
 
+import { shell } from "./messages"
 import { useHotkey } from "./use-hotkey"
 
 type SearchIndex = Extract<
@@ -47,6 +50,9 @@ export function CommandPaletteProvider({
   children: React.ReactNode
 }) {
   const router = useRouter()
+  const t = useMessages(shell).palette
+  const c = useMessages(common)
+  const locale = useLocale()
   const [open, setOpen] = React.useState(false)
   const [index, setIndex] = React.useState<SearchIndex | null>(null)
 
@@ -75,19 +81,17 @@ export function CommandPaletteProvider({
       <CommandDialog
         open={open}
         onOpenChange={setOpen}
-        title="Search"
-        description="Search recordings and clips, or jump to a page."
+        title={c.search}
+        description={t.description}
       >
         <Command>
-          <CommandInput placeholder="Search recordings and clips" />
+          <CommandInput placeholder={t.placeholder} />
           <CommandList>
-            <CommandEmpty>
-              {index ? "Nothing matches." : "Loading…"}
-            </CommandEmpty>
+            <CommandEmpty>{index ? t.empty : t.loading}</CommandEmpty>
             {index && index.projects.length > 0 && (
-              <CommandGroup heading="Recordings">
+              <CommandGroup heading={t.recordings}>
                 {index.projects.map((project) => {
-                  const signal = projectSignal(project)
+                  const signal = projectSignal(project, locale)
                   return (
                     <CommandItem
                       key={project.id}
@@ -105,7 +109,7 @@ export function CommandPaletteProvider({
               </CommandGroup>
             )}
             {index && index.clips.length > 0 && (
-              <CommandGroup heading="Clips">
+              <CommandGroup heading={t.clips}>
                 {index.clips.map((clip) => (
                   <CommandItem
                     key={clip.id}
@@ -128,18 +132,18 @@ export function CommandPaletteProvider({
                 ))}
               </CommandGroup>
             )}
-            <CommandGroup heading="Go to">
-              <CommandItem value="New project" onSelect={() => go("/#import")}>
+            <CommandGroup heading={t.goTo}>
+              <CommandItem value={t.newProject} onSelect={() => go("/#import")}>
                 <PlusIcon aria-hidden />
-                New project
+                {t.newProject}
                 <CommandShortcut>N</CommandShortcut>
               </CommandItem>
               <CommandItem
-                value="Settings"
+                value={t.settings}
                 onSelect={() => go("/settings/profile")}
               >
                 <GearSixIcon aria-hidden />
-                Settings
+                {t.settings}
               </CommandItem>
             </CommandGroup>
           </CommandList>
@@ -151,7 +155,7 @@ export function CommandPaletteProvider({
 
 export function SearchTrigger({
   className,
-  label = "Search recordings and clips",
+  label,
   collapsed = false,
 }: {
   className?: string
@@ -159,6 +163,8 @@ export function SearchTrigger({
   collapsed?: boolean
 }) {
   const open = React.useContext(CommandPaletteContext)
+  const t = useMessages(shell).palette
+  const c = useMessages(common)
   const button = (
     <button
       type="button"
@@ -172,7 +178,7 @@ export function SearchTrigger({
     >
       <MagnifyingGlassIcon className="size-4 shrink-0" aria-hidden />
       <span className={cn("min-w-0 flex-1", collapsed && "md:sr-only")}>
-        Search
+        {c.search}
       </span>
       <Kbd aria-hidden className={cn(collapsed && "md:hidden")}>
         ⌘K
@@ -184,7 +190,7 @@ export function SearchTrigger({
     <Tooltip>
       <TooltipTrigger render={button} />
       <TooltipContent side="right" className="max-md:hidden">
-        {label}
+        {label ?? t.placeholder}
       </TooltipContent>
     </Tooltip>
   )

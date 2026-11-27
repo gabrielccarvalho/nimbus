@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { Suspense } from "react"
 
+import { shell } from "@/components/app-shell/messages"
 import { Page } from "@/components/app-shell/page"
 import {
   PageHeader,
@@ -14,10 +15,14 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StatusPill } from "@/components/ui/status-pill"
+import { translateError } from "@/lib/i18n/errors"
+import { getLocale, getMessages } from "@/lib/i18n/server"
 import { requireViewer } from "@/features/accounts/session"
 import { getYouTubeChannelCard } from "@/features/publishing/queries"
 
-export const metadata: Metadata = { title: "Channels" }
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getMessages(shell)).channels.title }
+}
 
 const COMING_SOON = [
   { provider: "twitch", name: "Twitch" },
@@ -26,7 +31,11 @@ const COMING_SOON = [
 ] as const
 
 async function YouTubeCard() {
-  const { channel, error } = await getYouTubeChannelCard()
+  const [{ channel, error }, locale] = await Promise.all([
+    getYouTubeChannelCard(),
+    getLocale(),
+  ])
+  const t = shell[locale].channels
 
   return (
     <section
@@ -48,21 +57,19 @@ async function YouTubeCard() {
           {channel?.title ?? "YouTube"}
         </h2>
         <span className="text-[13px] text-muted-foreground">
-          {channel
-            ? `${channel.publishedCount} ${channel.publishedCount === 1 ? "clip" : "clips"} published`
-            : "Connect a channel to publish approved clips as Shorts."}
+          {channel ? t.published(channel.publishedCount) : t.connectHint}
         </span>
         {error && (
           <span role="alert" className="text-[13px] text-amber">
-            {error}
+            {translateError(error, locale)}
           </span>
         )}
       </div>
       {channel ? (
         channel.needsReconnect ? (
-          <StatusPill tone="amber">Needs reconnect</StatusPill>
+          <StatusPill tone="amber">{t.needsReconnect}</StatusPill>
         ) : (
-          <StatusPill tone="mint">Connected</StatusPill>
+          <StatusPill tone="mint">{t.connected}</StatusPill>
         )
       ) : null}
       {(!channel || channel.needsReconnect) && (
@@ -70,7 +77,7 @@ async function YouTubeCard() {
           href="/settings/channels"
           className={buttonVariants({ size: "sm" })}
         >
-          {channel ? "Reconnect" : "Connect"}
+          {channel ? t.reconnect : t.connect}
         </Link>
       )}
     </section>
@@ -90,13 +97,17 @@ function YouTubeCardSkeleton() {
 }
 
 export default async function ChannelsPage() {
-  const { workspace } = await requireViewer()
+  const [{ workspace }, messages] = await Promise.all([
+    requireViewer(),
+    getMessages(shell),
+  ])
+  const t = messages.channels
   return (
     <>
       <PageHeader>
         <PageHeaderHeading>
           <PageHeaderContext>{workspace.name}</PageHeaderContext>
-          <PageHeaderTitle>Channels</PageHeaderTitle>
+          <PageHeaderTitle>{t.title}</PageHeaderTitle>
         </PageHeaderHeading>
       </PageHeader>
       <Page>
@@ -111,7 +122,7 @@ export default async function ChannelsPage() {
             >
               <ChannelIcon provider={provider} />
               <span className="min-w-0 flex-1 font-medium">{name}</span>
-              <StatusPill tone="neutral">Soon</StatusPill>
+              <StatusPill tone="neutral">{t.soon}</StatusPill>
             </li>
           ))}
         </ul>

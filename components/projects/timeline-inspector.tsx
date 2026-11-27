@@ -42,16 +42,14 @@ import {
   type ReadyMusicTrack,
 } from "@/features/music/schema"
 import { formatDuration, formatTimestamp, parseTimestamp } from "@/lib/format"
+import { useMessages } from "@/lib/i18n/client"
+import { common } from "@/lib/i18n/common"
+
+import { editor, type EditorMessages } from "./messages/editor"
 
 const TRACK_STEP_MS = 100
-const SHAKE_INTENSITIES = [
-  { value: "light", label: "Light" },
-  { value: "strong", label: "Strong" },
-] as const
-const POSITIONS = [
-  { value: "top", label: "Top" },
-  { value: "center", label: "Center" },
-] as const
+const SHAKE_INTENSITIES = ["light", "strong"] as const
+const POSITIONS = ["top", "center"] as const
 
 const seconds = (ms: number) => (ms / 1000).toFixed(1)
 const secondsToMs = (value: string, maxMs: number) =>
@@ -69,10 +67,11 @@ function Times({ startMs, endMs }: { startMs: number; endMs: number }) {
 }
 
 function DeleteButton({ onDelete }: { onDelete: () => void }) {
+  const c = useMessages(common)
   return (
     <Button type="button" size="sm" variant="destructive" onClick={onDelete}>
       <TrashIcon data-icon="inline-start" aria-hidden />
-      Delete
+      {c.delete}
     </Button>
   )
 }
@@ -146,10 +145,10 @@ function SecondsField({
   )
 }
 
-export function effectLabel(effect: Effect) {
-  if (effect.kind === "zoom") return "Zoom"
-  if (effect.kind === "shake") return "Shake"
-  return effect.target === "game" ? "Full game" : "Full cam"
+export function effectLabel(effect: Effect, t: EditorMessages["effects"]) {
+  if (effect.kind === "zoom") return t.zoom
+  if (effect.kind === "shake") return t.shake
+  return effect.target === "game" ? t.game : t.cam
 }
 
 export function EffectInspector({
@@ -166,29 +165,28 @@ export function EffectInspector({
   onDelete: () => void
 }) {
   const id = React.useId()
+  const { item: t, effects } = useMessages(editor)
   return (
     <>
       <PopoverHeader>
-        <PopoverTitle>{effectLabel(effect)}</PopoverTitle>
+        <PopoverTitle>{effectLabel(effect, effects)}</PopoverTitle>
         <Times
           startMs={effect.startMs - clipStartMs}
           endMs={effect.endMs - clipStartMs}
         />
         {effect.kind === "zoom" && (
-          <PopoverDescription>
-            Click the preview to set the focus point.
-          </PopoverDescription>
+          <PopoverDescription>{t.focusHint}</PopoverDescription>
         )}
         {effect.kind === "focus" && !hasWebcam && (
-          <PopoverDescription>No webcam in this layout</PopoverDescription>
+          <PopoverDescription>{t.noWebcam}</PopoverDescription>
         )}
       </PopoverHeader>
       {effect.kind === "zoom" && (
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <Label id={`${id}-scale`}>Strength</Label>
+            <Label id={`${id}-scale`}>{t.strength}</Label>
             <span className="font-mono text-xs tabular-nums">
-              {effect.scale}×
+              {effects.scale(effect.scale)}
             </span>
           </div>
           <Slider
@@ -207,7 +205,7 @@ export function EffectInspector({
       )}
       {effect.kind === "shake" && (
         <div className="flex flex-col gap-2">
-          <Label id={`${id}-intensity`}>Intensity</Label>
+          <Label id={`${id}-intensity`}>{t.intensity}</Label>
           <ToggleGroup
             aria-labelledby={`${id}-intensity`}
             variant="outline"
@@ -215,14 +213,14 @@ export function EffectInspector({
             value={[effect.intensity]}
             onValueChange={(value) => {
               const intensity = SHAKE_INTENSITIES.find(
-                (option) => option.value === value[0]
-              )?.value
+                (option) => option === value[0]
+              )
               if (intensity) onChange({ ...effect, intensity })
             }}
           >
             {SHAKE_INTENSITIES.map((option) => (
-              <ToggleGroupItem key={option.value} value={option.value}>
-                {option.label}
+              <ToggleGroupItem key={option} value={option}>
+                {effects.intensities[option]}
               </ToggleGroupItem>
             ))}
           </ToggleGroup>
@@ -253,9 +251,10 @@ export function CaptionInspector({
   onDelete: () => void
 }) {
   const id = React.useId()
+  const t = useMessages(editor).item
   const [draft, setDraft] = React.useState(text)
-  const error =
-    captionItemSchema.shape.text.safeParse(draft).error?.issues[0]?.message
+  const issue = captionItemSchema.shape.text.safeParse(draft).error?.issues[0]
+  const error = issue?.code === "too_small" ? t.captionRequired : issue?.message
   return (
     <>
       <PopoverHeader>
@@ -263,7 +262,7 @@ export function CaptionInspector({
         <Times startMs={startMs} endMs={endMs} />
       </PopoverHeader>
       <div className="flex flex-col gap-2">
-        <Label htmlFor={`${id}-text`}>Caption text</Label>
+        <Label htmlFor={`${id}-text`}>{t.captionText}</Label>
         <Input
           id={`${id}-text`}
           value={draft}
@@ -282,7 +281,7 @@ export function CaptionInspector({
         {edited && onReset && (
           <Button type="button" size="sm" onClick={onReset}>
             <ArrowCounterClockwiseIcon data-icon="inline-start" aria-hidden />
-            Reset caption
+            {t.resetCaption}
           </Button>
         )}
         <DeleteButton onDelete={onDelete} />
@@ -303,17 +302,19 @@ export function TextInspector({
   onDelete: () => void
 }) {
   const id = React.useId()
-  const error = textOverlaySchema.shape.text.safeParse(overlay.text).error
-    ?.issues[0]?.message
+  const t = useMessages(editor).item
+  const issue = textOverlaySchema.shape.text.safeParse(overlay.text).error
+    ?.issues[0]
+  const error = issue?.code === "too_small" ? t.textRequired : issue?.message
   return (
     <>
       <PopoverHeader>
-        <PopoverTitle>Text on screen</PopoverTitle>
+        <PopoverTitle>{t.textTitle}</PopoverTitle>
         <Times startMs={overlay.startMs} endMs={overlay.endMs} />
       </PopoverHeader>
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
-          <Label htmlFor={`${id}-text`}>Text</Label>
+          <Label htmlFor={`${id}-text`}>{t.text}</Label>
           <span className="font-mono text-xs text-muted-foreground tabular-nums">
             {overlay.text.length}/{TEXT_OVERLAY_MAX_CHARS}
           </span>
@@ -332,28 +333,25 @@ export function TextInspector({
         {error && <FieldError id={`${id}-error`}>{error}</FieldError>}
       </div>
       <div className="flex flex-col gap-1.5">
-        <Label id={`${id}-position`}>Position</Label>
+        <Label id={`${id}-position`}>{t.position}</Label>
         <ToggleGroup
           aria-labelledby={`${id}-position`}
           variant="outline"
           size="sm"
           value={[overlay.position]}
           onValueChange={(next) => {
-            const position = POSITIONS.find((p) => p.value === next[0])
-            if (position) onChange({ ...overlay, position: position.value })
+            const position = POSITIONS.find((p) => p === next[0])
+            if (position) onChange({ ...overlay, position })
           }}
         >
           {POSITIONS.map((position) => (
-            <ToggleGroupItem key={position.value} value={position.value}>
-              {position.label}
+            <ToggleGroupItem key={position} value={position}>
+              {t.positions[position]}
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
         {captionsNearTop && overlay.position === "top" && (
-          <p className="text-[13px] text-amber">
-            Your captions sit near the top too. Move them or put the text in the
-            center.
-          </p>
+          <p className="text-[13px] text-amber">{t.captionsNearTop}</p>
         )}
       </div>
       <DeleteButton onDelete={onDelete} />
@@ -377,24 +375,25 @@ export function MusicInspector({
   onDelete: () => void
 }) {
   const id = React.useId()
+  const t = useMessages(editor).item
   const lengthMs = clip.endMs - clip.startMs
   return (
     <>
       <PopoverHeader>
         <PopoverTitle className="line-clamp-1">
-          {track?.title ?? "Music"}
+          {track?.title ?? t.music}
         </PopoverTitle>
         <Times startMs={clip.startMs} endMs={clip.endMs} />
       </PopoverHeader>
       <VolumeSlider
-        label="Music volume"
+        label={t.musicVolume}
         value={clip.db}
         range={MUSIC_DB}
         onValueChange={(db) => onChange({ ...clip, db })}
       />
       {track && (
         <div className="flex flex-col gap-2">
-          <Label id={`${id}-in`}>Start in song</Label>
+          <Label id={`${id}-in`}>{t.startInSong}</Label>
           <Timeline
             aria-labelledby={`${id}-in`}
             durationMs={track.durationMs}
@@ -418,20 +417,22 @@ export function MusicInspector({
             />
           </Timeline>
           <p className="text-[13px] text-tertiary">
-            Plays from {formatDuration(clip.inMs)} of{" "}
-            {formatDuration(track.durationMs)}
+            {t.playsFrom(
+              formatDuration(clip.inMs),
+              formatDuration(track.durationMs)
+            )}
           </p>
         </div>
       )}
       <div className="flex gap-3">
         <SecondsField
-          label="Fade in (s)"
+          label={t.fadeIn}
           valueMs={clip.fadeInMs}
           maxMs={FADE_MAX_MS}
           onValueChange={(fadeInMs) => onChange({ ...clip, fadeInMs })}
         />
         <SecondsField
-          label="Fade out (s)"
+          label={t.fadeOut}
           valueMs={clip.fadeOutMs}
           maxMs={FADE_MAX_MS}
           onValueChange={(fadeOutMs) => onChange({ ...clip, fadeOutMs })}
@@ -443,7 +444,7 @@ export function MusicInspector({
           checked={duck}
           onCheckedChange={onDuckChange}
         />
-        <Label htmlFor={`${id}-duck`}>Lower music while someone talks</Label>
+        <Label htmlFor={`${id}-duck`}>{t.duck}</Label>
       </div>
       <DeleteButton onDelete={onDelete} />
     </>
@@ -458,16 +459,15 @@ export function SourceInspector({
   onChange: (mix: AudioMix) => void
 }) {
   const id = React.useId()
+  const { item: t, tracks } = useMessages(editor)
   return (
     <>
       <PopoverHeader>
-        <PopoverTitle>Original audio</PopoverTitle>
-        <PopoverDescription>
-          The game and voice. 0 dB keeps them as recorded.
-        </PopoverDescription>
+        <PopoverTitle>{t.originalAudio}</PopoverTitle>
+        <PopoverDescription>{t.originalAudioHelp}</PopoverDescription>
       </PopoverHeader>
       <VolumeSlider
-        label="Original audio volume"
+        label={t.originalVolume}
         value={mix.sourceDb}
         range={SOURCE_DB}
         disabled={mix.sourceMuted}
@@ -479,7 +479,7 @@ export function SourceInspector({
           checked={mix.sourceMuted}
           onCheckedChange={(sourceMuted) => onChange({ ...mix, sourceMuted })}
         />
-        <Label htmlFor={`${id}-mute`}>Mute original audio</Label>
+        <Label htmlFor={`${id}-mute`}>{tracks.muteOriginal}</Label>
       </div>
     </>
   )
@@ -495,18 +495,18 @@ export function VideoInspector({
   onTrim: (startMs: number, endMs: number) => void
 }) {
   const id = React.useId()
+  const t = useMessages(editor).item
   return (
     <>
       <PopoverHeader>
-        <PopoverTitle>Clip</PopoverTitle>
+        <PopoverTitle>{t.clip}</PopoverTitle>
         <PopoverDescription>
-          {seconds(endMs - startMs)} s long. Changing the trim resets the
-          transcript&apos;s caption edits.
+          {t.clipHelp((endMs - startMs) / 1000)}
         </PopoverDescription>
       </PopoverHeader>
       <div className="flex gap-3">
         <div className="grid flex-1 gap-1.5">
-          <Label htmlFor={`${id}-start`}>Start (seconds)</Label>
+          <Label htmlFor={`${id}-start`}>{t.start}</Label>
           <Input
             id={`${id}-start`}
             type="number"
@@ -521,7 +521,7 @@ export function VideoInspector({
           />
         </div>
         <div className="grid flex-1 gap-1.5">
-          <Label htmlFor={`${id}-end`}>End (seconds)</Label>
+          <Label htmlFor={`${id}-end`}>{t.end}</Label>
           <Input
             id={`${id}-end`}
             type="number"
@@ -591,25 +591,23 @@ export function PartInspector({
   onAdd: () => void
   onDelete: () => void
 }) {
+  const t = useMessages(editor).item
   return (
     <>
       <PopoverHeader>
-        <PopoverTitle>
-          Part {index + 1} of {count}
-        </PopoverTitle>
+        <PopoverTitle>{t.partOf(index + 1, count)}</PopoverTitle>
         <PopoverDescription>
-          {seconds(part.endMs - part.startMs)} s of the recording. Parts play in
-          order, back to back.
+          {t.partHelp((part.endMs - part.startMs) / 1000)}
         </PopoverDescription>
       </PopoverHeader>
       <div className="flex gap-3">
         <TimestampField
-          label="From"
+          label={t.from}
           valueMs={part.startMs}
           onCommit={(startMs) => onChange({ ...part, startMs })}
         />
         <TimestampField
-          label="To"
+          label={t.to}
           valueMs={part.endMs}
           onCommit={(endMs) => onChange({ ...part, endMs })}
         />
@@ -622,7 +620,7 @@ export function PartInspector({
           onClick={() => onMove(index - 1)}
         >
           <ArrowLeftIcon data-icon="inline-start" aria-hidden />
-          Earlier
+          {t.earlier}
         </Button>
         <Button
           type="button"
@@ -630,12 +628,12 @@ export function PartInspector({
           disabled={index === count - 1}
           onClick={() => onMove(index + 1)}
         >
-          Later
+          {t.later}
           <ArrowRightIcon data-icon="inline-end" aria-hidden />
         </Button>
         <Button type="button" size="sm" onClick={onAdd}>
           <PlusIcon data-icon="inline-start" aria-hidden />
-          Add a part
+          {t.addPart}
         </Button>
         {count > 1 && <DeleteButton onDelete={onDelete} />}
       </div>

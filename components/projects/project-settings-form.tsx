@@ -48,47 +48,22 @@ import type { ProjectSettingsData } from "@/features/projects/queries"
 import type { RerunStep } from "@/features/projects/rerun"
 import type { AudioTrack, ProjectSettings } from "@/features/projects/schema"
 import { isRunning } from "@/features/pipeline/state-machine"
+import { useLocale } from "@/lib/i18n/client"
+import type { Locale } from "@/lib/i18n/config"
 
-const RERUN: Record<
-  RerunStep,
-  { title: string; description: string; action: string }
-> = {
-  transcribe: {
-    title: "Transcribe again?",
-    description:
-      "The language or voice track changed. Transcribing again also finds new highlights; approved and rendered clips are kept.",
-    action: "Transcribe again",
-  },
-  select: {
-    title: "Find highlights again?",
-    description:
-      "Highlight options changed. Candidates are replaced; approved and rendered clips are kept.",
-    action: "Find highlights again",
-  },
-  render: {
-    title: "Render clips again?",
-    description:
-      "Caption or quality options changed for clips already rendered.",
-    action: "Render again",
-  },
-}
+import { overview } from "./messages/overview"
 
-const LANGUAGE_SOURCE: Record<string, string> = {
-  setting: "chosen in settings",
-  source: "from the video's page",
-  detected: "detected",
-  whisper: "detected by Whisper",
-}
+type Messages = (typeof overview)[Locale]["settingsForm"]
 
-function trackLabel(track: AudioTrack) {
+function trackLabel(track: AudioTrack, t: Messages) {
   const parts = [track.title, track.language?.toUpperCase()].filter(Boolean)
   const channels =
     track.channels === 1
-      ? "mono"
+      ? t.mono
       : track.channels === 2
-        ? "stereo"
-        : `${track.channels} ch`
-  return `Track ${track.index + 1}${parts.length ? ` · ${parts.join(" · ")}` : ""} (${channels})`
+        ? t.stereo
+        : t.channels(track.channels)
+  return `${t.track(track.index + 1)}${parts.length ? ` · ${parts.join(" · ")}` : ""} (${channels})`
 }
 
 export function ProjectSettingsForm({
@@ -106,6 +81,8 @@ export function ProjectSettingsForm({
     englishOnlyModel,
   } = data
   const router = useRouter()
+  const locale = useLocale()
+  const t = overview[locale].settingsForm
   const [pending, startTransition] = React.useTransition()
   const [settings, setSettings] = React.useState(project.settings)
   const [error, setError] = React.useState<string | null>(null)
@@ -127,7 +104,7 @@ export function ProjectSettingsForm({
       }
       setError(null)
       setRerun(result.value.rerun)
-      toast.success("Project settings saved")
+      toast.success(t.saved)
       router.refresh()
     })
   }
@@ -150,9 +127,12 @@ export function ProjectSettingsForm({
   }
 
   const detected = transcript
-    ? `Transcribed as ${languageLabel(transcript.language)}${transcript.source ? ` (${LANGUAGE_SOURCE[transcript.source]})` : ""}.`
+    ? t.transcribedAs(
+        languageLabel(transcript.language, locale),
+        transcript.source ? t.languageSources[transcript.source] : undefined
+      )
     : project.sourceLanguage
-      ? `The video's page says ${languageLabel(project.sourceLanguage)}; that's used when set to detect.`
+      ? t.pageSays(languageLabel(project.sourceLanguage, locale))
       : undefined
 
   return (
@@ -160,8 +140,8 @@ export function ProjectSettingsForm({
       {rerun && (
         <Alert>
           <ArrowClockwiseIcon />
-          <AlertTitle>{RERUN[rerun].title}</AlertTitle>
-          <AlertDescription>{RERUN[rerun].description}</AlertDescription>
+          <AlertTitle>{t.rerun[rerun].title}</AlertTitle>
+          <AlertDescription>{t.rerun[rerun].description}</AlertDescription>
           <AlertAction>
             <Button
               type="button"
@@ -169,7 +149,7 @@ export function ProjectSettingsForm({
               disabled={pending}
               onClick={() => runAgain(rerun)}
             >
-              {RERUN[rerun].action}
+              {t.rerun[rerun].action}
             </Button>
           </AlertAction>
         </Alert>
@@ -177,7 +157,7 @@ export function ProjectSettingsForm({
 
       <Card>
         <CardHeader>
-          <CardTitle>Transcription</CardTitle>
+          <CardTitle>{t.transcription}</CardTitle>
         </CardHeader>
         <CardContent>
           <FieldGroup>
@@ -189,13 +169,13 @@ export function ProjectSettingsForm({
             />
             {audioTracks.length > 1 && (
               <Field>
-                <FieldLabel htmlFor="audio-track">Voice track</FieldLabel>
+                <FieldLabel htmlFor="audio-track">{t.voiceTrack}</FieldLabel>
                 <Select
                   items={[
-                    { value: "default", label: "Default track" },
+                    { value: "default", label: t.defaultTrack },
                     ...audioTracks.map((track) => ({
                       value: String(track.index),
-                      label: trackLabel(track),
+                      label: trackLabel(track, t),
                     })),
                   ]}
                   value={
@@ -214,18 +194,16 @@ export function ProjectSettingsForm({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="default">Default track</SelectItem>
+                    <SelectItem value="default">{t.defaultTrack}</SelectItem>
                     {audioTracks.map((track) => (
                       <SelectItem key={track.index} value={String(track.index)}>
-                        {trackLabel(track)}
+                        {trackLabel(track, t)}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <FieldDescription>
-                  This recording has {audioTracks.length} audio tracks. Pick the
-                  one with only your microphone so game dialogue isn&apos;t
-                  transcribed. Loudness still uses the full mix.
+                  {t.tracksHint(audioTracks.length)}
                 </FieldDescription>
               </Field>
             )}
@@ -235,7 +213,7 @@ export function ProjectSettingsForm({
 
       <Card>
         <CardHeader>
-          <CardTitle>Highlights</CardTitle>
+          <CardTitle>{t.highlights}</CardTitle>
         </CardHeader>
         <CardContent>
           <FieldGroup>
@@ -251,7 +229,7 @@ export function ProjectSettingsForm({
 
       <Card>
         <CardHeader>
-          <CardTitle>Captions</CardTitle>
+          <CardTitle>{t.captions}</CardTitle>
         </CardHeader>
         <CardContent>
           <CaptionFields value={settings} set={set} />
@@ -260,10 +238,8 @@ export function ProjectSettingsForm({
 
       <Card>
         <CardHeader>
-          <CardTitle>Rendering</CardTitle>
-          <CardDescription>
-            Hardware encoding is set for all projects in Settings.
-          </CardDescription>
+          <CardTitle>{t.rendering}</CardTitle>
+          <CardDescription>{t.renderingHint}</CardDescription>
         </CardHeader>
         <CardContent>
           <QualityField value={settings} set={set} />
@@ -277,12 +253,10 @@ export function ProjectSettingsForm({
       )}
       <div className="flex items-center gap-3">
         <Button type="submit" disabled={pending || running}>
-          Save project settings
+          {t.save}
         </Button>
         {running && (
-          <p className="text-sm text-muted-foreground">
-            Settings can be changed once the current step finishes.
-          </p>
+          <p className="text-sm text-muted-foreground">{t.running}</p>
         )}
       </div>
     </form>

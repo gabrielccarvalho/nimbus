@@ -2,20 +2,10 @@ import { StatusPill } from "@/components/ui/status-pill"
 import type { Tone } from "@/components/ui/tone"
 import type { ClipStatus } from "@/features/clips/schema"
 import type { ProjectStatus } from "@/features/projects/schema"
+import { useLocale } from "@/lib/i18n/client"
+import { defaultLocale, type Locale } from "@/lib/i18n/config"
 
-const LABELS: Record<ProjectStatus, string> = {
-  downloading: "Downloading",
-  uploaded: "Uploaded",
-  probing: "Probing",
-  transcribing: "Transcribing",
-  analyzing: "Analyzing",
-  selecting: "Finding highlights",
-  ready_for_review: "Ready for review",
-  rendering: "Rendering",
-  done: "Done",
-  failed: "Failed",
-  cancelled: "Cancelled",
-}
+import { overview } from "./messages/overview"
 
 const PROJECT_TONES: Record<ProjectStatus, Tone> = {
   downloading: "lav",
@@ -45,36 +35,40 @@ export type ProjectSignal = {
   needsYou: boolean
 }
 
-export function projectSignal({
-  status,
-  failedStep,
-  awaitingManualSelection,
-  reviewCount = 0,
-}: ProjectSignalInput): ProjectSignal {
+export function projectSignal(
+  {
+    status,
+    failedStep,
+    awaitingManualSelection,
+    reviewCount = 0,
+  }: ProjectSignalInput,
+  locale: Locale = defaultLocale
+): ProjectSignal {
+  const t = overview[locale].status
   if (status === "selecting" && awaitingManualSelection)
     return {
       tone: "amber",
-      label: "Needs you",
-      detail: "Paste highlights",
+      label: t.needsYou,
+      detail: t.pasteHighlights,
       needsYou: true,
     }
   if (status === "ready_for_review")
     return {
       tone: "mint",
-      label: reviewCount > 0 ? `${reviewCount} to review` : "Ready",
-      detail: reviewCount > 0 ? null : "Approve clips to render",
+      label: reviewCount > 0 ? t.toReview(reviewCount) : t.ready,
+      detail: reviewCount > 0 ? null : t.approveToRender,
       needsYou: false,
     }
   if (status === "failed")
     return {
       tone: "pink",
-      label: failedStep ? `${LABELS[failedStep]} failed` : "Failed",
+      label: failedStep ? t.stepFailed[failedStep] : t.project.failed,
       detail: null,
       needsYou: false,
     }
   return {
     tone: PROJECT_TONES[status],
-    label: LABELS[status],
+    label: t.project[status],
     detail: null,
     needsYou: false,
   }
@@ -90,8 +84,11 @@ export function projectFilter(input: ProjectSignalInput): ProjectFilter {
   return "processing"
 }
 
-export function projectStatusLabel(status: ProjectStatus) {
-  return LABELS[status]
+export function projectStatusLabel(
+  status: ProjectStatus,
+  locale: Locale = defaultLocale
+) {
+  return overview[locale].status.project[status]
 }
 
 export function projectStatusTone(status: ProjectStatus) {
@@ -99,16 +96,12 @@ export function projectStatusTone(status: ProjectStatus) {
 }
 
 export function ProjectStatusBadge({ status }: { status: ProjectStatus }) {
-  return <StatusPill tone={PROJECT_TONES[status]}>{LABELS[status]}</StatusPill>
-}
-
-const CLIP_LABELS: Record<ClipStatus, string> = {
-  candidate: "To review",
-  approved: "Approved",
-  rejected: "Rejected",
-  rendering: "Rendering",
-  rendered: "Rendered",
-  failed: "Render failed",
+  const locale = useLocale()
+  return (
+    <StatusPill tone={PROJECT_TONES[status]}>
+      {projectStatusLabel(status, locale)}
+    </StatusPill>
+  )
 }
 
 const CLIP_TONES: Record<ClipStatus, Tone> = {
@@ -120,8 +113,11 @@ const CLIP_TONES: Record<ClipStatus, Tone> = {
   failed: "pink",
 }
 
-export function clipStatusLabel(status: ClipStatus) {
-  return CLIP_LABELS[status]
+export function clipStatusLabel(
+  status: ClipStatus,
+  locale: Locale = defaultLocale
+) {
+  return overview[locale].status.clip[status]
 }
 
 export function ClipStatusBadge({
@@ -131,9 +127,10 @@ export function ClipStatusBadge({
   status: ClipStatus
   className?: string
 }) {
+  const locale = useLocale()
   return (
     <StatusPill tone={CLIP_TONES[status]} className={className}>
-      {CLIP_LABELS[status]}
+      {clipStatusLabel(status, locale)}
     </StatusPill>
   )
 }

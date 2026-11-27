@@ -8,10 +8,11 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Sparkline } from "@/components/ui/sparkline"
 import { refreshStatsAction } from "@/features/publishing/actions"
+import { useMessages } from "@/lib/i18n/client"
 
+import { review } from "./messages/review"
 import type { PublicationState } from "./publish-dialog"
 
-const counts = new Intl.NumberFormat("en")
 const POLL_MS = 5000
 
 function useRefreshStats(publicationId: string) {
@@ -30,6 +31,7 @@ function useRefreshStats(publicationId: string) {
 }
 
 export function ClipStats({ publication }: { publication: PublicationState }) {
+  const t = useMessages(review).stats
   const { stats, early, refreshing, status } = publication
   const { pending, refresh } = useRefreshStats(publication.id)
   const removed = status === "removed"
@@ -43,28 +45,24 @@ export function ClipStats({ publication }: { publication: PublicationState }) {
   }, [refreshing, router])
 
   return (
-    <section aria-label="YouTube stats" className="flex flex-col gap-2 text-sm">
-      {removed && (
-        <p className="text-xs text-muted-foreground">Removed from YouTube</p>
-      )}
+    <section aria-label={t.label} className="flex flex-col gap-2 text-sm">
+      {removed && <p className="text-xs text-muted-foreground">{t.removed}</p>}
       {stats ? (
         <>
           <p className="flex flex-wrap gap-x-3 gap-y-1 tabular-nums">
-            <span>{counts.format(stats.views)} views</span>
-            <span>{counts.format(stats.likes)} likes</span>
-            <span>{counts.format(stats.comments)} comments</span>
+            <span>{t.views(stats.views)}</span>
+            <span>{t.likes(stats.likes)}</span>
+            <span>{t.comments(stats.comments)}</span>
           </p>
           {(stats.averageViewDurationS !== null ||
             stats.averageViewPercentage !== null) && (
             <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground tabular-nums">
               {stats.averageViewDurationS !== null && (
-                <span>
-                  {stats.averageViewDurationS.toFixed(1)} s average view
-                </span>
+                <span>{t.averageView(stats.averageViewDurationS)}</span>
               )}
               {stats.averageViewPercentage !== null && (
                 <span>
-                  {Math.round(stats.averageViewPercentage)}% watched on average
+                  {t.averageWatched(Math.round(stats.averageViewPercentage))}
                 </span>
               )}
             </p>
@@ -73,25 +71,23 @@ export function ClipStats({ publication }: { publication: PublicationState }) {
             <Sparkline
               values={stats.retention}
               markers={stats.markers}
-              label="Retention: share of viewers still watching across the clip"
+              label={t.retention}
             />
           ) : (
-            <p className="text-xs text-muted-foreground">
-              YouTube hasn&apos;t shared the retention curve yet
-            </p>
+            <p className="text-xs text-muted-foreground">{t.noRetention}</p>
           )}
         </>
       ) : (
-        <p className="text-xs text-muted-foreground">No stats yet</p>
+        <p className="text-xs text-muted-foreground">{t.empty}</p>
       )}
       {early && !removed && (
-        <p className="text-xs text-muted-foreground">Data still coming in</p>
+        <p className="text-xs text-muted-foreground">{t.early}</p>
       )}
       {!removed && (
         <div>
           <Button size="sm" variant="ghost" disabled={busy} onClick={refresh}>
             <ArrowsClockwiseIcon data-icon="inline-start" aria-hidden />
-            {busy ? "Refreshing…" : "Refresh stats"}
+            {busy ? t.refreshing : t.refresh}
           </Button>
         </div>
       )}

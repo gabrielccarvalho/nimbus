@@ -22,10 +22,12 @@ import {
   formatDuration,
   formatRelativeDay,
   mediaUrl,
-  sourceLabel,
 } from "@/lib/format"
+import { useLocale } from "@/lib/i18n/client"
+import type { Locale } from "@/lib/i18n/config"
 import { cn } from "@/lib/utils"
 
+import { localSourceLabel, overview } from "./messages/overview"
 import {
   projectFilter,
   projectSignal,
@@ -50,41 +52,28 @@ export type ProjectGridItem = {
   progress: number | null
 }
 
-const FILTERS: { id: ProjectFilter | "all"; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "needs", label: "Needs you" },
-  { id: "processing", label: "Processing" },
-  { id: "ready", label: "Ready" },
-  { id: "done", label: "Exported" },
-]
+const FILTERS = ["all", "needs", "processing", "ready", "done"] as const
 
-const SORTS = {
-  recent: "Most recent",
-  oldest: "Oldest",
-  name: "Name",
-} as const
+const SORTS = ["recent", "oldest", "name"] as const
 
-type Sort = keyof typeof SORTS
+type Sort = (typeof SORTS)[number]
 
-function clipsLabel(count: number) {
-  return `${count} ${count === 1 ? "clip" : "clips"}`
-}
-
-function meta(project: ProjectGridItem) {
+function meta(project: ProjectGridItem, locale: Locale) {
   return [
-    formatRelativeDay(new Date(project.createdAt)),
-    sourceLabel(project.sourceUrl),
+    formatRelativeDay(new Date(project.createdAt), undefined, locale),
+    localSourceLabel(project.sourceUrl, locale),
     project.width && project.height
       ? `${project.width}×${project.height}`
       : null,
-    project.bytes ? formatBytes(project.bytes) : null,
+    project.bytes ? formatBytes(project.bytes, locale) : null,
   ]
     .filter(Boolean)
     .join(" · ")
 }
 
 export function NeedsYouBanner({ project }: { project: ProjectGridItem }) {
-  const signal = projectSignal(project)
+  const locale = useLocale()
+  const signal = projectSignal(project, locale)
   return (
     <Link
       href={`/projects/${project.id}/clips`}
@@ -94,7 +83,7 @@ export function NeedsYouBanner({ project }: { project: ProjectGridItem }) {
       <span className="min-w-0 flex-[1_1_300px] text-sm">
         <b className="font-semibold">{project.name}</b>{" "}
         <span className="text-muted-foreground">
-          is waiting for you. Paste Claude&apos;s highlights to continue.
+          {overview[locale].grid.waiting}
         </span>
       </span>
       <span className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold">
@@ -106,7 +95,8 @@ export function NeedsYouBanner({ project }: { project: ProjectGridItem }) {
 }
 
 function ProjectTile({ project }: { project: ProjectGridItem }) {
-  const signal = projectSignal(project)
+  const locale = useLocale()
+  const signal = projectSignal(project, locale)
   const processing = projectFilter(project) === "processing"
   return (
     <article className="group relative grid min-w-0 gap-3 rounded-[14px] focus-within:outline-2 focus-within:outline-offset-4 focus-within:outline-lav">
@@ -131,7 +121,7 @@ function ProjectTile({ project }: { project: ProjectGridItem }) {
         </span>
         {project.clipCount > 0 && (
           <span className="absolute start-2.5 bottom-2.5 z-10 rounded-[7px] bg-night/72 px-[7px] py-[5px] text-xs leading-none font-semibold backdrop-blur-sm">
-            {clipsLabel(project.clipCount)}
+            {overview[locale].grid.clips(project.clipCount)}
           </span>
         )}
       </div>
@@ -149,7 +139,9 @@ function ProjectTile({ project }: { project: ProjectGridItem }) {
             {signal.label}
           </StatusPill>
         </div>
-        <span className="text-[12.5px] text-tertiary">{meta(project)}</span>
+        <span className="text-[12.5px] text-tertiary">
+          {meta(project, locale)}
+        </span>
         {processing && (
           <div
             aria-hidden
@@ -170,6 +162,8 @@ export function ProjectGrid({ projects }: { projects: ProjectGridItem[] }) {
   const [filter, setFilter] = React.useState<ProjectFilter | "all">("all")
   const [sort, setSort] = React.useState<Sort>("recent")
   const router = useRouter()
+  const locale = useLocale()
+  const t = overview[locale].grid
   const anyProcessing = projects.some((p) => projectFilter(p) === "processing")
 
   React.useEffect(() => {
@@ -187,38 +181,38 @@ export function ProjectGrid({ projects }: { projects: ProjectGridItem[] }) {
     .filter((p) => filter === "all" || projectFilter(p) === filter)
     .toSorted((a, b) =>
       sort === "name"
-        ? a.name.localeCompare(b.name)
+        ? a.name.localeCompare(b.name, locale)
         : sort === "oldest"
           ? a.createdAt.localeCompare(b.createdAt)
           : b.createdAt.localeCompare(a.createdAt)
     )
 
   return (
-    <section aria-label="Recordings" className="grid gap-4">
+    <section aria-label={t.recordings} className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div
           role="group"
-          aria-label="Filter recordings"
+          aria-label={t.filterRecordings}
           className="flex flex-wrap gap-0.5"
         >
-          {FILTERS.map((item) => (
+          {FILTERS.map((id) => (
             <button
-              key={item.id}
+              key={id}
               type="button"
-              aria-pressed={filter === item.id}
-              onClick={() => setFilter(item.id)}
+              aria-pressed={filter === id}
+              onClick={() => setFilter(id)}
               className="inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-medium tracking-[-0.01em] whitespace-nowrap text-muted-foreground transition-colors hover:bg-glass hover:text-foreground aria-pressed:bg-glass-3 aria-pressed:text-foreground"
             >
-              {item.label}{" "}
+              {t.filters[id]}{" "}
               <span className="font-mono text-xs text-muted-foreground tabular-nums">
-                {counts.get(item.id) ?? 0}
+                {counts.get(id) ?? 0}
               </span>
             </button>
           ))}
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger className="inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-glass hover:text-foreground">
-            {SORTS[sort]}
+            {t.sorts[sort]}
             <CaretDownIcon className="size-3.5" aria-hidden />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -226,9 +220,9 @@ export function ProjectGrid({ projects }: { projects: ProjectGridItem[] }) {
               value={sort}
               onValueChange={(value) => setSort(value as Sort)}
             >
-              {Object.entries(SORTS).map(([value, label]) => (
+              {SORTS.map((value) => (
                 <DropdownMenuRadioItem key={value} value={value}>
-                  {label}
+                  {t.sorts[value]}
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>
@@ -236,9 +230,7 @@ export function ProjectGrid({ projects }: { projects: ProjectGridItem[] }) {
         </DropdownMenu>
       </div>
       {shown.length === 0 ? (
-        <p className="py-10 text-center text-sm text-tertiary">
-          Nothing here right now.
-        </p>
+        <p className="py-10 text-center text-sm text-tertiary">{t.empty}</p>
       ) : (
         <ul className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-[18px]">
           {shown.map((project) => (

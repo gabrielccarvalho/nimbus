@@ -2,8 +2,10 @@ import { cookies } from "next/headers"
 
 import { AppSidebar } from "@/components/app-shell/app-sidebar"
 import { CommandPaletteProvider } from "@/components/app-shell/command-palette"
+import { shell } from "@/components/app-shell/messages"
 import { SIDEBAR_COOKIE } from "@/components/app-shell/sidebar-cookie"
-import { initials, PLANS } from "@/features/accounts/schema"
+import { getMessages } from "@/lib/i18n/server"
+import { initials } from "@/features/accounts/schema"
 import { requireViewer } from "@/features/accounts/session"
 import { countProjects, listRecentProjects } from "@/features/projects/queries"
 
@@ -15,9 +17,10 @@ export default async function AppLayout({
   const { user, workspace } = await requireViewer()
   const cookieStore = await cookies()
   const collapsed = cookieStore.get(SIDEBAR_COOKIE)?.value === "false"
-  const [recent, projectCount] = await Promise.all([
+  const [recent, projectCount, t] = await Promise.all([
     listRecentProjects(3),
     countProjects(),
+    getMessages(shell),
   ])
 
   return (
@@ -26,7 +29,7 @@ export default async function AppLayout({
         href="#main"
         className="sr-only z-50 rounded-full bg-graphite-3 px-4 py-2 text-sm font-semibold focus:not-sr-only focus:fixed focus:start-4 focus:top-4"
       >
-        Skip to content
+        {t.skipToContent}
       </a>
       <div className="flex min-h-svh flex-col md:flex-row">
         <AppSidebar
@@ -43,7 +46,7 @@ export default async function AppLayout({
             name: workspace.name,
             initials: initials(workspace.name),
             image: workspace.image,
-            planName: PLANS[workspace.plan].name,
+            planName: t.plans[workspace.plan],
           }}
         />
         <div className="flex min-w-0 flex-1 flex-col">

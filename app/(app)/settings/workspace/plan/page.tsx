@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 
+import { settings } from "@/components/settings/messages"
 import {
   SettingsSection,
   SettingsSectionHeader,
@@ -7,14 +8,11 @@ import {
 import { DotMeter } from "@/components/ui/dot-meter"
 import { getPlanSettings } from "@/features/accounts/queries"
 import { formatBytes } from "@/lib/format"
+import { getLocale, getMessages } from "@/lib/i18n/server"
 
-export const metadata: Metadata = { title: "Plan & usage" }
-
-const day = new Intl.DateTimeFormat("en", {
-  month: "short",
-  day: "numeric",
-  timeZone: "UTC",
-})
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getMessages(settings)).nav.plan }
+}
 
 function Meter({
   label,
@@ -22,12 +20,14 @@ function Meter({
   max,
   display,
   limit,
+  unlimited,
 }: {
   label: string
   value: number
   max: number | null
   display: string
   limit: string
+  unlimited: string
 }) {
   return (
     <div className="grid gap-2.5 rounded-[14px] bg-graphite-2 p-4">
@@ -35,7 +35,7 @@ function Meter({
       <span className="font-mono text-2xl font-semibold tracking-[-0.03em] tabular-nums">
         {display}{" "}
         <span className="text-sm font-normal text-tertiary">
-          {max === null ? "· Unlimited" : `/ ${limit}`}
+          {max === null ? `· ${unlimited}` : `/ ${limit}`}
         </span>
       </span>
       {max !== null && (
@@ -51,47 +51,56 @@ function Meter({
 }
 
 export default async function PlanPage() {
-  const usage = await getPlanSettings()
+  const [usage, locale] = await Promise.all([getPlanSettings(), getLocale()])
+  const t = settings[locale].plan
+  const resets = new Intl.DateTimeFormat(locale, {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(usage.resetsAt)
   return (
     <SettingsSection>
       <SettingsSectionHeader
-        title="Plan & usage"
+        title={settings[locale].nav.plan}
         description={
           usage.plan.id === "admin"
-            ? `Admin plan · resets ${day.format(usage.resetsAt)}. No limits; usage is still tracked.`
-            : `${usage.plan.name} plan · resets ${day.format(usage.resetsAt)}. Usage is tracked but not limited; billing isn't set up yet.`
+            ? t.adminSummary(resets)
+            : t.summary(t.names[usage.plan.id] ?? usage.plan.name, resets)
         }
       />
       <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3">
         <Meter
-          label="Render minutes"
+          label={t.renderMinutes}
           value={usage.renderMinutes}
           max={usage.plan.renderMinutes}
           display={String(usage.renderMinutes)}
           limit={String(usage.plan.renderMinutes)}
+          unlimited={t.unlimited}
         />
         <Meter
-          label="Storage"
+          label={t.storage}
           value={usage.storageBytes}
           max={usage.plan.storageBytes}
-          display={formatBytes(usage.storageBytes)}
-          limit={formatBytes(usage.plan.storageBytes ?? 0)}
+          display={formatBytes(usage.storageBytes, locale)}
+          limit={formatBytes(usage.plan.storageBytes ?? 0, locale)}
+          unlimited={t.unlimited}
         />
         <Meter
-          label="Highlight runs with Claude"
+          label={t.claudeRuns}
           value={usage.claudeRuns}
           max={usage.plan.claudeRuns}
           display={String(usage.claudeRuns)}
           limit={String(usage.plan.claudeRuns)}
+          unlimited={t.unlimited}
         />
         <div className="grid gap-2.5 rounded-[14px] bg-graphite-2 p-4">
           <span className="text-[13px] text-muted-foreground">
-            Publishes today
+            {t.publishesToday}
           </span>
           <span className="font-mono text-2xl font-semibold tracking-[-0.03em] tabular-nums">
             {usage.plan.publishesPerDay === null
-              ? "No limit"
-              : `${usage.publishesToday} of ${usage.plan.publishesPerDay}`}
+              ? t.noLimit
+              : t.publishes(usage.publishesToday, usage.plan.publishesPerDay)}
           </span>
         </div>
       </div>

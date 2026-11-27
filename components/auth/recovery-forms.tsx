@@ -12,8 +12,10 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { useMessages } from "@/lib/i18n/client"
 
 import { authClient } from "./auth-client"
+import { auth, authErrorMessage, type AuthClientError } from "./messages"
 
 function Heading({ title, lede }: { title: string; lede: string }) {
   return (
@@ -25,9 +27,10 @@ function Heading({ title, lede }: { title: string; lede: string }) {
 }
 
 function useSubmit(
-  run: (data: FormData) => Promise<{ error: { message?: string } | null }>,
+  run: (data: FormData) => Promise<{ error: AuthClientError | null }>,
   onDone: () => void
 ) {
+  const errors = useMessages(auth).errors
   const [pending, startTransition] = React.useTransition()
   const [error, setError] = React.useState<string | null>(null)
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -36,7 +39,7 @@ function useSubmit(
     startTransition(async () => {
       const result = await run(data)
       if (result.error) {
-        setError(result.error.message ?? "That didn't work. Try again.")
+        setError(authErrorMessage(errors, result.error))
         return
       }
       setError(null)
@@ -48,6 +51,7 @@ function useSubmit(
 
 export function TwoFactorForm() {
   const router = useRouter()
+  const t = useMessages(auth).twoFactor
   const [backup, setBackup] = React.useState(false)
   const { pending, error, submit } = useSubmit(
     (data) => {
@@ -66,22 +70,11 @@ export function TwoFactorForm() {
   )
   return (
     <>
-      <Heading
-        title="Two-step verification"
-        lede={
-          backup
-            ? "Enter one of the backup codes you saved."
-            : "Enter the 6-digit code from your authenticator app."
-        }
-      />
-      <form
-        onSubmit={submit}
-        className="grid gap-4"
-        aria-label="Verify sign-in"
-      >
+      <Heading title={t.title} lede={backup ? t.backupLede : t.codeLede} />
+      <form onSubmit={submit} className="grid gap-4" aria-label={t.form}>
         <Field data-invalid={error ? true : undefined}>
           <FieldLabel htmlFor="code">
-            {backup ? "Backup code" : "Code"}
+            {backup ? t.backupCode : t.code}
           </FieldLabel>
           <Input
             id="code"
@@ -98,14 +91,14 @@ export function TwoFactorForm() {
         {!backup && (
           <label className="flex items-center gap-2 text-sm text-muted-foreground">
             <input type="checkbox" name="trust" className="accent-lav" />
-            Trust this device for 30 days
+            {t.trust}
           </label>
         )}
         <Button type="submit" variant="primary" size="lg" disabled={pending}>
-          {pending ? "Checking…" : "Verify"}
+          {pending ? t.pending : t.verify}
         </Button>
         <Button type="button" variant="link" onClick={() => setBackup(!backup)}>
-          {backup ? "Use the authenticator code" : "Use a backup code"}
+          {backup ? t.useCode : t.useBackup}
         </Button>
       </form>
     </>
@@ -113,6 +106,7 @@ export function TwoFactorForm() {
 }
 
 export function ForgotPasswordForm() {
+  const t = useMessages(auth).forgot
   const [sent, setSent] = React.useState(false)
   const { pending, error, submit } = useSubmit(
     (data) =>
@@ -125,32 +119,22 @@ export function ForgotPasswordForm() {
   if (sent) {
     return (
       <>
-        <Heading
-          title="Check the server log"
-          lede="nimbus runs on your machine and doesn't send email. If that address has an account, the reset link was written to the server log."
-        />
+        <Heading title={t.sentTitle} lede={t.sentLede} />
         <Link
           href="/login"
           className="text-sm text-muted-foreground hover:text-foreground"
         >
-          Back to sign in
+          {t.back}
         </Link>
       </>
     )
   }
   return (
     <>
-      <Heading
-        title="Reset your password"
-        lede="We'll make a one-time link to set a new one."
-      />
-      <form
-        onSubmit={submit}
-        className="grid gap-4"
-        aria-label="Reset password"
-      >
+      <Heading title={t.title} lede={t.lede} />
+      <form onSubmit={submit} className="grid gap-4" aria-label={t.form}>
         <Field data-invalid={error ? true : undefined}>
-          <FieldLabel htmlFor="email">Email</FieldLabel>
+          <FieldLabel htmlFor="email">{t.email}</FieldLabel>
           <Input
             id="email"
             name="email"
@@ -161,13 +145,13 @@ export function ForgotPasswordForm() {
           {error && <FieldError>{error}</FieldError>}
         </Field>
         <Button type="submit" variant="primary" size="lg" disabled={pending}>
-          {pending ? "One moment…" : "Make a reset link"}
+          {pending ? t.pending : t.submit}
         </Button>
         <Link
           href="/login"
           className="text-sm text-muted-foreground hover:text-foreground"
         >
-          Back to sign in
+          {t.back}
         </Link>
       </form>
     </>
@@ -176,6 +160,7 @@ export function ForgotPasswordForm() {
 
 export function ResetPasswordForm({ token }: { token: string | undefined }) {
   const router = useRouter()
+  const t = useMessages(auth).reset
   const { pending, error, submit } = useSubmit(
     (data) =>
       authClient.resetPassword({
@@ -187,32 +172,22 @@ export function ResetPasswordForm({ token }: { token: string | undefined }) {
   if (!token) {
     return (
       <>
-        <Heading
-          title="This link isn't valid"
-          lede="Ask for a new reset link and use it within an hour."
-        />
+        <Heading title={t.invalidTitle} lede={t.invalidLede} />
         <Link
           href="/forgot-password"
           className="text-sm text-muted-foreground hover:text-foreground"
         >
-          Make a new link
+          {t.newLink}
         </Link>
       </>
     )
   }
   return (
     <>
-      <Heading
-        title="Choose a new password"
-        lede="Other sessions are signed out."
-      />
-      <form
-        onSubmit={submit}
-        className="grid gap-4"
-        aria-label="Set a new password"
-      >
+      <Heading title={t.title} lede={t.lede} />
+      <form onSubmit={submit} className="grid gap-4" aria-label={t.form}>
         <Field data-invalid={error ? true : undefined}>
-          <FieldLabel htmlFor="password">New password</FieldLabel>
+          <FieldLabel htmlFor="password">{t.password}</FieldLabel>
           <Input
             id="password"
             name="password"
@@ -221,11 +196,11 @@ export function ResetPasswordForm({ token }: { token: string | undefined }) {
             minLength={10}
             required
           />
-          <FieldDescription>At least 10 characters.</FieldDescription>
+          <FieldDescription>{t.hint}</FieldDescription>
           {error && <FieldError>{error}</FieldError>}
         </Field>
         <Button type="submit" variant="primary" size="lg" disabled={pending}>
-          {pending ? "Saving…" : "Set password"}
+          {pending ? t.pending : t.submit}
         </Button>
       </form>
     </>

@@ -1,6 +1,7 @@
 import "server-only"
 
 import { betterAuth } from "better-auth"
+import { createAuthMiddleware } from "better-auth/api"
 import { drizzleAdapter } from "better-auth/adapters/drizzle"
 import { nextCookies } from "better-auth/next-js"
 import { twoFactor } from "better-auth/plugins"
@@ -14,6 +15,11 @@ import {
   verification,
 } from "@/lib/db/schema"
 import { getEnv } from "@/lib/env"
+import {
+  isLocale,
+  LOCALE_COOKIE,
+  LOCALE_COOKIE_OPTIONS,
+} from "@/lib/i18n/config"
 import { logger } from "@/lib/logger"
 import { getStorage } from "@/lib/storage"
 
@@ -72,6 +78,9 @@ function createAuth() {
     },
     socialProviders,
     user: {
+      additionalFields: {
+        locale: { type: "string", required: false, input: false },
+      },
       deleteUser: {
         enabled: true,
         beforeDelete: async (deleted) => {
@@ -96,6 +105,15 @@ function createAuth() {
           },
         },
       },
+    },
+    hooks: {
+      // A new sign-in brings the account's language to this browser.
+      after: createAuthMiddleware(async (ctx) => {
+        const locale = ctx.context.newSession?.user.locale
+        if (isLocale(locale)) {
+          ctx.setCookie(LOCALE_COOKIE, locale, LOCALE_COOKIE_OPTIONS)
+        }
+      }),
     },
     plugins: [twoFactor({ issuer: "nimbus" }), nextCookies()],
   })

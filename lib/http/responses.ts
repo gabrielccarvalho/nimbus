@@ -3,6 +3,7 @@ import "server-only"
 import type { Readable } from "node:stream"
 
 import { toAppError, toUserMessage, type AppErrorCode } from "@/lib/errors"
+import { translateRequestError } from "@/lib/i18n/request-error"
 import { logger } from "@/lib/logger"
 import type { StorageAdapter } from "@/lib/storage/types"
 
@@ -38,7 +39,7 @@ export function toWebStream(stream: Readable): ReadableStream<Uint8Array> {
   })
 }
 
-export function errorResponse(
+export async function errorResponse(
   error: unknown,
   context: Record<string, unknown> = {}
 ) {
@@ -46,10 +47,8 @@ export function errorResponse(
   const status = STATUS_BY_CODE[appError.code] ?? 500
   if (status >= 500)
     logger.error({ err: appError, ...context }, "request failed")
-  return Response.json(
-    { error: { code: appError.code, message: toUserMessage(appError) } },
-    { status }
-  )
+  const message = await translateRequestError(toUserMessage(appError))
+  return Response.json({ error: { code: appError.code, message } }, { status })
 }
 
 export async function fileResponse(

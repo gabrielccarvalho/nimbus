@@ -43,19 +43,16 @@ import type { RenderQuality } from "@/features/projects/schema"
 import { retryPublicationAction } from "@/features/publishing/actions"
 import { ACTIVE_PUBLICATION_STATUSES } from "@/features/publishing/schema"
 import { formatBytes } from "@/lib/format"
+import { useLocale } from "@/lib/i18n/client"
+import { translateError } from "@/lib/i18n/errors"
 
+import { review } from "./messages/review"
 import { ProjectSettingsSheet } from "./project-settings-sheet"
 import {
   publishBlockedReason,
   PublishDialog,
   type PublishingState,
 } from "./publish-dialog"
-
-const QUALITY_LABELS: Record<RenderQuality, string> = {
-  draft: "Draft",
-  standard: "Standard",
-  high: "High",
-}
 
 export type ClipRender = {
   url: string
@@ -69,15 +66,15 @@ export type ClipRender = {
 
 type RenderJob = { status: string; progress: number }
 
-const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`
+type Messages = (typeof review)["en-US"]["exportMenu"]
 
-function timeAgo(from: Date, now: number) {
+function timeAgo(from: Date, now: number, t: Messages) {
   const minutes = Math.floor((now - from.getTime()) / 60_000)
-  if (minutes < 1) return "just now"
-  if (minutes < 60) return `${minutes} min ago`
+  if (minutes < 1) return t.justNow
+  if (minutes < 60) return t.minutesAgo(minutes)
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours} h ago`
-  return `${Math.floor(hours / 24)} d ago`
+  if (hours < 24) return t.hoursAgo(hours)
+  return t.daysAgo(Math.floor(hours / 24))
 }
 
 function outputState({
@@ -85,27 +82,28 @@ function outputState({
   render,
   renderJob,
   outdated,
+  t,
 }: {
   clipStatus: ClipStatus
   render?: ClipRender
   renderJob?: RenderJob
   outdated: boolean
+  t: Messages
 }): { tone: Tone; lit?: boolean; label: string } {
   if (clipStatus === "rendering") {
     return {
       tone: "lav",
       label:
         renderJob?.status === "running"
-          ? `Rendering ${Math.round(renderJob.progress)}%`
-          : "Queued to render",
+          ? t.rendering(Math.round(renderJob.progress))
+          : t.queued,
     }
   }
-  if (clipStatus === "failed") return { tone: "pink", label: "Render failed" }
-  if (outdated)
-    return { tone: "amber", lit: true, label: "Edited since last render" }
+  if (clipStatus === "failed") return { tone: "pink", label: t.failed }
+  if (outdated) return { tone: "amber", lit: true, label: t.outdated }
   if (clipStatus === "rendered" && render)
-    return { tone: "mint", label: "Rendered" }
-  return { tone: "neutral", label: "Not rendered" }
+    return { tone: "mint", label: t.rendered }
+  return { tone: "neutral", label: t.notRendered }
 }
 
 export function ClipExportMenu({
@@ -133,6 +131,9 @@ export function ClipExportMenu({
   publishing: PublishingState
   settingsData: ProjectSettingsData
 }) {
+  const locale = useLocale()
+  const t = review[locale].exportMenu
+  const publicationText = review[locale].publication
   const router = useRouter()
   const [retrying, startRetry] = React.useTransition()
   const [openedAt, setOpenedAt] = React.useState(0)
@@ -146,6 +147,7 @@ export function ClipExportMenu({
     render,
     renderJob,
     outdated,
+    t,
   })
   const publication = publishing.publications[clip.id]
   const shown =
@@ -157,12 +159,12 @@ export function ClipExportMenu({
     !shown ||
     (!ACTIVE_PUBLICATION_STATUSES.has(shown.status) &&
       (shown.status !== "published" || editedSincePublish))
-  const blocked = publishBlockedReason(clip, publishing)
+  const blocked = publishBlockedReason(clip, publishing, locale)
   const uploading =
     shown !== undefined &&
     shown.status !== "waiting_quota" &&
     ACTIVE_PUBLICATION_STATUSES.has(shown.status)
-  const uploadLabel = `Publishing…${shown?.progress === undefined ? "" : ` ${shown.progress}%`}`
+  const uploadLabel = publicationText.publishing(shown?.progress)
   const status = (
     <span
       data-testid="clip-status"
@@ -180,7 +182,7 @@ export function ClipExportMenu({
         <Tooltip>
           <TooltipTrigger render={status} />
           <TooltipContent side="bottom" className="break-words">
-            {clip.error}
+            {translateError(clip.error, locale)}
           </TooltipContent>
         </Tooltip>
       ) : (
@@ -202,7 +204,7 @@ export function ClipExportMenu({
           className="rounded-e-none pe-3 shadow-none hover:translate-y-0 hover:shadow-none disabled:opacity-100"
         >
           <PlayIcon data-icon="inline-start" aria-hidden />
-          {render ? "Re-render" : "Render"}
+          {render ? t.rerender : t.render}
         </Button>
         <DropdownMenu
           onOpenChange={(open) => {
@@ -213,7 +215,7 @@ export function ClipExportMenu({
             render={
               <Button
                 variant="primary"
-                aria-label="More export options"
+                aria-label={t.more}
                 className="rounded-s-none px-2.5 shadow-[inset_1px_0_0_rgb(0_0_0/0.15)] hover:translate-y-0 hover:shadow-[inset_1px_0_0_rgb(0_0_0/0.15)]"
               />
             }
@@ -228,24 +230,25 @@ export function ClipExportMenu({
             <div className="grid gap-0.5 px-2.5 pt-2 pb-2.5">
               <b className="text-[13px] font-semibold text-foreground">
                 {render
-                  ? `Last render · ${timeAgo(render.createdAt, openedAt)}`
-                  : "Not rendered yet"}
+                  ? t.lastRender(timeAgo(render.createdAt, openedAt, t))
+                  : t.notRenderedYet}
               </b>
               <span className="text-xs text-tertiary">
                 {render
                   ? [
                       `${render.width ?? 1080}×${render.height ?? 1920}`,
-                      render.durationMs !== null && seconds(render.durationMs),
-                      QUALITY_LABELS[quality],
-                      formatBytes(render.bytes),
+                      render.durationMs !== null &&
+                        t.seconds(render.durationMs / 1000),
+                      t.quality[quality],
+                      formatBytes(render.bytes, locale),
                     ]
                       .filter(Boolean)
                       .join(" · ")
-                  : `1080×1920 · ${seconds(durationMs)} · ${QUALITY_LABELS[quality]}`}
+                  : `1080×1920 · ${t.seconds(durationMs / 1000)} · ${t.quality[quality]}`}
               </span>
               {clip.status === "failed" && clip.error && (
                 <span className="text-xs break-words text-pink">
-                  {clip.error}
+                  {translateError(clip.error, locale)}
                 </span>
               )}
             </div>
@@ -253,7 +256,7 @@ export function ClipExportMenu({
             {render && (
               <DropdownMenuItem onClick={() => setWatchOpen(true)}>
                 <MonitorPlayIcon aria-hidden />
-                Watch last render
+                {t.watch}
               </DropdownMenuItem>
             )}
             <DropdownMenuItem
@@ -261,7 +264,7 @@ export function ClipExportMenu({
               render={<a href={render?.downloadUrl} download />}
             >
               <DownloadSimpleIcon aria-hidden />
-              Download last render
+              {t.download}
             </DropdownMenuItem>
             {publishedLive && (
               <DropdownMenuItem
@@ -270,9 +273,9 @@ export function ClipExportMenu({
                 }
               >
                 <ArrowSquareOutIcon aria-hidden />
-                Published on YouTube
-                <span className="sr-only"> (opens in a new tab)</span>
-                <Kbd className="ms-auto text-mint">Live</Kbd>
+                {t.published}
+                <span className="sr-only"> {publicationText.newTab}</span>
+                <Kbd className="ms-auto text-mint">{t.live}</Kbd>
               </DropdownMenuItem>
             )}
             {uploading && (
@@ -284,7 +287,7 @@ export function ClipExportMenu({
             {shown?.status === "waiting_quota" && (
               <DropdownMenuItem disabled>
                 <UploadSimpleIcon aria-hidden />
-                Waiting for YouTube&apos;s daily limit
+                {publicationText.waitingQuota}
               </DropdownMenuItem>
             )}
             {shown?.status === "failed" && (
@@ -303,10 +306,10 @@ export function ClipExportMenu({
               >
                 <ArrowsClockwiseIcon aria-hidden />
                 <span className="grid gap-0.5">
-                  <span className="text-pink">Publish failed · Retry</span>
+                  <span className="text-pink">{t.publishFailedRetry}</span>
                   {shown.error && (
                     <span className="text-xs break-words text-tertiary">
-                      {shown.error}
+                      {translateError(shown.error, locale)}
                     </span>
                   )}
                 </span>
@@ -319,13 +322,11 @@ export function ClipExportMenu({
               >
                 <UploadSimpleIcon aria-hidden />
                 <span className="grid gap-0.5">
-                  {shown?.status === "published"
-                    ? "Publish again…"
-                    : "Publish to YouTube…"}
+                  {shown?.status === "published" ? t.publishAgain : t.publish}
                   {(blocked ||
                     (shown?.status === "published" && editedSincePublish)) && (
                     <span className="text-xs text-tertiary">
-                      {blocked ?? "Edited since publish"}
+                      {blocked ?? t.editedSincePublish}
                     </span>
                   )}
                 </span>
@@ -338,7 +339,7 @@ export function ClipExportMenu({
               }}
             >
               <SlidersHorizontalIcon aria-hidden />
-              Render quality: {QUALITY_LABELS[quality]}
+              {t.renderQuality(t.quality[quality])}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -361,10 +362,8 @@ export function ClipExportMenu({
         <Dialog open={watchOpen} onOpenChange={setWatchOpen}>
           <DialogContent className="sm:max-w-sm">
             <DialogHeader>
-              <DialogTitle>Last render</DialogTitle>
-              <DialogDescription>
-                The file that downloads and publishes.
-              </DialogDescription>
+              <DialogTitle>{t.watchTitle}</DialogTitle>
+              <DialogDescription>{t.watchDescription}</DialogDescription>
             </DialogHeader>
             <video
               key={render.url}
@@ -372,7 +371,7 @@ export function ClipExportMenu({
               controls
               autoPlay
               preload="metadata"
-              aria-label="Rendered clip"
+              aria-label={t.video}
               className="mx-auto aspect-[9/16] max-h-[70dvh] rounded-2xl bg-black"
             />
           </DialogContent>

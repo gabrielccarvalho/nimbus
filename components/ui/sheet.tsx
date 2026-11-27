@@ -5,6 +5,8 @@ import { Dialog as SheetPrimitive } from "@base-ui/react/dialog"
 import { cn } from "cn"
 
 import { Button } from "@/components/ui/button"
+import { useMessages } from "@/lib/i18n/client"
+import { common } from "@/lib/i18n/common"
 import { XIcon } from "@phosphor-icons/react"
 
 function Sheet({ ...props }: SheetPrimitive.Root.Props) {
@@ -46,6 +48,7 @@ function SheetContent({
   side?: "top" | "right" | "bottom" | "left"
   showCloseButton?: boolean
 }) {
+  const t = useMessages(common)
   return (
     <SheetPortal>
       <SheetOverlay />
@@ -71,7 +74,7 @@ function SheetContent({
             }
           >
             <XIcon />
-            <span className="sr-only">Close</span>
+            <span className="sr-only">{t.close}</span>
           </SheetPrimitive.Close>
         )}
       </SheetPrimitive.Popup>

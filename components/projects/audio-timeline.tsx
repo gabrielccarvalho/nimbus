@@ -1,3 +1,5 @@
+"use client"
+
 import {
   Timeline,
   TimelineLoudness,
@@ -5,6 +7,9 @@ import {
 } from "@/components/ui/timeline"
 import type { AudioSummary } from "@/features/projects/queries"
 import { formatDuration } from "@/lib/format"
+import { useMessages } from "@/lib/i18n/client"
+
+import { review } from "./messages/review"
 
 export function AudioTimelineLayers({ audio }: { audio: AudioSummary }) {
   return (
@@ -40,6 +45,7 @@ export function AudioOverview({
   durationMs: number
   clips?: readonly { startMs: number; endMs: number }[]
 }) {
+  const t = useMessages(review).audio
   const silentShare = durationMs
     ? Math.round((audio.silentMs / durationMs) * 100)
     : 0
@@ -53,16 +59,16 @@ export function AudioOverview({
           id="audio-heading"
           className="text-[15px] font-semibold tracking-[-0.015em]"
         >
-          Where the clips are
+          {t.heading}
         </h2>
         <span className="text-[13px] text-tertiary">
-          {clips.length} across {formatDuration(durationMs)}
+          {t.across(clips.length, formatDuration(durationMs))}
         </span>
       </div>
       <Timeline
         readOnly
         durationMs={durationMs}
-        aria-label={`Loudness over time with ${audio.silences.length} silent stretches${audio.audience.length > 0 ? " and YouTube replay activity" : ""}`}
+        aria-label={t.label(audio.silences.length, audio.audience.length > 0)}
       >
         <AudioTimelineLayers audio={audio} />
         {clips.map((clip) => (
@@ -83,10 +89,11 @@ export function AudioOverview({
         <span>{formatDuration(durationMs)}</span>
       </div>
       <p className="text-[13px] text-tertiary" data-testid="audio-summary">
-        {audio.silences.length}{" "}
-        {audio.silences.length === 1 ? "silence" : "silences"} · {silentShare}%
-        silent
-        {audio.audience.length > 0 && " · top band: most rewatched on YouTube"}
+        {t.summary(
+          audio.silences.length,
+          silentShare,
+          audio.audience.length > 0
+        )}
       </p>
     </section>
   )

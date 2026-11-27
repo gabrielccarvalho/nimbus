@@ -13,15 +13,11 @@ import {
   type CaptionStyle,
 } from "@/features/captions/styles"
 import { OUTPUT_HEIGHT, SPLIT_HEIGHTS } from "@/features/layout/geometry"
+import { useMessages } from "@/lib/i18n/client"
 
-const SAMPLE = "No way he just clipped that"
+import { overview } from "./messages/overview"
+
 const CAM_SHARE = SPLIT_HEIGHTS["cam-top"][0] / OUTPUT_HEIGHT
-
-const sampleWords = SAMPLE.split(" ").map((text, i) => ({
-  text,
-  startMs: i * 300,
-  endMs: i * 300 + 260,
-}))
 
 export function CaptionStylePreview({
   style,
@@ -32,18 +28,27 @@ export function CaptionStylePreview({
   onBaselineChange?: (baseline: number) => void
   className?: string
 }) {
+  const t = useMessages(overview).captionStyle
   const page = React.useMemo(
     () =>
-      buildCaptionPages(sampleWords, 3000, {
-        maxWordsPerPage: style.maxWordsPerPage,
-        maxCharsPerLine: style.maxCharsPerLine,
-      })[0]!,
-    [style.maxWordsPerPage, style.maxCharsPerLine]
+      buildCaptionPages(
+        t.previewSample.split(" ").map((text, i) => ({
+          text,
+          startMs: i * 300,
+          endMs: i * 300 + 260,
+        })),
+        3000,
+        {
+          maxWordsPerPage: style.maxWordsPerPage,
+          maxCharsPerLine: style.maxCharsPerLine,
+        }
+      )[0]!,
+    [t.previewSample, style.maxWordsPerPage, style.maxCharsPerLine]
   )
   return (
     <CaptionPreview
       role={onBaselineChange ? "group" : "img"}
-      aria-label="Caption preview"
+      aria-label={t.preview}
       className={className}
     >
       <div
@@ -62,7 +67,7 @@ export function CaptionStylePreview({
         captionStyle={cssCaptionStyle(style)}
         baseline={captionBaseline(style, { mode: "cam-top" })}
         onBaselineChange={onBaselineChange}
-        aria-label={onBaselineChange ? "Caption position" : undefined}
+        aria-label={onBaselineChange ? t.previewPosition : undefined}
       />
     </CaptionPreview>
   )

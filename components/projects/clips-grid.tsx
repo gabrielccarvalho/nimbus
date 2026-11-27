@@ -9,8 +9,11 @@ import { DotMeter } from "@/components/ui/dot-meter"
 import type { CaptionLane } from "@/features/captions/pages"
 import type { Clip } from "@/features/clips/repository"
 import { formatDuration } from "@/lib/format"
+import { useLocale, useMessages } from "@/lib/i18n/client"
+import { common } from "@/lib/i18n/common"
 import { cn } from "@/lib/utils"
 
+import { review } from "./messages/review"
 import {
   PublicationStatusView,
   type PublicationState,
@@ -47,6 +50,9 @@ function ClipTile({
   playing: boolean
   onHoverChange: (hovered: boolean) => void
 }) {
+  const locale = useLocale()
+  const t = review[locale].grid
+  const shared = useMessages(common)
   const videoRef = React.useRef<HTMLVideoElement>(null)
   const id = React.useId()
   const { pending, setStatus } = useClipStatus(projectId, clip)
@@ -147,7 +153,7 @@ function ClipTile({
           {clip.title}
         </span>
         <span id={`${id}-status`} className="sr-only">
-          {clipStatusLabel(clip.status)}
+          {clipStatusLabel(clip.status, locale)}
         </span>
         <span
           id={`${id}-meta`}
@@ -156,12 +162,12 @@ function ClipTile({
           <DotMeter
             value={Math.round(clip.score * 10)}
             max={10}
-            aria-label={`Score ${Math.round(clip.score * 100)}`}
+            aria-label={t.score(Math.round(clip.score * 100))}
           />
           <span className="font-mono tabular-nums">
             {formatDuration(clip.startMs)}
           </span>
-          {clip.parts && <span>{clip.parts.length} parts</span>}
+          {clip.parts && <span>{t.parts(clip.parts.length)}</span>}
         </span>
         {publication && publication.status !== "removed" && (
           <PublicationStatusView publication={publication} />
@@ -177,17 +183,17 @@ function ClipTile({
           >
             <CheckIcon data-icon="inline-start" aria-hidden />
             {clip.status === "rendered"
-              ? "Rendered"
+              ? t.rendered
               : clip.status === "rendering"
-                ? "Rendering"
+                ? t.rendering
                 : approved
-                  ? "Approved"
-                  : "Approve"}
+                  ? t.approved
+                  : shared.approve}
           </Button>
           <Button
             size="sm"
             aria-pressed={rejected}
-            aria-label={rejected ? "Restore clip" : "Reject clip"}
+            aria-label={rejected ? t.restore : t.reject}
             disabled={pending || locked}
             onClick={() => setStatus(rejected ? "candidate" : "rejected")}
           >
@@ -218,6 +224,7 @@ export function ClipsGrid({
   publishing: PublishingState
   className?: string
 }) {
+  const t = useMessages(review).grid
   const [hoveredId, setHoveredId] = React.useState<string | null>(null)
   const listRef = React.useRef<HTMLOListElement>(null)
 
@@ -239,7 +246,7 @@ export function ClipsGrid({
   return (
     <ol
       ref={listRef}
-      aria-label="Clips"
+      aria-label={t.list}
       tabIndex={-1}
       onKeyDown={moveFocus}
       className={cn(

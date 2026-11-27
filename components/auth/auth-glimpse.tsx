@@ -1,11 +1,15 @@
 import { ArrowRightIcon } from "@phosphor-icons/react/ssr"
 
 import { DotMeter } from "@/components/ui/dot-meter"
+import { getMessages } from "@/lib/i18n/server"
+
+import { auth } from "./messages"
 
 const dots =
   "bg-graphite-2 bg-[radial-gradient(circle_at_center,rgb(255_255_255/.07)_1px,transparent_1.5px)] bg-size-[11px_11px]"
 
-export function AuthGlimpse() {
+export async function AuthGlimpse() {
+  const t = (await getMessages(auth)).glimpse
   return (
     <aside
       aria-hidden
@@ -35,7 +39,7 @@ export function AuthGlimpse() {
           <span className="font-mono text-tertiary">0:16</span>
         </div>
         <div className="absolute -bottom-11 left-10 surface-menu rounded-[14px] px-3 py-2 text-[13px] text-muted-foreground">
-          Webcam found · laid out on top
+          {t.webcam}
         </div>
       </div>
     </aside>

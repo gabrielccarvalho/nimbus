@@ -1,12 +1,16 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
 
+import { analytics } from "@/components/analytics/messages"
 import { Overview } from "@/components/analytics/overview"
 import { Skeleton } from "@/components/ui/skeleton"
+import { getMessages } from "@/lib/i18n/server"
 import { getAnalyticsOverview } from "@/features/analytics/queries"
 import { parsePeriod } from "@/features/analytics/schema"
 
-export const metadata: Metadata = { title: "Analytics" }
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getMessages(analytics)).layout.title }
+}
 
 async function OverviewSection({
   searchParams,

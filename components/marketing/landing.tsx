@@ -3,15 +3,20 @@ import Link from "next/link"
 
 import { Logo, LogoMark } from "@/components/app-shell/logo"
 import { LANGUAGES } from "@/components/settings/languages"
+import { LocaleSelect } from "@/components/settings/locale-select"
 import { buttonVariants } from "@/components/ui/button"
 import { SignalDot } from "@/components/ui/signal-dot"
 import { StatusPill } from "@/components/ui/status-pill"
+import { getLocale } from "@/lib/i18n/server"
 import { PLANS, type PlanId } from "@/features/accounts/schema"
+import { common } from "@/lib/i18n/common"
+import type { Locale } from "@/lib/i18n/config"
 import { cn } from "@/lib/utils"
 
 import { HeroEdit } from "./hero-edit"
 import { InView } from "./in-view"
 import styles from "./landing.module.css"
+import { marketing } from "./messages"
 import { StreamToClips } from "./stream-to-clips"
 
 const SECTION = "mx-auto w-full max-w-[1280px] px-[max(20px,4vw)]"
@@ -68,21 +73,25 @@ function Thread() {
 }
 
 const NAV = [
-  { href: "#how", label: "How it works" },
-  { href: "#editor", label: "The editor" },
-  { href: "#learn", label: "What it learns" },
-  { href: "#pricing", label: "Pricing" },
-  { href: "#faq", label: "Questions" },
+  { href: "#how", label: "how" },
+  { href: "#editor", label: "editor" },
+  { href: "#learn", label: "learn" },
+  { href: "#pricing", label: "pricing" },
+  { href: "#faq", label: "faq" },
 ] as const
 
-function Nav() {
+function Nav({ locale }: { locale: Locale }) {
+  const t = marketing[locale].nav
+  const c = common[locale]
   return (
-    <header className={cn(SECTION, "flex h-[58px] items-center gap-7")}>
-      <Link href="/" aria-label="nimbus, home">
+    <header
+      className={cn(SECTION, "flex h-[58px] items-center gap-7 max-sm:gap-3")}
+    >
+      <Link href="/" aria-label={t.home}>
         <Logo />
       </Link>
       <nav
-        aria-label="Sections"
+        aria-label={t.sections}
         className="flex gap-[26px] text-[13.5px] max-md:hidden"
       >
         {NAV.map((item) => (
@@ -91,25 +100,31 @@ function Nav() {
             href={item.href}
             className="text-muted-foreground transition-colors hover:text-foreground"
           >
-            {item.label}
+            {t[item.label]}
           </a>
         ))}
       </nav>
       <span className="flex-1" />
+      <LocaleSelect
+        size="sm"
+        className="max-sm:min-w-0 max-sm:[&>svg:first-child]:hidden"
+      />
       <Link
         href="/login"
-        className="text-[13.5px] text-muted-foreground transition-colors hover:text-foreground"
+        className="text-[13.5px] text-muted-foreground transition-colors hover:text-foreground max-sm:hidden"
       >
-        Sign in
+        {c.signIn}
       </Link>
       <Link href="/signup" className={buttonVariants()}>
-        Get started
+        {c.getStarted}
       </Link>
     </header>
   )
 }
 
-function Hero() {
+function Hero({ locale }: { locale: Locale }) {
+  const t = marketing[locale].hero
+  const c = common[locale]
   return (
     <section
       className={cn(
@@ -125,39 +140,36 @@ function Hero() {
           className="inline-flex items-center gap-2.5 rounded-full bg-glass px-3.5 py-[7px] text-sm font-medium inset-ring-1 inset-ring-hair transition-colors hover:bg-white/10"
         >
           <SignalDot tone="amber" lit />
-          For streamers and the people who clip them
+          {t.badge}
         </a>
         <h1 className="max-w-[980px] text-[clamp(46px,6.4vw,92px)] leading-[1.02] font-semibold tracking-[-0.045em] text-balance">
-          Long streams in.{" "}
-          <span className="text-gradient">Short clips out.</span>
+          {t.title} <span className="text-gradient">{t.titleAccent}</span>
         </h1>
         <p className={LEDE}>
-          Paste a YouTube or Twitch link. nimbus picks the moments worth a
-          vertical clip and edits each one: framing, captions, effects. Change
-          anything you like. <b>Nothing is published until you approve it.</b>
+          {t.lede} <b>{t.ledeStrong}</b>
         </p>
         <div className="flex flex-wrap justify-center gap-3">
           <Link
             href="/signup"
             className={buttonVariants({ variant: "primary", size: "lg" })}
           >
-            Get started
+            {c.getStarted}
           </Link>
           <a href="#how" className={buttonVariants({ size: "lg" })}>
-            See how it works
+            {t.seeHow}
             <ArrowRightIcon data-icon="inline-end" aria-hidden />
           </a>
         </div>
         <p className="flex flex-wrap justify-center gap-x-3 gap-y-1.5 text-sm text-tertiary">
-          <span>Your projects stay private</span>
+          <span>{t.private}</span>
           <span aria-hidden className="text-foreground/25">
             ·
           </span>
-          <span>You approve every clip</span>
+          <span>{t.approval}</span>
           <span aria-hidden className="text-foreground/25">
             ·
           </span>
-          <span>Free to start</span>
+          <span>{t.free}</span>
         </p>
       </InView>
       <InView
@@ -171,53 +183,32 @@ function Hero() {
           className="pointer-events-none absolute top-1/2 left-1/2 h-[900px] w-[1300px] -translate-1/2 bg-[radial-gradient(closest-side,rgb(120_132_230/0.085),rgb(120_132_230/0.03)_55%,transparent)]"
         />
         <InView amount={0.4} className="relative">
-          <HeroEdit />
+          <HeroEdit locale={locale} />
         </InView>
       </InView>
     </section>
   )
 }
 
-const STEPS = [
-  {
-    title: "Paste a link",
-    body: "A YouTube video, a Twitch VOD or a file of your own. Wide and ultrawide both work.",
-  },
-  {
-    title: "It reads all of it",
-    body: "Every word with its timing, every silence, every loud moment.",
-  },
-  {
-    title: "It picks and frames",
-    body: "Each moment comes back vertical, with the webcam, a title and captions.",
-  },
-  {
-    title: "You decide",
-    body: "Only the clips you approve render. Only the ones you publish go out.",
-  },
-] as const
-
-function HowItWorks() {
+function HowItWorks({ locale }: { locale: Locale }) {
+  const t = marketing[locale].how
   return (
     <section id="how" aria-labelledby="how-title" className={CHAPTER}>
       <Thread />
-      <Intro label="How it works">
+      <Intro label={marketing[locale].nav.how}>
         <h2 id="how-title" className={H2}>
-          Three hours in. <span className={MUTE}>Nine clips out.</span>
+          {t.title} <span className={MUTE}>{t.titleMuted}</span>
         </h2>
-        <p className={LEDE}>
-          nimbus reads the whole stream, marks the moments worth keeping and
-          hands each one back as a vertical clip. You say which ones go out.
-        </p>
+        <p className={LEDE}>{t.lede}</p>
       </Intro>
       <InView className={cn(styles.cascade, STAGE_GAP)}>
         <InView
           amount={0.4}
           className="overflow-hidden rounded-[22px] bg-graphite shadow-[0_40px_100px_-40px_rgb(0_0_0/0.7)] inset-ring-1 inset-ring-white/6"
         >
-          <StreamToClips />
+          <StreamToClips locale={locale} />
           <ol className="-ms-px grid grid-cols-[repeat(auto-fit,minmax(230px,1fr))]">
-            {STEPS.map((step, index) => (
+            {t.steps.map((step, index) => (
               <li
                 key={step.title}
                 className={cn(
@@ -242,25 +233,6 @@ function HowItWorks() {
     </section>
   )
 }
-
-const EDITOR_NOTES = [
-  {
-    title: "Captions, word by word",
-    body: "Three styles, your font, your position. Fix a misheard word and the timing stays.",
-  },
-  {
-    title: "A layout for every clip",
-    body: "Webcam on top, an even split, or no webcam at all. Drag the boxes until it sits right.",
-  },
-  {
-    title: "Effects, text and music",
-    body: "Zoom, shake, full-screen moments, a hook on screen and a track underneath, all on one timeline.",
-  },
-  {
-    title: "Safe from the Shorts buttons",
-    body: "The preview shows where YouTube puts its own interface, so nothing important hides behind it.",
-  },
-] as const
 
 const TRACK_TONES = {
   lav: "bg-lav/16 text-lav inset-ring-lav/40",
@@ -299,29 +271,37 @@ function TrackBlock({
   )
 }
 
-function EditorSection() {
+const CAPTION_BLOCKS = [
+  { left: 6, width: 13 },
+  { left: 20, width: 17 },
+  { left: 38, width: 16 },
+  { left: 55, width: 20 },
+  { left: 76, width: 14 },
+] as const
+
+function EditorSection({ locale }: { locale: Locale }) {
+  const t = marketing[locale].editor
+  const tracks = marketing[locale].tracks
   return (
     <section id="editor" aria-labelledby="editor-title" className={CHAPTER}>
       <Thread />
-      <Intro label="The editor">
+      <Intro label={marketing[locale].nav.editor}>
         <h2 id="editor-title" className={H2}>
-          A first cut in minutes.{" "}
-          <span className="text-gradient">The last word is yours.</span>
+          {t.title} <span className="text-gradient">{t.titleAccent}</span>
         </h2>
         <p className={LEDE}>
-          Every clip opens in a real editor. Trim it, rewrite a caption, move
-          the webcam, add a song. <b>What you see is what renders.</b>
+          {t.lede} <b>{t.ledeStrong}</b>
         </p>
       </Intro>
       <InView className={cn(styles.cascade, STAGE_GAP)}>
         <div
           role="img"
-          aria-label="The clip editor's timeline with text, captions, effects, video and music tracks"
+          aria-label={t.timelineLabel}
           className="overflow-hidden rounded-[18px] bg-sheet shadow-[0_40px_100px_-30px_rgb(0_0_0/0.7)] inset-ring-1 inset-ring-white/7"
         >
           <div className="flex h-[46px] items-center gap-2.5 px-4 text-[13.5px] font-medium shadow-[inset_0_-1px_0_var(--hair)]">
-            <span>Add</span>
-            <span className="text-muted-foreground">Auto effects</span>
+            <span>{t.add}</span>
+            <span className="text-muted-foreground">{t.autoEffects}</span>
             <span className="flex-1" />
             <span className="font-mono text-xs text-muted-foreground">
               0:11.4 / 0:28.6
@@ -329,43 +309,35 @@ function EditorSection() {
           </div>
           <div className="flex">
             <div className="w-[92px] shrink-0 py-2.5 text-xs text-tertiary shadow-[inset_-1px_0_0_var(--hair)] max-sm:hidden">
-              {["Text", "Captions", "Effects"].map((label) => (
-                <div key={label} className="flex h-[34px] items-center ps-4">
-                  {label}
+              {(["text", "captions", "effects"] as const).map((track) => (
+                <div key={track} className="flex h-[34px] items-center ps-4">
+                  {tracks[track]}
                 </div>
               ))}
-              <div className="flex h-12 items-center ps-4">Video</div>
-              <div className="flex h-[34px] items-center ps-4">Music</div>
+              <div className="flex h-12 items-center ps-4">{tracks.video}</div>
+              <div className="flex h-[34px] items-center ps-4">
+                {tracks.music}
+              </div>
             </div>
             <div className="relative min-w-0 flex-1 px-6 py-2.5 text-xs font-medium">
               <div className="relative h-[34px]">
                 <TrackBlock left={6} width={22} tone="lav">
-                  1v4 with 12 HP
+                  {t.hook}
                 </TrackBlock>
               </div>
               <div className="relative h-[34px]">
-                <TrackBlock left={6} width={13} tone="mint">
-                  okay okay
-                </TrackBlock>
-                <TrackBlock left={20} width={17} tone="mint">
-                  one more left
-                </TrackBlock>
-                <TrackBlock left={38} width={16} tone="mint">
-                  no way he peeks
-                </TrackBlock>
-                <TrackBlock left={55} width={20} tone="mint">
-                  he peeked, he peeked
-                </TrackBlock>
-                <TrackBlock left={76} width={14} tone="mint">
-                  let&apos;s go
-                </TrackBlock>
+                {CAPTION_BLOCKS.map((block, index) => (
+                  <TrackBlock key={block.left} {...block} tone="mint">
+                    {t.captions[index]}
+                  </TrackBlock>
+                ))}
               </div>
               <div className="relative h-[34px]">
                 <TrackBlock left={40} width={15} tone="sky">
-                  Full game
+                  {t.fullGame}
                 </TrackBlock>
                 <TrackBlock left={70} width={15} tone="lav">
-                  Full cam
+                  {t.fullCam}
                 </TrackBlock>
               </div>
               <div className="relative h-12">
@@ -384,7 +356,7 @@ function EditorSection() {
               </div>
               <div className="relative h-[34px]">
                 <TrackBlock left={6} width={84} tone="mint">
-                  Night drive · ducks under the voice
+                  {t.music}
                 </TrackBlock>
               </div>
               <i
@@ -404,7 +376,7 @@ function EditorSection() {
           "mt-[34px] grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-x-[34px] gap-y-[18px]"
         )}
       >
-        {EDITOR_NOTES.map((note) => (
+        {t.notes.map((note) => (
           <li key={note.title} className="grid content-start gap-1.5">
             <h3 className="text-xl leading-[1.35] font-medium tracking-[-0.02em]">
               {note.title}
@@ -417,7 +389,8 @@ function EditorSection() {
   )
 }
 
-function Promise() {
+function Promise({ locale }: { locale: Locale }) {
+  const t = marketing[locale].promise
   return (
     <section aria-labelledby="promise-title" className={CHAPTER}>
       <Thread />
@@ -429,7 +402,7 @@ function Promise() {
       >
         <div
           role="img"
-          aria-label="Seal: nothing leaves without you"
+          aria-label={t.sealLabel}
           className="relative size-[220px] shrink-0"
         >
           <svg viewBox="0 0 200 200" aria-hidden className="size-full">
@@ -441,24 +414,20 @@ function Promise() {
             </defs>
             <g className={styles.seal}>
               <text className="fill-muted-foreground font-mono text-[10.6px] font-semibold tracking-[2.3px]">
-                <textPath href="#seal-ring">
-                  NIMBUS · NOTHING LEAVES WITHOUT YOU · YOU APPROVE EVERY CLIP ·
-                </textPath>
+                <textPath href="#seal-ring">{t.seal}</textPath>
               </text>
             </g>
           </svg>
           <LogoMark className="absolute top-1/2 left-1/2 h-14 w-[88px] -translate-1/2" />
         </div>
         <div className="grid max-w-[620px] flex-[1_1_420px] gap-5">
-          <span className="mono-label">The one promise</span>
+          <span className="mono-label">{t.label}</span>
           <h2 id="promise-title" className={H2}>
-            Nothing leaves without you.
+            {t.title}
           </h2>
           <p className={LEDE}>
-            nimbus suggests. You approve. A clip renders only after you say yes,
-            and it reaches YouTube only when you press publish.{" "}
-            <b>Every clip gets its own title and hook</b>, so your channel never
-            reads like a template.
+            {t.ledeStart} <b>{t.ledeStrong}</b>
+            {t.ledeEnd}
           </p>
         </div>
       </InView>
@@ -466,18 +435,18 @@ function Promise() {
   )
 }
 
-function Learn() {
+function Learn({ locale }: { locale: Locale }) {
+  const t = marketing[locale].learn
+  const c = common[locale]
   return (
     <section id="learn" aria-labelledby="learn-title" className={CHAPTER}>
       <Thread />
-      <Intro label="What it learns">
+      <Intro label={marketing[locale].nav.learn}>
         <h2 id="learn-title" className={H2}>
-          Post. See what worked. <span className={MUTE}>Do more of that.</span>
+          {t.title} <span className={MUTE}>{t.titleMuted}</span>
         </h2>
         <p className={LEDE}>
-          Connect your YouTube channel and nimbus follows each Short after it
-          goes up. Then it suggests rules for your next recordings.{" "}
-          <b>You approve those too.</b>
+          {t.lede} <b>{t.ledeStrong}</b>
         </p>
       </Intro>
       <InView
@@ -488,14 +457,12 @@ function Learn() {
         )}
       >
         <figure className="grid content-start gap-4 rounded-[18px] bg-graphite p-[22px]">
-          <figcaption className="mono-label">
-            Example · growth since upload
-          </figcaption>
+          <figcaption className="mono-label">{t.chartCaption}</figcaption>
           <svg
             viewBox="0 0 320 150"
             preserveAspectRatio="none"
             role="img"
-            aria-label="An example Short gaining views faster than the channel's usual Short at the same age"
+            aria-label={t.chartLabel}
             className="h-[170px] w-full"
           >
             <path
@@ -523,33 +490,30 @@ function Learn() {
           <ul className="flex flex-wrap gap-x-4 gap-y-1.5 text-[13px] text-muted-foreground">
             <li className="flex items-center gap-[7px]">
               <i aria-hidden className="h-[3px] w-3.5 rounded-sm bg-amber" />
-              This Short
+              {t.thisShort}
             </li>
             <li className="flex items-center gap-[7px]">
               <i aria-hidden className="h-[3px] w-3.5 rounded-sm bg-lav" />
-              Your usual Short at the same age
+              {t.usualShort}
             </li>
           </ul>
         </figure>
         <div className="grid content-start gap-3.5 rounded-[18px] bg-graphite p-[22px]">
-          <span className="mono-label">Example · a suggested rule</span>
-          <h3 className={H3}>Put the hook on screen in the first second.</h3>
-          <p className={BODY}>
-            Suggested from your own published clips, with the ones that support
-            it and the ones that don&apos;t listed underneath.
-          </p>
+          <span className="mono-label">{t.ruleCaption}</span>
+          <h3 className={H3}>{t.rule}</h3>
+          <p className={BODY}>{t.ruleBody}</p>
           <span
             aria-hidden
             className="flex w-fit gap-0.5 rounded-full bg-glass p-[3px] text-[13.5px] font-medium text-muted-foreground inset-ring-1 inset-ring-hair"
           >
-            <span className="flex h-8 items-center px-3.5">Reject</span>
+            <span className="flex h-8 items-center px-3.5">{c.reject}</span>
             <span
               className={cn(
                 styles.yes,
                 "flex h-8 items-center rounded-full bg-mint/18 px-3.5 text-mint inset-ring-1 inset-ring-mint/50"
               )}
             >
-              Approve
+              {c.approve}
             </span>
           </span>
         </div>
@@ -559,50 +523,34 @@ function Learn() {
 }
 
 const gigabytes = (bytes: number) => `${Math.round(bytes / 1024 ** 3)} GB`
-const count = new Intl.NumberFormat("en-US")
 
 const CONTACT_HREF = "mailto:gabe@nimbus.dev"
 
-const PLAN_COPY: Record<
+// In reais; `null` is a price agreed by email.
+const PLAN_OFFERS: Record<
   Exclude<PlanId, "admin">,
-  {
-    who: string
-    price: string | null
-    money?: boolean
-    per?: string
-    cta: string
-    contact?: boolean
-    featured?: boolean
-  }
+  { price: number | null; featured?: boolean }
 > = {
-  free: {
-    who: "Try it on one stream",
-    price: "Free",
-    cta: "Get started",
-  },
-  creator: {
-    who: "For posting every week",
-    price: "67,69",
-    money: true,
-    per: "a month",
-    cta: "Choose Creator",
-    featured: true,
-  },
-  studio: {
-    who: "For daily streams and clipping teams",
-    price: null,
-    cta: "Get in contact",
-    contact: true,
-  },
+  free: { price: 0 },
+  creator: { price: 67.69, featured: true },
+  studio: { price: null },
 }
 
-function Pricing() {
+const MONEY_PARTS = new Set(["integer", "group", "decimal", "fraction"])
+
+function Pricing({ locale }: { locale: Locale }) {
+  const t = marketing[locale].pricing
+  const count = new Intl.NumberFormat(locale)
+  const money = new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: "BRL",
+  })
   return (
     <section id="pricing" aria-labelledby="pricing-title" className={CHAPTER}>
       <Thread />
-      <Intro label="Pricing">
+      <Intro label={marketing[locale].nav.pricing}>
         <h2 id="pricing-title" className={H2}>
-          Start free. <span className={MUTE}>Pay when you post more.</span>
+          {t.title} <span className={MUTE}>{t.titleMuted}</span>
         </h2>
       </Intro>
       <InView
@@ -613,135 +561,129 @@ function Pricing() {
           "grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] items-start gap-[18px]"
         )}
       >
-        {(Object.keys(PLAN_COPY) as (keyof typeof PLAN_COPY)[]).map((id) => {
-          const plan = PLANS[id]
-          const copy = PLAN_COPY[id]
-          const custom = copy.price === null
-          const lines = [
-            ["Render minutes a month", plan.renderMinutes],
-            [
-              "Storage",
-              plan.storageBytes === null ? null : gigabytes(plan.storageBytes),
-            ],
-            ["Clip picks with Claude a month", plan.claudeRuns],
-            ["Publishes a day", plan.publishesPerDay],
-          ] as const
-          const button = buttonVariants({
-            variant: copy.featured ? "primary" : "default",
-            size: "lg",
-          })
-          return (
-            <li
-              key={id}
-              className={cn(
-                "grid gap-[22px] rounded-[30px]",
-                copy.featured
-                  ? "bg-graphite-2 bg-[radial-gradient(120%_70%_at_50%_0%,color-mix(in_oklab,var(--lav)_20%,transparent),transparent_62%)] px-[34px] pt-11 pb-[42px] shadow-[0_0_90px_-24px_color-mix(in_oklab,var(--lav)_50%,transparent),0_40px_100px_-30px_rgb(0_0_0/0.7)] inset-ring-[1.5px] inset-ring-lav/55 md:-mt-[18px]"
-                  : "bg-graphite p-[34px] inset-ring-1 inset-ring-white/7"
-              )}
-            >
-              <div className="grid gap-1.5">
-                <div className="flex items-center gap-2.5">
-                  <h3 className="text-xl font-semibold tracking-[-0.02em]">
-                    {plan.name}
-                  </h3>
-                  {copy.featured && (
-                    <StatusPill tone="lav">Recommended</StatusPill>
-                  )}
-                </div>
-                <p className="text-sm text-tertiary">{copy.who}</p>
-              </div>
-              <p className="flex items-baseline gap-2">
-                {copy.money && (
-                  <span className="mt-1.5 self-start text-xl leading-none font-semibold text-muted-foreground">
-                    R$
-                  </span>
+        {(Object.keys(PLAN_OFFERS) as (keyof typeof PLAN_OFFERS)[]).map(
+          (id) => {
+            const plan = PLANS[id]
+            const offer = PLAN_OFFERS[id]
+            const copy = t.plans[id]
+            const custom = offer.price === null
+            const price = offer.price ? money.formatToParts(offer.price) : null
+            const lines = [
+              [t.renderMinutes, plan.renderMinutes],
+              [
+                t.storage,
+                plan.storageBytes === null
+                  ? null
+                  : gigabytes(plan.storageBytes),
+              ],
+              [t.claudeRuns, plan.claudeRuns],
+              [t.publishes, plan.publishesPerDay],
+            ] as const
+            const button = buttonVariants({
+              variant: offer.featured ? "primary" : "default",
+              size: "lg",
+            })
+            return (
+              <li
+                key={id}
+                className={cn(
+                  "grid gap-[22px] rounded-[30px]",
+                  offer.featured
+                    ? "bg-graphite-2 bg-[radial-gradient(120%_70%_at_50%_0%,color-mix(in_oklab,var(--lav)_20%,transparent),transparent_62%)] px-[34px] pt-11 pb-[42px] shadow-[0_0_90px_-24px_color-mix(in_oklab,var(--lav)_50%,transparent),0_40px_100px_-30px_rgb(0_0_0/0.7)] inset-ring-[1.5px] inset-ring-lav/55 md:-mt-[18px]"
+                    : "bg-graphite p-[34px] inset-ring-1 inset-ring-white/7"
                 )}
-                <span
-                  className={cn(
-                    "leading-none font-semibold tracking-[-0.05em] tabular-nums",
-                    copy.featured ? "text-[64px]" : "text-[52px]"
-                  )}
-                >
-                  {copy.price ?? "Custom"}
-                </span>
-                {copy.per && (
-                  <span className="text-sm text-tertiary">{copy.per}</span>
-                )}
-              </p>
-              {copy.contact ? (
-                <a href={CONTACT_HREF} className={button}>
-                  {copy.cta}
-                </a>
-              ) : (
-                <Link href="/signup" className={button}>
-                  {copy.cta}
-                </Link>
-              )}
-              <dl className="grid gap-3 text-[15.5px] text-muted-foreground">
-                {lines.map(([label, value]) => (
-                  <div key={label} className="flex justify-between gap-3">
-                    <dt>{label}</dt>
-                    <dd className="font-medium text-foreground tabular-nums">
-                      {custom
-                        ? "Custom"
-                        : value === null
-                          ? "No limit"
-                          : typeof value === "number"
-                            ? count.format(value)
-                            : value}
-                    </dd>
+              >
+                <div className="grid gap-1.5">
+                  <div className="flex items-center gap-2.5">
+                    <h3 className="text-xl font-semibold tracking-[-0.02em]">
+                      {copy.name}
+                    </h3>
+                    {offer.featured && (
+                      <StatusPill tone="lav">{t.recommended}</StatusPill>
+                    )}
                   </div>
-                ))}
-              </dl>
-            </li>
-          )
-        })}
+                  <p className="text-sm text-tertiary">{copy.who}</p>
+                </div>
+                <p className="flex items-baseline gap-2">
+                  {price && (
+                    <span className="mt-1.5 self-start text-xl leading-none font-semibold text-muted-foreground">
+                      {price.find((part) => part.type === "currency")?.value}
+                    </span>
+                  )}
+                  <span
+                    className={cn(
+                      "leading-none font-semibold tracking-[-0.05em] tabular-nums",
+                      offer.featured ? "text-[64px]" : "text-[52px]"
+                    )}
+                  >
+                    {price
+                      ? price
+                          .filter((part) => MONEY_PARTS.has(part.type))
+                          .map((part) => part.value)
+                          .join("")
+                      : custom
+                        ? t.custom
+                        : t.free}
+                  </span>
+                  {price && (
+                    <span className="text-sm text-tertiary">{t.perMonth}</span>
+                  )}
+                </p>
+                {custom ? (
+                  <a href={CONTACT_HREF} className={button}>
+                    {copy.cta}
+                  </a>
+                ) : (
+                  <Link href="/signup" className={button}>
+                    {copy.cta}
+                  </Link>
+                )}
+                <dl className="grid gap-3 text-[15.5px] text-muted-foreground">
+                  {lines.map(([label, value]) => (
+                    <div key={label} className="flex justify-between gap-3">
+                      <dt>{label}</dt>
+                      <dd className="font-medium text-foreground tabular-nums">
+                        {custom
+                          ? t.custom
+                          : value === null
+                            ? t.noLimit
+                            : typeof value === "number"
+                              ? count.format(value)
+                              : value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </li>
+            )
+          }
+        )}
       </InView>
       <p className="mx-auto mt-[34px] max-w-[46em] text-center text-sm text-tertiary">
-        Picking and titling clips with Claude uses your own Claude API key. The
-        built-in selector needs no key.
+        {t.note}
       </p>
     </section>
   )
 }
 
-const languages = LANGUAGES.filter((item) => item.value !== "auto").map(
-  (item) => item.label
+const LANGUAGE_CODES = LANGUAGES.filter((item) => item.value !== "auto").map(
+  (item) => item.value
 )
 
 const FAQ = [
-  {
-    q: "Does nimbus publish anything on its own?",
-    a: "No. A clip renders only after you approve it, and it goes to YouTube only when you press publish on that clip. You can change the title, description and privacy each time.",
-  },
-  {
-    q: "I clip other people's streams. Is nimbus for me?",
-    a: "Yes. Paste the link to the stream and nimbus picks and edits the clips the same way. You review them and publish to your own channel. Get the streamer's permission first: nimbus doesn't check who owns a video.",
-  },
-  {
-    q: "What can I import?",
-    a: "MP4, MOV, MKV or WebM files, and links to YouTube videos, Twitch VODs and most video sites. Only import videos you own or have the rights to use.",
-  },
-  {
-    q: "My recording has no webcam. Does it still work?",
-    a: "Yes. nimbus looks for a webcam the first time you open a clip. Without one, the clip either fills the frame with the gameplay or shows the whole picture over a blurred copy of itself. You choose.",
-  },
-  {
-    q: "Which languages does it understand?",
-    a: `It detects the spoken language on its own, or you can set it: ${languages.slice(0, -1).join(", ")} and ${languages.at(-1)}.`,
-  },
-  {
-    q: "Do I need a Claude API key?",
-    a: "Only if you want Claude to pick and title the clips or to suggest rules from your results. The built-in selector scores loudness, speech and your catchphrases with no key at all.",
-  },
-  {
-    q: "Where can I publish?",
-    a: "YouTube Shorts today. TikTok and Instagram are planned. You can always download the rendered clips and post them anywhere.",
-  },
+  "publishing",
+  "clippers",
+  "imports",
+  "noWebcam",
+  "languages",
+  "apiKey",
+  "destinations",
 ] as const
 
-function Faq() {
+function Faq({ locale }: { locale: Locale }) {
+  const t = marketing[locale]
+  const names = new Intl.DisplayNames(locale, { type: "language" })
+  const languages = LANGUAGE_CODES.map((code) => names.of(code) ?? code)
   return (
     <section
       id="faq"
@@ -754,33 +696,37 @@ function Faq() {
           id="faq-title"
           className={cn(H2, "mb-[clamp(32px,4vw,56px)] text-center")}
         >
-          Questions
+          {t.nav.faq}
         </h2>
-        {FAQ.map((item) => (
-          <details
-            key={item.q}
-            className="group shadow-[inset_0_-1px_0_var(--hair)]"
-          >
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-5 py-6 text-xl leading-[1.35] font-medium tracking-[-0.02em] transition-colors hover:text-white [&::-webkit-details-marker]:hidden">
-              {item.q}
-              <span
-                aria-hidden
-                className="grid size-8 shrink-0 place-items-center rounded-full bg-glass-2 transition-transform duration-[350ms] ease-snappy group-open:rotate-45"
-              >
-                <PlusIcon className="size-3.5" />
-              </span>
-            </summary>
-            <p className="max-w-[46em] pe-[52px] pb-6 text-[17px] text-muted-foreground">
-              {item.a}
-            </p>
-          </details>
-        ))}
+        {FAQ.map((id) => {
+          const { q, a } = t.faq[id]
+          return (
+            <details
+              key={id}
+              className="group shadow-[inset_0_-1px_0_var(--hair)]"
+            >
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-5 py-6 text-xl leading-[1.35] font-medium tracking-[-0.02em] transition-colors hover:text-white [&::-webkit-details-marker]:hidden">
+                {q}
+                <span
+                  aria-hidden
+                  className="grid size-8 shrink-0 place-items-center rounded-full bg-glass-2 transition-transform duration-[350ms] ease-snappy group-open:rotate-45"
+                >
+                  <PlusIcon className="size-3.5" />
+                </span>
+              </summary>
+              <p className="max-w-[46em] pe-[52px] pb-6 text-[17px] text-muted-foreground">
+                {typeof a === "function" ? a(languages) : a}
+              </p>
+            </details>
+          )
+        })}
       </InView>
     </section>
   )
 }
 
-function Closing() {
+function Closing({ locale }: { locale: Locale }) {
+  const t = marketing[locale].closing
   return (
     <section
       aria-labelledby="closing-title"
@@ -792,8 +738,7 @@ function Closing() {
           id="closing-title"
           className="max-w-[980px] text-[clamp(44px,6.4vw,84px)] leading-[1.02] font-semibold tracking-[-0.045em] text-balance"
         >
-          The next stream already has{" "}
-          <span className="text-gradient">the clips.</span>
+          {t.title} <span className="text-gradient">{t.titleAccent}</span>
         </h2>
         <div>
           <Link
@@ -804,12 +749,10 @@ function Closing() {
               className: "h-[58px] px-[34px] text-[19px]",
             })}
           >
-            Get started
+            {common[locale].getStarted}
           </Link>
         </div>
-        <p className="text-sm text-tertiary">
-          Free to start. Only import videos you own or have the rights to use.
-        </p>
+        <p className="text-sm text-tertiary">{t.note}</p>
       </InView>
       <InView className={STAGE_GAP}>
         <svg
@@ -857,7 +800,8 @@ function Closing() {
   )
 }
 
-function Footer() {
+function Footer({ locale }: { locale: Locale }) {
+  const t = marketing[locale]
   return (
     <footer className="shadow-[inset_0_1px_0_var(--hair)]">
       <div
@@ -873,21 +817,22 @@ function Footer() {
             href={item.href}
             className="transition-colors hover:text-foreground"
           >
-            {item.label}
+            {t.nav[item.label]}
           </a>
         ))}
         <Link href="/login" className="transition-colors hover:text-foreground">
-          Sign in
+          {common[locale].signIn}
         </Link>
         <span className="flex-1" />
-        <span>Nothing is published until you approve it.</span>
+        <span>{t.footer.promise}</span>
       </div>
     </footer>
   )
 }
 
 /** The public landing page (docs/DECISIONS.md, ADR-0083). */
-export function Landing() {
+export async function Landing() {
+  const locale = await getLocale()
   return (
     <div
       data-slot="landing"
@@ -897,20 +842,20 @@ export function Landing() {
         href="#main"
         className="sr-only z-50 rounded-full bg-graphite-3 px-4 py-2 text-sm font-semibold focus:not-sr-only focus:fixed focus:start-4 focus:top-4"
       >
-        Skip to content
+        {marketing[locale].skip}
       </a>
-      <Nav />
+      <Nav locale={locale} />
       <main id="main">
-        <Hero />
-        <HowItWorks />
-        <EditorSection />
-        <Promise />
-        <Learn />
-        <Pricing />
-        <Faq />
-        <Closing />
+        <Hero locale={locale} />
+        <HowItWorks locale={locale} />
+        <EditorSection locale={locale} />
+        <Promise locale={locale} />
+        <Learn locale={locale} />
+        <Pricing locale={locale} />
+        <Faq locale={locale} />
+        <Closing locale={locale} />
       </main>
-      <Footer />
+      <Footer locale={locale} />
     </div>
   )
 }

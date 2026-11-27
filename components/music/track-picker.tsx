@@ -29,9 +29,12 @@ import {
   type YoutubeSound,
 } from "@/features/music/schema"
 import { formatDuration } from "@/lib/format"
+import { useLocale, useMessages } from "@/lib/i18n/client"
+import type { Locale } from "@/lib/i18n/config"
 
-const views = new Intl.NumberFormat("en", { notation: "compact" })
-const regions = new Intl.DisplayNames(["en"], { type: "region" })
+import { music } from "./messages"
+
+type Messages = (typeof music)[Locale]["picker"]
 
 export type TrackChoice =
   | { kind: "none" }
@@ -61,17 +64,21 @@ function youtubeOptions(videos: readonly TrendingVideo[], prefix: string) {
   }))
 }
 
-function trackDetail(track: MusicTrackSummary) {
-  if (track.status === "processing") return "Processing…"
-  if (track.status === "failed") return "Couldn't be read"
+function trackDetail(track: MusicTrackSummary, t: Messages) {
+  if (track.status === "processing") return t.processing
+  if (track.status === "failed") return t.unreadable
   return formatDuration(track.durationMs)
 }
 
-function videoDetail(video: TrendingVideo) {
+function videoDetail(
+  video: TrendingVideo,
+  t: Messages,
+  views: Intl.NumberFormat
+) {
   return [
     video.channelTitle,
     video.durationMs !== null && formatDuration(video.durationMs),
-    `${views.format(video.views)} views`,
+    t.views(views.format(video.views)),
   ]
     .filter(Boolean)
     .join(" · ")
@@ -100,17 +107,18 @@ function useTrending(trending: Promise<TrendingMusic>) {
   return result
 }
 
-function trendingNote(result: TrendingMusic | null) {
-  if (result === null) return "Loading what's trending on YouTube…"
-  if (result.status === "no_channel") {
-    return "Connect YouTube in Settings › Connected channels to pick from what's trending."
-  }
+function trendingNote(
+  result: TrendingMusic | null,
+  t: Messages,
+  locale: Locale
+) {
+  if (result === null) return t.trendingLoading
+  if (result.status === "no_channel") return t.trendingNoChannel
   if (result.status === "error") return result.message
+  const regions = new Intl.DisplayNames([locale], { type: "region" })
   const region = regions.of(result.region) ?? result.region
-  if (result.tracks.length === 0) {
-    return `YouTube has no music chart for ${region}.`
-  }
-  return `Trending songs are the top music on YouTube in ${region}. They aren't mixed into the render: you add them in the YouTube app.`
+  if (result.tracks.length === 0) return t.trendingNoChart(region)
+  return t.trendingNote(region)
 }
 
 export function TrackPicker({
@@ -128,6 +136,12 @@ export function TrackPicker({
   onValueChange: (value: TrackChoice) => void
   disabled?: boolean
 }) {
+  const locale = useLocale()
+  const t = useMessages(music).picker
+  const views = React.useMemo(
+    () => new Intl.NumberFormat(locale, { notation: "compact" }),
+    [locale]
+  )
   const result = useTrending(trending)
   const trendingVideos = React.useMemo(
     () => (result?.status === "ok" ? result.tracks : []),
@@ -150,17 +164,17 @@ export function TrackPicker({
       track,
     }))
     return [
-      { value: "Your music", items: own },
+      { value: t.library, items: own },
       {
-        value: "Trending on YouTube",
+        value: t.trending,
         items: youtubeOptions(trendingVideos, "youtube"),
       },
       {
-        value: search ? `On YouTube for “${search.query}”` : "",
+        value: search ? t.searchResults(search.query) : "",
         items: youtubeOptions(search?.videos ?? [], "search"),
       },
     ].filter((group) => group.items.length > 0)
-  }, [library, trendingVideos, search])
+  }, [library, trendingVideos, search, t])
 
   const runSearch = () => {
     const searchedFor = typed
@@ -231,8 +245,8 @@ export function TrackPicker({
         <div ref={anchor}>
           <ComboboxInput
             id={id}
-            placeholder="No music"
-            aria-description="Type to search your music, trending songs or YouTube"
+            placeholder={t.placeholder}
+            aria-description={t.description}
             showClear={selected !== null}
             disabled={disabled}
             className="w-full"
@@ -240,9 +254,7 @@ export function TrackPicker({
         </div>
         <ComboboxContent anchor={anchor}>
           <ComboboxEmpty>
-            {groups.length === 0 && typed.length === 0
-              ? "Upload a track or type to search YouTube."
-              : "No songs match."}
+            {groups.length === 0 && typed.length === 0 ? t.empty : t.noMatch}
           </ComboboxEmpty>
           <ComboboxList>
             {(group: OptionGroup) => (
@@ -280,8 +292,8 @@ export function TrackPicker({
                         <span className="truncate">{option.label}</span>
                         <span className="truncate text-xs text-muted-foreground">
                           {option.kind === "track"
-                            ? trackDetail(option.track)
-                            : videoDetail(option.video)}
+                            ? trackDetail(option.track, t)
+                            : videoDetail(option.video, t, views)}
                         </span>
                       </span>
                     </ComboboxItem>
@@ -305,16 +317,16 @@ export function TrackPicker({
                   <MagnifyingGlassIcon aria-hidden className="size-4" />
                 )}
                 <span className="truncate">
-                  {searching
-                    ? "Searching YouTube…"
-                    : `Search YouTube for “${typed}”`}
+                  {searching ? t.searching : t.search(typed)}
                 </span>
               </button>
             </div>
           )}
         </ComboboxContent>
       </Combobox>
-      <p className="text-[13px] text-tertiary">{trendingNote(result)}</p>
+      <p className="text-[13px] text-tertiary">
+        {trendingNote(result, t, locale)}
+      </p>
     </div>
   )
 }

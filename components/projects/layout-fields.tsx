@@ -17,32 +17,15 @@ import {
   type LayoutMode,
   type Rect,
 } from "@/features/layout/schema"
+import { useMessages } from "@/lib/i18n/client"
 
-export const LAYOUT_MODES: {
-  value: LayoutMode
-  label: string
-  description: string
-}[] = [
-  {
-    value: "cam-top",
-    label: "Webcam on top",
-    description: "A webcam strip, gameplay below",
-  },
-  {
-    value: "split-50",
-    label: "Even split",
-    description: "Webcam and gameplay, half each",
-  },
-  {
-    value: "no-cam-fill",
-    label: "Fill, no webcam",
-    description: "Gameplay cropped to fill the frame",
-  },
-  {
-    value: "no-cam-blur-fill",
-    label: "Fit, no webcam",
-    description: "The whole frame over a blurred copy",
-  },
+import { overview } from "./messages/overview"
+
+export const LAYOUT_MODES: { value: LayoutMode }[] = [
+  { value: "cam-top" },
+  { value: "split-50" },
+  { value: "no-cam-fill" },
+  { value: "no-cam-blur-fill" },
 ]
 
 function ModeIcon({ mode }: { mode: LayoutMode }) {
@@ -79,13 +62,14 @@ export function LayoutModeOptions({
   onValueChange: (mode: LayoutMode) => void
   disabled?: boolean
 }) {
+  const t = useMessages(overview).layout
   return (
     <div className="grid gap-2">
       <span
         id="layout-mode-label"
         className="text-[13px] text-muted-foreground"
       >
-        Mode
+        {t.mode}
       </span>
       <ToggleGroup
         aria-labelledby="layout-mode-label"
@@ -104,9 +88,9 @@ export function LayoutModeOptions({
             className="grid h-auto justify-items-start gap-0.5 rounded-[14px] bg-graphite-2 p-3.5 text-start whitespace-normal inset-ring-1 inset-ring-hair hover:bg-graphite-3 aria-pressed:bg-lav/10 aria-pressed:inset-ring-lav/60"
           >
             <ModeIcon mode={mode.value} />
-            <b className="text-sm font-semibold">{mode.label}</b>
+            <b className="text-sm font-semibold">{t.modes[mode.value].label}</b>
             <span className="text-xs font-normal text-muted-foreground">
-              {mode.description}
+              {t.modes[mode.value].description}
             </span>
           </ToggleGroupItem>
         ))}
@@ -125,9 +109,10 @@ export function CamPositionField({
   onValueChange: (value: CamPosition) => void
   disabled?: boolean
 }) {
+  const t = useMessages(overview).layout
   return (
     <div className="flex flex-col gap-2">
-      <Label id="cam-position-label">Webcam goes</Label>
+      <Label id="cam-position-label">{t.camPosition}</Label>
       <ToggleGroup
         aria-labelledby="cam-position-label"
         variant="outline"
@@ -139,8 +124,8 @@ export function CamPositionField({
         }}
         disabled={disabled}
       >
-        <ToggleGroupItem value="top">On top</ToggleGroupItem>
-        <ToggleGroupItem value="bottom">At the bottom</ToggleGroupItem>
+        <ToggleGroupItem value="top">{t.top}</ToggleGroupItem>
+        <ToggleGroupItem value="bottom">{t.bottom}</ToggleGroupItem>
       </ToggleGroup>
     </div>
   )
@@ -161,10 +146,11 @@ export function GameplayRegion({
 }) {
   const box = gameplayBox(layout, width, height)
   const aspect = gameplaySlotAspect(layout.mode)
+  const t = useMessages(overview).layout
   if (!box || !aspect) return null
   return (
     <CropRegion
-      aria-label="Gameplay region"
+      aria-label={t.gameplayRegion}
       variant="dashed"
       value={box}
       aspectRatio={aspect}

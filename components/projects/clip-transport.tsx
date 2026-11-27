@@ -19,8 +19,10 @@ import {
 } from "@/components/ui/tooltip"
 import { useVideoPlayer } from "@/components/ui/video-player"
 import { formatTimestamp } from "@/lib/format"
+import { useMessages } from "@/lib/i18n/client"
 
 import { IconAction } from "./icon-action"
+import { editor } from "./messages/editor"
 
 const END_SLACK_MS = 50
 export const START_SLACK_MS = 250
@@ -75,12 +77,13 @@ export function ClipTransport({
     startMs,
     endMs
   )
-  const label = paused ? "Play" : "Pause"
+  const t = useMessages(editor).transport
+  const label = paused ? t.play : t.pause
 
   return (
     <div
       role="group"
-      aria-label="Playback"
+      aria-label={t.playback}
       className="flex shrink-0 items-center justify-center gap-1.5"
     >
       <span className="min-w-[120px] text-right font-mono text-[13px] tabular-nums">
@@ -91,7 +94,7 @@ export function ClipTransport({
           / {formatTimestamp(endMs - startMs)}
         </span>
       </span>
-      <IconAction label="Back 1 second" onClick={() => step(-1000)}>
+      <IconAction label={t.back} onClick={() => step(-1000)}>
         <CaretDoubleLeftIcon aria-hidden />
       </IconAction>
       <Tooltip>
@@ -116,12 +119,12 @@ export function ClipTransport({
           <Kbd>Space</Kbd>
         </TooltipContent>
       </Tooltip>
-      <IconAction label="Forward 1 second" onClick={() => step(1000)}>
+      <IconAction label={t.forward} onClick={() => step(1000)}>
         <CaretDoubleRightIcon aria-hidden />
       </IconAction>
       <span className="flex min-w-[120px] items-center gap-1">
         <IconAction
-          label="Loop clip"
+          label={t.loop}
           aria-pressed={loop}
           className="aria-pressed:text-foreground"
           onClick={() => onLoopChange(!loop)}
@@ -129,7 +132,7 @@ export function ClipTransport({
           <RepeatIcon aria-hidden />
         </IconAction>
         <IconAction
-          label={muted ? "Unmute" : "Mute"}
+          label={muted ? t.unmute : t.mute}
           aria-pressed={muted}
           onClick={() => setMuted(!muted)}
         >

@@ -107,6 +107,13 @@ export function accountRepository(db: Db) {
         .where(eq(user.id, id))
     },
 
+    async setUserLocale(id: string, locale: string) {
+      await db
+        .update(user)
+        .set({ locale, updatedAt: now() })
+        .where(eq(user.id, id))
+    },
+
     async workspaceImage(id: string) {
       const [row] = await db
         .select({ image: workspaces.image })

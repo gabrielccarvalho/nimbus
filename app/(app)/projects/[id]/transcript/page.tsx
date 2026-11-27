@@ -2,6 +2,7 @@ import { TextAlignLeftIcon } from "@phosphor-icons/react/ssr"
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 
+import { review } from "@/components/projects/messages/review"
 import { projectStatusLabel } from "@/components/projects/status-badge"
 import { TranscriptView } from "@/components/projects/transcript-view"
 import {
@@ -11,19 +12,26 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
+import { getLocale, getMessages } from "@/lib/i18n/server"
 import { getProjectTranscript } from "@/features/projects/queries"
 import { mediaUrl } from "@/lib/format"
 
-export const metadata: Metadata = { title: "Transcript" }
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getMessages(review)).transcriptPage.title }
+}
 
 export default async function TranscriptPage({
   params,
 }: PageProps<"/projects/[id]/transcript">) {
   const { id } = await params
-  const data = await getProjectTranscript(id)
+  const [data, locale] = await Promise.all([
+    getProjectTranscript(id),
+    getLocale(),
+  ])
   if (!data) notFound()
   const { project, proxy, source, transcript, audio, clips } = data
   const video = proxy ?? source
+  const t = review[locale].transcriptPage
 
   if (!transcript || !video) {
     return (
@@ -32,11 +40,11 @@ export default async function TranscriptPage({
           <EmptyMedia variant="icon">
             <TextAlignLeftIcon />
           </EmptyMedia>
-          <EmptyTitle>No transcript yet</EmptyTitle>
+          <EmptyTitle>{t.emptyTitle}</EmptyTitle>
           <EmptyDescription>
             {project.status === "failed"
-              ? "Transcription didn't finish. Retry the project from the overview."
-              : `The transcript appears here once transcription finishes. Current step: ${projectStatusLabel(project.status)}.`}
+              ? t.emptyFailed
+              : t.emptyPending(projectStatusLabel(project.status, locale))}
           </EmptyDescription>
         </EmptyHeader>
       </Empty>

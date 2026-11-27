@@ -1,8 +1,10 @@
 import { CheckIcon, UploadSimpleIcon } from "@phosphor-icons/react/ssr"
 
+import type { Locale } from "@/lib/i18n/config"
 import { cn } from "@/lib/utils"
 
 import styles from "./landing.module.css"
+import { marketing } from "./messages"
 
 const h = (name: keyof typeof styles) => cn(styles.a, styles.h, styles[name])
 
@@ -11,17 +13,24 @@ const STREAM_SECONDS = 3 * 3600 + 12 * 60 + 4
 const seconds = (at: string) =>
   at.split(":").reduce((total, part) => total * 60 + Number(part), 0)
 
-const CLIPS = [
-  { at: "0:12:41", caption: "no way", score: 94, decision: "approved" },
-  { at: "0:31:07", caption: "one tap", score: 88 },
+const MOMENTS: {
+  at: string
+  caption: keyof (typeof marketing)["en-US"]["streamToClips"]["captions"]
+  score: number
+  decision?: "approved" | "rejected"
+}[] = [
+  { at: "0:12:41", caption: "noWay", score: 94, decision: "approved" },
+  { at: "0:31:07", caption: "oneTap", score: 88 },
   { at: "0:48:52", caption: "clutch", score: 91, decision: "approved" },
   { at: "1:09:15", caption: "wait", score: 76, decision: "rejected" },
-  { at: "1:27:40", caption: "run it", score: 85 },
-  { at: "1:52:03", caption: "12 hp", score: 97, decision: "approved" },
-  { at: "2:14:26", caption: "let's go", score: 82 },
+  { at: "1:27:40", caption: "runIt", score: 85 },
+  { at: "1:52:03", caption: "hp", score: 97, decision: "approved" },
+  { at: "2:14:26", caption: "letsGo", score: 82 },
   { at: "2:39:58", caption: "what", score: 79 },
   { at: "2:58:11", caption: "gg", score: 90 },
-].map((clip) => ({
+]
+
+const CLIPS = MOMENTS.map((clip) => ({
   ...clip,
   position: (seconds(clip.at) / STREAM_SECONDS) * 100,
 }))
@@ -82,12 +91,20 @@ function Waveform({ className }: { className: string }) {
  * nine moments marked, each turned into a vertical clip, then decided on. No
  * JavaScript. Each element's own style is its final state (see the stylesheet).
  */
-export function StreamToClips({ className }: { className?: string }) {
+export function StreamToClips({
+  locale,
+  className,
+}: {
+  locale: Locale
+  className?: string
+}) {
+  const t = marketing[locale].streamToClips
+  const number = new Intl.NumberFormat(locale)
   return (
     <div
       data-slot="stream-to-clips"
       role="img"
-      aria-label="A three hour stream on a timeline. nimbus reads it from start to end, marks nine moments and turns each into a vertical clip. Three of the clips are approved and one is rejected."
+      aria-label={t.label}
       className={cn("px-[clamp(16px,2.4vw,30px)] pt-[22px] pb-7", className)}
     >
       <div className="flex min-h-10 flex-wrap items-center gap-x-[18px] gap-y-3">
@@ -100,21 +117,22 @@ export function StreamToClips({ className }: { className?: string }) {
           <span className="grid size-7 place-items-center rounded-full bg-glass-2 [&_svg]:size-3.5">
             <UploadSimpleIcon />
           </span>
-          friday-stream.mp4
+          {t.file}
           <span className="font-mono text-xs text-muted-foreground">
-            3:12:04 · 2.3 GB
+            3:12:04 · {number.format(2.3)} GB
           </span>
         </span>
         <span className="flex-1" />
         <span className="flex gap-[18px] font-mono text-xs font-medium text-tertiary max-md:hidden">
           <span className={h("stat1")}>
-            <span className="text-foreground">1,842</span> lines read
+            <span className="text-foreground">{number.format(1842)}</span>{" "}
+            {t.linesRead}
           </span>
           <span className={h("stat2")}>
-            <span className="text-lav">9</span> moments picked
+            <span className="text-lav">9</span> {t.momentsPicked}
           </span>
           <span className={h("stat3")}>
-            <span className="text-mint">3</span> approved
+            <span className="text-mint">3</span> {t.approved}
           </span>
         </span>
       </div>
@@ -197,7 +215,7 @@ export function StreamToClips({ className }: { className?: string }) {
                       approved && "text-amber"
                     )}
                   >
-                    {clip.caption}
+                    {t.captions[clip.caption]}
                   </b>
                   {approved && (
                     <i

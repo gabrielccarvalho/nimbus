@@ -1,0 +1,181 @@
+import type { PlanId } from "@/features/accounts/schema"
+import { defineMessages, plural } from "@/lib/i18n/messages"
+
+export const shell = defineMessages({
+  "en-US": {
+    skipToContent: "Skip to content",
+    plans: {
+      free: "Free",
+      creator: "Creator",
+      studio: "Studio",
+      admin: "Admin",
+    } satisfies Record<PlanId, string>,
+    sidebar: {
+      label: "Main navigation",
+      home: "nimbus, all projects",
+      expand: "Expand sidebar",
+      collapse: "Collapse sidebar",
+      openMenu: "Open menu",
+      closeMenu: "Close menu",
+      sections: "Sections",
+      projects: "Projects",
+      analytics: "Analytics",
+      channels: "Channels",
+      recent: "Recent",
+    },
+    workspace: {
+      meta: (plan: string) => `Personal · ${plan} plan`,
+      list: "Workspaces",
+      current: "Current",
+      settings: "Workspace settings",
+    },
+    account: {
+      account: "Account",
+      plan: "Plan & usage",
+      settings: "Settings",
+      shortcuts: "Keyboard shortcuts",
+    },
+    shortcuts: {
+      title: "Keyboard shortcuts",
+      description: "Single keys work anywhere outside a text field.",
+      search: "Search recordings and clips",
+      newProject: "New project",
+      settings: "Settings",
+      shortcuts: "Keyboard shortcuts",
+    },
+    palette: {
+      description: "Search recordings and clips, or jump to a page.",
+      placeholder: "Search recordings and clips",
+      empty: "Nothing matches.",
+      loading: "Loading…",
+      recordings: "Recordings",
+      clips: "Clips",
+      goTo: "Go to",
+      newProject: "New project",
+      settings: "Settings",
+    },
+    routeError: {
+      documentTitle: "Something went wrong · Nimbus",
+      title: "Something went wrong",
+      description:
+        "This page couldn't load. Try again, or check the server logs.",
+    },
+    notFound: {
+      title: "Page not found",
+      description: "There's nothing at this address.",
+      home: "All projects",
+    },
+    home: {
+      title: "Projects",
+      upLate: "Up late",
+      morning: "Good morning",
+      afternoon: "Good afternoon",
+      evening: "Good evening",
+      lede: "Drop a long recording and nimbus marks the moments worth a vertical clip.",
+      promise: "Nothing leaves here until you approve it.",
+      emptyTitle: "No recordings yet",
+      emptyDescription:
+        "Drop a recording or paste a link above. Each one shows up here with its clips and where it is in the pipeline.",
+    },
+    channels: {
+      title: "Channels",
+      published: (count: number) =>
+        `${count} ${plural("en-US", count, { one: "clip", other: "clips" })} published`,
+      connectHint: "Connect a channel to publish approved clips as Shorts.",
+      needsReconnect: "Needs reconnect",
+      connected: "Connected",
+      reconnect: "Reconnect",
+      connect: "Connect",
+      soon: "Soon",
+    },
+  },
+  "pt-BR": {
+    skipToContent: "Pular para o conteúdo",
+    plans: {
+      free: "Grátis",
+      creator: "Creator",
+      studio: "Studio",
+      admin: "Admin",
+    },
+    sidebar: {
+      label: "Navegação principal",
+      home: "nimbus, todos os projetos",
+      expand: "Expandir barra lateral",
+      collapse: "Recolher barra lateral",
+      openMenu: "Abrir menu",
+      closeMenu: "Fechar menu",
+      sections: "Seções",
+      projects: "Projetos",
+      analytics: "Análises",
+      channels: "Canais",
+      recent: "Recentes",
+    },
+    workspace: {
+      meta: (plan: string) => `Pessoal · plano ${plan}`,
+      list: "Workspaces",
+      current: "Atual",
+      settings: "Configurações do workspace",
+    },
+    account: {
+      account: "Conta",
+      plan: "Plano e uso",
+      settings: "Configurações",
+      shortcuts: "Atalhos de teclado",
+    },
+    shortcuts: {
+      title: "Atalhos de teclado",
+      description:
+        "Teclas sozinhas funcionam em qualquer lugar fora de um campo de texto.",
+      search: "Buscar gravações e cortes",
+      newProject: "Novo projeto",
+      settings: "Configurações",
+      shortcuts: "Atalhos de teclado",
+    },
+    palette: {
+      description: "Busque gravações e cortes ou vá direto para uma página.",
+      placeholder: "Buscar gravações e cortes",
+      empty: "Nada encontrado.",
+      loading: "Carregando…",
+      recordings: "Gravações",
+      clips: "Cortes",
+      goTo: "Ir para",
+      newProject: "Novo projeto",
+      settings: "Configurações",
+    },
+    routeError: {
+      documentTitle: "Algo deu errado · Nimbus",
+      title: "Algo deu errado",
+      description:
+        "Não deu para carregar esta página. Tente de novo ou confira os logs do servidor.",
+    },
+    notFound: {
+      title: "Página não encontrada",
+      description: "Não tem nada neste endereço.",
+      home: "Todos os projetos",
+    },
+    home: {
+      title: "Projetos",
+      upLate: "Virando a noite",
+      morning: "Bom dia",
+      afternoon: "Boa tarde",
+      evening: "Boa noite",
+      lede: "Solte uma gravação longa e o nimbus marca os momentos que valem um corte vertical.",
+      promise: "Nada sai daqui sem a sua aprovação.",
+      emptyTitle: "Nenhuma gravação ainda",
+      emptyDescription:
+        "Solte uma gravação ou cole um link acima. Cada uma aparece aqui com seus cortes e em que etapa do processamento está.",
+    },
+    channels: {
+      title: "Canais",
+      published: (count: number) =>
+        `${count} ${plural("pt-BR", count, { one: "corte publicado", other: "cortes publicados" })}`,
+      connectHint:
+        "Conecte um canal para publicar cortes aprovados como Shorts.",
+      needsReconnect: "Reconecte o canal",
+      connected: "Conectado",
+      reconnect: "Reconectar",
+      connect: "Conectar",
+      soon: "Em breve",
+    },
+  },
+})

@@ -6,7 +6,9 @@ import { notFound } from "next/navigation"
 import { AudioOverview } from "@/components/projects/audio-timeline"
 import { ProjectOverview } from "@/components/projects/project-overview"
 import { SourcePreview } from "@/components/projects/source-preview"
+import { overview as messages } from "@/components/projects/messages/overview"
 import { DotMeter } from "@/components/ui/dot-meter"
+import { getMessages } from "@/lib/i18n/server"
 import { getProject, getProjectOverview } from "@/features/projects/queries"
 import { formatDuration, mediaUrl } from "@/lib/format"
 
@@ -14,14 +16,20 @@ export async function generateMetadata({
   params,
 }: PageProps<"/projects/[id]">): Promise<Metadata> {
   const { id } = await params
-  return { title: (await getProject(id))?.name ?? "Project" }
+  return {
+    title:
+      (await getProject(id))?.name ?? (await getMessages(messages)).page.title,
+  }
 }
 
 export default async function ProjectOverviewPage({
   params,
 }: PageProps<"/projects/[id]">) {
   const { id } = await params
-  const overview = await getProjectOverview(id)
+  const [overview, { page: t }] = await Promise.all([
+    getProjectOverview(id),
+    getMessages(messages),
+  ])
   if (!overview) notFound()
   const {
     project,
@@ -90,13 +98,13 @@ export default async function ProjectOverviewPage({
           <section className="grid gap-1 rounded-[18px] bg-graphite p-[22px]">
             <div className="flex items-baseline justify-between gap-2 pb-1.5">
               <h2 className="text-[15px] font-semibold tracking-[-0.015em]">
-                Top picks
+                {t.topPicks}
               </h2>
               <Link
                 href={`/projects/${project.id}/clips`}
                 className="inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-foreground"
               >
-                All {kept.length}
+                {t.all(kept.length)}
                 <ArrowRightIcon className="size-3.5" aria-hidden />
               </Link>
             </div>
@@ -122,7 +130,7 @@ export default async function ProjectOverviewPage({
                         <DotMeter
                           value={Math.round(clip.score * 10)}
                           max={10}
-                          aria-label={`Score ${Math.round(clip.score * 100)}`}
+                          aria-label={t.score(Math.round(clip.score * 100))}
                         />
                         <span className="font-mono tabular-nums">
                           {formatDuration(clip.startMs)} ·{" "}

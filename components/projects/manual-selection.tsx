@@ -16,6 +16,9 @@ import {
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { submitManualSelectionAction } from "@/features/clips/actions"
+import { useMessages } from "@/lib/i18n/client"
+
+import { overview } from "./messages/overview"
 
 export function ManualSelection({
   projectId,
@@ -27,36 +30,31 @@ export function ManualSelection({
   const router = useRouter()
   const [json, setJson] = React.useState("")
   const [pending, startTransition] = React.useTransition()
+  const t = useMessages(overview).manualSelection
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Pick highlights manually</CardTitle>
-        <CardDescription>
-          Paste this prompt into any chat assistant, then paste its JSON reply
-          below. The same length and overlap rules apply as for automatic
-          selection.
-        </CardDescription>
+        <CardTitle>{t.title}</CardTitle>
+        <CardDescription>{t.description}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2">
-            <Label htmlFor="manual-prompt">Prompt</Label>
+            <Label htmlFor="manual-prompt">{t.prompt}</Label>
             <Button
               size="sm"
               onClick={async () => {
                 try {
                   await navigator.clipboard.writeText(prompt)
-                  toast.success("Prompt copied")
+                  toast.success(t.copied)
                 } catch {
-                  toast.error(
-                    "Couldn't copy. Select the text and copy it instead."
-                  )
+                  toast.error(t.copyFailed)
                 }
               }}
             >
               <CopyIcon data-icon="inline-start" aria-hidden />
-              Copy prompt
+              {t.copy}
             </Button>
           </div>
           <Textarea
@@ -76,15 +74,13 @@ export function ManualSelection({
                 toast.error(result.error.message)
                 return
               }
-              toast.success(
-                `Added ${result.value} ${result.value === 1 ? "clip" : "clips"}`
-              )
+              toast.success(t.added(result.value))
               setJson("")
               router.refresh()
             })
           }}
         >
-          <Label htmlFor="manual-json">JSON reply</Label>
+          <Label htmlFor="manual-json">{t.reply}</Label>
           <Textarea
             id="manual-json"
             value={json}
@@ -98,7 +94,7 @@ export function ManualSelection({
             className="self-start"
             disabled={pending || !json.trim()}
           >
-            {pending ? "Adding clips…" : "Add clips"}
+            {pending ? t.adding : t.add}
           </Button>
         </form>
       </CardContent>

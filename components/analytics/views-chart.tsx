@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo } from "react"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
 import {
@@ -18,22 +19,9 @@ import {
 } from "@/components/ui/table"
 import type { DailyPoint } from "@/features/analytics/curves"
 import type { AnalyticsPeriod } from "@/features/analytics/schema"
+import { useLocale, useMessages } from "@/lib/i18n/client"
 
-const config = {
-  views: { label: "Views", color: "var(--chart-1)" },
-  shorts: { label: "Shorts", color: "var(--chart-1)" },
-  longForm: { label: "Long-form", color: "var(--chart-2)" },
-} satisfies ChartConfig
-
-const number = new Intl.NumberFormat("en-US")
-
-function shortDay(day: string) {
-  return new Intl.DateTimeFormat("en", {
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  }).format(new Date(`${day}T00:00:00Z`))
-}
+import { analytics } from "./messages"
 
 export function ViewsChart({
   series,
@@ -44,6 +32,27 @@ export function ViewsChart({
   split: boolean
   period: AnalyticsPeriod
 }) {
+  const locale = useLocale()
+  const t = useMessages(analytics).viewsChart
+  const { number, compact, dayFormat } = useMemo(
+    () => ({
+      number: new Intl.NumberFormat(locale),
+      compact: new Intl.NumberFormat(locale, { notation: "compact" }),
+      dayFormat: new Intl.DateTimeFormat(locale, {
+        month: "short",
+        day: "numeric",
+        timeZone: "UTC",
+      }),
+    }),
+    [locale]
+  )
+  const shortDay = (day: string) =>
+    dayFormat.format(new Date(`${day}T00:00:00Z`))
+  const config = {
+    views: { label: t.views, color: "var(--chart-1)" },
+    shorts: { label: t.shorts, color: "var(--chart-1)" },
+    longForm: { label: t.longForm, color: "var(--chart-2)" },
+  } satisfies ChartConfig
   const data = series.map((point) => ({
     day: point.day,
     views: point.shorts + point.long + point.other,
@@ -53,8 +62,8 @@ export function ViewsChart({
   const total = data.reduce((sum, point) => sum + point.views, 0)
   const shorts = data.reduce((sum, point) => sum + point.shorts, 0)
   const summary = split
-    ? `${number.format(total)} views in the last ${period} days: ${number.format(shorts)} from Shorts, ${number.format(total - shorts)} from long-form.`
-    : `${number.format(total)} views in the last ${period} days.`
+    ? t.splitSummary(total, period, shorts, total - shorts)
+    : t.summary(total, period)
 
   return (
     <div className="grid gap-3">
@@ -74,6 +83,7 @@ export function ViewsChart({
             tickLine={false}
             axisLine={false}
             allowDecimals={false}
+            tickFormatter={(value: number) => compact.format(value)}
           />
           <ChartTooltip
             content={
@@ -102,19 +112,19 @@ export function ViewsChart({
       </ChartContainer>
       <details className="text-sm">
         <summary className="w-fit cursor-pointer text-muted-foreground hover:text-foreground">
-          Show as table
+          {t.showTable}
         </summary>
         <Table className="mt-2">
           <TableHeader>
             <TableRow>
-              <TableHead>Day</TableHead>
+              <TableHead>{t.day}</TableHead>
               {split ? (
                 <>
-                  <TableHead className="text-end">Shorts</TableHead>
-                  <TableHead className="text-end">Long-form</TableHead>
+                  <TableHead className="text-end">{t.shorts}</TableHead>
+                  <TableHead className="text-end">{t.longForm}</TableHead>
                 </>
               ) : (
-                <TableHead className="text-end">Views</TableHead>
+                <TableHead className="text-end">{t.views}</TableHead>
               )}
             </TableRow>
           </TableHeader>

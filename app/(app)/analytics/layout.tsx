@@ -1,5 +1,7 @@
+import type { Route } from "next"
 import Link from "next/link"
 
+import { analytics } from "@/components/analytics/messages"
 import { Page } from "@/components/app-shell/page"
 import {
   PageHeader,
@@ -7,17 +9,21 @@ import {
   PageHeaderHeading,
   PageHeaderTabs,
   PageHeaderTitle,
-  type PageHeaderTab,
 } from "@/components/app-shell/page-header"
 import { Alert, AlertAction, AlertDescription } from "@/components/ui/alert"
 import { buttonVariants } from "@/components/ui/button"
 import { Empty, EmptyDescription, EmptyHeader } from "@/components/ui/empty"
+import { getMessages } from "@/lib/i18n/server"
 import { getAnalyticsChannel } from "@/features/analytics/queries"
 
-const TABS: PageHeaderTab[] = [
-  { href: "/analytics", label: "Overview", exact: true },
-  { href: "/analytics/shorts", label: "Shorts" },
-  { href: "/analytics/insights", label: "Insights" },
+const TABS: {
+  href: Route
+  label: "overview" | "shorts" | "insights"
+  exact?: boolean
+}[] = [
+  { href: "/analytics", label: "overview", exact: true },
+  { href: "/analytics/shorts", label: "shorts" },
+  { href: "/analytics/insights", label: "insights" },
 ]
 
 export default async function AnalyticsLayout({
@@ -25,45 +31,48 @@ export default async function AnalyticsLayout({
 }: {
   children: React.ReactNode
 }) {
-  const channel = await getAnalyticsChannel()
+  const [channel, messages] = await Promise.all([
+    getAnalyticsChannel(),
+    getMessages(analytics),
+  ])
+  const t = messages.layout
 
   return (
     <>
       <PageHeader>
         <PageHeaderHeading>
           <PageHeaderContext>{channel?.title ?? "YouTube"}</PageHeaderContext>
-          <PageHeaderTitle>Analytics</PageHeaderTitle>
+          <PageHeaderTitle>{t.title}</PageHeaderTitle>
         </PageHeaderHeading>
-        <PageHeaderTabs aria-label="Analytics sections" tabs={TABS} />
+        <PageHeaderTabs
+          aria-label={t.sections}
+          tabs={TABS.map((tab) => ({ ...tab, label: t[tab.label] }))}
+        />
       </PageHeader>
       <Page>
         {!channel ? (
           <Empty className="rounded-[18px] bg-graphite">
             <EmptyHeader>
-              <EmptyDescription>
-                Connect a YouTube channel to see how your Shorts do.
-              </EmptyDescription>
+              <EmptyDescription>{t.connectPrompt}</EmptyDescription>
             </EmptyHeader>
             <Link
               href="/settings/channels"
               className={buttonVariants({ size: "sm" })}
             >
-              Connect
+              {t.connect}
             </Link>
           </Empty>
         ) : (
           <>
             {channel.needsReconnect && (
               <Alert>
-                <AlertDescription>
-                  Reconnect YouTube to keep these numbers up to date.
-                </AlertDescription>
+                <AlertDescription>{t.reconnectPrompt}</AlertDescription>
                 <AlertAction>
                   <Link
                     href="/settings/channels"
                     className={buttonVariants({ size: "sm" })}
                   >
-                    Reconnect
+                    {t.reconnect}
                   </Link>
                 </AlertAction>
               </Alert>

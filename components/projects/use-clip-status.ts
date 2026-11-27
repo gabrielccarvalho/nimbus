@@ -6,10 +6,14 @@ import { toast } from "sonner"
 
 import { setClipStatusAction } from "@/features/clips/actions"
 import type { Clip } from "@/features/clips/repository"
+import { useMessages } from "@/lib/i18n/client"
+
+import { review } from "./messages/review"
 
 export function useClipStatus(projectId: string, clip: Clip) {
   const router = useRouter()
   const [pending, startTransition] = React.useTransition()
+  const t = useMessages(review).status
 
   const setStatus = (status: Clip["status"]) =>
     startTransition(async () => {
@@ -19,9 +23,9 @@ export function useClipStatus(projectId: string, clip: Clip) {
         return
       }
       if (status === "rejected") {
-        toast(`Rejected “${clip.title}”`, {
+        toast(t.rejected(clip.title), {
           action: {
-            label: "Undo",
+            label: t.undo,
             onClick: () => {
               void setClipStatusAction(projectId, clip.id, clip.status).then(
                 () => router.refresh()

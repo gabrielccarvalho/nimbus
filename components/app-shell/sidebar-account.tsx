@@ -31,9 +31,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Kbd } from "@/components/ui/kbd"
+import { useMessages } from "@/lib/i18n/client"
+import { common } from "@/lib/i18n/common"
 import { cn } from "@/lib/utils"
 
 import { EntityAvatar } from "./entity-avatar"
+import { shell } from "./messages"
 import { useHotkey } from "./use-hotkey"
 
 export type SidebarAccount = {
@@ -52,12 +55,12 @@ export type SidebarWorkspace = {
 
 export type Shortcut = { keys: readonly string[]; label: string }
 
-export const SHORTCUTS: readonly Shortcut[] = [
-  { keys: ["⌘", "K"], label: "Search recordings and clips" },
-  { keys: ["N"], label: "New project" },
-  { keys: [","], label: "Settings" },
-  { keys: ["?"], label: "Keyboard shortcuts" },
-]
+const SHORTCUTS = [
+  { keys: ["⌘", "K"], label: "search" },
+  { keys: ["N"], label: "newProject" },
+  { keys: [","], label: "settings" },
+  { keys: ["?"], label: "shortcuts" },
+] as const
 
 export function WorkspaceButton({
   workspace,
@@ -66,6 +69,7 @@ export function WorkspaceButton({
   workspace: SidebarWorkspace
   collapsed: boolean
 }) {
+  const t = useMessages(shell).workspace
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -90,7 +94,7 @@ export function WorkspaceButton({
             {workspace.name}
           </span>
           <span className="truncate text-xs text-tertiary">
-            Personal · {workspace.planName} plan
+            {t.meta(workspace.planName)}
           </span>
         </span>
         <CaretUpDownIcon
@@ -103,7 +107,7 @@ export function WorkspaceButton({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-60">
         <DropdownMenuGroup>
-          <DropdownMenuLabel>Workspaces</DropdownMenuLabel>
+          <DropdownMenuLabel>{t.list}</DropdownMenuLabel>
           <DropdownMenuItem render={<Link href="/settings/workspace" />}>
             <EntityAvatar
               image={workspace.image}
@@ -112,13 +116,13 @@ export function WorkspaceButton({
               className="size-5 text-[10px]"
             />
             {workspace.name}
-            <DropdownMenuShortcut>Current</DropdownMenuShortcut>
+            <DropdownMenuShortcut>{t.current}</DropdownMenuShortcut>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem render={<Link href="/settings/workspace" />}>
           <SlidersHorizontalIcon aria-hidden />
-          Workspace settings
+          {t.settings}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -128,20 +132,23 @@ export function WorkspaceButton({
 export function ShortcutsDialog({
   open,
   onOpenChange,
-  shortcuts = SHORTCUTS,
+  shortcuts: pageShortcuts = [],
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   shortcuts?: readonly Shortcut[]
 }) {
+  const t = useMessages(shell).shortcuts
+  const shortcuts: readonly Shortcut[] = [
+    ...pageShortcuts,
+    ...SHORTCUTS.map(({ keys, label }) => ({ keys, label: t[label] })),
+  ]
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>Keyboard shortcuts</DialogTitle>
-          <DialogDescription>
-            Single keys work anywhere outside a text field.
-          </DialogDescription>
+          <DialogTitle>{t.title}</DialogTitle>
+          <DialogDescription>{t.description}</DialogDescription>
         </DialogHeader>
         <dl className="grid gap-1">
           {shortcuts.map((shortcut) => (
@@ -173,6 +180,8 @@ export function AccountMenu({
   shortcuts?: readonly Shortcut[]
 }) {
   const router = useRouter()
+  const t = useMessages(shell).account
+  const c = useMessages(common)
   const [shortcuts, setShortcuts] = React.useState(false)
 
   useHotkey(",", () => router.push("/settings/profile"))
@@ -233,26 +242,26 @@ export function AccountMenu({
           <DropdownMenuSeparator />
           <DropdownMenuItem render={<Link href="/settings/profile" />}>
             <UserCircleIcon aria-hidden />
-            Account
+            {t.account}
           </DropdownMenuItem>
           <DropdownMenuItem render={<Link href="/settings/workspace/plan" />}>
             <CreditCardIcon aria-hidden />
-            Plan & usage
+            {t.plan}
           </DropdownMenuItem>
           <DropdownMenuItem render={<Link href="/settings/profile" />}>
             <SlidersHorizontalIcon aria-hidden />
-            Settings
+            {t.settings}
             <DropdownMenuShortcut>,</DropdownMenuShortcut>
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setShortcuts(true)}>
             <KeyboardIcon aria-hidden />
-            Keyboard shortcuts
+            {t.shortcuts}
             <DropdownMenuShortcut>?</DropdownMenuShortcut>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={signOut}>
             <SignOutIcon aria-hidden />
-            Sign out
+            {c.signOut}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

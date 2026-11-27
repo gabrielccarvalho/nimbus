@@ -3,6 +3,10 @@ import { CheckIcon, XIcon } from "@phosphor-icons/react/ssr"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
 
+import { useMessages } from "@/lib/i18n/client"
+
+import { overview } from "./messages/overview"
+
 const pipelineStepVariants = cva(
   "group/pipeline-step grid grid-cols-[28px_minmax(0,1fr)_auto] items-start gap-3.5 py-2.5",
   {
@@ -18,14 +22,7 @@ const pipelineStepVariants = cva(
   }
 )
 
-const STATE_TEXT = {
-  complete: "completed",
-  current: "in progress",
-  upcoming: "not started",
-  failed: "failed",
-} as const
-
-type State = keyof typeof STATE_TEXT
+type State = NonNullable<VariantProps<typeof pipelineStepVariants>["state"]>
 
 const PipelineStepContext = React.createContext<State>("upcoming")
 
@@ -95,6 +92,7 @@ function PipelineStepLabel({
   ...props
 }: React.ComponentProps<"b">) {
   const state = React.useContext(PipelineStepContext)
+  const t = useMessages(overview).pipeline.states
   return (
     <b
       data-slot="pipeline-step-label"
@@ -105,7 +103,7 @@ function PipelineStepLabel({
       {...props}
     >
       {children}
-      <span className="sr-only">, {STATE_TEXT[state]}</span>
+      <span className="sr-only">, {t[state]}</span>
     </b>
   )
 }

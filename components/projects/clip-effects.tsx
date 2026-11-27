@@ -6,9 +6,11 @@ import { useVideoPlayer } from "@/components/ui/video-player"
 import { zoomFocusAt } from "@/features/effects/frame"
 import type { ClipEffects } from "@/features/effects/schema"
 import { OUTPUT_HEIGHT, OUTPUT_WIDTH } from "@/features/layout/geometry"
+import { useMessages } from "@/lib/i18n/client"
 import { cn } from "@/lib/utils"
 
 import { ClipPreview } from "./clip-preview"
+import { editor } from "./messages/editor"
 
 export function ClipEffectsPreview({
   source,
@@ -30,6 +32,7 @@ export function ClipEffectsPreview({
   children?: React.ReactNode
 }) {
   const { currentMs } = useVideoPlayer()
+  const t = useMessages(editor).stage
   const selectedEffect =
     selected === null ? undefined : effects?.events[selected]
 
@@ -63,7 +66,7 @@ export function ClipEffectsPreview({
       {selectedEffect?.kind === "zoom" && (
         <button
           type="button"
-          aria-label="Set zoom focus"
+          aria-label={t.zoomFocus}
           data-effect-focus-picker
           className="absolute inset-0 cursor-crosshair rounded-[inherit] outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           onClick={setFocus}

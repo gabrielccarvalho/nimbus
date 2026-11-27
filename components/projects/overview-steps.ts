@@ -1,7 +1,10 @@
 import { languageLabel } from "@/components/settings/settings-fields"
 import type { ProjectSnapshot } from "@/features/pipeline/snapshot"
 import type { PipelineStep } from "@/features/pipeline/state-machine"
-import { formatBytes, formatDuration, sourceLabel } from "@/lib/format"
+import { formatBytes, formatDuration } from "@/lib/format"
+import { defaultLocale, type Locale } from "@/lib/i18n/config"
+
+import { localSourceLabel, overview } from "./messages/overview"
 
 type StepId = PipelineStep["id"]
 
@@ -35,29 +38,17 @@ const STEP_JOBS: Partial<
   select: "select",
 }
 
-const SELECTORS = {
-  anthropic: "picked and titled by Claude",
-  heuristic: "picked from the audio and transcript",
-  manual: "pasted from Claude",
-} as const
-
-const LANGUAGE_SOURCES: Record<string, string> = {
-  setting: "chosen in settings",
-  source: "from the video page",
-  detected: "detected",
-}
-
-const number = new Intl.NumberFormat("en")
-
 export function stepDetails(
-  facts: OverviewFacts
+  facts: OverviewFacts,
+  locale: Locale = defaultLocale
 ): Record<StepId, string | null> {
+  const t = overview[locale].stepDetails
   const { source, transcript } = facts
   const resolution =
     source?.width && source.height ? `${source.width}×${source.height}` : null
   return {
     upload: [
-      sourceLabel(facts.sourceUrl),
+      localSourceLabel(facts.sourceUrl, locale),
       source?.bytes ? formatBytes(source.bytes) : null,
     ]
       .filter(Boolean)
@@ -66,29 +57,30 @@ export function stepDetails(
       ? [
           formatDuration(source.durationMs),
           resolution,
-          source.fps ? `${Math.round(source.fps)} fps` : null,
+          source.fps ? t.fps(Math.round(source.fps)) : null,
         ]
           .filter(Boolean)
           .join(" · ")
       : null,
     transcribe: transcript
-      ? `${number.format(transcript.words)} words · ${languageLabel(transcript.language)}${
-          transcript.languageSource &&
-          LANGUAGE_SOURCES[transcript.languageSource]
-            ? `, ${LANGUAGE_SOURCES[transcript.languageSource]}`
-            : ""
-        }`
+      ? t.transcribed(
+          new Intl.NumberFormat(locale).format(transcript.words),
+          languageLabel(transcript.language, locale),
+          transcript.languageSource
+            ? t.languageSources[transcript.languageSource]
+            : undefined
+        )
       : null,
-    analyze:
-      facts.silences === null
-        ? null
-        : `${facts.silences} ${facts.silences === 1 ? "silence" : "silences"} · loudness peaks marked`,
+    analyze: facts.silences === null ? null : t.silences(facts.silences),
     select:
       facts.clipCount > 0
-        ? `${facts.clipCount} ${facts.clipCount === 1 ? "clip" : "clips"} ${SELECTORS[facts.selectorMode]}`
+        ? t.selected[facts.selectorMode](facts.clipCount)
         : null,
-    review: "Approve the ones you want rendered",
-    render: `Approved clips only · ${facts.renderQuality[0]!.toUpperCase()}${facts.renderQuality.slice(1)} quality`,
+    review: t.review,
+    render: t.render(
+      t.qualities[facts.renderQuality] ??
+        `${facts.renderQuality[0]!.toUpperCase()}${facts.renderQuality.slice(1)}`
+    ),
   }
 }
 

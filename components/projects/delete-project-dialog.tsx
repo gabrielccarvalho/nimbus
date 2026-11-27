@@ -19,6 +19,10 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { deleteProjectAction } from "@/features/projects/actions"
+import { useLocale } from "@/lib/i18n/client"
+import { common } from "@/lib/i18n/common"
+
+import { overview } from "./messages/overview"
 
 export function DeleteProjectDialog({
   projectId,
@@ -36,6 +40,9 @@ export function DeleteProjectDialog({
   onOpenChange?: (open: boolean) => void
 }) {
   const router = useRouter()
+  const locale = useLocale()
+  const t = overview[locale].deleteDialog
+  const shared = common[locale]
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false)
   const controlled = controlledOpen !== undefined
   const open = controlled ? controlledOpen : uncontrolledOpen
@@ -53,7 +60,7 @@ export function DeleteProjectDialog({
         return
       }
       setOpen(false)
-      toast.success(`Deleted “${projectName}”`)
+      toast.success(t.deleted(projectName))
       if (redirectTo) router.push(redirectTo)
     })
 
@@ -65,7 +72,7 @@ export function DeleteProjectDialog({
             trigger ?? (
               <Button>
                 <TrashIcon data-icon="inline-start" aria-hidden />
-                Delete project
+                {t.trigger}
               </Button>
             )
           }
@@ -76,20 +83,19 @@ export function DeleteProjectDialog({
           <AlertDialogMedia className="bg-destructive/10 text-destructive">
             <TrashIcon />
           </AlertDialogMedia>
-          <AlertDialogTitle>Delete “{projectName}”?</AlertDialogTitle>
-          <AlertDialogDescription>
-            The source video, transcript, clips and renders are removed from
-            disk. This can&apos;t be undone.
-          </AlertDialogDescription>
+          <AlertDialogTitle>{t.title(projectName)}</AlertDialogTitle>
+          <AlertDialogDescription>{t.description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={pending}>
+            {shared.cancel}
+          </AlertDialogCancel>
           <AlertDialogAction
             variant="destructive"
             disabled={pending}
             onClick={confirm}
           >
-            {pending ? "Deleting…" : "Delete"}
+            {pending ? t.deleting : shared.delete}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

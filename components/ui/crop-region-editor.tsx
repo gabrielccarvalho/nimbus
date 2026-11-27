@@ -4,6 +4,9 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
 import * as React from "react"
 
+import { ui } from "@/components/ui/messages"
+import { useMessages } from "@/lib/i18n/client"
+
 type CropRect = { x: number; y: number; w: number; h: number }
 type Corner = "nw" | "ne" | "sw" | "se"
 
@@ -213,7 +216,7 @@ function CropRegion({
   onValueChange,
   aspectRatio,
   variant = "default",
-  "aria-label": ariaLabel = "Crop region",
+  "aria-label": ariaLabel,
   ...props
 }: Omit<React.ComponentProps<"div">, "defaultValue"> &
   VariantProps<typeof cropRegionVariants> & {
@@ -222,6 +225,7 @@ function CropRegion({
     aspectRatio?: number
   }) {
   const editor = useCropRegionEditor()
+  const t = useMessages(ui).cropRegion
   const { frameRef } = editor
   const value = valueProp ?? editor.value
   const commit = valueProp ? (onValueChange ?? noop) : editor.commit
@@ -288,8 +292,8 @@ function CropRegion({
     <div
       data-slot="crop-region"
       role="group"
-      aria-roledescription="crop region"
-      aria-label={ariaLabel}
+      aria-roledescription={t.role}
+      aria-label={ariaLabel ?? t.label}
       aria-describedby={descriptionId}
       aria-disabled={editor.disabled || undefined}
       tabIndex={inert ? -1 : 0}
@@ -329,7 +333,12 @@ function CropRegion({
       {...props}
     >
       <span id={descriptionId} className="sr-only">
-        {`Left ${percent(value.x)}, top ${percent(value.y)}, ${percent(value.w)} wide, ${percent(value.h)} tall. Arrow keys move, Alt+arrow keys resize, hold Shift for bigger steps.`}
+        {t.description(
+          percent(value.x),
+          percent(value.y),
+          percent(value.w),
+          percent(value.h)
+        )}
       </span>
       {!inert &&
         CORNERS.map((corner) => (

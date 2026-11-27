@@ -18,27 +18,22 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { ShortRow } from "@/features/analytics/queries"
+import { useLocale, useMessages } from "@/lib/i18n/client"
+
+import { analytics } from "./messages"
 
 const DAYS = 28
 const DRAWN_SHORTS = 30
 const TABLE_DAYS = [1, 7, 14, 21, 28]
 
-const config = {
-  median: { label: "Channel median", color: "var(--chart-1)" },
-  highlighted: { label: "Highlighted Short", color: "var(--chart-3)" },
-  others: { label: "Shorts", color: "var(--chart-4)" },
-} satisfies ChartConfig
-
-const number = new Intl.NumberFormat("en-US")
-
-function summarize(count: number, median: (number | null)[]) {
-  const capped =
-    count > DRAWN_SHORTS ? ` (the ${DRAWN_SHORTS} most recent are drawn)` : ""
-  const lead = `Growth since upload for ${count} ${count === 1 ? "Short" : "Shorts"}${capped}.`
+function summarize(
+  t: (typeof analytics)["en-US"]["growthChart"],
+  count: number,
+  median: (number | null)[]
+) {
+  const lead = t.summary(count, count > DRAWN_SHORTS ? DRAWN_SHORTS : null)
   const last = median.findLastIndex((value) => value !== null)
-  return last < 0
-    ? lead
-    : `${lead} The channel median reaches ${number.format(median[last]!)} views by day ${last}.`
+  return last < 0 ? lead : `${lead} ${t.medianReaches(median[last]!, last)}`
 }
 
 export function GrowthChart({
@@ -50,6 +45,20 @@ export function GrowthChart({
   median: (number | null)[]
   highlightedId: string | null
 }) {
+  const locale = useLocale()
+  const t = useMessages(analytics).growthChart
+  const { number, compact } = useMemo(
+    () => ({
+      number: new Intl.NumberFormat(locale),
+      compact: new Intl.NumberFormat(locale, { notation: "compact" }),
+    }),
+    [locale]
+  )
+  const config = {
+    median: { label: t.median, color: "var(--chart-1)" },
+    highlighted: { label: t.highlightedShort, color: "var(--chart-3)" },
+    others: { label: t.shorts, color: "var(--chart-4)" },
+  } satisfies ChartConfig
   const highlighted = rows.find((row) => row.publicationId === highlightedId)
   const drawn = useMemo(() => {
     const recent = [...rows]
@@ -82,10 +91,10 @@ export function GrowthChart({
   return (
     <div className="grid gap-3">
       <p className="text-sm text-muted-foreground">
-        {summarize(rows.length, median)}
+        {summarize(t, rows.length, median)}
       </p>
       <p aria-live="polite" className="min-h-5 text-sm">
-        {highlighted ? `Highlighted: ${highlighted.title}` : ""}
+        {highlighted ? t.highlighted(highlighted.title) : ""}
       </p>
       <ChartContainer config={config} className="aspect-auto h-72 w-full">
         <LineChart data={data} accessibilityLayer>
@@ -97,19 +106,20 @@ export function GrowthChart({
             ticks={[0, 7, 14, 21, 28]}
             tickLine={false}
             axisLine={false}
-            tickFormatter={(day: number) => `Day ${day}`}
+            tickFormatter={(day: number) => t.day(day)}
           />
           <YAxis
             width={48}
             tickLine={false}
             axisLine={false}
             allowDecimals={false}
+            tickFormatter={(value: number) => compact.format(value)}
           />
           <ChartTooltip
             content={
               <ChartTooltipContent
                 labelFormatter={(_, payload) =>
-                  `Day ${payload?.[0]?.payload?.day ?? ""}`
+                  t.day(payload?.[0]?.payload?.day ?? "")
                 }
               />
             }
@@ -131,7 +141,7 @@ export function GrowthChart({
           )}
           <Line
             dataKey="median"
-            name="Channel median"
+            name={t.median}
             stroke="var(--color-median)"
             strokeWidth={3}
             dot={false}
@@ -151,22 +161,22 @@ export function GrowthChart({
       </ChartContainer>
       <details className="text-sm">
         <summary className="w-fit cursor-pointer text-muted-foreground hover:text-foreground">
-          Show as table
+          {t.showTable}
         </summary>
         <Table className="mt-2">
           <TableHeader>
             <TableRow>
-              <TableHead>Short</TableHead>
+              <TableHead>{t.short}</TableHead>
               {TABLE_DAYS.map((day) => (
                 <TableHead key={day} className="text-end">
-                  Day {day}
+                  {t.day(day)}
                 </TableHead>
               ))}
             </TableRow>
           </TableHeader>
           <TableBody>
             <TableRow>
-              <TableHead scope="row">Channel median</TableHead>
+              <TableHead scope="row">{t.median}</TableHead>
               {TABLE_DAYS.map((day) => (
                 <TableCell key={day} className="text-end tabular-nums">
                   {cell(median[day])}

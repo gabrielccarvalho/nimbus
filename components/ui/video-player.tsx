@@ -11,7 +11,9 @@ import { cn } from "cn"
 import * as React from "react"
 
 import { Button } from "@/components/ui/button"
+import { ui } from "@/components/ui/messages"
 import { Slider } from "@/components/ui/slider"
+import { useMessages } from "@/lib/i18n/client"
 import {
   partIndexAt,
   partsRange,
@@ -351,12 +353,13 @@ function VideoPlayerPlayButton({
   ...props
 }: React.ComponentProps<typeof Button>) {
   const { paused, toggle } = useVideoPlayer()
+  const t = useMessages(ui).videoPlayer
   return (
     <Button
       data-slot="video-player-play-button"
       variant="ghost"
       size="icon-sm"
-      aria-label={paused ? "Play" : "Pause"}
+      aria-label={paused ? t.play : t.pause}
       className={cn("text-white hover:bg-white/15 hover:text-white", className)}
       onClick={toggle}
       {...props}
@@ -371,12 +374,13 @@ function VideoPlayerMuteButton({
   ...props
 }: React.ComponentProps<typeof Button>) {
   const { muted, setMuted } = useVideoPlayer()
+  const t = useMessages(ui).videoPlayer
   return (
     <Button
       data-slot="video-player-mute-button"
       variant="ghost"
       size="icon-sm"
-      aria-label={muted ? "Unmute" : "Mute"}
+      aria-label={muted ? t.unmute : t.mute}
       aria-pressed={muted}
       className={cn("text-white hover:bg-white/15 hover:text-white", className)}
       onClick={() => setMuted(!muted)}
@@ -396,10 +400,11 @@ function VideoPlayerSeekBar({
 >) {
   const { currentMs, durationMs, seek } = useVideoPlayer()
   const labelId = React.useId()
+  const t = useMessages(ui).videoPlayer
   return (
     <>
       <span id={labelId} hidden>
-        Seek
+        {t.seek}
       </span>
       <Slider
         data-slot="video-player-seek-bar"

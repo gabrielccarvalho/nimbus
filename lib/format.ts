@@ -1,3 +1,6 @@
+import { common } from "@/lib/i18n/common"
+import { defaultLocale, type Locale } from "@/lib/i18n/config"
+
 export function formatDuration(ms: number | null | undefined): string {
   if (ms === null || ms === undefined || !Number.isFinite(ms) || ms < 0) {
     return "—"
@@ -28,7 +31,10 @@ export function parseTimestamp(text: string): number | null {
 
 const BYTE_UNITS = ["B", "KB", "MB", "GB", "TB"]
 
-export function formatBytes(bytes: number | null | undefined): string {
+export function formatBytes(
+  bytes: number | null | undefined,
+  locale: Locale = defaultLocale
+): string {
   if (bytes === null || bytes === undefined || !Number.isFinite(bytes)) {
     return "—"
   }
@@ -39,11 +45,19 @@ export function formatBytes(bytes: number | null | undefined): string {
     unit++
   }
   const digits = unit === 0 || value >= 100 ? 0 : 1
-  return `${value.toFixed(digits)} ${BYTE_UNITS[unit]}`
+  const number = value.toLocaleString(locale, {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+    useGrouping: false,
+  })
+  return `${number} ${BYTE_UNITS[unit]}`
 }
 
-export function formatDate(date: Date | number): string {
-  return new Intl.DateTimeFormat("en", {
+export function formatDate(
+  date: Date | number,
+  locale: Locale = defaultLocale
+): string {
+  return new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date)
@@ -71,13 +85,17 @@ export function slugify(text: string, fallback = "clip") {
 
 const DAY_MS = 86_400_000
 
-export function formatRelativeDay(date: Date | number, now = new Date()) {
+export function formatRelativeDay(
+  date: Date | number,
+  now = new Date(),
+  locale: Locale = defaultLocale
+) {
   const startOf = (d: Date) =>
     new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
   const days = Math.round((startOf(now) - startOf(new Date(date))) / DAY_MS)
-  if (days === 0) return "Today"
-  if (days === 1) return "Yesterday"
-  return new Intl.DateTimeFormat("en", {
+  if (days === 0) return common[locale].today
+  if (days === 1) return common[locale].yesterday
+  return new Intl.DateTimeFormat(locale, {
     month: "short",
     day: "numeric",
     year:

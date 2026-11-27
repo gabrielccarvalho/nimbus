@@ -38,9 +38,11 @@ import type { AudioSummary } from "@/features/projects/queries"
 import { findActiveIndex } from "@/features/transcription/lookup"
 import type { Segment, Word } from "@/features/transcription/schema"
 import { formatTimestamp } from "@/lib/format"
+import { useLocale, useMessages } from "@/lib/i18n/client"
 import { cn } from "@/lib/utils"
 
 import { AudioTimelineLayers } from "./audio-timeline"
+import { review } from "./messages/review"
 
 export type TranscriptClip = {
   id: string
@@ -62,7 +64,6 @@ type TranscriptViewProps = {
 }
 
 const SPEEDS = ["0.75", "1", "1.5"]
-const count = new Intl.NumberFormat("en")
 
 export function TranscriptView({
   projectId,
@@ -75,11 +76,12 @@ export function TranscriptView({
   clips,
   audio,
 }: TranscriptViewProps) {
+  const t = useMessages(review).transcript
   return (
     <VideoPlayerProvider>
       <div className="flex flex-wrap items-start gap-[22px]">
         <div className="grid min-w-0 flex-[999_1_520px] gap-3.5 lg:sticky lg:top-[76px]">
-          <VideoPlayer aria-label="Source video" className="rounded-[18px]">
+          <VideoPlayer aria-label={t.video} className="rounded-[18px]">
             <VideoPlayerVideo src={src} poster={poster} />
             <SpokenLine segments={segments} />
             <VideoPlayerControls>
@@ -126,6 +128,7 @@ function PlayerCard({
   audio?: AudioSummary
   clips: TranscriptClip[]
 }) {
+  const t = useMessages(review).transcript
   const { currentMs, seek, videoRef } = useVideoPlayer()
   const [speed, setSpeed] = React.useState("1")
   return (
@@ -136,7 +139,7 @@ function PlayerCard({
           <span className="text-tertiary">/ {formatTimestamp(durationMs)}</span>
         </span>
         <ToggleGroup
-          aria-label="Playback speed"
+          aria-label={t.speed}
           size="sm"
           value={[speed]}
           onValueChange={(value) => {
@@ -154,7 +157,7 @@ function PlayerCard({
         </ToggleGroup>
       </div>
       <Timeline
-        aria-label="Timeline"
+        aria-label={t.timeline}
         durationMs={durationMs}
         value={currentMs}
         onValueChange={seek}
@@ -170,10 +173,7 @@ function PlayerCard({
         ))}
         <TimelinePlayhead />
       </Timeline>
-      <p className="text-[13px] text-tertiary">
-        Lavender ranges are clips. Select lines in the transcript to make a new
-        one.
-      </p>
+      <p className="text-[13px] text-tertiary">{t.legend}</p>
     </div>
   )
 }
@@ -191,6 +191,8 @@ function TranscriptPanel({
   language: string
   clips: TranscriptClip[]
 }) {
+  const locale = useLocale()
+  const t = review[locale].transcript
   const router = useRouter()
   const { currentMs, seek } = useVideoPlayer()
   const [query, setQuery] = React.useState("")
@@ -240,14 +242,18 @@ function TranscriptPanel({
   const length = range ? range.endMs - range.startMs : 0
   const fits = length >= CLIP_MIN_EDIT_MS && length <= CLIP_MAX_EDIT_MS
   const selectionLabel = !range
-    ? "Click a line, then shift-click another to select a range."
-    : `${last - first + 1} ${last === first ? "line" : "lines"} · ${formatTimestamp(range.startMs)} → ${formatTimestamp(range.endMs)}${
-        fits
-          ? ""
-          : length < CLIP_MIN_EDIT_MS
-            ? ` · at least ${CLIP_MIN_EDIT_MS / 1000} s needed`
-            : ` · at most ${CLIP_MAX_EDIT_MS / 1000} s`
-      }`
+    ? t.selectHint
+    : [
+        t.selection(
+          last - first + 1,
+          formatTimestamp(range.startMs),
+          formatTimestamp(range.endMs)
+        ),
+        length < CLIP_MIN_EDIT_MS && t.tooShort(CLIP_MIN_EDIT_MS / 1000),
+        length > CLIP_MAX_EDIT_MS && t.tooLong(CLIP_MAX_EDIT_MS / 1000),
+      ]
+        .filter(Boolean)
+        .join(" · ")
 
   const pick = React.useCallback(
     (index: number, extend: boolean) => {
@@ -269,13 +275,13 @@ function TranscriptPanel({
         toast.error(result.error.message)
         return
       }
-      toast.success("Clip added")
+      toast.success(t.added)
       router.push(`/projects/${projectId}/clips/${result.value.clipId}`)
     })
 
   return (
     <section
-      aria-label="Transcript"
+      aria-label={t.label}
       className="grid max-h-[820px] min-w-0 flex-[1_1_380px] grid-rows-[auto_minmax(0,1fr)_auto] rounded-[18px] bg-graphite"
     >
       <div className="grid gap-3 px-4 pt-4 pb-3 shadow-[inset_0_-1px_0_var(--hair)]">
@@ -285,8 +291,8 @@ function TranscriptPanel({
           </InputGroupAddon>
           <InputGroupInput
             type="search"
-            aria-label="Search transcript"
-            placeholder={`Search ${count.format(words.length)} words`}
+            aria-label={t.search}
+            placeholder={t.searchPlaceholder(words.length)}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
@@ -294,15 +300,19 @@ function TranscriptPanel({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="mono-label text-tertiary" aria-live="polite">
             {needle
-              ? `${visible.length} of ${segments.length} lines match`
-              : `${count.format(segments.length)} lines · ${count.format(words.length)} words · ${languageLabel(language)}`}
+              ? t.matches(visible.length, segments.length)
+              : t.summary(
+                  segments.length,
+                  words.length,
+                  languageLabel(language, locale)
+                )}
           </span>
           <div className="flex items-center gap-2">
             <Label
               htmlFor="follow-playback"
               className="text-[13px] font-normal text-muted-foreground"
             >
-              Follow playback
+              {t.follow}
             </Label>
             <Switch
               id="follow-playback"
@@ -346,7 +356,7 @@ function TranscriptPanel({
         })}
         {visible.length === 0 && (
           <li className="p-4 text-center text-sm text-muted-foreground">
-            No lines match “{query.trim()}”.
+            {t.noMatch(query.trim())}
           </li>
         )}
       </ol>
@@ -359,7 +369,7 @@ function TranscriptPanel({
         </span>
         {selection && (
           <Button size="sm" variant="ghost" onClick={() => setSelection(null)}>
-            Clear
+            {t.clear}
           </Button>
         )}
         <Button
@@ -367,7 +377,7 @@ function TranscriptPanel({
           disabled={!range || !fits || pending}
           onClick={makeClip}
         >
-          Make a clip
+          {t.make}
         </Button>
       </div>
     </section>
@@ -393,6 +403,7 @@ const TranscriptSegment = React.memo(function TranscriptSegment({
   onPick: (index: number, extend: boolean) => void
   onSeek: (ms: number) => void
 }) {
+  const t = useMessages(review).transcript
   const segmentWords = words.slice(segment.firstWord, segment.lastWord + 1)
   return (
     <li
@@ -405,7 +416,7 @@ const TranscriptSegment = React.memo(function TranscriptSegment({
         type="button"
         onClick={(event) => onPick(index, event.shiftKey)}
         className="h-fit shrink-0 rounded pt-0.5 font-mono text-[11.5px] text-muted-foreground tabular-nums outline-none hover:text-foreground focus-visible:outline-2 focus-visible:outline-lav"
-        aria-label={`Play from ${formatTimestamp(segment.startMs)}`}
+        aria-label={t.playFrom(formatTimestamp(segment.startMs))}
         aria-pressed={selected}
       >
         {formatTimestamp(segment.startMs)}

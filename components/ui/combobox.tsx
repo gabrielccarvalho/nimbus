@@ -11,6 +11,8 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from "@/components/ui/input-group"
+import { ui } from "@/components/ui/messages"
+import { useMessages } from "@/lib/i18n/client"
 import { CaretDownIcon, XIcon, CheckIcon } from "@phosphor-icons/react"
 
 const Combobox = ComboboxPrimitive.Root
@@ -60,6 +62,7 @@ function ComboboxInput({
   showTrigger?: boolean
   showClear?: boolean
 }) {
+  const t = useMessages(ui).combobox
   return (
     <InputGroup className={cn("w-auto", className)}>
       <ComboboxPrimitive.Input
@@ -72,14 +75,14 @@ function ComboboxInput({
             size="icon-xs"
             variant="ghost"
             render={<ComboboxTrigger />}
-            aria-label="Show options"
+            aria-label={t.showOptions}
             data-slot="input-group-button"
             className="group-has-data-[slot=combobox-clear]/input-group:hidden data-pressed:bg-transparent"
             disabled={disabled}
           />
         )}
         {showClear && (
-          <ComboboxClear aria-label="Clear selection" disabled={disabled} />
+          <ComboboxClear aria-label={t.clear} disabled={disabled} />
         )}
       </InputGroupAddon>
       {children}

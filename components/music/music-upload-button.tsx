@@ -12,6 +12,9 @@ import {
   MUSIC_MAX_BYTES,
   type MusicTrackSummary,
 } from "@/features/music/schema"
+import { useMessages } from "@/lib/i18n/client"
+
+import { music } from "./messages"
 
 export function MusicUploadButton({
   onUploaded,
@@ -23,18 +26,19 @@ export function MusicUploadButton({
   disabled?: boolean
 }) {
   const router = useRouter()
+  const t = useMessages(music).upload
   const input = React.useRef<HTMLInputElement>(null)
   const [progress, setProgress] = React.useState<number | null>(null)
 
   const start = async (file: File) => {
     if (file.size > MUSIC_MAX_BYTES) {
-      toast.error("Music files can be up to 50 MB")
+      toast.error(t.tooLarge)
       return
     }
     setProgress(0)
     try {
       const { track } = await directUpload(file, { kind: "music" }, setProgress)
-      toast.success(`Added “${track.title}”`)
+      toast.success(t.added(track.title))
       onUploaded?.(track)
       router.refresh()
     } catch (error) {
@@ -65,14 +69,12 @@ export function MusicUploadButton({
         onClick={() => input.current?.click()}
       >
         <UploadSimpleIcon data-icon="inline-start" aria-hidden />
-        {progress === null
-          ? "Upload a track"
-          : `Uploading… ${Math.round(progress)}%`}
+        {progress === null ? t.button : t.progress(Math.round(progress))}
       </Button>
       <span role="status" className="sr-only">
         {progress === null
           ? ""
-          : `Uploading… ${Math.min(100, Math.floor(progress / 10) * 10)}%`}
+          : t.progress(Math.min(100, Math.floor(progress / 10) * 10))}
       </span>
     </>
   )

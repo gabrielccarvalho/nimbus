@@ -45,6 +45,12 @@ import {
   publishInputSchema,
   type PrivacyStatus,
 } from "@/features/publishing/schema"
+import { useLocale, useMessages } from "@/lib/i18n/client"
+import { translateError } from "@/lib/i18n/errors"
+import { common } from "@/lib/i18n/common"
+import { defaultLocale, type Locale } from "@/lib/i18n/config"
+
+import { review } from "./messages/review"
 
 export type PublishingState = Awaited<ReturnType<typeof getPublishing>>
 export type PublicationState = PublishingState["publications"][string]
@@ -58,23 +64,18 @@ type PublishClip = {
   audioMix: AudioMix | null
 }
 
-const PRIVACY_ITEMS: Array<{ value: PrivacyStatus; label: string }> = [
-  { value: "public", label: "Public" },
-  { value: "unlisted", label: "Unlisted" },
-  { value: "private", label: "Private" },
-]
+const PRIVACY: PrivacyStatus[] = ["public", "unlisted", "private"]
 
 export function publishBlockedReason(
   clip: PublishClip,
-  publishing: PublishingState
+  publishing: PublishingState,
+  locale: Locale = defaultLocale
 ) {
-  if (clip.status !== "rendered") return "Render the latest edit first"
-  if (!publishing.channel)
-    return "Connect YouTube in Settings › Connected channels"
-  if (publishing.channel.status === "needs_reconnect")
-    return "Reconnect YouTube in Settings › Connected channels"
-  if (publishing.publishesLeftToday === 0)
-    return "Your plan's daily publish limit is reached"
+  const t = review[locale].publish.blocked
+  if (clip.status !== "rendered") return t.render
+  if (!publishing.channel) return t.connect
+  if (publishing.channel.status === "needs_reconnect") return t.reconnect
+  if (publishing.publishesLeftToday === 0) return t.limit
   return null
 }
 
@@ -94,6 +95,11 @@ function PublishForm({
   previous?: PublicationState["metadata"]
   onDone: () => void
 }) {
+  const t = useMessages(review).publish
+  const privacyItems = PRIVACY.map((value) => ({
+    value,
+    label: t.privacy[value],
+  }))
   const id = React.useId()
   const router = useRouter()
   const [pending, startTransition] = React.useTransition()
@@ -117,7 +123,7 @@ function PublishForm({
     event.preventDefault()
     const when = scheduled ? new Date(publishAt) : null
     if (when && (Number.isNaN(when.getTime()) || when <= new Date())) {
-      setError("Pick a publish time in the future")
+      setError(t.futureTime)
       return
     }
     const parsed = publishInputSchema.safeParse({
@@ -131,7 +137,7 @@ function PublishForm({
       publishAt: when,
     })
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "Check the publish details")
+      setError(parsed.error.issues[0]?.message ?? t.invalid)
       return
     }
     setError(null)
@@ -141,7 +147,7 @@ function PublishForm({
         toast.error(result.error.message)
         return
       }
-      toast.success(when ? "Scheduled on YouTube" : "Publishing to YouTube")
+      toast.success(when ? t.scheduledToast : t.publishingToast)
       onDone()
       router.refresh()
     })
@@ -150,7 +156,7 @@ function PublishForm({
   return (
     <form onSubmit={submit} className="grid gap-4">
       <div className="grid gap-2">
-        <Label htmlFor={`${id}-title`}>Title</Label>
+        <Label htmlFor={`${id}-title`}>{t.title}</Label>
         <Input
           id={`${id}-title`}
           value={title}
@@ -160,7 +166,7 @@ function PublishForm({
         />
       </div>
       <div className="grid gap-2">
-        <Label htmlFor={`${id}-description`}>Description</Label>
+        <Label htmlFor={`${id}-description`}>{t.description}</Label>
         <Textarea
           id={`${id}-description`}
           value={description}
@@ -170,18 +176,18 @@ function PublishForm({
         />
       </div>
       <div className="grid gap-2">
-        <Label htmlFor={`${id}-tags`}>Tags</Label>
+        <Label htmlFor={`${id}-tags`}>{t.tags}</Label>
         <Input
           id={`${id}-tags`}
           value={tags}
           onChange={(event) => setTags(event.target.value)}
         />
-        <p className="text-[13px] text-tertiary">Separate tags with commas.</p>
+        <p className="text-[13px] text-tertiary">{t.tagsHint}</p>
       </div>
       <div className="grid gap-2">
-        <Label htmlFor={`${id}-privacy`}>Privacy</Label>
+        <Label htmlFor={`${id}-privacy`}>{t.privacyLabel}</Label>
         <Select
-          items={PRIVACY_ITEMS}
+          items={privacyItems}
           value={effectivePrivacy}
           disabled={scheduled}
           onValueChange={(next) => {
@@ -193,7 +199,7 @@ function PublishForm({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {PRIVACY_ITEMS.map((item) => (
+            {privacyItems.map((item) => (
               <SelectItem key={item.value} value={item.value}>
                 {item.label}
               </SelectItem>
@@ -201,30 +207,23 @@ function PublishForm({
           </SelectContent>
         </Select>
         {scheduled && (
-          <p className="text-[13px] text-tertiary">
-            Scheduled videos stay private until they go live.
-          </p>
+          <p className="text-[13px] text-tertiary">{t.scheduledHint}</p>
         )}
       </div>
       {clip.audioMix?.youtubeSound && (
         <Alert>
           <YoutubeLogoIcon aria-hidden />
-          <AlertTitle>This clip has a sound to add</AlertTitle>
+          <AlertTitle>{t.soundTitle}</AlertTitle>
           <AlertDescription>
-            Publishing from here uploads it without “
-            {clip.audioMix.youtubeSound.title}”. To use the sound, download the
-            clip and upload it from the YouTube app with Add sound.
+            {t.soundBody(clip.audioMix.youtubeSound.title)}
           </AlertDescription>
         </Alert>
       )}
       {(clip.audioMix?.music.length ?? 0) > 0 && (
         <Alert>
           <WarningIcon aria-hidden />
-          <AlertTitle>Check the music rights</AlertTitle>
-          <AlertDescription>
-            Music you don&apos;t own can get this Short claimed or muted by
-            YouTube&apos;s Content ID. Nimbus doesn&apos;t check tracks.
-          </AlertDescription>
+          <AlertTitle>{t.musicTitle}</AlertTitle>
+          <AlertDescription>{t.musicBody}</AlertDescription>
         </Alert>
       )}
       <div className="flex items-center gap-3">
@@ -238,11 +237,11 @@ function PublishForm({
             }
           }}
         />
-        <Label htmlFor={`${id}-schedule`}>Schedule for later</Label>
+        <Label htmlFor={`${id}-schedule`}>{t.schedule}</Label>
       </div>
       {scheduled && (
         <div className="grid gap-2">
-          <Label htmlFor={`${id}-publish-at`}>Publish at</Label>
+          <Label htmlFor={`${id}-publish-at`}>{t.publishAt}</Label>
           <Input
             id={`${id}-publish-at`}
             type="datetime-local"
@@ -260,7 +259,7 @@ function PublishForm({
       <DialogFooter>
         <Button type="submit" variant="primary" disabled={pending}>
           <UploadSimpleIcon data-icon="inline-start" aria-hidden />
-          {scheduled ? "Schedule on YouTube" : "Publish to YouTube"}
+          {scheduled ? t.submitSchedule : t.submit}
         </Button>
       </DialogFooter>
     </form>
@@ -280,15 +279,16 @@ export function PublishDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
+  const t = useMessages(review).publish
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Publish to YouTube</DialogTitle>
+          <DialogTitle>{t.submit}</DialogTitle>
           <DialogDescription>
             {publishing.channel?.title
-              ? `Uploads to ${publishing.channel.title}.`
-              : "Uploads the rendered clip."}
+              ? t.uploadsTo(publishing.channel.title)
+              : t.uploads}
           </DialogDescription>
         </DialogHeader>
         <PublishForm
@@ -309,6 +309,9 @@ export function PublicationStatusView({
   publication: PublicationState
   live?: boolean
 }) {
+  const locale = useLocale()
+  const t = useMessages(review).publication
+  const shared = useMessages(common)
   const router = useRouter()
   const [pending, startTransition] = React.useTransition()
 
@@ -320,9 +323,9 @@ export function PublicationStatusView({
         rel="noreferrer"
         className="inline-flex items-center gap-1 text-xs font-medium text-mint underline-offset-2 hover:underline"
       >
-        Published
+        {t.published}
         <ArrowSquareOutIcon aria-hidden className="size-3.5" />
-        <span className="sr-only"> (opens in a new tab)</span>
+        <span className="sr-only"> {t.newTab}</span>
       </a>
     )
   }
@@ -331,7 +334,7 @@ export function PublicationStatusView({
     return (
       <div className="grid gap-1">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-pink">Publish failed</span>
+          <span className="text-xs font-medium text-pink">{t.failed}</span>
           <Button
             size="sm"
             variant="ghost"
@@ -348,12 +351,12 @@ export function PublicationStatusView({
             }
           >
             <ArrowsClockwiseIcon data-icon="inline-start" aria-hidden />
-            Retry
+            {shared.retry}
           </Button>
         </div>
         {publication.error && (
           <p className="text-xs break-words text-tertiary">
-            {publication.error}
+            {translateError(publication.error, locale)}
           </p>
         )}
       </div>
@@ -362,9 +365,7 @@ export function PublicationStatusView({
 
   if (publication.status === "waiting_quota") {
     return (
-      <span className="text-xs text-muted-foreground">
-        Waiting for YouTube&apos;s daily limit
-      </span>
+      <span className="text-xs text-muted-foreground">{t.waitingQuota}</span>
     )
   }
 
@@ -373,8 +374,7 @@ export function PublicationStatusView({
       role={live ? "status" : undefined}
       className="text-xs text-muted-foreground"
     >
-      Publishing…
-      {publication.progress === undefined ? "" : ` ${publication.progress}%`}
+      {t.publishing(publication.progress)}
     </span>
   )
 }

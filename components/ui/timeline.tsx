@@ -4,6 +4,9 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
 import * as React from "react"
 
+import { ui } from "@/components/ui/messages"
+import { useMessages } from "@/lib/i18n/client"
+
 type TimelineContextValue = {
   durationMs: number
   value: number
@@ -44,6 +47,7 @@ function Timeline({
   step?: number
   readOnly?: boolean
 }) {
+  const t = useMessages(ui).timeline
   const [valueState, setValueState] = React.useState(defaultValue)
   const value = valueProp ?? valueState
   const ref = React.useRef<HTMLDivElement>(null)
@@ -87,7 +91,7 @@ function Timeline({
         aria-valuenow={interactive ? value : undefined}
         aria-valuetext={
           interactive
-            ? `${formatTime(value)} of ${formatTime(durationMs)}`
+            ? t.position(formatTime(value), formatTime(durationMs))
             : undefined
         }
         className={cn(

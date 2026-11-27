@@ -5,6 +5,7 @@ import {
   WorkspaceName,
 } from "@/components/settings/account-settings"
 import { AvatarField } from "@/components/settings/avatar-field"
+import { settings } from "@/components/settings/messages"
 import {
   SettingRow,
   SettingsSection,
@@ -12,34 +13,39 @@ import {
 } from "@/components/settings/section"
 import { StatusPill } from "@/components/ui/status-pill"
 import { getWorkspaceSettings } from "@/features/accounts/queries"
+import { getMessages } from "@/lib/i18n/server"
 
 import { initials } from "@/features/accounts/schema"
 
-export const metadata: Metadata = { title: "Workspace" }
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getMessages(settings)).nav.workspace }
+}
 
 export default async function WorkspacePage() {
-  const workspace = await getWorkspaceSettings()
+  const [workspace, t] = await Promise.all([
+    getWorkspaceSettings(),
+    getMessages(settings),
+  ])
   return (
     <SettingsSection>
       <SettingsSectionHeader
-        title="General"
-        description="Projects, the plan, the Claude key and every default belong to the workspace."
+        title={t.nav.general}
+        description={t.workspace.description}
       />
       <AvatarField
         target="workspace"
         image={workspace.image}
         initials={initials(workspace.name)}
-        label="Logo"
         shape="square"
       />
       <WorkspaceName name={workspace.name} />
       <ClaudeKeyRow keyHint={workspace.keyHint} />
       <SettingRow
-        title="Members"
-        description="Personal workspace. Inviting people comes later."
+        title={t.workspace.members}
+        description={t.workspace.membersHint}
         className="pb-0 shadow-none"
       >
-        <StatusPill tone="neutral">Soon</StatusPill>
+        <StatusPill tone="neutral">{t.soon}</StatusPill>
       </SettingRow>
     </SettingsSection>
   )

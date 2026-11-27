@@ -1,14 +1,20 @@
+"use client"
+
 import Link from "next/link"
 
 import {
   ANALYTICS_PERIODS,
   type AnalyticsPeriod,
 } from "@/features/analytics/schema"
+import { useMessages } from "@/lib/i18n/client"
 import { cn } from "@/lib/utils"
 
+import { analytics } from "./messages"
+
 export function PeriodPicker({ value }: { value: AnalyticsPeriod }) {
+  const t = useMessages(analytics).period
   return (
-    <nav aria-label="Period" className="flex gap-0.5">
+    <nav aria-label={t.label} className="flex gap-0.5">
       {ANALYTICS_PERIODS.map((period) => (
         <Link
           key={period}
@@ -19,7 +25,7 @@ export function PeriodPicker({ value }: { value: AnalyticsPeriod }) {
             period === value && "bg-glass-3 text-foreground hover:bg-glass-3"
           )}
         >
-          {period} days
+          {t.days(period)}
         </Link>
       ))}
     </nav>

@@ -14,6 +14,9 @@ import type { StepDetail } from "@/features/pipeline/detail"
 import type { ProjectSnapshot } from "@/features/pipeline/snapshot"
 import { languageLabel } from "@/components/settings/settings-fields"
 import { formatBytes, formatDuration } from "@/lib/format"
+import { useLocale, useMessages } from "@/lib/i18n/client"
+
+import { overview } from "./messages/overview"
 
 export type RenderClip = {
   id: string
@@ -24,13 +27,6 @@ export type RenderClip = {
 
 type Job = ProjectSnapshot["jobs"][number]
 type Detail<K extends StepDetail["kind"]> = Extract<StepDetail, { kind: K }>
-
-const LANGUAGE_SOURCE: Record<string, string> = {
-  setting: "chosen in settings",
-  source: "from the video page",
-  detected: "detected",
-  whisper: "detected by whisper",
-}
 
 export function StepDetailView({
   snapshot,
@@ -74,53 +70,61 @@ function Facts({ children }: { children: React.ReactNode }) {
 }
 
 function DownloadDetail({ detail }: { detail: Detail<"download"> }) {
+  const t = useMessages(overview).stepDetail
+  const locale = useLocale()
   return (
     <Facts>
       <span data-testid="download-bytes">
-        {formatBytes(detail.downloadedBytes)}
-        {detail.totalBytes ? ` of ${formatBytes(detail.totalBytes)}` : ""}
+        {t.downloaded(
+          formatBytes(detail.downloadedBytes, locale),
+          detail.totalBytes ? formatBytes(detail.totalBytes, locale) : null
+        )}
       </span>
       {detail.bytesPerSecond && (
-        <span>{formatBytes(detail.bytesPerSecond)}/s</span>
+        <span>{t.perSecond(formatBytes(detail.bytesPerSecond, locale))}</span>
       )}
       {detail.etaSeconds && (
-        <span>{formatDuration(detail.etaSeconds * 1000)} left</span>
+        <span>{t.left(formatDuration(detail.etaSeconds * 1000))}</span>
       )}
     </Facts>
   )
 }
 
 function TranscribeDetail({ detail }: { detail: Detail<"transcribe"> }) {
+  const locale = useLocale()
+  const t = overview[locale].stepDetail
   const minutes = detail.audioMs / 60_000
   const phase =
     detail.phase === "extracting"
-      ? "Extracting the audio"
+      ? t.extracting
       : detail.phase === "detecting"
-        ? "Listening for the spoken language"
+        ? t.detecting
         : detail.language
-          ? `Transcribing in ${languageLabel(detail.language)}`
-          : "Transcribing"
+          ? t.transcribingIn(languageLabel(detail.language, locale))
+          : t.transcribing
   return (
     <div className="flex flex-col gap-2">
       <Facts>
         <span>{phase}</span>
         {detail.language && detail.languageSource && (
-          <span>({LANGUAGE_SOURCE[detail.languageSource]})</span>
+          <span>({t.languageSources[detail.languageSource]})</span>
         )}
         {detail.words > 0 && (
           <span>
-            {detail.words.toLocaleString("en")} words
+            {t.words(detail.words.toLocaleString(locale))}
             {minutes >= 0.5 &&
-              ` · ${Math.round(detail.words / minutes)} per minute`}
+              ` · ${t.perMinute(Math.round(detail.words / minutes))}`}
           </span>
         )}
-        {detail.audioMs > 0 && <span>at {formatDuration(detail.audioMs)}</span>}
+        {detail.audioMs > 0 && (
+          <span>{t.at(formatDuration(detail.audioMs))}</span>
+        )}
       </Facts>
       {detail.text && (
         <div className="flex h-24 flex-col justify-end overflow-hidden rounded-lg bg-muted px-3 py-2">
           <p
             role="log"
-            aria-label="Latest transcribed words"
+            aria-label={t.latestWords}
             data-testid="live-transcript"
             className="text-sm"
           >
@@ -133,6 +137,7 @@ function TranscribeDetail({ detail }: { detail: Detail<"transcribe"> }) {
 }
 
 function AnalyzeDetail({ detail }: { detail: Detail<"analyze"> }) {
+  const t = useMessages(overview).stepDetail
   const loudness = React.useMemo(
     () => normalizeLoudness(detail.waveform),
     [detail.waveform]
@@ -143,18 +148,17 @@ function AnalyzeDetail({ detail }: { detail: Detail<"analyze"> }) {
     <div className="flex flex-col gap-2">
       <Facts>
         <span>
-          {formatDuration(detail.analyzedMs)} of{" "}
-          {formatDuration(detail.durationMs)} analyzed
+          {t.analyzed(
+            formatDuration(detail.analyzedMs),
+            formatDuration(detail.durationMs)
+          )}
         </span>
-        <span>
-          {detail.silences.length}{" "}
-          {detail.silences.length === 1 ? "silence" : "silences"} so far
-        </span>
+        <span>{t.silencesSoFar(detail.silences.length)}</span>
       </Facts>
       <Timeline
         readOnly
         durationMs={detail.durationMs}
-        aria-label="Loudness analyzed so far"
+        aria-label={t.loudnessSoFar}
         data-testid="live-waveform"
       >
         <TimelineLoudness values={loudness} />
@@ -179,23 +183,18 @@ function AnalyzeDetail({ detail }: { detail: Detail<"analyze"> }) {
 }
 
 function SelectDetail({ detail }: { detail: Detail<"select"> }) {
+  const t = useMessages(overview).stepDetail
   return (
     <div className="flex flex-col gap-2">
       <Facts>
-        <span>
-          {detail.candidates.length}{" "}
-          {detail.candidates.length === 1 ? "candidate" : "candidates"} found
-        </span>
+        <span>{t.candidatesFound(detail.candidates.length)}</span>
         {detail.parts && (
-          <span>
-            {detail.parts.done} of {detail.parts.total} parts of the transcript
-            read
-          </span>
+          <span>{t.partsRead(detail.parts.done, detail.parts.total)}</span>
         )}
       </Facts>
       {detail.candidates.length > 0 && (
         <ol
-          aria-label="Candidates found so far"
+          aria-label={t.candidatesSoFar}
           className="flex flex-col gap-1 text-sm"
         >
           {detail.candidates.map((candidate) => (
@@ -227,6 +226,7 @@ function RenderGrid({
   clips: readonly RenderClip[]
   videoSrc: string | null
 }) {
+  const t = useMessages(overview).stepDetail
   const latest = new Map<string, Job>()
   for (const job of jobs) {
     if (job.clipId && !latest.has(job.clipId)) latest.set(job.clipId, job)
@@ -235,18 +235,18 @@ function RenderGrid({
   if (items.length === 0) return null
   return (
     <ul
-      aria-label="Clips being rendered"
+      aria-label={t.rendering}
       className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
     >
       {items.map((clip) => {
         const job = latest.get(clip.id)!
         const label =
           job.status === "succeeded"
-            ? "Done"
+            ? t.done
             : job.status === "failed"
-              ? "Failed"
+              ? t.failed
               : job.status === "queued"
-                ? "Waiting"
+                ? t.waiting
                 : `${job.progress}%`
         return (
           <li key={clip.id} className="flex min-w-0 flex-col gap-1.5">
@@ -265,7 +265,7 @@ function RenderGrid({
             <p className="truncate text-sm font-medium">{clip.title}</p>
             <Progress
               value={job.status === "succeeded" ? 100 : job.progress}
-              aria-label={`Rendering ${clip.title}`}
+              aria-label={t.renderingClip(clip.title)}
               getAriaValueText={() => label}
             />
             <p className="text-xs text-muted-foreground">{label}</p>

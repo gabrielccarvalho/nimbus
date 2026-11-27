@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
 
-import type { DropzoneRejection } from "@/components/ui/dropzone"
 import {
   Progress,
   ProgressLabel,
@@ -12,6 +11,9 @@ import {
 } from "@/components/ui/progress"
 import { directUpload } from "@/components/uploads/direct-upload"
 import type { ImportOptions } from "@/features/projects/schema"
+import { useMessages } from "@/lib/i18n/client"
+
+import { overview } from "./messages/overview"
 
 export const ACCEPT = [
   "video/mp4",
@@ -24,12 +26,6 @@ export const ACCEPT = [
   ".mkv",
   ".webm",
 ]
-
-export const REJECTION_MESSAGES: Record<DropzoneRejection["reason"], string> = {
-  type: "Upload an MP4, MOV, MKV or WebM video",
-  size: "This file is larger than the upload limit",
-  count: "Upload one video at a time",
-}
 
 async function capturePreview(file: File): Promise<string | null> {
   const src = URL.createObjectURL(file)
@@ -66,6 +62,7 @@ async function capturePreview(file: File): Promise<string | null> {
 
 export function useRecordingUpload(options: ImportOptions) {
   const router = useRouter()
+  const t = useMessages(overview).uploader
   const [progress, setProgress] = React.useState<number | null>(null)
   const [fileName, setFileName] = React.useState("")
   const [preview, setPreview] = React.useState<string | null>(null)
@@ -81,7 +78,7 @@ export function useRecordingUpload(options: ImportOptions) {
         { kind: "video", options },
         setProgress
       )
-      toast.success("Upload complete. Processing started.")
+      toast.success(t.complete)
       router.push(`/projects/${projectId}`)
     } catch (error) {
       toast.error((error as Error).message)
@@ -101,6 +98,7 @@ export function UploadProgress({
   fileName: string
   preview: string | null
 }) {
+  const t = useMessages(overview).uploader
   return (
     <div className="flex w-full flex-col items-center gap-5 sm:flex-row">
       {preview && (
@@ -112,7 +110,9 @@ export function UploadProgress({
         />
       )}
       <Progress value={Math.round(progress)} className="w-full min-w-0">
-        <ProgressLabel className="truncate">Uploading {fileName}</ProgressLabel>
+        <ProgressLabel className="truncate">
+          {t.uploading(fileName)}
+        </ProgressLabel>
         <ProgressValue />
       </Progress>
     </div>

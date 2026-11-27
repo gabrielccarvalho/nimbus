@@ -5,6 +5,9 @@ import Image from "next/image"
 import * as React from "react"
 
 import { formatDuration } from "@/lib/format"
+import { useMessages } from "@/lib/i18n/client"
+
+import { overview } from "./messages/overview"
 
 export function SourcePreview({
   videoSrc,
@@ -16,6 +19,7 @@ export function SourcePreview({
   durationMs: number | null
 }) {
   const [playing, setPlaying] = React.useState(false)
+  const t = useMessages(overview).sourcePreview
 
   if (playing && videoSrc) {
     return (
@@ -44,7 +48,7 @@ export function SourcePreview({
       {videoSrc && (
         <button
           type="button"
-          aria-label="Play source video"
+          aria-label={t.play}
           onClick={() => setPlaying(true)}
           className="absolute top-1/2 left-1/2 grid size-[52px] -translate-1/2 place-items-center rounded-full bg-white/10 inset-ring-1 inset-ring-white/14 backdrop-blur-md transition-colors hover:bg-white/16"
         >

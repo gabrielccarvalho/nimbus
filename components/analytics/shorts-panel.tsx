@@ -10,9 +10,11 @@ import {
   EmptyMedia,
 } from "@/components/ui/empty"
 import type { getShorts } from "@/features/analytics/queries"
+import { useMessages } from "@/lib/i18n/client"
 
 import { GrowthChart } from "./growth-chart"
 import { ImportShorts } from "./import-shorts"
+import { analytics } from "./messages"
 import { ShortsTable } from "./shorts-table"
 
 export function ShortsPanel({
@@ -21,6 +23,7 @@ export function ShortsPanel({
   importing,
   uploadsSyncedAt,
 }: Awaited<ReturnType<typeof getShorts>>) {
+  const t = useMessages(analytics).shorts
   const [highlightedId, setHighlightedId] = useState<string | null>(null)
   const importShorts = (
     <ImportShorts importing={importing} uploadsSyncedAt={uploadsSyncedAt} />
@@ -33,10 +36,7 @@ export function ShortsPanel({
           <EmptyMedia variant="icon">
             <VideoIcon />
           </EmptyMedia>
-          <EmptyDescription>
-            No Shorts yet. Publish a clip, or import the Shorts you posted
-            before Nimbus.
-          </EmptyDescription>
+          <EmptyDescription>{t.empty}</EmptyDescription>
         </EmptyHeader>
         {importShorts}
       </Empty>

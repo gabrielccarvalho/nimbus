@@ -11,6 +11,10 @@ import {
   removeAvatarAction,
   updateAvatarAction,
 } from "@/features/accounts/actions"
+import { useMessages } from "@/lib/i18n/client"
+import { common } from "@/lib/i18n/common"
+
+import { settings } from "./messages"
 
 const SIZE = 256
 
@@ -47,16 +51,17 @@ export function AvatarField({
   target,
   image,
   initials,
-  label,
   shape = "circle",
 }: {
   target: "user" | "workspace"
   image: string | null
   initials: string
-  label: string
   shape?: "circle" | "square"
 }) {
   const router = useRouter()
+  const { avatar } = useMessages(settings)
+  const t = avatar[target]
+  const c = useMessages(common)
   const input = React.useRef<HTMLInputElement>(null)
   const [pending, startTransition] = React.useTransition()
 
@@ -66,14 +71,14 @@ export function AvatarField({
       try {
         blob = await squareImage(file)
       } catch {
-        toast.error("That file isn't an image we can read")
+        toast.error(avatar.unreadable)
         return
       }
       const form = new FormData()
       form.set("image", blob, "avatar")
       const result = await updateAvatarAction(target, form)
       if (!result.ok) toast.error(result.error.message)
-      else toast.success(`${label} updated`)
+      else toast.success(t.updated)
       router.refresh()
     })
 
@@ -81,7 +86,7 @@ export function AvatarField({
     startTransition(async () => {
       const result = await removeAvatarAction(target)
       if (!result.ok) toast.error(result.error.message)
-      else toast.success(`${label} removed`)
+      else toast.success(t.removed)
       router.refresh()
     })
 
@@ -113,11 +118,11 @@ export function AvatarField({
           onClick={() => input.current?.click()}
         >
           {pending && <Spinner data-icon="inline-start" />}
-          {image ? "Change" : "Upload"} {label.toLowerCase()}
+          {image ? t.change : t.upload}
         </Button>
         {image && (
           <Button size="sm" variant="ghost" disabled={pending} onClick={remove}>
-            Remove
+            {c.remove}
           </Button>
         )}
       </div>

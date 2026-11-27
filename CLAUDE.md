@@ -55,6 +55,7 @@ The clip editor is the reference page. Before adding or changing a page, read [U
 - Anything touching DB, filesystem or secrets starts with `import "server-only"` (worker-only modules excepted; see ARCHITECTURE).
 - Business logic (state machine, ASS, filtergraphs, scoring, line breaking) is pure and unit tested.
 - Long work never runs in a request: requests enqueue jobs, the worker runs them.
+- Text a person reads comes from a messages file, in en-US and pt-BR in the same commit ([Development guidelines › Translations](docs/DEVELOPMENT_GUIDELINES.md#translations)).
 
 ## Guideline check
 

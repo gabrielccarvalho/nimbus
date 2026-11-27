@@ -14,6 +14,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { ShortRow } from "@/features/analytics/queries"
+import { useLocale, useMessages } from "@/lib/i18n/client"
+
+import { analytics } from "./messages"
 
 type SortKey =
   | "publishedAt"
@@ -26,23 +29,16 @@ type SortKey =
   | "relative"
 type Direction = "asc" | "desc"
 
-const COLUMNS: { key: SortKey; label: string }[] = [
-  { key: "publishedAt", label: "Published" },
-  { key: "ageDays", label: "Age" },
-  { key: "views", label: "Views" },
-  { key: "averageViewPercentage", label: "Watched" },
-  { key: "viewsDay1", label: "Day 1" },
-  { key: "viewsDay7", label: "Day 7" },
-  { key: "viewsDay28", label: "Day 28" },
-  { key: "relative", label: "Same age" },
+const COLUMNS: SortKey[] = [
+  "publishedAt",
+  "ageDays",
+  "views",
+  "averageViewPercentage",
+  "viewsDay1",
+  "viewsDay7",
+  "viewsDay28",
+  "relative",
 ]
-
-const views = new Intl.NumberFormat("en")
-function count(value: number | null) {
-  return value === null ? "—" : views.format(value)
-}
-
-const day = new Intl.DateTimeFormat("en", { dateStyle: "medium" })
 
 function sortValue(row: ShortRow, key: SortKey): number | null {
   return key === "publishedAt" ? row.publishedAt.getTime() : row[key]
@@ -72,13 +68,33 @@ export function ShortsTable({
     dir: "desc",
   })
   const sorted = useMemo(() => sortRows(rows, sort.key, sort.dir), [rows, sort])
+  const locale = useLocale()
+  const t = useMessages(analytics).shorts
+  const { views, percent, ratio, day } = useMemo(
+    () => ({
+      views: new Intl.NumberFormat(locale),
+      percent: new Intl.NumberFormat(locale, {
+        style: "percent",
+        maximumFractionDigits: 0,
+      }),
+      ratio: new Intl.NumberFormat(locale, {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+        useGrouping: false,
+      }),
+      day: new Intl.DateTimeFormat(locale, { dateStyle: "medium" }),
+    }),
+    [locale]
+  )
+  const count = (value: number | null) =>
+    value === null ? "—" : views.format(value)
 
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Title</TableHead>
-          {COLUMNS.map(({ key, label }) => {
+          <TableHead>{t.title}</TableHead>
+          {COLUMNS.map((key) => {
             const active = sort.key === key
             return (
               <TableHead
@@ -101,7 +117,7 @@ export function ShortsTable({
                     })
                   }
                 >
-                  {label}
+                  {t.columns[key]}
                   {active &&
                     (sort.dir === "desc" ? (
                       <ArrowDownIcon aria-hidden />
@@ -149,7 +165,7 @@ export function ShortsTable({
                   <span className="truncate font-medium">{row.title}</span>
                 )}
                 {row.origin === "imported" && (
-                  <Badge variant="secondary">Posted outside Nimbus</Badge>
+                  <Badge variant="secondary">{t.imported}</Badge>
                 )}
               </div>
             </TableCell>
@@ -157,20 +173,20 @@ export function ShortsTable({
               {day.format(row.publishedAt)}
             </TableCell>
             <TableCell className="text-muted-foreground">
-              {row.ageDays}d
+              {t.age(row.ageDays)}
             </TableCell>
             <TableCell>
               {count(row.views)}
               {row.early && (
                 <span className="ms-1.5 text-[13px] text-muted-foreground">
-                  still coming in
+                  {t.early}
                 </span>
               )}
             </TableCell>
             <TableCell>
               {row.averageViewPercentage === null
                 ? "—"
-                : `${Math.round(row.averageViewPercentage)}%`}
+                : percent.format(Math.round(row.averageViewPercentage) / 100)}
             </TableCell>
             <TableCell>{count(row.viewsDay1)}</TableCell>
             <TableCell>{count(row.viewsDay7)}</TableCell>
@@ -178,7 +194,7 @@ export function ShortsTable({
             <TableCell>
               {row.relative === null
                 ? "—"
-                : `${row.relative.toFixed(1)}× usual`}
+                : t.relative(ratio.format(row.relative))}
             </TableCell>
           </TableRow>
         ))}

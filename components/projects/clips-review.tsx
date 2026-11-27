@@ -42,9 +42,12 @@ import {
 } from "@/features/render/actions"
 import type { Result } from "@/lib/errors"
 import { formatDuration } from "@/lib/format"
+import { useMessages } from "@/lib/i18n/client"
+import { common } from "@/lib/i18n/common"
 
 import { AudioTimelineLayers } from "./audio-timeline"
 import { ClipsGrid, type ClipCaptions, type RenderLinks } from "./clips-grid"
+import { review } from "./messages/review"
 import type { PublishingState } from "./publish-dialog"
 import { useProjectEvents } from "./use-project-events"
 
@@ -61,22 +64,15 @@ type ClipsReviewProps = {
   publishing: PublishingState
 }
 
-const FILTERS = [
-  { id: "all", label: "All" },
-  { id: "todo", label: "To review" },
-  { id: "approved", label: "Approved" },
-  { id: "rejected", label: "Rejected" },
-] as const
+const FILTERS = ["all", "todo", "approved", "rejected"] as const
 
-type Filter = (typeof FILTERS)[number]["id"]
+type Filter = (typeof FILTERS)[number]
 
 function clipFilter(clip: Clip): Exclude<Filter, "all"> {
   if (clip.status === "candidate") return "todo"
   if (clip.status === "rejected") return "rejected"
   return "approved"
 }
-
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`
 
 function ExportBar({
   projectId,
@@ -88,6 +84,8 @@ function ExportBar({
   ClipsReviewProps,
   "projectId" | "clips" | "renders" | "edit" | "snapshot"
 >) {
+  const t = useMessages(review).bar
+  const shared = useMessages(common)
   const router = useRouter()
   const [pending, startTransition] = React.useTransition()
   const approved = clips.filter((clip) =>
@@ -109,9 +107,9 @@ function ExportBar({
     approved.reduce((sum, clip) => sum + clip.endMs - clip.startMs, 0) / 60_000
   )
   const summary = [
-    approved.length > 0 && `${approved.length} approved`,
-    renderedCount > 0 && `${renderedCount} rendered`,
-    candidates > 0 && `${candidates} to review`,
+    approved.length > 0 && t.approved(approved.length),
+    renderedCount > 0 && t.rendered(renderedCount),
+    candidates > 0 && t.toReview(candidates),
   ]
     .filter(Boolean)
     .join(" · ")
@@ -128,13 +126,11 @@ function ExportBar({
     <section className="grid gap-4 rounded-[18px] bg-graphite px-[18px] py-4">
       <div className="flex flex-wrap items-center gap-3">
         <div className="grid min-w-0 flex-[1_1_260px] gap-1">
-          <b className="text-[15px] font-semibold">
-            {summary || "No clips yet"}
-          </b>
+          <b className="text-[15px] font-semibold">{summary || t.empty}</b>
           <span className="text-[13px] text-tertiary">
             {approved.length > 0
-              ? `Only approved clips render. About ${plural(renderMinutes, "render minute")}.`
-              : "Only approved clips render."}
+              ? t.onlyApprovedMinutes(renderMinutes)
+              : t.onlyApproved}
           </span>
         </div>
         {candidates > 0 && (
@@ -144,11 +140,11 @@ function ExportBar({
             onClick={() =>
               run(
                 () => approveAllCandidatesAction(projectId),
-                `Approved ${plural(candidates, "clip")}`
+                t.approvedToast(candidates)
               )
             }
           >
-            Approve all {candidates}
+            {t.approveAll(candidates)}
           </Button>
         )}
         {renderedCount > 0 && (
@@ -158,17 +154,12 @@ function ExportBar({
             className={buttonVariants({ size: "sm" })}
           >
             <FileZipIcon data-icon="inline-start" aria-hidden />
-            Download all
+            {t.downloadAll}
           </a>
         )}
         <DropdownMenu>
           <DropdownMenuTrigger
-            render={
-              <Button
-                size="icon-sm"
-                aria-label="More exports: horizontal edit"
-              />
-            }
+            render={<Button size="icon-sm" aria-label={t.moreExports} />}
           >
             <DotsThreeIcon weight="bold" aria-hidden />
           </DropdownMenuTrigger>
@@ -176,15 +167,15 @@ function ExportBar({
             <DropdownMenuItem
               disabled={pending || Boolean(editJob)}
               onClick={() =>
-                run(() => renderEditAction(projectId), "Rendering the edit")
+                run(() => renderEditAction(projectId), t.renderingEditToast)
               }
             >
-              Render horizontal edit
+              {t.renderEdit}
             </DropdownMenuItem>
             {edit && !editJob && (
               <DropdownMenuItem render={<a href={edit.downloadUrl} download />}>
                 <DownloadSimpleIcon aria-hidden />
-                Download edit ({formatDuration(edit.durationMs)})
+                {t.downloadEdit(formatDuration(edit.durationMs))}
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>
@@ -200,11 +191,11 @@ function ExportBar({
                   projectId,
                   approved.map((clip) => clip.id)
                 ),
-              `Rendering ${plural(approved.length, "clip")}`
+              t.renderingClips(approved.length)
             )
           }
         >
-          Render approved clips
+          {t.renderApproved}
         </Button>
       </div>
       {renderJobs.length > 0 && (
@@ -217,9 +208,7 @@ function ExportBar({
             }
             aria-live="polite"
           >
-            <ProgressLabel>
-              Rendering {plural(renderJobs.length, "clip")}
-            </ProgressLabel>
+            <ProgressLabel>{t.renderingClips(renderJobs.length)}</ProgressLabel>
             <ProgressValue />
           </Progress>
           <Button
@@ -227,14 +216,11 @@ function ExportBar({
             size="sm"
             disabled={pending}
             onClick={() =>
-              run(
-                () => cancelClipRendersAction(projectId),
-                "Cancelled clip renders"
-              )
+              run(() => cancelClipRendersAction(projectId), t.cancelledClips)
             }
           >
             <XIcon data-icon="inline-start" aria-hidden />
-            Cancel
+            {shared.cancel}
           </Button>
         </div>
       )}
@@ -245,7 +231,7 @@ function ExportBar({
             value={editJob.status === "running" ? editJob.progress : null}
             aria-live="polite"
           >
-            <ProgressLabel>Rendering the horizontal edit</ProgressLabel>
+            <ProgressLabel>{t.renderingEdit}</ProgressLabel>
             <ProgressValue />
           </Progress>
           <Button
@@ -253,14 +239,11 @@ function ExportBar({
             size="sm"
             disabled={pending}
             onClick={() =>
-              run(
-                () => cancelEditRenderAction(projectId),
-                "Cancelled the edit render"
-              )
+              run(() => cancelEditRenderAction(projectId), t.cancelledEdit)
             }
           >
             <XIcon data-icon="inline-start" aria-hidden />
-            Cancel
+            {shared.cancel}
           </Button>
         </div>
       )}
@@ -280,6 +263,7 @@ export function ClipsReview({
   snapshot: initialSnapshot,
   publishing,
 }: ClipsReviewProps) {
+  const t = useMessages(review).list
   const snapshot = useProjectEvents(initialSnapshot)
   const [filter, setFilter] = React.useState<Filter>("all")
   const [sort, setSort] = React.useState<"best" | "time">("best")
@@ -290,7 +274,7 @@ export function ClipsReview({
     startFinding(async () => {
       const result = await findMoreHighlightsAction(projectId)
       if (!result.ok) toast.error(result.error.message)
-      else toast.success("Looking for more highlights")
+      else toast.success(t.findingToast)
       router.refresh()
     })
   const byScore = clips.toSorted((a, b) => b.score - a.score)
@@ -318,20 +302,20 @@ export function ClipsReview({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div
           role="group"
-          aria-label="Filter clips"
+          aria-label={t.filter}
           className="flex flex-wrap gap-0.5"
         >
-          {FILTERS.map((item) => (
+          {FILTERS.map((id) => (
             <button
-              key={item.id}
+              key={id}
               type="button"
-              aria-pressed={filter === item.id}
-              onClick={() => setFilter(item.id)}
+              aria-pressed={filter === id}
+              onClick={() => setFilter(id)}
               className="inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-medium tracking-[-0.01em] whitespace-nowrap text-muted-foreground transition-colors hover:bg-glass hover:text-foreground aria-pressed:bg-glass-3 aria-pressed:text-foreground"
             >
-              {item.label}{" "}
+              {t.filters[id]}{" "}
               <span className="font-mono text-xs text-muted-foreground tabular-nums">
-                {counts[item.id]}
+                {counts[id]}
               </span>
             </button>
           ))}
@@ -339,7 +323,7 @@ export function ClipsReview({
         <div className="flex items-center gap-3">
           <DropdownMenu>
             <DropdownMenuTrigger className="inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-glass hover:text-foreground">
-              {sort === "best" ? "Best first" : "In order"}
+              {t.sort[sort]}
               <CaretDownIcon className="size-3.5" aria-hidden />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -348,24 +332,22 @@ export function ClipsReview({
                 onValueChange={(value) => setSort(value as "best" | "time")}
               >
                 <DropdownMenuRadioItem value="best">
-                  Best first
+                  {t.sort.best}
                 </DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="time">
-                  In order
+                  {t.sort.time}
                 </DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
             </DropdownMenuContent>
           </DropdownMenu>
           <Button size="sm" disabled={finding || selecting} onClick={findMore}>
             <SparkleIcon data-icon="inline-start" aria-hidden />
-            {selecting ? "Finding highlights…" : "Find more highlights"}
+            {selecting ? t.finding : t.findMore}
           </Button>
         </div>
       </div>
       {visible.length === 0 ? (
-        <p className="py-10 text-center text-sm text-tertiary">
-          Nothing here right now.
-        </p>
+        <p className="py-10 text-center text-sm text-tertiary">{t.empty}</p>
       ) : (
         <ClipsGrid
           projectId={projectId}
@@ -378,8 +360,8 @@ export function ClipsReview({
         />
       )}
       <p className="text-center text-[13px] text-tertiary">
-        Click a clip to open it in the editor. <Kbd>A</Kbd> approve ·{" "}
-        <Kbd>X</Kbd> reject · <Kbd>←</Kbd> <Kbd>→</Kbd> next
+        {t.hint} <Kbd>A</Kbd> {t.hintApprove} · <Kbd>X</Kbd> {t.hintReject} ·{" "}
+        <Kbd>←</Kbd> <Kbd>→</Kbd> {t.hintNext}
       </p>
     </>
   )
@@ -396,9 +378,10 @@ function ClipsTimeline({
   audio?: AudioSummary
   onOpen: (id: string) => void
 }) {
+  const t = useMessages(review).list
   return (
     <Timeline
-      aria-label="Clips in the recording"
+      aria-label={t.timeline}
       durationMs={durationMs}
       readOnly
       className="h-10"

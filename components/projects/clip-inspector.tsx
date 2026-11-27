@@ -31,38 +31,26 @@ import {
 } from "@/features/layout/schema"
 import type { ProjectSettings } from "@/features/projects/schema"
 import type { CaptionState } from "@/features/timeline/captions"
+import { useMessages } from "@/lib/i18n/client"
+import { common } from "@/lib/i18n/common"
 import { cn } from "@/lib/utils"
 
 import { CaptionStyleFields } from "./caption-style-fields"
 import { ClipStats } from "./clip-stats"
 import { CamPositionField, LAYOUT_MODES } from "./layout-fields"
+import { editor } from "./messages/editor"
 import type { PublicationState } from "./publish-dialog"
 
-export const INSPECTOR_TABS = [
-  { value: "details", label: "Details" },
-  { value: "captions", label: "Captions" },
-  { value: "layout", label: "Layout" },
-] as const
+export const INSPECTOR_TABS = ["details", "captions", "layout"] as const
 
-export type InspectorTab = (typeof INSPECTOR_TABS)[number]["value"]
+export type InspectorTab = (typeof INSPECTOR_TABS)[number]
 
 const TITLE_MAX = 100
 const HOOK_MAX = 200
 const OFFSET_STEP_MS = 100
-const MODE_LABELS: Record<LayoutMode, string> = {
-  "cam-top": "Webcam top",
-  "split-50": "Split",
-  "no-cam-fill": "Fill",
-  "no-cam-blur-fill": "Fit",
-}
 const HELP = "text-[13px] text-tertiary"
 const FIELD_LABEL = "text-[13.5px]"
 const INSET = "rounded-[14px] bg-graphite-2"
-
-function formatOffset(ms: number) {
-  const sign = ms > 0 ? "+" : ms < 0 ? "−" : ""
-  return `${sign}${(Math.abs(ms) / 1000).toFixed(1)} s`
-}
 
 export function ClipInspector({
   tab,
@@ -73,27 +61,25 @@ export function ClipInspector({
   onTabChange: (tab: InspectorTab) => void
   children: React.ReactNode
 }) {
+  const t = useMessages(editor).inspector
   return (
     <Tabs
       value={tab}
       onValueChange={(next) => {
-        const found = INSPECTOR_TABS.find((item) => item.value === next)
-        if (found) onTabChange(found.value)
+        const found = INSPECTOR_TABS.find((item) => item === next)
+        if (found) onTabChange(found)
       }}
       className="min-h-0 flex-1 gap-0"
     >
       <div className="shrink-0 px-3.5 pt-3.5 pb-3">
-        <TabsList
-          aria-label="Clip inspector"
-          className="flex w-full flex-nowrap"
-        >
+        <TabsList aria-label={t.label} className="flex w-full flex-nowrap">
           {INSPECTOR_TABS.map((item) => (
             <TabsTrigger
-              key={item.value}
-              value={item.value}
+              key={item}
+              value={item}
               className="flex-1 px-1.5 text-[13.5px]"
             >
-              {item.label}
+              {t.tabs[item]}
             </TabsTrigger>
           ))}
         </TabsList>
@@ -123,12 +109,13 @@ export function DetailsPanel({
   publication?: PublicationState
 }) {
   const id = React.useId()
+  const t = useMessages(editor).inspector.details
   return (
     <TabsContent value="details" className="grid gap-[18px]">
       <div className="grid gap-2">
         <div className="flex items-center justify-between">
           <Label htmlFor={`${id}-title`} className={FIELD_LABEL}>
-            Title
+            {t.title}
           </Label>
           <span className="font-mono text-xs text-tertiary tabular-nums">
             {title.length} / {TITLE_MAX}
@@ -143,12 +130,12 @@ export function DetailsPanel({
           onChange={(event) => onTitleChange(event.target.value)}
         />
         <p id={`${id}-title-help`} className={HELP}>
-          Used for the file name and the export manifest.
+          {t.titleHelp}
         </p>
       </div>
       <div className="grid gap-2">
         <Label htmlFor={`${id}-hook`} className={FIELD_LABEL}>
-          Hook
+          {t.hook}
         </Label>
         <Textarea
           id={`${id}-hook`}
@@ -160,8 +147,7 @@ export function DetailsPanel({
           className="min-h-16 rounded-xl border-0 bg-graphite-2 px-3.5 py-2.5 text-[15px] tracking-[-0.011em] inset-ring-1 inset-ring-hair transition-shadow duration-200 placeholder:text-tertiary focus-visible:ring-3 focus-visible:ring-lav/16 focus-visible:inset-ring-lav md:text-[15px] dark:bg-graphite-2"
         />
         <p id={`${id}-hook-help`} className={HELP}>
-          Put it on screen with Add › Text, then set its timing on the Text
-          track.
+          {t.hookHelp}
         </p>
       </div>
       {(reason || score > 0) && (
@@ -169,12 +155,12 @@ export function DetailsPanel({
           <div className="flex items-center gap-2.5">
             <DotMeter
               value={Math.round(score * 10)}
-              aria-label="Clip score"
+              aria-label={t.score}
               tone="mint"
             />
-            <b className="text-[13px] font-semibold">Why this clip</b>
+            <b className="text-[13px] font-semibold">{t.why}</b>
             <span className="ms-auto font-mono text-xs text-tertiary tabular-nums">
-              {score.toFixed(2)}
+              {t.scoreValue(score)}
             </span>
           </div>
           {reason && <p className={HELP}>{reason}</p>}
@@ -211,7 +197,12 @@ export function CaptionsPanel({
   disabled?: boolean
 }) {
   const id = React.useId()
+  const t = useMessages(editor).inspector.captions
+  const c = useMessages(common)
   const [editingStyle, setEditingStyle] = React.useState(false)
+  const styleNames: Record<string, string> = t.styles
+  const offsetSign =
+    captions.offsetMs > 0 ? "+" : captions.offsetMs < 0 ? "−" : ""
   const edited =
     captions.offsetMs !== 0 || Object.keys(captions.pageEdits).length > 0
   const shift = (delta: number) =>
@@ -227,8 +218,8 @@ export function CaptionsPanel({
     <TabsContent value="captions" className="grid gap-3.5">
       <div className="flex items-center justify-between gap-2">
         <span className="min-w-0 truncate text-[13px] text-muted-foreground">
-          {style.label} · {CAPTION_FONTS[style.font].label} ·{" "}
-          {style.maxWordsPerPage} words
+          {styleNames[style.id] ?? style.label} ·{" "}
+          {CAPTION_FONTS[style.font].label} · {t.words(style.maxWordsPerPage)}
         </span>
         <Button
           type="button"
@@ -239,7 +230,7 @@ export function CaptionsPanel({
           className="h-auto px-0 text-[12.5px]"
           onClick={() => setEditingStyle(!editingStyle)}
         >
-          {editingStyle ? "Done" : "Edit style"}
+          {editingStyle ? c.done : t.editStyle}
         </Button>
       </div>
       <div id={`${id}-style`} hidden={!editingStyle} className="grid gap-4">
@@ -255,7 +246,7 @@ export function CaptionsPanel({
       <div className={cn(INSET, "grid gap-3 px-3.5 py-3")}>
         <div className="flex items-center justify-between gap-3">
           <Label htmlFor={`${id}-enabled`} className={FIELD_LABEL}>
-            Show captions
+            {t.show}
           </Label>
           <Switch
             id={`${id}-enabled`}
@@ -266,7 +257,7 @@ export function CaptionsPanel({
         </div>
         <div className="flex items-center justify-between gap-3">
           <span id={`${id}-timing`} className="text-[13.5px] font-medium">
-            Caption timing
+            {t.timing}
           </span>
           <div
             role="group"
@@ -276,7 +267,7 @@ export function CaptionsPanel({
             <Button
               type="button"
               size="icon-xs"
-              aria-label="Show captions earlier"
+              aria-label={t.earlier}
               disabled={
                 disabled ||
                 !enabled ||
@@ -290,12 +281,12 @@ export function CaptionsPanel({
               aria-live="polite"
               className="w-14 text-center font-mono text-xs tabular-nums"
             >
-              {formatOffset(captions.offsetMs)}
+              {t.offset(offsetSign, Math.abs(captions.offsetMs) / 1000)}
             </output>
             <Button
               type="button"
               size="icon-xs"
-              aria-label="Show captions later"
+              aria-label={t.later}
               disabled={
                 disabled ||
                 !enabled ||
@@ -319,15 +310,11 @@ export function CaptionsPanel({
             }
           >
             <ArrowCounterClockwiseIcon data-icon="inline-start" aria-hidden />
-            Reset spoken captions
+            {t.resetSpoken}
           </Button>
         )}
       </div>
-      <p className={HELP}>
-        {enabled
-          ? "Select a caption on the timeline to rewrite it. Edits keep their timing."
-          : "Captions are off for this clip."}
-      </p>
+      <p className={HELP}>{enabled ? t.help : t.off}</p>
     </TabsContent>
   )
 }
@@ -348,18 +335,18 @@ export function LayoutPanel({
   onCamPositionChange: (position: CamPosition) => void
 }) {
   const id = React.useId()
-  const mode = LAYOUT_MODES.find((item) => item.value === layout.mode)
+  const t = useMessages(editor).inspector.layout
   return (
     <TabsContent value="layout" className="grid gap-[18px]">
       <div className={cn(INSET, "grid gap-3 px-3.5 py-3")}>
         <p className={HELP} aria-live="polite">
           {detecting
-            ? "Looking for the webcam in this clip…"
+            ? t.detecting
             : hasWebcam
-              ? "Drag the solid box over the webcam, the dashed one over the gameplay."
+              ? t.withWebcam
               : layout.mode === "no-cam-fill"
-                ? "The dashed box is the part of the frame that fills the short."
-                : "The whole frame is shown over a blurred copy of itself."}
+                ? t.fill
+                : t.fit}
         </p>
         <Button
           type="button"
@@ -373,12 +360,12 @@ export function LayoutPanel({
           ) : (
             <MagicWandIcon data-icon="inline-start" aria-hidden />
           )}
-          Find webcam
+          {t.findWebcam}
         </Button>
       </div>
       <div className="grid gap-2">
         <span id={`${id}-mode`} className="text-[13.5px] font-medium">
-          Mode
+          {t.mode}
         </span>
         <Segmented
           aria-labelledby={`${id}-mode`}
@@ -392,11 +379,11 @@ export function LayoutPanel({
         >
           {LAYOUT_MODES.map((item) => (
             <SegmentedItem key={item.value} value={item.value}>
-              {MODE_LABELS[item.value]}
+              {t.modes[item.value]}
             </SegmentedItem>
           ))}
         </Segmented>
-        {mode && <p className={HELP}>{mode.description}</p>}
+        <p className={HELP}>{t.modeHelp[layout.mode]}</p>
       </div>
       {hasWebcam && (
         <CamPositionField

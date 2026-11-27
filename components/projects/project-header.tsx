@@ -36,14 +36,11 @@ import type {
   ProjectHeaderData,
   ProjectSettingsData,
 } from "@/features/projects/queries"
-import {
-  formatBytes,
-  formatDuration,
-  formatRelativeDay,
-  sourceLabel,
-} from "@/lib/format"
+import { formatBytes, formatDuration, formatRelativeDay } from "@/lib/format"
+import { useLocale } from "@/lib/i18n/client"
 
 import { DeleteProjectDialog } from "./delete-project-dialog"
+import { localSourceLabel, overview } from "./messages/overview"
 import { ProjectSettingsSheet } from "./project-settings-sheet"
 import { projectSignal } from "./status-badge"
 
@@ -57,23 +54,31 @@ export function ProjectHeader({
   const { project, source, aspect, language, clipCount, reviewCount } = data
   const [settingsOpen, setSettingsOpen] = React.useState(false)
   const [deleteOpen, setDeleteOpen] = React.useState(false)
-  const signal = projectSignal({ ...project, reviewCount })
+  const locale = useLocale()
+  const t = overview[locale].header
+  const signal = projectSignal({ ...project, reviewCount }, locale)
   const base = `/projects/${project.id}`
   const sourceHref = project.sourceUrl ?? source?.url
 
   const tabs: PageHeaderTab[] = [
-    { href: base as Route, label: "Overview", exact: true },
-    { href: `${base}/transcript` as Route, label: "Transcript" },
-    { href: `${base}/clips` as Route, label: "Clips", count: clipCount },
+    { href: base as Route, label: t.overview, exact: true },
+    { href: `${base}/transcript` as Route, label: t.transcript },
+    { href: `${base}/clips` as Route, label: t.clips, count: clipCount },
   ]
 
   return (
     <PageHeader>
-      <PageHeaderBack href="/" label="Back to projects" />
+      <PageHeaderBack href="/" label={t.back} />
       <PageHeaderHeading>
         <PageHeaderContext>
-          {sourceLabel(project.sourceUrl)} · imported{" "}
-          {formatRelativeDay(project.createdAt).toLowerCase()}
+          {localSourceLabel(project.sourceUrl, locale)} ·{" "}
+          {t.imported(
+            formatRelativeDay(
+              project.createdAt,
+              undefined,
+              locale
+            ).toLocaleLowerCase(locale)
+          )}
           {source?.durationMs ? (
             <>
               {" · "}
@@ -103,11 +108,11 @@ export function ProjectHeader({
             <>
               {" · "}
               <span className="font-mono tabular-nums">
-                {formatBytes(source.bytes)}
+                {formatBytes(source.bytes, locale)}
               </span>
             </>
           ) : null}
-          {language && ` · ${languageLabel(language)}`}
+          {language && ` · ${languageLabel(language, locale)}`}
         </PageHeaderContext>
         <PageHeaderTitleLine>
           <PageHeaderTitle>{project.name}</PageHeaderTitle>
@@ -122,14 +127,14 @@ export function ProjectHeader({
           </PageHeaderState>
         </PageHeaderTitleLine>
       </PageHeaderHeading>
-      <PageHeaderTabs aria-label="Project sections" tabs={tabs} />
+      <PageHeaderTabs aria-label={t.sections} tabs={tabs} />
       <PageHeaderDivider />
       <PageHeaderActions>
         {sourceHref && (
           <Button
             variant="ghost"
             size="icon"
-            aria-label="Open source video"
+            aria-label={t.openSource}
             nativeButton={false}
             render={<a href={sourceHref} target="_blank" rel="noreferrer" />}
           >
@@ -138,20 +143,14 @@ export function ProjectHeader({
         )}
         <DropdownMenu>
           <DropdownMenuTrigger
-            render={
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Project settings and more"
-              />
-            }
+            render={<Button variant="ghost" size="icon" aria-label={t.more} />}
           >
             <DotsThreeIcon weight="bold" aria-hidden />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-52">
             <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
               <SlidersHorizontalIcon aria-hidden />
-              Project settings
+              {t.settings}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
@@ -159,7 +158,7 @@ export function ProjectHeader({
               onClick={() => setDeleteOpen(true)}
             >
               <TrashIcon aria-hidden />
-              Delete project
+              {t.delete}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

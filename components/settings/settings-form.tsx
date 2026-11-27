@@ -15,6 +15,7 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { saveSettingsAction } from "@/features/settings/actions"
 import type { AppSettings } from "@/features/settings/schema"
+import { useMessages } from "@/lib/i18n/client"
 
 import { CaptionStyleFields } from "@/components/projects/caption-style-fields"
 import {
@@ -35,30 +36,8 @@ import {
   PublishingFields,
   QualityField,
 } from "./settings-fields"
+import { settings as messages } from "./messages"
 import { SettingsSection, SettingsSectionHeader } from "./section"
-
-const TITLES = {
-  defaults: {
-    title: "Project defaults",
-    description:
-      "Where every new import starts. Imports can override them, and each project keeps its own copy.",
-  },
-  layout: {
-    title: "Layout",
-    description:
-      "How new clips are framed. Each clip looks for the webcam the first time you open it and keeps its own layout.",
-  },
-  captions: {
-    title: "Captions",
-    description:
-      "How captions look on new projects. Each project and each clip can still change them.",
-  },
-  rendering: {
-    title: "Rendering",
-    description:
-      "Quality is the default for new projects. Hardware encoding applies to every render on this machine.",
-  },
-} as const
 
 export function SettingsForm({
   section,
@@ -69,7 +48,7 @@ export function SettingsForm({
   englishOnlyModel,
   installedFonts,
 }: {
-  section: keyof typeof TITLES
+  section: "defaults" | "layout" | "captions" | "rendering"
   settings: AppSettings
   claudeAvailable: boolean
   workerOnline: boolean
@@ -78,6 +57,8 @@ export function SettingsForm({
   installedFonts: readonly CaptionFontId[]
 }) {
   const router = useRouter()
+  const { nav, form, fields } = useMessages(messages)
+  const t = form.sections[section]
   const [pending, startTransition] = React.useTransition()
   const [settings, setSettings] = React.useState(initial)
   const [error, setError] = React.useState<string | null>(null)
@@ -94,7 +75,7 @@ export function SettingsForm({
         return
       }
       setError(null)
-      toast.success(`${TITLES[section].title} saved`)
+      toast.success(t.saved)
       router.refresh()
     })
   }
@@ -102,7 +83,11 @@ export function SettingsForm({
   return (
     <form onSubmit={submit} className="grid gap-[18px]">
       <SettingsSection aria-labelledby={`${section}-title`}>
-        <SettingsSectionHeader id={`${section}-title`} {...TITLES[section]} />
+        <SettingsSectionHeader
+          id={`${section}-title`}
+          title={nav[section]}
+          description={t.description}
+        />
         {section === "defaults" && (
           <>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -139,11 +124,9 @@ export function SettingsForm({
               <Field orientation="horizontal">
                 <FieldContent>
                   <FieldLabel htmlFor="captions-enabled">
-                    Burn in captions
+                    {fields.burnIn}
                   </FieldLabel>
-                  <FieldDescription>
-                    Word-by-word captions on vertical clips and the edit.
-                  </FieldDescription>
+                  <FieldDescription>{fields.burnInHint}</FieldDescription>
                 </FieldContent>
                 <Switch
                   id="captions-enabled"
@@ -179,24 +162,22 @@ export function SettingsForm({
           <>
             {!workerOnline && (
               <Alert>
-                <AlertTitle>No worker online</AlertTitle>
-                <AlertDescription>
-                  Renders and transcriptions wait until a worker is running.
-                </AlertDescription>
+                <AlertTitle>{form.noWorker}</AlertTitle>
+                <AlertDescription>{form.noWorkerHint}</AlertDescription>
               </Alert>
             )}
             <QualityField value={settings} set={set} />
             <Field orientation="horizontal" data-disabled={!hardwareEncoder}>
               <FieldContent>
                 <FieldLabel htmlFor="hardware-encoding">
-                  Hardware encoding
+                  {form.hardware}
                 </FieldLabel>
                 <FieldDescription>
                   {hardwareEncoder
-                    ? `Faster renders with ${hardwareEncoder}. Output can differ slightly between machines.`
+                    ? form.hardwareWith(hardwareEncoder)
                     : workerOnline
-                      ? "No hardware encoder found in this ffmpeg."
-                      : "Available once a worker is online."}
+                      ? form.hardwareMissing
+                      : form.hardwareOffline}
                 </FieldDescription>
               </FieldContent>
               <Switch
@@ -212,7 +193,7 @@ export function SettingsForm({
 
       <div className="flex flex-wrap items-center gap-3">
         <Button type="submit" variant="primary" disabled={pending}>
-          Save {TITLES[section].title.toLowerCase()}
+          {t.save}
         </Button>
         {error && (
           <p role="alert" className="text-sm text-pink">

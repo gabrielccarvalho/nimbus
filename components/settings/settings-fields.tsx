@@ -24,13 +24,8 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { CLAUDE_KEY_MISSING_MESSAGE } from "@/features/accounts/schema"
 import { CAPTION_PRESETS } from "@/features/captions/styles"
-import {
-  NICHE_PROFILES,
-  niches,
-  type Niche,
-} from "@/features/highlights/niches"
+import { niches } from "@/features/highlights/niches"
 import { privacyStatuses } from "@/features/publishing/schema"
 import type { AppSettings } from "@/features/settings/schema"
 import type {
@@ -38,46 +33,23 @@ import type {
   RenderQuality,
   SelectorMode,
 } from "@/features/projects/schema"
-import { LANGUAGES, languageLabel } from "./languages"
+import { useLocale, useMessages } from "@/lib/i18n/client"
+import { defaultLocale } from "@/lib/i18n/config"
 
-export { LANGUAGES, languageLabel }
+import { LANGUAGES, languageLabel, languageOptions } from "./languages"
+import { settings } from "./messages"
 
-const NICHES = niches.map((niche) => ({
-  value: niche,
-  label: niche === "auto" ? "Detect from title" : NICHE_PROFILES[niche].label,
+export { LANGUAGES, languageLabel, languageOptions }
+
+const SELECTOR_MODES: SelectorMode[] = ["heuristic", "anthropic", "manual"]
+
+// English only, for callers that haven't moved to settings.fields.selectors.
+export const SELECTORS = SELECTOR_MODES.map((value) => ({
+  value,
+  ...settings[defaultLocale].fields.selectors[value],
 }))
 
-export const SELECTORS: {
-  value: SelectorMode
-  label: string
-  description: string
-}[] = [
-  {
-    value: "heuristic",
-    label: "Heuristic",
-    description: "Scores loudness, speech density and keywords locally.",
-  },
-  {
-    value: "anthropic",
-    label: "Claude",
-    description: "Sends the transcript to Claude to pick and title clips.",
-  },
-  {
-    value: "manual",
-    label: "Manual",
-    description: "Gives you a prompt to paste into any chat, then the reply.",
-  },
-]
-
-const QUALITIES: {
-  value: RenderQuality
-  label: string
-  description: string
-}[] = [
-  { value: "draft", label: "Draft", description: "Smallest files, fastest." },
-  { value: "standard", label: "Standard", description: "Good for uploads." },
-  { value: "high", label: "High", description: "Larger files, sharper." },
-]
+const QUALITIES: RenderQuality[] = ["draft", "standard", "high"]
 
 type Shared = Pick<
   ProjectSettings,
@@ -107,11 +79,13 @@ export function LanguageField<T extends Shared>({
   englishOnlyModel,
   description,
 }: FieldsProps<T> & { englishOnlyModel: boolean; description?: string }) {
+  const t = useMessages(settings).fields
+  const languages = languageOptions(useLocale())
   return (
     <Field>
-      <FieldLabel htmlFor="language">Spoken language</FieldLabel>
+      <FieldLabel htmlFor="language">{t.language}</FieldLabel>
       <Select
-        items={LANGUAGES}
+        items={languages}
         value={value.language}
         onValueChange={(next) => next && set("language", next as T["language"])}
       >
@@ -119,7 +93,7 @@ export function LanguageField<T extends Shared>({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {LANGUAGES.map((language) => (
+          {languages.map((language) => (
             <SelectItem key={language.value} value={language.value}>
               {language.label}
             </SelectItem>
@@ -128,9 +102,8 @@ export function LanguageField<T extends Shared>({
       </Select>
       <FieldDescription>
         {englishOnlyModel
-          ? "The configured Whisper model is English-only. Use a multilingual model for other languages."
-          : (description ??
-            "The language the streamer speaks, not the game's. Detection samples several points of the recording.")}
+          ? t.englishOnlyModel
+          : (description ?? t.languageHint)}
       </FieldDescription>
     </Field>
   )
@@ -141,10 +114,11 @@ export function HighlightFields<T extends Shared>({
   set,
   claudeAvailable,
 }: FieldsProps<T> & { claudeAvailable: boolean }) {
+  const t = useMessages(settings).fields
   return (
     <FieldGroup>
       <FieldSet>
-        <FieldLegend variant="label">Selector</FieldLegend>
+        <FieldLegend variant="label">{t.selector}</FieldLegend>
         <RadioGroup
           className="sm:grid-cols-3"
           value={value.selectorMode}
@@ -152,25 +126,22 @@ export function HighlightFields<T extends Shared>({
             set("selectorMode", next as T["selectorMode"])
           }
         >
-          {SELECTORS.map((selector) => {
-            const disabled = selector.value === "anthropic" && !claudeAvailable
+          {SELECTOR_MODES.map((mode) => {
+            const disabled = mode === "anthropic" && !claudeAvailable
             return (
-              <FieldLabel
-                key={selector.value}
-                htmlFor={`selector-${selector.value}`}
-              >
+              <FieldLabel key={mode} htmlFor={`selector-${mode}`}>
                 <Field orientation="horizontal" data-disabled={disabled}>
                   <FieldContent>
-                    <FieldTitle>{selector.label}</FieldTitle>
+                    <FieldTitle>{t.selectors[mode].label}</FieldTitle>
                     <FieldDescription>
                       {disabled
-                        ? CLAUDE_KEY_MISSING_MESSAGE
-                        : selector.description}
+                        ? t.claudeKeyMissing
+                        : t.selectors[mode].description}
                     </FieldDescription>
                   </FieldContent>
                   <RadioGroupItem
-                    id={`selector-${selector.value}`}
-                    value={selector.value}
+                    id={`selector-${mode}`}
+                    value={mode}
                     disabled={disabled}
                   />
                 </Field>
@@ -181,7 +152,7 @@ export function HighlightFields<T extends Shared>({
       </FieldSet>
       <div className="grid gap-4 sm:grid-cols-3">
         <Field>
-          <FieldLabel htmlFor="clip-min">Shortest clip (s)</FieldLabel>
+          <FieldLabel htmlFor="clip-min">{t.clipMin}</FieldLabel>
           <Input
             id="clip-min"
             type="number"
@@ -198,7 +169,7 @@ export function HighlightFields<T extends Shared>({
           />
         </Field>
         <Field>
-          <FieldLabel htmlFor="clip-max">Longest clip (s)</FieldLabel>
+          <FieldLabel htmlFor="clip-max">{t.clipMax}</FieldLabel>
           <Input
             id="clip-max"
             type="number"
@@ -214,7 +185,7 @@ export function HighlightFields<T extends Shared>({
           />
         </Field>
         <Field>
-          <FieldLabel htmlFor="clip-count">Clips to find</FieldLabel>
+          <FieldLabel htmlFor="clip-count">{t.clipCount}</FieldLabel>
           <Input
             id="clip-count"
             type="number"
@@ -233,11 +204,8 @@ export function HighlightFields<T extends Shared>({
       <CatchphrasesField value={value} set={set} />
       <Field orientation="horizontal">
         <FieldContent>
-          <FieldLabel htmlFor="auto-effects">Auto effects</FieldLabel>
-          <FieldDescription>
-            Add full-cam, zoom and shake effects to the moments that call for
-            them. You can edit them per clip.
-          </FieldDescription>
+          <FieldLabel htmlFor="auto-effects">{t.autoEffects}</FieldLabel>
+          <FieldDescription>{t.autoEffectsHint}</FieldDescription>
         </FieldContent>
         <Switch
           id="auto-effects"
@@ -252,11 +220,16 @@ export function HighlightFields<T extends Shared>({
 }
 
 export function NicheField<T extends Shared>({ value, set }: FieldsProps<T>) {
+  const t = useMessages(settings).fields
+  const options = niches.map((niche) => ({
+    value: niche,
+    label: t.niches[niche].label,
+  }))
   return (
     <Field>
-      <FieldLabel htmlFor="niche">Niche</FieldLabel>
+      <FieldLabel htmlFor="niche">{t.niche}</FieldLabel>
       <Select
-        items={NICHES}
+        items={options}
         value={value.niche}
         onValueChange={(next) => next && set("niche", next as T["niche"])}
       >
@@ -264,27 +237,24 @@ export function NicheField<T extends Shared>({ value, set }: FieldsProps<T>) {
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {NICHES.map((niche) => (
+          {options.map((niche) => (
             <SelectItem key={niche.value} value={niche.value}>
               {niche.label}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
-      <FieldDescription>
-        {value.niche === "auto"
-          ? "Guessed from the recording's title. Tells Claude which moments hook viewers in this game."
-          : NICHE_PROFILES[value.niche as Exclude<Niche, "auto">].description}
-      </FieldDescription>
+      <FieldDescription>{t.niches[value.niche].description}</FieldDescription>
     </Field>
   )
 }
 
 function CatchphrasesField<T extends Shared>({ value, set }: FieldsProps<T>) {
+  const t = useMessages(settings).fields
   const [draft, setDraft] = React.useState(value.reactionPhrases.join("\n"))
   return (
     <Field>
-      <FieldLabel htmlFor="catchphrases">Catchphrases</FieldLabel>
+      <FieldLabel htmlFor="catchphrases">{t.catchphrases}</FieldLabel>
       <Textarea
         id="catchphrases"
         rows={3}
@@ -301,11 +271,7 @@ function CatchphrasesField<T extends Shared>({ value, set }: FieldsProps<T>) {
           )
         }}
       />
-      <FieldDescription>
-        One per line. Things the streamer says when something big happens, on
-        top of the usual reactions for the spoken language. Used by the built-in
-        selector.
-      </FieldDescription>
+      <FieldDescription>{t.catchphrasesHint}</FieldDescription>
     </Field>
   )
 }
@@ -314,14 +280,13 @@ export function CaptionFields<T extends Shared>({
   value,
   set,
 }: FieldsProps<T>) {
+  const t = useMessages(settings).fields
   return (
     <FieldGroup>
       <Field orientation="horizontal">
         <FieldContent>
-          <FieldLabel htmlFor="captions-enabled">Burn in captions</FieldLabel>
-          <FieldDescription>
-            Word-by-word captions on vertical clips and the edit.
-          </FieldDescription>
+          <FieldLabel htmlFor="captions-enabled">{t.burnIn}</FieldLabel>
+          <FieldDescription>{t.burnInHint}</FieldDescription>
         </FieldContent>
         <Switch
           id="captions-enabled"
@@ -332,7 +297,7 @@ export function CaptionFields<T extends Shared>({
         />
       </Field>
       <Field>
-        <FieldLabel id="caption-style-label">Style</FieldLabel>
+        <FieldLabel id="caption-style-label">{t.captionStyle}</FieldLabel>
         <ToggleGroup
           aria-labelledby="caption-style-label"
           variant="outline"
@@ -349,7 +314,7 @@ export function CaptionFields<T extends Shared>({
         >
           {CAPTION_PRESETS.map((preset) => (
             <ToggleGroupItem key={preset.id} value={preset.id}>
-              {preset.label}
+              {t.captionPresets[preset.id] ?? preset.label}
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
@@ -359,9 +324,10 @@ export function CaptionFields<T extends Shared>({
 }
 
 export function QualityField<T extends Shared>({ value, set }: FieldsProps<T>) {
+  const t = useMessages(settings).fields
   return (
     <FieldSet>
-      <FieldLegend variant="label">Quality</FieldLegend>
+      <FieldLegend variant="label">{t.quality}</FieldLegend>
       <RadioGroup
         value={value.renderQuality}
         onValueChange={(next) =>
@@ -370,16 +336,15 @@ export function QualityField<T extends Shared>({ value, set }: FieldsProps<T>) {
         className="sm:grid-cols-3"
       >
         {QUALITIES.map((quality) => (
-          <FieldLabel key={quality.value} htmlFor={`quality-${quality.value}`}>
+          <FieldLabel key={quality} htmlFor={`quality-${quality}`}>
             <Field orientation="horizontal">
               <FieldContent>
-                <FieldTitle>{quality.label}</FieldTitle>
-                <FieldDescription>{quality.description}</FieldDescription>
+                <FieldTitle>{t.qualities[quality].label}</FieldTitle>
+                <FieldDescription>
+                  {t.qualities[quality].description}
+                </FieldDescription>
               </FieldContent>
-              <RadioGroupItem
-                id={`quality-${quality.value}`}
-                value={quality.value}
-              />
+              <RadioGroupItem id={`quality-${quality}`} value={quality} />
             </Field>
           </FieldLabel>
         ))}
@@ -388,11 +353,6 @@ export function QualityField<T extends Shared>({ value, set }: FieldsProps<T>) {
   )
 }
 
-const PRIVACY_OPTIONS = privacyStatuses.map((value) => ({
-  value,
-  label: value.charAt(0).toUpperCase() + value.slice(1),
-}))
-
 export function PublishingFields({
   value,
   set,
@@ -400,15 +360,20 @@ export function PublishingFields({
   value: AppSettings
   set: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void
 }) {
+  const t = useMessages(settings).fields
+  const privacyOptions = privacyStatuses.map((status) => ({
+    value: status,
+    label: t.privacyOptions[status],
+  }))
   const [tags, setTags] = React.useState(value.publishTags.join(", "))
   return (
     <FieldSet>
-      <FieldLegend variant="label">Publishing</FieldLegend>
+      <FieldLegend variant="label">{t.publishing}</FieldLegend>
       <FieldGroup>
         <Field>
-          <FieldLabel htmlFor="publish-privacy">Privacy</FieldLabel>
+          <FieldLabel htmlFor="publish-privacy">{t.privacy}</FieldLabel>
           <Select
-            items={PRIVACY_OPTIONS}
+            items={privacyOptions}
             value={value.publishPrivacy}
             onValueChange={(next) =>
               next &&
@@ -419,20 +384,17 @@ export function PublishingFields({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {PRIVACY_OPTIONS.map((option) => (
+              {privacyOptions.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <FieldDescription>
-            Where new YouTube uploads start. You can change it before each
-            publish.
-          </FieldDescription>
+          <FieldDescription>{t.privacyHint}</FieldDescription>
         </Field>
         <Field>
-          <FieldLabel htmlFor="publish-tags">Tags</FieldLabel>
+          <FieldLabel htmlFor="publish-tags">{t.tags}</FieldLabel>
           <Input
             id="publish-tags"
             value={tags}
@@ -448,19 +410,17 @@ export function PublishingFields({
               )
             }}
           />
-          <FieldDescription>Separated by commas.</FieldDescription>
+          <FieldDescription>{t.tagsHint}</FieldDescription>
         </Field>
         <Field>
-          <FieldLabel htmlFor="publish-hashtags">Hashtags</FieldLabel>
+          <FieldLabel htmlFor="publish-hashtags">{t.hashtags}</FieldLabel>
           <Input
             id="publish-hashtags"
             value={value.publishHashtags}
             maxLength={200}
             onChange={(event) => set("publishHashtags", event.target.value)}
           />
-          <FieldDescription>
-            Added to the end of every description. #Shorts is always included.
-          </FieldDescription>
+          <FieldDescription>{t.hashtagsHint}</FieldDescription>
         </Field>
       </FieldGroup>
     </FieldSet>

@@ -121,9 +121,12 @@ import {
   trimPart,
 } from "@/features/clips/parts"
 import { formatTimestamp } from "@/lib/format"
+import { useLocale, useMessages } from "@/lib/i18n/client"
+import { translateError } from "@/lib/i18n/errors"
 
 import { START_SLACK_MS } from "./clip-transport"
 import { IconAction } from "./icon-action"
+import { editor, type EditorMessages } from "./messages/editor"
 import {
   CaptionInspector,
   EffectInspector,
@@ -149,12 +152,6 @@ type LaneGroup = "effects" | "texts" | "music"
 
 type Spot = { group: "texts" | "captions" | "effects"; lane: number } & Span
 
-const SPOT_LABELS: Record<Spot["group"], string> = {
-  texts: "Text",
-  captions: "Caption",
-  effects: "Effect",
-}
-
 const ZOOM_FIT = 0
 const ZOOM_MIN = 5
 const ZOOM_MAX = 320
@@ -179,10 +176,10 @@ const THUMB_STEPS_MS = [2000, 5000, 10_000]
 const MAX_THUMBS = 40
 
 export const EFFECT_KINDS = [
-  { key: "cam", label: "Full cam", lengthMs: 2000 },
-  { key: "game", label: "Full game", lengthMs: 2000 },
-  { key: "zoom", label: "Zoom", lengthMs: 1500 },
-  { key: "shake", label: "Shake", lengthMs: 500 },
+  { key: "cam", lengthMs: 2000 },
+  { key: "game", lengthMs: 2000 },
+  { key: "zoom", lengthMs: 1500 },
+  { key: "shake", lengthMs: 500 },
 ] as const
 
 type EffectKey = (typeof EFFECT_KINDS)[number]["key"]
@@ -201,10 +198,10 @@ export function effectTone(effect: Effect): Tone {
   return effect.target === "game" ? "sky" : "amber"
 }
 
-export function effectText(effect: Effect) {
-  if (effect.kind === "zoom") return `Zoom ${effect.scale}×`
-  if (effect.kind === "shake") return `Shake ${effect.intensity}`
-  return effectLabel(effect)
+export function effectText(effect: Effect, t: EditorMessages["effects"]) {
+  if (effect.kind === "zoom") return t.zoomAt(effect.scale)
+  if (effect.kind === "shake") return t.shakeAt(effect.intensity)
+  return effectLabel(effect, t)
 }
 
 const clamp = (value: number, min: number, max: number) =>
@@ -437,6 +434,7 @@ function SpotGhost({
   durationMs: number
   ref?: React.Ref<HTMLDivElement>
 }) {
+  const t = useMessages(editor).tracks
   return (
     <div
       ref={ref}
@@ -449,7 +447,7 @@ function SpotGhost({
       }}
     >
       <PlusIcon weight="bold" />
-      {SPOT_LABELS[spot.group]}
+      {t.spots[spot.group]}
     </div>
   )
 }
@@ -491,6 +489,7 @@ function ViewHandle({
   scrollRef: React.RefObject<HTMLDivElement | null>
   controls: string
 }) {
+  const t = useMessages(editor).timeline
   const drag = React.useRef<{ x: number; scrollLeft: number } | null>(null)
   const hidden = 1 - view.size
   const progress = hidden > 0.001 ? clamp(view.start / hidden, 0, 1) : 0
@@ -517,7 +516,7 @@ function ViewHandle({
       {hidden > 0.001 && (
         <div
           role="scrollbar"
-          aria-label="Timeline position"
+          aria-label={t.position}
           aria-controls={controls}
           aria-orientation="horizontal"
           aria-valuemin={0}
@@ -640,6 +639,14 @@ export function ClipTimeline({
   disabled?: boolean
 }) {
   const id = React.useId()
+  const {
+    timeline: t,
+    tracks: names,
+    effects: effectNames,
+    item: inspector,
+    toasts,
+  } = useMessages(editor)
+  const locale = useLocale()
   const { currentMs, seek } = useVideoPlayer()
   const rootRef = React.useRef<HTMLDivElement>(null)
   const scrollRef = React.useRef<HTMLDivElement>(null)
@@ -878,8 +885,7 @@ export function ClipTimeline({
     JSON.stringify(selection) === JSON.stringify(next)
   const anchorFor = (next: TimelineSelection) =>
     isSelected(next) ? setAnchor : undefined
-  const noRoom = () =>
-    toast.error("No room at the playhead. Move the playhead or free a track.")
+  const noRoom = () => toast.error(toasts.noRoom)
 
   const setEvents = (next: Effect[]) =>
     onEffectsChange({ events: next, edited: true })
@@ -1166,7 +1172,7 @@ export function ClipTimeline({
       }
     }
     if (from + NEW_PART_MS > recordingMs) {
-      toast.error("No room after the last part. Set a part's times instead.")
+      toast.error(toasts.noRoomForPart)
       return
     }
     onPartsChange([...parts, { startMs: from, endMs: from + NEW_PART_MS }])
@@ -1245,7 +1251,7 @@ export function ClipTimeline({
     const length = nextEnd - nextStart
     if (length < CLIP_MIN_EDIT_MS || length > CLIP_MAX_EDIT_MS) {
       toast.error(
-        `Keep the clip between ${CLIP_MIN_EDIT_MS / 1000} s and ${CLIP_MAX_EDIT_MS / 60_000} min.`
+        toasts.clipLength(CLIP_MIN_EDIT_MS / 1000, CLIP_MAX_EDIT_MS / 60_000)
       )
       return
     }
@@ -1324,13 +1330,13 @@ export function ClipTimeline({
   return (
     <section
       ref={rootRef}
-      aria-label="Timeline"
+      aria-label={t.label}
       data-slot="clip-timeline"
       className="flex min-h-0 flex-1 flex-col bg-sheet shadow-[inset_0_1px_0_var(--hair)]"
     >
       <div
         role="toolbar"
-        aria-label="Timeline tools"
+        aria-label={t.tools}
         className="flex h-[46px] shrink-0 items-center gap-1.5 px-3.5 shadow-[inset_0_-1px_0_var(--hair)]"
       >
         <DropdownMenu
@@ -1352,21 +1358,21 @@ export function ClipTimeline({
             }
           >
             <PlusIcon data-icon="inline-start" aria-hidden />
-            Add
+            {t.add}
             <CaretDownIcon data-icon="inline-end" aria-hidden />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="min-w-44">
             <DropdownMenuItem onClick={addPart}>
               <FilmStripIcon aria-hidden />
-              Part of the recording
+              {t.part}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={addText}>
               <TextTIcon aria-hidden />
-              Text
+              {t.text}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={addCaptionAtPlayhead}>
               <ClosedCaptioningIcon aria-hidden />
-              Caption
+              {t.caption}
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => {
@@ -1374,12 +1380,12 @@ export function ClipTimeline({
               }}
             >
               <MusicNotesIcon aria-hidden />
-              Music…
+              {t.music}
             </DropdownMenuItem>
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>
                 <SparkleIcon aria-hidden />
-                Effect
+                {t.effect}
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent>
                 {EFFECT_KINDS.map((kind) => (
@@ -1388,7 +1394,7 @@ export function ClipTimeline({
                     disabled={kind.key === "cam" && !hasWebcam}
                     onClick={() => addEffect(kind.key)}
                   >
-                    {kind.label}
+                    {effectNames[kind.key]}
                   </DropdownMenuItem>
                 ))}
                 <DropdownMenuSeparator />
@@ -1398,7 +1404,7 @@ export function ClipTimeline({
                   ) : (
                     <ArrowCounterClockwiseIcon aria-hidden />
                   )}
-                  {effects === null ? "Auto effects" : "Reset effects to auto"}
+                  {effects === null ? t.autoEffects : t.resetEffects}
                 </DropdownMenuItem>
               </DropdownMenuSubContent>
             </DropdownMenuSub>
@@ -1406,32 +1412,32 @@ export function ClipTimeline({
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>
                 <PlusIcon aria-hidden />
-                Track
+                {t.track}
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent>
                 <DropdownMenuItem
                   disabled={textLanes >= MAX_TEXT_LANES}
                   onClick={() => addLane("texts")}
                 >
-                  Text track
+                  {t.textTrack}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   disabled={captions.lanes.length + 1 >= MAX_CAPTION_LANES}
                   onClick={() => addLane("captions")}
                 >
-                  Captions track
+                  {t.captionsTrack}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   disabled={effectLanes >= MAX_EFFECT_LANES}
                   onClick={() => addLane("effects")}
                 >
-                  Effects track
+                  {t.effectsTrack}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   disabled={musicLanes >= MAX_MUSIC_LANES}
                   onClick={() => addLane("music")}
                 >
-                  Music track
+                  {t.musicTrack}
                 </DropdownMenuItem>
               </DropdownMenuSubContent>
             </DropdownMenuSub>
@@ -1445,14 +1451,11 @@ export function ClipTimeline({
             className="w-80"
           >
             <PopoverHeader>
-              <PopoverTitle>Add music</PopoverTitle>
-              <PopoverDescription>
-                Library tracks go on the first music track with room at the
-                playhead. YouTube songs are added in the YouTube app.
-              </PopoverDescription>
+              <PopoverTitle>{t.addMusic}</PopoverTitle>
+              <PopoverDescription>{t.addMusicHelp}</PopoverDescription>
             </PopoverHeader>
             <Label htmlFor={`${id}-track`} className="sr-only">
-              Track
+              {t.musicPicker}
             </Label>
             <TrackPicker
               id={`${id}-track`}
@@ -1479,7 +1482,7 @@ export function ClipTimeline({
         </Popover>
         <span aria-hidden className="mx-1.5 h-5 w-px shrink-0 bg-hair" />
         <IconAction
-          label="Split at playhead"
+          label={t.split}
           shortcut="S"
           size="icon-sm"
           disabled={disabled || !split}
@@ -1488,7 +1491,7 @@ export function ClipTimeline({
           <ScissorsIcon aria-hidden />
         </IconAction>
         <IconAction
-          label="Set start at playhead"
+          label={t.setStart}
           shortcut="I"
           size="icon-sm"
           disabled={disabled}
@@ -1497,7 +1500,7 @@ export function ClipTimeline({
           <ArrowLineLeftIcon aria-hidden />
         </IconAction>
         <IconAction
-          label="Set end at playhead"
+          label={t.setEnd}
           shortcut="O"
           size="icon-sm"
           disabled={disabled}
@@ -1506,7 +1509,7 @@ export function ClipTimeline({
           <ArrowLineRightIcon aria-hidden />
         </IconAction>
         <IconAction
-          label="Delete selected"
+          label={t.deleteSelected}
           shortcut="Delete"
           size="icon-sm"
           disabled={disabled || !deletable}
@@ -1521,12 +1524,12 @@ export function ClipTimeline({
               href={youtubeWatchUrl(sound.videoId)}
               target="_blank"
               rel="noreferrer"
-              title={`${sound.channelTitle} · add it with Add sound after you upload from the YouTube app.`}
+              title={t.youtubeSong(sound.channelTitle)}
               className="inline-flex min-w-0 items-center gap-1 hover:text-foreground hover:underline"
             >
               <span className="truncate">{sound.title}</span>
               <ArrowSquareOutIcon
-                aria-label="Opens YouTube"
+                aria-label={t.opensYoutube}
                 className="size-3 shrink-0"
               />
             </a>
@@ -1534,7 +1537,7 @@ export function ClipTimeline({
               type="button"
               size="icon-xs"
               variant="ghost"
-              aria-label="Remove the YouTube song"
+              aria-label={t.removeYoutubeSong}
               disabled={disabled}
               onClick={() =>
                 onAudioMixChange({ ...audioMix, youtubeSound: null })
@@ -1546,8 +1549,7 @@ export function ClipTimeline({
         ) : null}
         {previewUnavailable && (
           <span className="ms-2 truncate text-xs text-amber">
-            This browser can&apos;t play the music preview. The render will
-            still include it.
+            {t.previewUnavailable}
           </span>
         )}
         <span className="flex-1" />
@@ -1557,10 +1559,10 @@ export function ClipTimeline({
           className="flex shrink-0 items-center gap-1.5"
         >
           <span id={`${id}-zoom`} className="sr-only">
-            Timeline zoom
+            {t.zoom}
           </span>
           <IconAction
-            label="Zoom out"
+            label={t.zoomOut}
             size="icon-sm"
             disabled={view.size >= 1 || shownZoom <= ZOOM_MIN}
             onClick={() => zoomTo(Math.max(ZOOM_MIN, shownZoom / 2))}
@@ -1575,8 +1577,8 @@ export function ClipTimeline({
             value={[Math.log2(clamp(shownZoom, ZOOM_MIN, ZOOM_MAX) / ZOOM_MIN)]}
             getAriaValueText={() =>
               zoom === ZOOM_FIT
-                ? "Fit"
-                : `${Math.round(shownZoom)} pixels per second`
+                ? t.fit
+                : t.pixelsPerSecond(Math.round(shownZoom))
             }
             onValueChange={(next) => {
               const value = Array.isArray(next) ? next[0] : next
@@ -1585,7 +1587,7 @@ export function ClipTimeline({
             className="data-horizontal:w-[110px]"
           />
           <IconAction
-            label="Zoom in"
+            label={t.zoomIn}
             size="icon-sm"
             disabled={shownZoom >= ZOOM_MAX}
             onClick={() => zoomTo(Math.min(ZOOM_MAX, shownZoom * 2))}
@@ -1600,7 +1602,7 @@ export function ClipTimeline({
             className="px-2.5 font-medium aria-pressed:text-foreground"
             onClick={() => zoomTo(ZOOM_FIT)}
           >
-            Fit
+            {t.fit}
           </Button>
         </div>
       </div>
@@ -1612,7 +1614,7 @@ export function ClipTimeline({
             {Array.from({ length: textLanes }, (_, lane) => (
               <TrackLabel key={`text-${lane}`}>
                 <TextTIcon aria-hidden />
-                <span className="truncate">{laneName("Text", lane)}</span>
+                <span className="truncate">{laneName(names.text, lane)}</span>
               </TrackLabel>
             ))}
             {blocks.map((laneBlocks, lane) => (
@@ -1623,7 +1625,7 @@ export function ClipTimeline({
                 {lane === 0 ? (
                   <LabelToggle
                     aria-label={
-                      captionsEnabled ? "Hide captions" : "Show captions"
+                      captionsEnabled ? names.hideCaptions : names.showCaptions
                     }
                     aria-pressed={!captionsEnabled}
                     disabled={disabled}
@@ -1641,10 +1643,12 @@ export function ClipTimeline({
                 ) : (
                   <ClosedCaptioningIcon aria-hidden />
                 )}
-                <span className="truncate">{laneName("Captions", lane)}</span>
+                <span className="truncate">
+                  {laneName(names.captions, lane)}
+                </span>
                 {lane > 0 && laneBlocks.length === 0 && (
                   <LabelToggle
-                    aria-label={`Remove captions track ${lane + 1}`}
+                    aria-label={names.removeCaptionsTrack(lane + 1)}
                     className="ms-auto"
                     disabled={disabled}
                     onClick={() => removeCaptionLane(lane)}
@@ -1657,19 +1661,21 @@ export function ClipTimeline({
             {Array.from({ length: effectLanes }, (_, lane) => (
               <TrackLabel key={`effect-${lane}`}>
                 <SparkleIcon aria-hidden />
-                <span className="truncate">{laneName("Effects", lane)}</span>
+                <span className="truncate">
+                  {laneName(names.effects, lane)}
+                </span>
               </TrackLabel>
             ))}
             <TrackLabel className="h-[52px]">
               <FilmStripIcon aria-hidden />
-              Video
+              {names.video}
             </TrackLabel>
             <TrackLabel className="h-10">
               <LabelToggle
                 aria-label={
                   audioMix.sourceMuted
-                    ? "Unmute original audio"
-                    : "Mute original audio"
+                    ? names.unmuteOriginal
+                    : names.muteOriginal
                 }
                 aria-pressed={audioMix.sourceMuted}
                 disabled={disabled}
@@ -1686,12 +1692,12 @@ export function ClipTimeline({
                   <SpeakerHighIcon aria-hidden />
                 )}
               </LabelToggle>
-              Audio
+              {names.audio}
             </TrackLabel>
             {Array.from({ length: musicLanes }, (_, lane) => (
               <TrackLabel key={`music-${lane}`}>
                 <MusicNotesIcon aria-hidden />
-                <span className="truncate">{laneName("Music", lane)}</span>
+                <span className="truncate">{laneName(names.music, lane)}</span>
               </TrackLabel>
             ))}
           </div>
@@ -1750,7 +1756,7 @@ export function ClipTimeline({
                   <div key={`text-${lane}`} className={LANE}>
                     <ClipSpan {...span}>
                       <TimelineTrack
-                        aria-label={`Text track ${lane + 1}`}
+                        aria-label={names.textTrack(lane + 1)}
                         durationMs={durationMs}
                         lane={String(lane)}
                         group={`${id}-texts`}
@@ -1765,7 +1771,10 @@ export function ClipTimeline({
                             <TimelineBlock
                               key={index}
                               ref={anchorFor(item)}
-                              aria-label={`Text ${overlay.text} at ${formatTimestamp(overlay.startMs)}`}
+                              aria-label={names.textAt(
+                                overlay.text,
+                                formatTimestamp(overlay.startMs)
+                              )}
                               startMs={overlay.startMs}
                               endMs={overlay.endMs}
                               minMs={MIN_OVERLAY_MS}
@@ -1808,8 +1817,8 @@ export function ClipTimeline({
                       <TimelineTrack
                         aria-label={
                           lane === 0
-                            ? "Captions track"
-                            : `Captions track ${lane + 1}`
+                            ? t.captionsTrack
+                            : names.captionsTrack(lane + 1)
                         }
                         durationMs={durationMs}
                         lane={String(lane)}
@@ -1827,7 +1836,10 @@ export function ClipTimeline({
                             <TimelineBlock
                               key={block.index}
                               ref={anchorFor(item)}
-                              aria-label={`Caption ${block.text} at ${formatTimestamp(block.startMs)}`}
+                              aria-label={names.captionAt(
+                                block.text,
+                                formatTimestamp(block.startMs)
+                              )}
                               startMs={block.startMs}
                               endMs={block.endMs}
                               minMs={MIN_CAPTION_MS}
@@ -1872,7 +1884,7 @@ export function ClipTimeline({
                   <div key={`effect-${lane}`} className={LANE}>
                     <ClipSpan {...span}>
                       <TimelineTrack
-                        aria-label={`Effects track ${lane + 1}`}
+                        aria-label={names.effectsTrack(lane + 1)}
                         durationMs={durationMs}
                         lane={String(lane)}
                         group={`${id}-effects`}
@@ -1883,13 +1895,16 @@ export function ClipTimeline({
                         {events.map((effect, index) => {
                           if (effect.lane !== lane) return null
                           const item = { type: "effect", index } as const
-                          const text = effectText(effect)
+                          const text = effectText(effect, effectNames)
                           const inert = effect.kind === "focus" && !hasWebcam
                           return (
                             <TimelineBlock
                               key={index}
                               ref={anchorFor(item)}
-                              aria-label={`${text} at ${formatTimestamp(effect.startMs - startMs)}`}
+                              aria-label={names.effectAt(
+                                text,
+                                formatTimestamp(effect.startMs - startMs)
+                              )}
                               startMs={effect.startMs - startMs}
                               endMs={effect.endMs - startMs}
                               minMs={MIN_EFFECT_MS}
@@ -1962,7 +1977,7 @@ export function ClipTimeline({
                     className="inset-y-1 rounded-r-lg bg-sheet/78"
                   />
                   <TimelineTrack
-                    aria-label="Video track"
+                    aria-label={names.videoTrack}
                     durationMs={axisMs}
                     className={TRACK}
                   >
@@ -1982,7 +1997,12 @@ export function ClipTimeline({
                             key={index}
                             ref={anchorFor(target)}
                             data-testid="clip-part"
-                            aria-label={`Part ${index + 1} of ${parts.length}, ${formatTimestamp(part.startMs)} → ${formatTimestamp(part.endMs)} in the recording`}
+                            aria-label={names.partAt(
+                              index + 1,
+                              parts.length,
+                              formatTimestamp(part.startMs),
+                              formatTimestamp(part.endMs)
+                            )}
                             startMs={block.startMs - axisStartMs}
                             endMs={block.endMs - axisStartMs}
                             minMs={CLIP_PART_MIN_MS}
@@ -2017,7 +2037,10 @@ export function ClipTimeline({
                     {!joined && (
                       <TimelineBlock
                         ref={anchorFor({ type: "video" })}
-                        aria-label={`Clip ${formatTimestamp(shown.startMs)} → ${formatTimestamp(shown.endMs)}`}
+                        aria-label={names.clipRange(
+                          formatTimestamp(shown.startMs),
+                          formatTimestamp(shown.endMs)
+                        )}
                         startMs={shown.startMs - axisStartMs}
                         endMs={shown.endMs - axisStartMs}
                         minMs={CLIP_MIN_EDIT_MS}
@@ -2073,7 +2096,11 @@ export function ClipTimeline({
                       ref={anchorFor({ type: "source" })}
                       role="button"
                       tabIndex={0}
-                      aria-label={`Original audio ${audioMix.sourceMuted ? "muted" : `${audioMix.sourceDb} dB`}`}
+                      aria-label={
+                        audioMix.sourceMuted
+                          ? names.originalAudioMuted
+                          : names.originalAudio(audioMix.sourceDb)
+                      }
                       aria-pressed={isSelected({ type: "source" })}
                       data-selected={
                         isSelected({ type: "source" }) || undefined
@@ -2096,7 +2123,7 @@ export function ClipTimeline({
                   <div key={`music-${lane}`} className={LANE}>
                     <ClipSpan {...span}>
                       <TimelineTrack
-                        aria-label={`Music track ${lane + 1}`}
+                        aria-label={names.musicTrack(lane + 1)}
                         durationMs={durationMs}
                         lane={String(lane)}
                         group={`${id}-music`}
@@ -2106,12 +2133,15 @@ export function ClipTimeline({
                           if (clip.lane !== lane) return null
                           const item = { type: "music", index } as const
                           const track = readyTracks.get(clip.trackId)
-                          const name = track?.title ?? "Missing track"
+                          const name = track?.title ?? names.missingTrack
                           return (
                             <TimelineBlock
                               key={index}
                               ref={anchorFor(item)}
-                              aria-label={`Music ${name} at ${formatTimestamp(clip.startMs)}`}
+                              aria-label={names.musicAt(
+                                name,
+                                formatTimestamp(clip.startMs)
+                              )}
                               startMs={clip.startMs}
                               endMs={clip.endMs}
                               minMs={MIN_MUSIC_MS}
@@ -2191,7 +2221,7 @@ export function ClipTimeline({
                 if (effectSpot) addEffectAt(kind.key, effectSpot)
               }}
             >
-              {kind.label}
+              {effectNames[kind.key]}
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>
@@ -2257,7 +2287,9 @@ export function ClipTimeline({
               <CaptionInspector
                 key={`${selection.ref.lane}:${selection.ref.index}`}
                 title={
-                  selectedCaption.index < 0 ? "Written caption" : "Caption"
+                  selectedCaption.index < 0
+                    ? inspector.writtenCaption
+                    : inspector.caption
                 }
                 text={selectedCaption.text}
                 startMs={selectedCaption.startMs}
@@ -2336,7 +2368,7 @@ export function ClipTimeline({
                     i === selection.index ? part : p
                   )
                   const problem = partsProblem(next, recordingMs)
-                  if (problem) toast.error(problem)
+                  if (problem) toast.error(translateError(problem, locale))
                   else onPartsChange(next)
                 }}
                 onMove={(to) => movePartTo(selection.index, to)}

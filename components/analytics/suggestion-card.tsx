@@ -15,31 +15,21 @@ import type {
   RuleView,
   SuggestionView,
 } from "@/features/insights/queries"
-import type { SuggestionKind } from "@/features/insights/schema"
+import { useMessages } from "@/lib/i18n/client"
+import { common } from "@/lib/i18n/common"
 
-import {
-  RetirePickDialog,
-  RuleTextField,
-  Subject,
-  TARGET_LABELS,
-} from "./playbook"
+import { analytics } from "./messages"
+import { RetirePickDialog, RuleTextField, Subject } from "./playbook"
 import { useInsightAction } from "./use-insight-action"
 
-const KIND_LABELS: Record<SuggestionKind, string> = {
-  add: "New rule",
-  edit: "Change rule",
-  retire: "Retire rule",
-}
-
-const views = new Intl.NumberFormat("en")
-
-function confidenceLabel(confidence: number) {
-  if (confidence >= 0.7) return "Strong"
-  if (confidence >= 0.4) return "Moderate"
-  return "Weak"
+function confidenceKey(confidence: number) {
+  if (confidence >= 0.7) return "strong"
+  if (confidence >= 0.4) return "moderate"
+  return "weak"
 }
 
 function Evidence({ label, clips }: { label: string; clips: EvidenceClip[] }) {
+  const t = useMessages(analytics).suggestion
   if (clips.length === 0) return null
   return (
     <div className="grid gap-1">
@@ -69,13 +59,13 @@ function Evidence({ label, clips }: { label: string; clips: EvidenceClip[] }) {
                   <span className="min-w-0 truncate">{clip.title}</span>
                 )}
                 <span className="shrink-0 text-[13px] text-muted-foreground">
-                  (posted outside Nimbus)
+                  {t.imported}
                 </span>
               </>
             )}
             {clip.views !== null && (
               <span className="shrink-0 text-[13px] text-muted-foreground tabular-nums">
-                {views.format(clip.views)} views
+                {t.views(clip.views)}
               </span>
             )}
           </li>
@@ -96,6 +86,9 @@ export function SuggestionCard({
   const [text, setText] = React.useState(suggestion.text)
   const [picking, setPicking] = React.useState(false)
   const { pending, run } = useInsightAction()
+  const messages = useMessages(analytics)
+  const t = messages.suggestion
+  const c = useMessages(common)
 
   const current = suggestion.kind === "add" ? null : suggestion.currentRule
   const subject =
@@ -117,13 +110,11 @@ export function SuggestionCard({
         <CardContent className="grid gap-4">
           <div className="flex flex-wrap items-center gap-2">
             <StatusPill tone="lav">
-              {TARGET_LABELS[suggestion.target]}
+              {messages.playbook.targets[suggestion.target]}
             </StatusPill>
-            <StatusPill tone="neutral">
-              {KIND_LABELS[suggestion.kind]}
-            </StatusPill>
+            <StatusPill tone="neutral">{t.kinds[suggestion.kind]}</StatusPill>
             <span className="ms-auto text-[13px] text-muted-foreground">
-              {confidenceLabel(suggestion.confidence)}
+              {t[confidenceKey(suggestion.confidence)]}
             </span>
           </div>
           {current && (
@@ -135,7 +126,7 @@ export function SuggestionCard({
               }
             >
               <span className="text-[13px] text-muted-foreground">
-                {suggestion.kind === "edit" ? "Now: " : "Retire: "}
+                {suggestion.kind === "edit" ? t.now : t.retire}{" "}
               </span>
               {current.text}
             </p>
@@ -147,15 +138,15 @@ export function SuggestionCard({
               <p className="font-medium">
                 {suggestion.kind === "edit" && (
                   <span className="text-[13px] font-normal text-muted-foreground">
-                    Change to:{" "}
+                    {t.changeTo}{" "}
                   </span>
                 )}
                 {suggestion.text}
               </p>
             ))}
           <p className="text-muted-foreground">{suggestion.rationale}</p>
-          <Evidence label="Evidence" clips={suggestion.evidenceFor} />
-          <Evidence label="Against" clips={suggestion.evidenceAgainst} />
+          <Evidence label={t.evidence} clips={suggestion.evidenceFor} />
+          <Evidence label={t.against} clips={suggestion.evidenceAgainst} />
           <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
@@ -163,12 +154,12 @@ export function SuggestionCard({
               disabled={pending || (editing && text.trim() === "")}
               onClick={() => approve()}
             >
-              Approve
+              {c.approve}
               <Subject text={subject} />
             </Button>
             {suggestion.kind !== "retire" && !editing && (
               <Button size="sm" onClick={() => setEditing(true)}>
-                Edit, then approve
+                {t.editThenApprove}
                 <Subject text={subject} />
               </Button>
             )}
@@ -178,7 +169,7 @@ export function SuggestionCard({
               disabled={pending}
               onClick={() => run(() => rejectSuggestionAction(suggestion.id))}
             >
-              Reject
+              {c.reject}
               <Subject text={subject} />
             </Button>
           </div>
@@ -188,7 +179,7 @@ export function SuggestionCard({
         open={picking}
         onOpenChange={setPicking}
         rules={activeRules}
-        confirmLabel="Retire and approve"
+        confirmLabel={t.retireAndApprove}
         pending={pending}
         onConfirm={approve}
       />

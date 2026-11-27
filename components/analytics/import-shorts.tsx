@@ -6,7 +6,10 @@ import { useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { importShortsAction } from "@/features/analytics/actions"
 import type { ImportState } from "@/features/analytics/queries"
+import { useLocale, useMessages } from "@/lib/i18n/client"
+import { translateError } from "@/lib/i18n/errors"
 
+import { analytics } from "./messages"
 import { useInsightAction } from "./use-insight-action"
 
 const POLL_MS = 5000
@@ -18,7 +21,9 @@ export function ImportShorts({
   importing: ImportState
   uploadsSyncedAt: Date | null
 }) {
+  const locale = useLocale()
   const router = useRouter()
+  const t = useMessages(analytics).shorts
   const { pending, run } = useInsightAction()
   const busy = importing.state !== "idle"
 
@@ -36,22 +41,22 @@ export function ImportShorts({
         onClick={() => run(importShortsAction)}
       >
         {importing.state === "running"
-          ? `Importing… ${Math.round(importing.progress)}%`
-          : "Import past Shorts"}
+          ? t.importing(Math.round(importing.progress))
+          : t.importPast}
       </Button>
       {importing.state === "waiting_quota" && (
         <span className="text-[13px] text-muted-foreground">
-          Import continues after YouTube&apos;s daily quota resets.
+          {t.waitingQuota}
         </span>
       )}
       {importing.state === "idle" && importing.error && (
         <span role="alert" className="text-[13px] text-amber">
-          {importing.error}
+          {translateError(importing.error, locale)}
         </span>
       )}
       {uploadsSyncedAt && (
         <span className="text-[13px] text-muted-foreground">
-          New uploads are imported daily.
+          {t.importedDaily}
         </span>
       )}
     </div>

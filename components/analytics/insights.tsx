@@ -5,10 +5,12 @@ import * as React from "react"
 
 import { Button } from "@/components/ui/button"
 import { Empty, EmptyDescription, EmptyHeader } from "@/components/ui/empty"
-import { CLAUDE_KEY_MISSING_MESSAGE } from "@/features/accounts/schema"
 import { findPatternsAction } from "@/features/insights/actions"
 import type { getInsights } from "@/features/insights/queries"
+import { useLocale, useMessages } from "@/lib/i18n/client"
+import { translateError } from "@/lib/i18n/errors"
 
+import { analytics } from "./messages"
 import { Playbook } from "./playbook"
 import { SuggestionCard } from "./suggestion-card"
 import { useInsightAction } from "./use-insight-action"
@@ -25,7 +27,9 @@ export function Insights({
   suggestions,
   rules,
 }: Awaited<ReturnType<typeof getInsights>>) {
+  const locale = useLocale()
   const router = useRouter()
+  const t = useMessages(analytics).insights
   const { pending, run } = useInsightAction()
 
   React.useEffect(() => {
@@ -38,29 +42,27 @@ export function Insights({
     return (
       <Empty className="rounded-[18px] bg-graphite">
         <EmptyHeader>
-          <EmptyDescription>
-            Connect YouTube to learn from your published clips.
-          </EmptyDescription>
+          <EmptyDescription>{t.connectPrompt}</EmptyDescription>
         </EmptyHeader>
       </Empty>
     )
   }
 
   const blockers = [
-    eligible < needed && `${eligible} of ${needed} clips have a week of stats`,
-    !claudeAvailable && CLAUDE_KEY_MISSING_MESSAGE,
+    eligible < needed && t.eligible(eligible, needed),
+    !claudeAvailable && t.claudeKeyMissing,
   ].filter((reason): reason is string => reason !== false)
 
   return (
     <div className="grid gap-8">
-      <section aria-label="Find patterns" className="grid gap-2">
+      <section aria-label={t.findPatterns} className="grid gap-2">
         <div className="flex flex-wrap items-center gap-3">
           <Button
             variant="primary"
             disabled={running || pending || blockers.length > 0}
             onClick={() => run(() => findPatternsAction())}
           >
-            {running ? "Looking for patterns…" : "Find patterns"}
+            {running ? t.finding : t.findPatterns}
           </Button>
           {blockers.map((reason) => (
             <span key={reason} className="text-[13px] text-muted-foreground">
@@ -70,12 +72,12 @@ export function Insights({
         </div>
         {lastError && !running && (
           <p role="alert" className="text-[13px] text-amber">
-            {lastError}
+            {translateError(lastError, locale)}
           </p>
         )}
       </section>
       {suggestions.length > 0 && (
-        <section aria-label="Suggestions" className="grid gap-3">
+        <section aria-label={t.suggestions} className="grid gap-3">
           {suggestions.map((suggestion) => (
             <SuggestionCard
               key={suggestion.id}

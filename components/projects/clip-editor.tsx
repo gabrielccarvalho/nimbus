@@ -95,6 +95,8 @@ import type { ProjectSettings } from "@/features/projects/schema"
 import { renderClipsAction } from "@/features/render/actions"
 import type { Word } from "@/features/transcription/schema"
 import { formatDuration, formatTimestamp } from "@/lib/format"
+import { useMessages } from "@/lib/i18n/client"
+import { common } from "@/lib/i18n/common"
 import { cn } from "@/lib/utils"
 
 import { ClipEffectsPreview } from "./clip-effects"
@@ -110,6 +112,7 @@ import { ClipTimeline, type TimelineSelection } from "./clip-timeline"
 import { ClipPlayback, ClipTransport, useClipTransport } from "./clip-transport"
 import { IconAction } from "./icon-action"
 import { DEFAULT_WEBCAM, GameplayRegion, withLayoutMode } from "./layout-fields"
+import { editor as messages } from "./messages/editor"
 import { MusicPreview } from "./music-preview"
 import type { PublishingState } from "./publish-dialog"
 import { initialClipEdit, useClipEdit } from "./use-clip-edit"
@@ -206,6 +209,8 @@ function Editor({
   editor: { edit, patch, undo, redo },
 }: ClipEditorProps & { editor: ReturnType<typeof useClipEdit> }) {
   const router = useRouter()
+  const t = useMessages(messages)
+  const c = useMessages(common)
   const snapshot = useProjectEvents(initialSnapshot)
   const [pending, startTransition] = React.useTransition()
   const [planning, startPlanning] = React.useTransition()
@@ -260,6 +265,7 @@ function Editor({
   const editLayout = (next: Partial<LayoutInput>) =>
     patch((current) => ({ layout: { ...current.layout, ...next } }))
   const layoutRef = React.useRef(layout)
+  const toasts = t.toasts
   React.useEffect(() => {
     layoutRef.current = layout
   })
@@ -288,21 +294,21 @@ function Editor({
           setDetecting(false)
           if (usesWebcam(result.mode)) {
             toast.success(
-              `Webcam found (${Math.round(result.confidence * 100)}% confident)`
+              toasts.webcamFound(Math.round(result.confidence * 100))
             )
           } else {
-            toast.info("No webcam found. Mark it yourself if there is one.")
+            toast.info(toasts.webcamMissing)
           }
         },
         (error: unknown) => {
           if (signal?.aborted) return
           setDetecting(false)
           toast.error(
-            error instanceof Error ? error.message : "Webcam detection failed"
+            error instanceof Error ? error.message : toasts.webcamFailed
           )
         }
       ),
-    [src, sourceWidth, sourceHeight, patch]
+    [src, sourceWidth, sourceHeight, patch, toasts]
   )
   const [autoDetect] = React.useState(() => needsWebcam(clip.layout))
   const [firstPart] = React.useState(() => clipParts(clip)[0]!)
@@ -447,7 +453,7 @@ function Editor({
     const length = partsDuration(next)
     if (length < CLIP_MIN_EDIT_MS || length > CLIP_MAX_EDIT_MS) {
       toast.error(
-        `Keep the clip between ${CLIP_MIN_EDIT_MS / 1000} s and ${CLIP_MAX_EDIT_MS / 60_000} min.`
+        toasts.clipLength(CLIP_MIN_EDIT_MS / 1000, CLIP_MAX_EDIT_MS / 60_000)
       )
       return
     }
@@ -562,7 +568,7 @@ function Editor({
       }
       const rendered = await renderClipsAction(projectId, [clip.id])
       if (!rendered.ok) toast.error(rendered.error.message)
-      else toast.success("Rendering started")
+      else toast.success(toasts.renderingStarted)
       router.refresh()
     })
 
@@ -583,12 +589,12 @@ function Editor({
     })
 
   const saveState = saveError
-    ? "Failed"
+    ? t.saveState.failed
     : saving || (dirty && !rendering)
-      ? "Saving…"
+      ? c.saving
       : dirty
-        ? "Unsaved"
-        : "Saved"
+        ? t.saveState.unsaved
+        : c.saved
 
   const approved = ["approved", "rendering", "rendered"].includes(clipStatus)
   const rejected = clipStatus === "rejected"
@@ -693,16 +699,19 @@ function Editor({
       />
       <div data-slot="clip-editor" className="flex min-h-0 flex-1 flex-col">
         <PageHeader>
-          <PageHeaderBack href={clipsHref as Route} label="Back to clips" />
+          <PageHeaderBack
+            href={clipsHref as Route}
+            label={t.header.backToClips}
+          />
           <PageHeaderHeading>
             <PageHeaderContext>
               {projectName}
               {siblings.index >= 0 &&
-                ` · Clip ${siblings.index + 1} of ${siblings.count}`}{" "}
+                ` · ${t.header.clipOf(siblings.index + 1, siblings.count)}`}{" "}
               ·{" "}
               <span className="font-mono tabular-nums">
                 {parts.length > 1
-                  ? `${parts.length} parts, ${formatDuration(durationMs)}`
+                  ? t.header.parts(parts.length, formatDuration(durationMs))
                   : `${formatTimestamp(startMs)} → ${formatTimestamp(endMs)}`}
               </span>
             </PageHeaderContext>
@@ -725,7 +734,7 @@ function Editor({
           <div className="flex shrink-0 items-center gap-0.5">
             <SiblingLink
               href={siblings.previousId ? clipHref(siblings.previousId) : null}
-              label="Previous clip"
+              label={t.header.previousClip}
               shortcut="["
             >
               <CaretLeftIcon aria-hidden />
@@ -737,7 +746,7 @@ function Editor({
             )}
             <SiblingLink
               href={siblings.nextId ? clipHref(siblings.nextId) : null}
-              label="Next clip"
+              label={t.header.nextClip}
               shortcut="]"
             >
               <CaretRightIcon aria-hidden />
@@ -745,7 +754,7 @@ function Editor({
           </div>
           <PageHeaderDivider />
           <Segmented
-            aria-label="Review decision"
+            aria-label={t.header.decision}
             className="shrink-0"
             value={approved ? ["approved"] : rejected ? ["rejected"] : []}
             disabled={locked}
@@ -762,14 +771,14 @@ function Editor({
               className="aria-pressed:bg-pink/14 aria-pressed:text-pink aria-pressed:inset-ring-pink/40"
             >
               <XIcon aria-hidden />
-              {rejected ? "Rejected" : "Reject"}
+              {rejected ? t.header.rejected : c.reject}
             </SegmentedItem>
             <SegmentedItem
               value="approved"
               className="aria-pressed:bg-mint/18 aria-pressed:text-mint aria-pressed:inset-ring-mint/50"
             >
               <CheckIcon aria-hidden />
-              {approved ? "Approved" : "Approve"}
+              {approved ? t.header.approved : c.approve}
             </SegmentedItem>
           </Segmented>
           <ClipExportMenu
@@ -786,7 +795,7 @@ function Editor({
           />
           {!wide && (
             <IconAction
-              label="Clip settings"
+              label={t.header.clipSettings}
               side="bottom"
               aria-expanded={drawer}
               onClick={() => setDrawer(true)}
@@ -803,26 +812,27 @@ function Editor({
           }}
         >
           <section
-            aria-label="Preview"
+            aria-label={t.stage.preview}
             className="flex min-w-0 flex-1 flex-col gap-3 px-[18px] pt-4 pb-3"
           >
             <div className="[container-type:size] flex min-h-0 flex-1 justify-center gap-4">
               <div className="flex min-w-0 flex-1 flex-col items-center gap-2">
                 <div className="flex h-6 w-full items-center gap-2.5">
                   <span className="mono-label whitespace-nowrap text-tertiary">
-                    Source{aspect === "other" ? "" : ` · ${aspect}`}
+                    {t.stage.source}
+                    {aspect === "other" ? "" : ` · ${aspect}`}
                   </span>
                   <span className="flex-1" />
                   {hasWebcam && (
                     <span className="flex items-center gap-1.5 text-xs whitespace-nowrap text-muted-foreground">
                       <i className="size-2.5 rounded-[3px] inset-ring-2 inset-ring-lav" />
-                      Webcam
+                      {t.stage.webcam}
                     </span>
                   )}
                   {layout.mode !== "no-cam-blur-fill" && (
                     <span className="flex items-center gap-1.5 text-xs whitespace-nowrap text-muted-foreground">
                       <i className="size-2.5 rounded-[3px] outline-[1.5px] -outline-offset-[1.5px] outline-white/60 outline-dashed" />
-                      Gameplay
+                      {t.stage.gameplay}
                     </span>
                   )}
                   <Button
@@ -833,7 +843,7 @@ function Editor({
                     disabled={detecting || !cropChanged}
                     onClick={resetCrop}
                   >
-                    Reset crop
+                    {t.stage.resetCrop}
                   </Button>
                 </div>
                 <div
@@ -852,7 +862,7 @@ function Editor({
                   >
                     <VideoPlayerVideo
                       src={src}
-                      aria-label="Source video"
+                      aria-label={t.stage.sourceVideo}
                       className="size-full"
                     />
                     <GameplayRegion
@@ -862,13 +872,16 @@ function Editor({
                       onLayoutChange={editLayout}
                     >
                       <span className={cn(BADGE, "top-2 left-2")}>
-                        Gameplay
+                        {t.stage.gameplay}
                       </span>
                     </GameplayRegion>
                     {hasWebcam && (
-                      <CropRegion aria-label="Webcam region" variant="ring">
+                      <CropRegion
+                        aria-label={t.stage.webcamRegion}
+                        variant="ring"
+                      >
                         <span className={cn(BADGE, "top-2 left-2 text-lav")}>
-                          Webcam
+                          {t.stage.webcam}
                         </span>
                       </CropRegion>
                     )}
@@ -879,14 +892,14 @@ function Editor({
               <div className="flex shrink-0 flex-col items-center gap-2">
                 <div className="flex h-6 w-full items-center gap-3">
                   <span className="mono-label whitespace-nowrap text-tertiary">
-                    Output · 9:16
+                    {`${t.stage.output} · 9:16`}
                   </span>
                   <span className="flex-1" />
                   <label
                     htmlFor={safeId}
                     className="cursor-pointer text-xs whitespace-nowrap text-muted-foreground"
                   >
-                    Safe zones
+                    {t.stage.safeZones}
                   </label>
                   <Switch
                     id={safeId}
@@ -945,7 +958,7 @@ function Editor({
                         )}
                       />
                       <span className={cn(BADGE, "bottom-2 left-2 text-pink")}>
-                        Covered by Shorts UI
+                        {t.stage.shortsCover}
                       </span>
                     </div>
                   )}
@@ -962,7 +975,7 @@ function Editor({
 
           {wide ? (
             <aside
-              aria-label="Clip settings"
+              aria-label={t.header.clipSettings}
               className="flex w-[340px] shrink-0 flex-col shadow-[inset_1px_0_0_var(--hair)]"
             >
               {inspector}
@@ -973,7 +986,9 @@ function Editor({
                 side="right"
                 className="w-[340px] max-w-full gap-0 bg-night pt-10 data-[side=right]:sm:max-w-[340px]"
               >
-                <SheetTitle className="sr-only">Clip settings</SheetTitle>
+                <SheetTitle className="sr-only">
+                  {t.header.clipSettings}
+                </SheetTitle>
                 {inspector}
               </SheetContent>
             </Sheet>
@@ -993,11 +1008,13 @@ function Editor({
           <div
             role="separator"
             aria-orientation="horizontal"
-            aria-label="Resize timeline"
+            aria-label={t.stage.resizeTimeline}
             aria-valuemin={DOCK_MIN_PX}
             aria-valuenow={dockHeight ?? DOCK_PX}
             aria-valuetext={
-              dockHeight === null ? "Fills the space" : `${dockHeight} pixels`
+              dockHeight === null
+                ? t.stage.fillsSpace
+                : t.stage.pixels(dockHeight)
             }
             tabIndex={0}
             className="absolute inset-x-0 -top-1 z-10 h-2 cursor-row-resize touch-none outline-none after:absolute after:inset-x-0 after:top-[3px] after:h-0.5 after:bg-lav after:opacity-0 after:transition-opacity after:duration-200 hover:after:opacity-100 focus-visible:after:opacity-100 active:after:opacity-100"

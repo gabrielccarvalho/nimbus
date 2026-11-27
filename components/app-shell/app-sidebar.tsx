@@ -21,13 +21,14 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { useLocale, useMessages } from "@/lib/i18n/client"
 import { cn } from "@/lib/utils"
 
 import { SearchTrigger } from "./command-palette"
 import { Logo, LogoMark } from "./logo"
+import { shell } from "./messages"
 import {
   AccountMenu,
-  SHORTCUTS,
   WorkspaceButton,
   type Shortcut,
   type SidebarAccount,
@@ -107,6 +108,8 @@ export function AppSidebar({
 }) {
   const pathname = usePathname()
   const router = useRouter()
+  const t = useMessages(shell).sidebar
+  const locale = useLocale()
   const [collapsed, setCollapsed] = React.useState(defaultCollapsed)
   const [mobileOpen, setMobileOpen] = React.useState(false)
   const [openedAt, setOpenedAt] = React.useState(pathname)
@@ -131,20 +134,20 @@ export function AppSidebar({
   const nav: NavItem[] = [
     {
       href: "/",
-      label: "Projects",
+      label: t.projects,
       icon: FolderSimpleIcon,
       count: projectCount,
       active: pathname === "/",
     },
     {
       href: "/analytics",
-      label: "Analytics",
+      label: t.analytics,
       icon: ChartLineUpIcon,
       active: pathname.startsWith("/analytics"),
     },
     {
       href: "/channels",
-      label: "Channels",
+      label: t.channels,
       icon: BroadcastIcon,
       active: pathname.startsWith("/channels"),
     },
@@ -152,7 +155,7 @@ export function AppSidebar({
 
   return (
     <aside
-      aria-label="Main navigation"
+      aria-label={t.label}
       data-slot="sidebar"
       data-state={collapsed ? "collapsed" : "expanded"}
       data-mobile-open={mobileOpen}
@@ -170,7 +173,7 @@ export function AppSidebar({
       >
         <Link
           href="/"
-          aria-label="nimbus, all projects"
+          aria-label={t.home}
           className="flex-1 rounded-lg py-1 ps-2.5 pe-1.5 pb-2.5 md:pb-2.5"
         >
           <Logo className={cn(collapsed && "md:hidden")} />
@@ -179,7 +182,7 @@ export function AppSidebar({
         <Button
           variant="ghost"
           size="icon"
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-label={collapsed ? t.expand : t.collapse}
           aria-expanded={!collapsed}
           onClick={toggle}
           className="max-md:hidden"
@@ -189,7 +192,7 @@ export function AppSidebar({
         <Button
           variant="ghost"
           size="icon"
-          aria-label={mobileOpen ? "Close menu" : "Open menu"}
+          aria-label={mobileOpen ? t.closeMenu : t.openMenu}
           aria-expanded={mobileOpen}
           onClick={toggle}
           className="md:hidden"
@@ -205,7 +208,7 @@ export function AppSidebar({
       >
         <WorkspaceButton workspace={workspace} collapsed={collapsed} />
         <SearchTrigger collapsed={collapsed} className="mt-2" />
-        <nav aria-label="Sections" className="grid gap-0.5">
+        <nav aria-label={t.sections} className="grid gap-0.5">
           {nav.map((item) => (
             <SidebarLink key={item.href} item={item} collapsed={collapsed} />
           ))}
@@ -213,10 +216,10 @@ export function AppSidebar({
 
         {recent.length > 0 && (
           <div className={cn("flex flex-col", collapsed && "md:hidden")}>
-            <p className="px-2.5 pt-[18px] pb-1.5 mono-label">Recent</p>
+            <p className="px-2.5 pt-[18px] pb-1.5 mono-label">{t.recent}</p>
             <ul className="grid gap-0.5">
               {recent.map((project) => {
-                const signal = projectSignal(project)
+                const signal = projectSignal(project, locale)
                 const href = `/projects/${project.id}` as const
                 const active = pathname.startsWith(href)
                 return (
@@ -246,7 +249,7 @@ export function AppSidebar({
         <AccountMenu
           account={account}
           collapsed={collapsed}
-          shortcuts={shortcuts && [...shortcuts, ...SHORTCUTS]}
+          shortcuts={shortcuts}
         />
       </div>
     </aside>

@@ -50,6 +50,19 @@ type Result<T, E = AppError> = { ok: true; value: T } | { ok: false; error: E }
 - Users see `toUserMessage(error)`: the message for known codes, a generic sentence for `INTERNAL`. Never a stack trace.
 - Job handlers mark errors as retryable or not (`DEPENDENCY_MISSING`, `VALIDATION` and `INVALID_TRANSITION` are not).
 
+## Translations
+
+Two locales, `en-US` and `pt-BR` (ADR-0088). No text a person reads is written inside a component.
+
+- Messages live in `components/<area>/messages.ts` (`components/projects/messages/*.ts`), shared words in `lib/i18n/common.ts`. `defineMessages({ "en-US": {…}, "pt-BR": {…} })`: en-US is the shape, a pt-BR that differs is a type error. Add both in the same commit.
+- A message with a value is a function (`memberSince: (date: string) => …`); a count goes through `plural(locale, count, { one, other })`. Don't join translated fragments: word order differs.
+- Client Components: `useMessages(dictionary)` and `useLocale()` from `lib/i18n/client`. Server Components and `generateMetadata`: `getMessages(dictionary)` and `getLocale()` from `lib/i18n/server`. A helper outside React takes `t` or `locale` as an argument.
+- Labels that come from `features/*` data (plans, niches, statuses, caption styles) are mapped by id in the area's messages; `features` stays free of UI text.
+- Dates, numbers, currency and lists: `Intl` with the active locale. `formatDate` and `formatRelativeDay` take it.
+- Errors: throw `AppError` with the English message as before, then add its Portuguese to `lib/i18n/errors-pt-br.ts` (or a pattern in `lib/i18n/errors.ts` when it carries a value). `lib/i18n/errors.test.ts` fails on a message a person can see without one. Logs stay English.
+- Not translated: the product name, platform names, keys on a `Kbd`, prompts sent to Claude, anything a person typed or Claude wrote.
+- Tests assert on the English text; the default context is en-US, so a component test needs no provider. Wrap in `LocaleProvider` to test another language.
+
 ## Logging
 
 - `lib/logger.ts` exports a pino logger. Pretty in development, JSON otherwise, `silent` in tests unless `LOG_LEVEL` is set.

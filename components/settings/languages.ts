@@ -1,18 +1,36 @@
-// A plain module: Server Components read it too (the landing page).
-export const LANGUAGES = [
-  { value: "auto", label: "Detect automatically" },
-  { value: "en", label: "English" },
-  { value: "pt", label: "Portuguese" },
-  { value: "es", label: "Spanish" },
-  { value: "fr", label: "French" },
-  { value: "de", label: "German" },
-  { value: "it", label: "Italian" },
-  { value: "ja", label: "Japanese" },
-  { value: "ko", label: "Korean" },
-  { value: "zh", label: "Chinese" },
-  { value: "ru", label: "Russian" },
-]
+import { defaultLocale, type Locale } from "@/lib/i18n/config"
 
-export function languageLabel(code: string) {
-  return LANGUAGES.find((l) => l.value === code)?.label ?? code.toUpperCase()
+import { settings } from "./messages"
+
+const CODES = ["en", "pt", "es", "fr", "de", "it", "ja", "ko", "zh", "ru"]
+
+const options = new Map<Locale, { value: string; label: string }[]>()
+
+// A plain module: Server Components read it too (the landing page).
+export function languageOptions(locale: Locale) {
+  let list = options.get(locale)
+  if (!list) {
+    const names = new Intl.DisplayNames([locale], { type: "language" })
+    list = [
+      { value: "auto", label: settings[locale].fields.languageAuto },
+      ...CODES.map((value) => {
+        const name = names.of(value) ?? value
+        return {
+          value,
+          label: name.charAt(0).toLocaleUpperCase(locale) + name.slice(1),
+        }
+      }),
+    ]
+    options.set(locale, list)
+  }
+  return list
+}
+
+export const LANGUAGES = languageOptions(defaultLocale)
+
+export function languageLabel(code: string, locale: Locale = defaultLocale) {
+  return (
+    languageOptions(locale).find((l) => l.value === code)?.label ??
+    code.toUpperCase()
+  )
 }

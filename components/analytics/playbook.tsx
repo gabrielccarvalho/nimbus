@@ -25,13 +25,11 @@ import {
   RULE_MAX_CHARS,
   type RuleTarget,
 } from "@/features/insights/schema"
+import { useMessages } from "@/lib/i18n/client"
+import { common } from "@/lib/i18n/common"
 
+import { analytics } from "./messages"
 import { useInsightAction } from "./use-insight-action"
-
-export const TARGET_LABELS: Record<RuleTarget, string> = {
-  selection: "Picking clips",
-  review: "Editing clips",
-}
 
 export function Subject({ text }: { text: string }) {
   return <span className="sr-only">: {text}</span>
@@ -45,10 +43,11 @@ export function RuleTextField({
   onChange: (value: string) => void
 }) {
   const id = React.useId()
+  const t = useMessages(analytics).playbook
   return (
     <div className="grid gap-1.5">
       <Label htmlFor={id} className="sr-only">
-        Rule text
+        {t.ruleText}
       </Label>
       <Textarea
         id={id}
@@ -80,13 +79,14 @@ export function RetirePickDialog({
 }) {
   const [picked, setPicked] = React.useState<string | null>(null)
   const titleId = React.useId()
+  const t = useMessages(analytics).playbook
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle id={titleId}>Make room for this rule</DialogTitle>
+          <DialogTitle id={titleId}>{t.makeRoomTitle}</DialogTitle>
           <DialogDescription>
-            This list already has {PLAYBOOK_RULE_CAP} rules. Pick one to retire.
+            {t.makeRoomDescription(PLAYBOOK_RULE_CAP)}
           </DialogDescription>
         </DialogHeader>
         <RadioGroup
@@ -118,6 +118,8 @@ function ActiveRule({ rule }: { rule: RuleView }) {
   const [editing, setEditing] = React.useState(false)
   const [text, setText] = React.useState(rule.text)
   const { pending, run } = useInsightAction()
+  const t = useMessages(analytics).playbook
+  const c = useMessages(common)
 
   if (editing) {
     return (
@@ -135,7 +137,7 @@ function ActiveRule({ rule }: { rule: RuleView }) {
               })
             }
           >
-            Save
+            {c.save}
           </Button>
           <Button
             size="sm"
@@ -145,7 +147,7 @@ function ActiveRule({ rule }: { rule: RuleView }) {
               setEditing(false)
             }}
           >
-            Cancel
+            {c.cancel}
           </Button>
         </div>
       </li>
@@ -156,7 +158,7 @@ function ActiveRule({ rule }: { rule: RuleView }) {
     <li className="flex items-start gap-3 py-3">
       <span className="min-w-0 flex-1">{rule.text}</span>
       <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
-        Edit
+        {c.edit}
         <Subject text={rule.text} />
       </Button>
       <Button
@@ -165,7 +167,7 @@ function ActiveRule({ rule }: { rule: RuleView }) {
         disabled={pending}
         onClick={() => run(() => retireRuleAction(rule.id))}
       >
-        Retire
+        {t.retire}
         <Subject text={rule.text} />
       </Button>
     </li>
@@ -180,18 +182,19 @@ function RuleList({
   rules: RuleView[]
 }) {
   const headingId = React.useId()
+  const t = useMessages(analytics).playbook
   return (
     <section aria-labelledby={headingId} className="grid content-start gap-2">
       <div className="flex items-baseline justify-between gap-3">
         <h3 id={headingId} className="font-medium">
-          {TARGET_LABELS[target]}
+          {t.targets[target]}
         </h3>
         <span className="text-[13px] text-muted-foreground tabular-nums">
           {rules.length} / {PLAYBOOK_RULE_CAP}
         </span>
       </div>
       {rules.length === 0 ? (
-        <p className="text-[13px] text-muted-foreground">No rules yet</p>
+        <p className="text-[13px] text-muted-foreground">{t.empty}</p>
       ) : (
         <ul className="divide-y divide-white/6">
           {rules.map((rule) => (
@@ -212,6 +215,7 @@ function RetiredRule({
 }) {
   const [picking, setPicking] = React.useState(false)
   const { pending, run } = useInsightAction()
+  const t = useMessages(analytics).playbook
   const restore = (retireRuleId?: string) =>
     run(
       () => restoreRuleAction(rule.id, retireRuleId ? { retireRuleId } : {}),
@@ -226,14 +230,14 @@ function RetiredRule({
         disabled={pending}
         onClick={() => restore()}
       >
-        Restore
+        {t.restore}
         <Subject text={rule.text} />
       </Button>
       <RetirePickDialog
         open={picking}
         onOpenChange={setPicking}
         rules={siblings}
-        confirmLabel="Retire and restore"
+        confirmLabel={t.retireAndRestore}
         pending={pending}
         onConfirm={restore}
       />
@@ -246,6 +250,7 @@ export function Playbook({
 }: {
   rules: { selection: RuleView[]; review: RuleView[]; retired: RuleView[] }
 }) {
+  const t = useMessages(analytics).playbook
   return (
     <div className="grid gap-6">
       <div className="grid gap-6 md:grid-cols-2">
@@ -255,7 +260,7 @@ export function Playbook({
       {rules.retired.length > 0 && (
         <details className="group">
           <summary className="w-fit cursor-pointer rounded-sm text-[13px] text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            Retired ({rules.retired.length})
+            {t.retired(rules.retired.length)}
           </summary>
           <ul className="divide-y divide-white/6">
             {rules.retired.map((rule) => (

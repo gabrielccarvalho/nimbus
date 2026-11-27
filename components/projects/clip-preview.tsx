@@ -18,7 +18,9 @@ import {
 } from "@/features/captions/styles"
 import type { Effect } from "@/features/effects/schema"
 import type { LayoutInput } from "@/features/layout/schema"
+import { useMessages } from "@/lib/i18n/client"
 
+import { review } from "./messages/review"
 import { VerticalPreviewCanvas } from "./vertical-preview"
 
 export function ClipLoop({
@@ -56,6 +58,7 @@ export function ClipPreview({
   overlays?: readonly TextOverlay[]
   className?: string
 }) {
+  const t = useMessages(review).preview
   const { currentMs } = useVideoPlayer()
   const placeable = captionsEnabled && Boolean(onBaselineChange)
   const clipMs = currentMs - startMs
@@ -63,7 +66,7 @@ export function ClipPreview({
   return (
     <CaptionPreview
       role={placeable ? "group" : "img"}
-      aria-label="Vertical preview with captions"
+      aria-label={t.label}
       className={className}
     >
       <VerticalPreviewCanvas
@@ -87,8 +90,8 @@ export function ClipPreview({
             aria-label={
               onBaselineChange
                 ? index === 0
-                  ? "Caption position"
-                  : `Captions ${index + 1} position`
+                  ? t.captionPosition
+                  : t.captionsPosition(index + 1)
                 : undefined
             }
           />

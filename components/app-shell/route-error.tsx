@@ -11,21 +11,25 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
+import { useMessages } from "@/lib/i18n/client"
+import { common } from "@/lib/i18n/common"
+
+import { shell } from "./messages"
 
 export function RouteError({ retry }: { retry: () => void }) {
+  const t = useMessages(shell).routeError
+  const c = useMessages(common)
   return (
     <Empty>
       <EmptyHeader>
         <EmptyMedia variant="icon">
           <WarningCircleIcon />
         </EmptyMedia>
-        <EmptyTitle>Something went wrong</EmptyTitle>
-        <EmptyDescription>
-          This page couldn&apos;t load. Try again, or check the server logs.
-        </EmptyDescription>
+        <EmptyTitle>{t.title}</EmptyTitle>
+        <EmptyDescription>{t.description}</EmptyDescription>
       </EmptyHeader>
       <EmptyContent>
-        <Button onClick={retry}>Try again</Button>
+        <Button onClick={retry}>{c.tryAgain}</Button>
       </EmptyContent>
     </Empty>
   )

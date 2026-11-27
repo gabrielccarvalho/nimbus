@@ -29,7 +29,11 @@ import {
   retryProjectAction,
 } from "@/features/projects/actions"
 import { formatDuration } from "@/lib/format"
+import { useLocale, useMessages } from "@/lib/i18n/client"
+import { common } from "@/lib/i18n/common"
+import { translateError } from "@/lib/i18n/errors"
 
+import { overview } from "./messages/overview"
 import { stepDetails, stepTimes, type OverviewFacts } from "./overview-steps"
 import {
   PipelineStep,
@@ -41,16 +45,6 @@ import {
 } from "./pipeline-stepper"
 import { StepDetailView, useNow, type RenderClip } from "./step-detail"
 import { useProjectEvents } from "./use-project-events"
-
-const JOB_LABELS: Record<string, string> = {
-  download: "Downloading",
-  probe: "Reading the video",
-  transcribe: "Transcribing",
-  analyze: "Analyzing audio",
-  select: "Finding highlights",
-  render_clip: "Rendering clip",
-  render_edit: "Rendering edit",
-}
 
 function ActionCard({
   children,
@@ -77,12 +71,13 @@ function YourTurn({
   children: React.ReactNode
   actions: React.ReactNode
 }) {
+  const t = useMessages(overview).nextStep
   return (
     <section className="relative isolate flex flex-wrap items-center gap-6 overflow-hidden rounded-[18px] bg-graphite p-[22px] before:pointer-events-none before:absolute before:top-1/2 before:left-1/2 before:-z-10 before:h-[600px] before:w-[900px] before:-translate-1/2 before:bg-[radial-gradient(closest-side,rgb(255_179_107/0.07),transparent)]">
       <div className="grid min-w-0 flex-[1_1_300px] gap-2.5">
         <span className="flex items-center gap-2">
           <SignalDot tone="amber" lit />
-          <span className="mono-label text-amber">Your turn</span>
+          <span className="mono-label text-amber">{t.yourTurn}</span>
         </span>
         <h2 className="text-[22px] leading-tight font-semibold tracking-[-0.03em] text-balance">
           {title}
@@ -103,13 +98,16 @@ function NextStep({
   pending: boolean
   run: (fn: () => Promise<void>) => void
 }) {
+  const locale = useLocale()
+  const t = overview[locale].nextStep
+  const shared = common[locale]
   const id = snapshot.id
   const toReview = snapshot.clips.filter((c) => c.status === "candidate").length
 
   if (snapshot.status === "selecting" && snapshot.awaitingManualSelection) {
     return (
       <YourTurn
-        title="Paste Claude's highlights to continue."
+        title={t.pasteTitle}
         actions={
           <Button
             variant="primary"
@@ -117,12 +115,11 @@ function NextStep({
             nativeButton={false}
             render={<Link href={`/projects/${id}/clips`} />}
           >
-            Open the prompt
+            {t.openPrompt}
           </Button>
         }
       >
-        Copy the prompt into Claude, then paste its answer back. Nimbus takes it
-        from there.
+        {t.pasteBody}
       </YourTurn>
     )
   }
@@ -134,9 +131,11 @@ function NextStep({
           <WarningCircleIcon className="size-4" aria-hidden />
         </span>
         <div className="grid min-w-0 flex-1 gap-0.5">
-          <b className="font-semibold">This step failed</b>
+          <b className="font-semibold">{t.failed}</b>
           <span className="text-[13px] break-words text-tertiary">
-            {snapshot.error ?? "Unknown error"}
+            {snapshot.error
+              ? translateError(snapshot.error, locale)
+              : t.unknownError}
           </span>
         </div>
         <Button
@@ -145,13 +144,13 @@ function NextStep({
           onClick={() =>
             run(async () => {
               const result = await retryProjectAction(id)
-              if (result.ok) toast.success("Retrying")
+              if (result.ok) toast.success(t.retrying)
               else toast.error(result.error.message)
             })
           }
         >
           <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
-          Retry
+          {shared.retry}
         </Button>
       </ActionCard>
     )
@@ -167,14 +166,12 @@ function NextStep({
         <div className="grid min-w-0 flex-1 gap-0.5">
           <b className="font-semibold">
             {done
-              ? "Rendered. Download the clips you approved."
+              ? t.rendered
               : toReview > 0
-                ? `${toReview} ${toReview === 1 ? "clip is" : "clips are"} ready to review.`
-                : "Every clip is reviewed."}
+                ? t.toReview(toReview)
+                : t.reviewed}
           </b>
-          <span className="text-[13px] text-tertiary">
-            Approve the ones you like; only approved clips render.
-          </span>
+          <span className="text-[13px] text-tertiary">{t.approveHint}</span>
         </div>
         <Button
           variant="primary"
@@ -182,7 +179,7 @@ function NextStep({
           nativeButton={false}
           render={<Link href={`/projects/${id}/clips`} />}
         >
-          {done ? "Open clips" : "Review clips"}
+          {done ? t.openClips : t.reviewClips}
         </Button>
       </ActionCard>
     )
@@ -203,6 +200,9 @@ export function ProjectOverview({
   videoSrc?: string | null
 }) {
   const snapshot = useProjectEvents(initial)
+  const locale = useLocale()
+  const t = overview[locale].pipeline
+  const shared = common[locale]
   const [pending, startTransition] = React.useTransition()
   const states = stepStates(snapshot.status, snapshot.failedStep)
   const pipelineJobs = snapshot.jobs.filter(
@@ -220,7 +220,7 @@ export function ProjectOverview({
     elapsedMs === null
       ? null
       : estimateRemainingMs(elapsedMs, activeJob?.progress ?? 0)
-  const details = stepDetails(facts)
+  const details = stepDetails(facts, locale)
   const times = stepTimes(snapshot.jobs)
   const totalMs = Object.values(times).reduce<number>((a, b) => a + (b ?? 0), 0)
   const waiting =
@@ -234,12 +234,12 @@ export function ProjectOverview({
       <section className="grid gap-2 rounded-[18px] bg-graphite p-[22px]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-[19px] font-semibold tracking-[-0.025em]">
-            Pipeline
+            {t.title}
           </h2>
           <div className="flex items-center gap-3">
             {totalMs > 0 && (
               <span className="text-[13px] text-tertiary">
-                {formatDuration(totalMs)} so far
+                {t.soFar(formatDuration(totalMs))}
               </span>
             )}
             {running && !waiting && (
@@ -250,28 +250,30 @@ export function ProjectOverview({
                 onClick={() =>
                   run(async () => {
                     const result = await cancelProjectAction(snapshot.id)
-                    if (result.ok) toast.success("Cancelled")
+                    if (result.ok) toast.success(t.cancelled)
                     else toast.error(result.error.message)
                   })
                 }
               >
                 <XIcon data-icon="inline-start" aria-hidden />
-                Cancel
+                {shared.cancel}
               </Button>
             )}
           </div>
         </div>
-        <PipelineStepper aria-label="Pipeline progress">
+        <PipelineStepper aria-label={t.progress}>
           {PIPELINE_STEPS.map((step, index) => {
             const state = states[index]!
             const current = state === "current"
             const label =
-              step.id === "upload" && facts.sourceUrl ? "Download" : step.label
+              step.id === "upload" && facts.sourceUrl
+                ? t.download
+                : (t.steps[step.id] ?? step.label)
             const detail =
               current && activeJob
-                ? `${JOB_LABELS[activeJob.type] ?? activeJob.type} · ${activeJob.progress}%`
+                ? `${t.jobs[activeJob.type] ?? activeJob.type} · ${activeJob.progress}%`
                 : current && waiting
-                  ? "Waiting for you"
+                  ? t.waitingForYou
                   : state === "upcoming" &&
                       step.id !== "review" &&
                       step.id !== "render"
@@ -307,10 +309,10 @@ export function ProjectOverview({
           >
             <ProgressLabel>
               {activeJob
-                ? (JOB_LABELS[activeJob.type] ?? activeJob.type)
+                ? (t.jobs[activeJob.type] ?? activeJob.type)
                 : queued
-                  ? "Waiting for the worker…"
-                  : "Starting…"}
+                  ? t.waitingForWorker
+                  : t.starting}
             </ProgressLabel>
             <ProgressValue />
             {elapsedMs !== null && (
@@ -318,9 +320,9 @@ export function ProjectOverview({
                 className="w-full text-xs text-muted-foreground tabular-nums"
                 data-testid="step-timing"
               >
-                {formatDuration(elapsedMs)} elapsed
+                {t.elapsed(formatDuration(elapsedMs))}
                 {remainingMs !== null &&
-                  ` · about ${formatDuration(remainingMs)} left`}
+                  ` · ${t.remaining(formatDuration(remainingMs))}`}
               </p>
             )}
           </Progress>

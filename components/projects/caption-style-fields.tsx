@@ -24,16 +24,13 @@ import {
   type CaptionStyleOverrides,
 } from "@/features/captions/styles"
 import type { ProjectSettings } from "@/features/projects/schema"
+import { useMessages } from "@/lib/i18n/client"
+
+import { overview } from "./messages/overview"
 
 export type CaptionStyleRef = ProjectSettings["captionStyle"]
 
-const CAPTION_POSITIONS = [
-  { value: "auto", label: "Auto" },
-  { value: "top", label: "Top" },
-  { value: "middle", label: "Middle" },
-  { value: "bottom", label: "Bottom" },
-  { value: "custom", label: "Custom" },
-] as const
+const CAPTION_POSITIONS = ["auto", "top", "middle", "bottom", "custom"] as const
 
 const PLACEMENT_KEYS = new Set(["position", "positionY"])
 
@@ -46,6 +43,7 @@ const sliderValue = (value: number | readonly number[]) =>
   Array.isArray(value) ? value[0] : (value as number)
 
 function PresetSample({ presetId }: { presetId: string }) {
+  const t = useMessages(overview).captionStyle
   const css = cssCaptionStyle(resolveCaptionStyle({ presetId, overrides: {} }))
   const stroke = css.outline
     ? `0 0 2px ${css.outlineColor}, 0 0 2px ${css.outlineColor}`
@@ -66,9 +64,9 @@ function PresetSample({ presetId }: { presetId: string }) {
           borderRadius: css.box ? 4 : undefined,
         }}
       >
-        Clip{" "}
+        {t.sample}{" "}
         <span style={{ color: css.highlight ? css.highlightColor : undefined }}>
-          this
+          {t.sampleHighlighted}
         </span>
       </span>
     </span>
@@ -87,6 +85,7 @@ export function CaptionStyleFields({
   disabled?: boolean
 }) {
   const id = React.useId()
+  const t = useMessages(overview).captionStyle
   const style = resolveCaptionStyle(value)
   const set = <K extends keyof CaptionStyleOverrides>(
     key: K,
@@ -100,7 +99,7 @@ export function CaptionStyleFields({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
-        <Label id={`${id}-style`}>Style</Label>
+        <Label id={`${id}-style`}>{t.style}</Label>
         <ToggleGroup
           aria-labelledby={`${id}-style`}
           value={[style.id]}
@@ -125,14 +124,16 @@ export function CaptionStyleFields({
               className="grid h-auto justify-items-stretch gap-1.5 rounded-[14px] bg-graphite-2 p-1.5 text-center inset-ring-1 inset-ring-hair hover:bg-graphite-3 aria-pressed:bg-lav/10 aria-pressed:inset-ring-lav/60"
             >
               <PresetSample presetId={preset.id} />
-              <b className="text-[13px] font-semibold">{preset.label}</b>
+              <b className="text-[13px] font-semibold">
+                {t.presets[preset.id] ?? preset.label}
+              </b>
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
       </div>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-[18px]">
         <div className="col-span-full flex flex-col gap-2">
-          <Label id={`${id}-position`}>Position</Label>
+          <Label id={`${id}-position`}>{t.position}</Label>
           <ToggleGroup
             aria-labelledby={`${id}-position`}
             variant="outline"
@@ -147,20 +148,18 @@ export function CaptionStyleFields({
           >
             {CAPTION_POSITIONS.map((position) => (
               <ToggleGroupItem
-                key={position.value}
-                value={position.value}
+                key={position}
+                value={position}
                 className="px-1 text-xs aria-pressed:bg-lav/15 aria-pressed:text-lav aria-pressed:inset-ring-1 aria-pressed:inset-ring-lav/50"
               >
-                {position.label}
+                {t.positions[position]}
               </ToggleGroupItem>
             ))}
           </ToggleGroup>
-          <p className="text-[13px] text-tertiary">
-            Or drag the caption in the preview.
-          </p>
+          <p className="text-[13px] text-tertiary">{t.dragHint}</p>
         </div>
         <div className="flex flex-col gap-2">
-          <Label htmlFor={`${id}-font`}>Font</Label>
+          <Label htmlFor={`${id}-font`}>{t.font}</Label>
           <Select
             items={fontItems}
             value={style.font}
@@ -188,7 +187,7 @@ export function CaptionStyleFields({
                     {font.label}
                     {!installed && (
                       <span className="font-sans text-xs text-muted-foreground">
-                        Not installed
+                        {t.notInstalled}
                       </span>
                     )}
                   </SelectItem>
@@ -198,7 +197,7 @@ export function CaptionStyleFields({
           </Select>
         </div>
         <div className="flex flex-col gap-2">
-          <Label id={`${id}-size`}>Size</Label>
+          <Label id={`${id}-size`}>{t.size}</Label>
           <Slider
             aria-labelledby={`${id}-size`}
             min={shape.fontSize.minValue ?? 36}
@@ -214,7 +213,7 @@ export function CaptionStyleFields({
           />
         </div>
         <div className="flex flex-col gap-2">
-          <Label id={`${id}-words`}>Words per caption</Label>
+          <Label id={`${id}-words`}>{t.wordsPerCaption}</Label>
           <Slider
             aria-labelledby={`${id}-words`}
             min={1}
@@ -237,7 +236,7 @@ export function CaptionStyleFields({
           disabled={disabled}
           onCheckedChange={(checked) => set("uppercase", checked)}
         />
-        <Label htmlFor={`${id}-uppercase`}>Uppercase</Label>
+        <Label htmlFor={`${id}-uppercase`}>{t.uppercase}</Label>
       </div>
       <div className="flex items-center gap-2.5">
         <Switch
@@ -246,7 +245,7 @@ export function CaptionStyleFields({
           disabled={disabled}
           onCheckedChange={(checked) => set("highlight", checked)}
         />
-        <Label htmlFor={`${id}-highlight`}>Highlight the spoken word</Label>
+        <Label htmlFor={`${id}-highlight`}>{t.highlight}</Label>
       </div>
     </div>
   )

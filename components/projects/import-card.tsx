@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
 
-import { LANGUAGES, SELECTORS } from "@/components/settings/settings-fields"
+import { languageLabel, languageOptions } from "@/components/settings/languages"
+import { settings } from "@/components/settings/messages"
+import { SELECTORS } from "@/components/settings/settings-fields"
 import { Button } from "@/components/ui/button"
 import { Dropzone, DropzoneTrigger } from "@/components/ui/dropzone"
 import { FieldError } from "@/components/ui/field"
@@ -25,13 +27,11 @@ import { Spinner } from "@/components/ui/spinner"
 import { importFromUrlAction } from "@/features/downloads/actions"
 import type { ImportOptions, SelectorMode } from "@/features/projects/schema"
 import { formatBytes } from "@/lib/format"
+import { useLocale } from "@/lib/i18n/client"
+import { common } from "@/lib/i18n/common"
 
-import {
-  ACCEPT,
-  REJECTION_MESSAGES,
-  UploadProgress,
-  useRecordingUpload,
-} from "./project-uploader"
+import { overview } from "./messages/overview"
+import { ACCEPT, UploadProgress, useRecordingUpload } from "./project-uploader"
 
 const DEFAULT = "default"
 
@@ -92,21 +92,25 @@ export function ImportCard({
   const [error, setError] = React.useState<string | null>(null)
   const [pending, startTransition] = React.useTransition()
   const upload = useRecordingUpload(options)
+  const locale = useLocale()
+  const t = overview[locale].importCard
 
-  const languageName = (code: string) =>
-    LANGUAGES.find((l) => l.value === code)?.label ?? code
-  const selectorName = (mode: SelectorMode) =>
-    SELECTORS.find((s) => s.value === mode)?.label ?? mode
+  const selectorNames = settings[locale].fields.selectors
   const languages = [
-    { value: DEFAULT, label: `Default · ${languageName(defaults.language)}` },
-    ...LANGUAGES,
+    {
+      value: DEFAULT,
+      label: t.defaultOption(languageLabel(defaults.language, locale)),
+    },
+    ...languageOptions(locale),
   ]
   const selectors = [
     {
       value: DEFAULT,
-      label: `Default · ${selectorName(defaults.selectorMode)}`,
+      label: t.defaultOption(selectorNames[defaults.selectorMode].label),
     },
-    ...SELECTORS.filter((s) => s.value !== "anthropic" || claudeAvailable),
+    ...SELECTORS.filter((s) => s.value !== "anthropic" || claudeAvailable).map(
+      (s) => ({ value: s.value, label: selectorNames[s.value].label })
+    ),
   ]
 
   const submit = (event: React.FormEvent) => {
@@ -118,7 +122,7 @@ export function ImportCard({
         return
       }
       setError(null)
-      toast.success("Download started")
+      toast.success(t.started)
       router.push(`/projects/${result.value.projectId}`)
     })
   }
@@ -126,7 +130,7 @@ export function ImportCard({
   return (
     <section
       id="import"
-      aria-label="Import a recording"
+      aria-label={t.label}
       className="relative isolate scroll-mt-6 overflow-hidden rounded-[18px] bg-graphite before:pointer-events-none before:absolute before:top-1/2 before:left-1/2 before:-z-10 before:h-[900px] before:w-[1100px] before:-translate-1/2 before:bg-[radial-gradient(closest-side,rgb(120_132_230/0.085),rgb(120_132_230/0.03)_55%,transparent)]"
     >
       <Dropzone
@@ -136,7 +140,8 @@ export function ImportCard({
         disabled={upload.progress !== null}
         onFilesAccepted={([file]) => file && void upload.start(file)}
         onFilesRejected={([rejection]) =>
-          rejection && toast.error(REJECTION_MESSAGES[rejection.reason])
+          rejection &&
+          toast.error(overview[locale].uploader.rejections[rejection.reason])
         }
         className="min-h-0 gap-[18px] rounded-none border-0 px-6 pt-10 pb-7 data-[dragging=true]:inset-ring-2 data-[dragging=true]:inset-ring-lav/60"
       >
@@ -156,15 +161,14 @@ export function ImportCard({
             </span>
             <div className="grid gap-1">
               <h2 className="text-[19px] font-semibold tracking-[-0.025em]">
-                Drop a recording, or paste a link
+                {t.title}
               </h2>
               <p className="text-[13px] text-tertiary">
-                MP4, MOV, MKV or WebM up to {formatBytes(maxBytes)}. YouTube,
-                Twitch VODs and most sites yt-dlp supports.
+                {t.formats(formatBytes(maxBytes, locale))}
               </p>
             </div>
             <form
-              aria-label="Import from link"
+              aria-label={t.form}
               onSubmit={submit}
               className="grid w-[min(640px,100%)] gap-2 text-start"
             >
@@ -176,7 +180,7 @@ export function ImportCard({
                   <InputGroupInput
                     type="url"
                     inputMode="url"
-                    aria-label="Paste a video link"
+                    aria-label={t.linkLabel}
                     placeholder="https://www.youtube.com/watch?v=…"
                     value={url}
                     aria-invalid={Boolean(error)}
@@ -186,10 +190,10 @@ export function ImportCard({
                 </InputGroup>
                 <Button type="submit" variant="primary" disabled={pending}>
                   {pending && <Spinner data-icon="inline-start" />}
-                  Import
+                  {t.submit}
                 </Button>
                 <DropzoneTrigger className="inline-flex h-9 items-center rounded-full px-3.5 text-sm font-semibold text-muted-foreground transition-colors hover:bg-glass hover:text-foreground">
-                  Browse files
+                  {t.browse}
                 </DropzoneTrigger>
               </div>
               {error && <FieldError>{error}</FieldError>}
@@ -198,10 +202,10 @@ export function ImportCard({
         )}
       </Dropzone>
       <div className="flex flex-wrap items-center gap-x-[18px] gap-y-2 bg-white/[0.015] px-[22px] py-3.5 text-[13px] text-tertiary shadow-[inset_0_1px_0_var(--hair)]">
-        <span className="mono-label">This import</span>
+        <span className="mono-label">{t.thisImport}</span>
         <OptionSelect
           id="import-language"
-          label="Language"
+          label={common[locale].language}
           items={languages}
           value={options.language ?? DEFAULT}
           onChange={(value) =>
@@ -213,7 +217,7 @@ export function ImportCard({
         />
         <OptionSelect
           id="import-selector"
-          label="Highlights"
+          label={t.highlights}
           items={selectors}
           value={options.selectorMode ?? DEFAULT}
           onChange={(value) =>
@@ -224,9 +228,7 @@ export function ImportCard({
             }))
           }
         />
-        <span className="ms-auto">
-          Only import videos you own or have the rights to use.
-        </span>
+        <span className="ms-auto">{t.rights}</span>
       </div>
     </section>
   )

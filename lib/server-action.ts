@@ -5,12 +5,13 @@ import { z } from "zod"
 
 import {
   AppError,
-  err,
   isUserError,
   ok,
   toAppError,
+  toUserMessage,
   type Result,
 } from "@/lib/errors"
+import { translateRequestError } from "@/lib/i18n/request-error"
 import { logger } from "@/lib/logger"
 
 export const idSchema = z.string().min(1).max(64)
@@ -40,6 +41,7 @@ export async function runAction<T>(
     } else {
       logger.error({ err: appError, action: name }, "action failed")
     }
-    return err(error)
+    const message = await translateRequestError(toUserMessage(appError))
+    return { ok: false, error: { code: appError.code, message } }
   }
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useEffect } from "react"
+import { useEffect, useMemo } from "react"
 
 import { Empty, EmptyDescription, EmptyHeader } from "@/components/ui/empty"
 import {
@@ -14,29 +14,13 @@ import {
 } from "@/components/ui/stat-card"
 import type { getAnalyticsOverview } from "@/features/analytics/queries"
 import type { AnalyticsPeriod } from "@/features/analytics/schema"
+import { useLocale, useMessages } from "@/lib/i18n/client"
 
+import { analytics } from "./messages"
 import { PeriodPicker } from "./period-picker"
 import { ViewsChart } from "./views-chart"
 
 const POLL_MS = 5000
-
-const number = new Intl.NumberFormat("en-US")
-const hours = new Intl.NumberFormat("en-US", {
-  minimumFractionDigits: 1,
-  maximumFractionDigits: 1,
-})
-const percent = new Intl.NumberFormat("en-US", {
-  style: "percent",
-  maximumFractionDigits: 0,
-  signDisplay: "exceptZero",
-})
-
-function formatDay(day: string) {
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeZone: "UTC",
-  }).format(new Date(`${day}T00:00:00Z`))
-}
 
 function formatSeconds(seconds: number | null) {
   if (seconds === null) return "—"
@@ -56,6 +40,27 @@ export function Overview({
   period: AnalyticsPeriod
 }) {
   const router = useRouter()
+  const locale = useLocale()
+  const t = useMessages(analytics).overview
+  const { number, hours, percent, day } = useMemo(
+    () => ({
+      number: new Intl.NumberFormat(locale),
+      hours: new Intl.NumberFormat(locale, {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      }),
+      percent: new Intl.NumberFormat(locale, {
+        style: "percent",
+        maximumFractionDigits: 0,
+        signDisplay: "exceptZero",
+      }),
+      day: new Intl.DateTimeFormat(locale, {
+        dateStyle: "medium",
+        timeZone: "UTC",
+      }),
+    }),
+    [locale]
+  )
 
   useEffect(() => {
     if (!syncing) return
@@ -68,27 +73,22 @@ export function Overview({
     ([
       {
         key: "views",
-        label: "Views",
         value: number.format(summary.current.views),
       },
       {
         key: "watchHours",
-        label: "Watch hours",
         value: hours.format(summary.current.watchHours),
       },
       {
         key: "netSubscribers",
-        label: "Net subscribers",
         value: number.format(summary.current.netSubscribers),
       },
       {
         key: "averageViewDurationS",
-        label: "Average view duration",
         value: formatSeconds(summary.current.averageViewDurationS),
       },
       {
         key: "likes",
-        label: "Likes",
         value: number.format(summary.current.likes),
       },
     ] as const)
@@ -99,8 +99,7 @@ export function Overview({
         <PeriodPicker value={period} />
         {dataThrough && (
           <p className="text-[13px] text-tertiary">
-            Data through {formatDay(dataThrough)}. YouTube shares numbers 2–3
-            days late.
+            {t.dataThrough(day.format(new Date(`${dataThrough}T00:00:00Z`)))}
           </p>
         )}
       </div>
@@ -109,9 +108,7 @@ export function Overview({
         <Empty className="rounded-[18px] bg-graphite">
           <EmptyHeader>
             <EmptyDescription>
-              {syncing
-                ? "Fetching your channel's numbers from YouTube…"
-                : "No views in this period yet."}
+              {syncing ? t.fetching : t.empty}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -122,7 +119,7 @@ export function Overview({
               const change = summary.change[tile.key]
               return (
                 <StatCard key={tile.key}>
-                  <StatCardLabel>{tile.label}</StatCardLabel>
+                  <StatCardLabel>{t.tiles[tile.key]}</StatCardLabel>
                   <StatCardValue>{tile.value}</StatCardValue>
                   <StatCardDescription>
                     {change === null ? "—" : percent.format(change)}
@@ -134,19 +131,17 @@ export function Overview({
 
           <section aria-labelledby="views-heading" className="grid gap-3">
             <h2 id="views-heading" className="font-medium">
-              Views per day
+              {t.viewsPerDay}
             </h2>
             <ViewsChart series={series} split={split} period={period} />
           </section>
 
           <section aria-labelledby="top-shorts-heading" className="grid gap-3">
             <h2 id="top-shorts-heading" className="font-medium">
-              Top Shorts this period
+              {t.topShorts}
             </h2>
             {topShorts.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No Short gained views in this period.
-              </p>
+              <p className="text-sm text-muted-foreground">{t.noTopShorts}</p>
             ) : (
               <ol className="grid gap-1.5">
                 {topShorts.map((short) => {
@@ -154,7 +149,7 @@ export function Overview({
                     short.projectId && short.clipId
                       ? (`/projects/${short.projectId}/clips/${short.clipId}` as const)
                       : short.url
-                  const title = short.title || "Untitled Short"
+                  const title = short.title || t.untitled
                   return (
                     <li
                       key={short.publicationId}
@@ -180,7 +175,7 @@ export function Overview({
                         </a>
                       )}
                       <span className="shrink-0 font-mono text-[13px] text-muted-foreground tabular-nums">
-                        +{number.format(short.views)} views
+                        {t.gained(short.views)}
                       </span>
                     </li>
                   )

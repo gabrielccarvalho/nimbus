@@ -1,11 +1,15 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
 
+import { analytics } from "@/components/analytics/messages"
 import { Insights } from "@/components/analytics/insights"
 import { Skeleton } from "@/components/ui/skeleton"
+import { getMessages } from "@/lib/i18n/server"
 import { getInsights } from "@/features/insights/queries"
 
-export const metadata: Metadata = { title: "Insights · Analytics" }
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getMessages(analytics)).layout.insightsTitle }
+}
 
 async function InsightsSection() {
   return <Insights {...await getInsights()} />

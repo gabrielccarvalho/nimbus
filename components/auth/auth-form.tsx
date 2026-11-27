@@ -14,34 +14,24 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { useMessages } from "@/lib/i18n/client"
 import { cn } from "@/lib/utils"
 
 import { authClient } from "./auth-client"
+import { auth, authErrorMessage } from "./messages"
 
 type Mode = "signin" | "signup"
-
-const COPY: Record<Mode, { lede: string; cta: string; form: string }> = {
-  signin: {
-    lede: "Welcome back. Your projects are where you left them.",
-    cta: "Sign in",
-    form: "Sign in with email",
-  },
-  signup: {
-    lede: "Make an account and drop in your first recording.",
-    cta: "Create account",
-    form: "Create account with email",
-  },
-}
 
 export function safeNext(next: string | undefined) {
   return next?.startsWith("/") && !next.startsWith("//") ? next : "/"
 }
 
 export function AuthHeading({ lede }: { lede: string }) {
+  const t = useMessages(auth).headline
   return (
     <div className="grid gap-3">
       <h1 className="text-[44px] leading-[1.04] font-semibold tracking-[-0.045em] text-balance max-sm:text-[36px]">
-        Long streams in. <span className="text-gradient">Short clips out.</span>
+        {t.lead} <span className="text-gradient">{t.accent}</span>
       </h1>
       <p className="text-base text-muted-foreground">{lede}</p>
     </div>
@@ -49,18 +39,15 @@ export function AuthHeading({ lede }: { lede: string }) {
 }
 
 function ModeSwitch({ mode, next }: { mode: Mode; next: string }) {
+  const t = useMessages(auth).form
   const query = next === "/" ? "" : `?next=${encodeURIComponent(next)}`
   const items = [
-    { mode: "signin" as const, href: `/login${query}`, label: "Sign in" },
-    {
-      mode: "signup" as const,
-      href: `/signup${query}`,
-      label: "Create account",
-    },
+    { mode: "signin" as const, href: `/login${query}` },
+    { mode: "signup" as const, href: `/signup${query}` },
   ]
   return (
     <nav
-      aria-label="Sign in or create an account"
+      aria-label={t.modeSwitch}
       className="inline-flex gap-0.5 justify-self-start rounded-full bg-glass p-[3px] inset-ring-1 inset-ring-hair"
     >
       {items.map((item) => (
@@ -74,7 +61,7 @@ function ModeSwitch({ mode, next }: { mode: Mode; next: string }) {
               "bg-white/14 text-foreground inset-ring-1 inset-ring-white/10"
           )}
         >
-          {item.label}
+          {t[item.mode].title}
         </Link>
       ))}
     </nav>
@@ -94,7 +81,9 @@ export function AuthForm({
   const next = safeNext(rawNext)
   const [pending, startTransition] = React.useTransition()
   const [error, setError] = React.useState<string | null>(null)
-  const copy = COPY[mode]
+  const messages = useMessages(auth)
+  const t = messages.form
+  const copy = t[mode]
 
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -111,7 +100,7 @@ export function AuthForm({
             })
           : await authClient.signIn.email({ email, password })
       if (result.error) {
-        setError(result.error.message ?? "That didn't work. Try again.")
+        setError(authErrorMessage(messages.errors, result.error))
         return
       }
       if (
@@ -133,7 +122,8 @@ export function AuthForm({
         provider,
         callbackURL: next,
       })
-      if (result.error) setError(result.error.message ?? "That didn't work.")
+      if (result.error)
+        setError(authErrorMessage(messages.errors, result.error, "failed"))
     })
 
   const anySocial = providers.google || providers.twitch
@@ -153,7 +143,7 @@ export function AuthForm({
                 onClick={() => social("google")}
               >
                 <GoogleLogoIcon weight="bold" aria-hidden />
-                Continue with Google
+                {t.continueWith("Google")}
               </Button>
             )}
             {providers.twitch && (
@@ -164,13 +154,13 @@ export function AuthForm({
                 onClick={() => social("twitch")}
               >
                 <TwitchLogoIcon weight="bold" aria-hidden />
-                Continue with Twitch
+                {t.continueWith("Twitch")}
               </Button>
             )}
           </div>
           <div className="flex items-center gap-3 text-[12.5px] text-tertiary">
             <span className="h-px flex-1 bg-hair" />
-            or with email
+            {t.orEmail}
             <span className="h-px flex-1 bg-hair" />
           </div>
         </>
@@ -179,37 +169,37 @@ export function AuthForm({
         <FieldGroup className="gap-4">
           {mode === "signup" && (
             <Field>
-              <FieldLabel htmlFor="name">Name</FieldLabel>
+              <FieldLabel htmlFor="name">{t.name}</FieldLabel>
               <Input
                 id="name"
                 name="name"
                 autoComplete="name"
-                placeholder="How the crew should call you"
+                placeholder={t.namePlaceholder}
                 required
                 maxLength={80}
               />
             </Field>
           )}
           <Field>
-            <FieldLabel htmlFor="email">Email</FieldLabel>
+            <FieldLabel htmlFor="email">{t.email}</FieldLabel>
             <Input
               id="email"
               name="email"
               type="email"
               autoComplete="email"
-              placeholder="you@studio.com"
+              placeholder={t.emailPlaceholder}
               required
             />
           </Field>
           <Field data-invalid={error ? true : undefined}>
             <div className="flex items-baseline justify-between">
-              <FieldLabel htmlFor="password">Password</FieldLabel>
+              <FieldLabel htmlFor="password">{t.password}</FieldLabel>
               {mode === "signin" && (
                 <Link
                   href="/forgot-password"
                   className="text-[13px] text-muted-foreground hover:text-foreground"
                 >
-                  Forgot it?
+                  {t.forgot}
                 </Link>
               )}
             </div>
@@ -221,7 +211,9 @@ export function AuthForm({
                 mode === "signup" ? "new-password" : "current-password"
               }
               placeholder={
-                mode === "signup" ? "At least 10 characters" : "Your password"
+                mode === "signup"
+                  ? t.newPasswordPlaceholder
+                  : t.passwordPlaceholder
               }
               minLength={mode === "signup" ? 10 : undefined}
               required
@@ -237,12 +229,10 @@ export function AuthForm({
           className="mt-1 w-full"
           disabled={pending}
         >
-          {pending ? "One moment…" : copy.cta}
+          {pending ? t.pending : copy.cta}
         </Button>
       </form>
-      <p className="text-[12.5px] text-tertiary">
-        Your recordings stay private until you export them.
-      </p>
+      <p className="text-[12.5px] text-tertiary">{t.privacy}</p>
     </>
   )
 }

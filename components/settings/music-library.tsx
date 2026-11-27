@@ -41,18 +41,20 @@ import {
 } from "@/features/music/actions"
 import type { MusicTrackSummary } from "@/features/music/schema"
 import { formatDuration } from "@/lib/format"
+import { useLocale, useMessages } from "@/lib/i18n/client"
+import { translateError } from "@/lib/i18n/errors"
+import { common } from "@/lib/i18n/common"
 
+import { settings } from "./messages"
 import { SettingsSection, SettingsSectionHeader } from "./section"
 
 const POLL_MS = 3000
 
-function usage(count: number) {
-  if (count === 0) return "Not used"
-  return `Under ${count} ${count === 1 ? "clip" : "clips"}`
-}
-
 function TrackRow({ track }: { track: MusicTrackSummary }) {
+  const locale = useLocale()
   const router = useRouter()
+  const t = useMessages(settings).library
+  const c = useMessages(common)
   const [title, setTitle] = React.useState(track.title)
   const [saved, setSaved] = React.useState(track.title)
   const input = React.useRef<HTMLInputElement>(null)
@@ -85,7 +87,7 @@ function TrackRow({ track }: { track: MusicTrackSummary }) {
         return
       }
       setOpen(false)
-      toast.success("Track deleted")
+      toast.success(t.deleted)
       router.refresh()
     })
 
@@ -94,7 +96,7 @@ function TrackRow({ track }: { track: MusicTrackSummary }) {
       <ItemContent>
         <Input
           ref={input}
-          aria-label="Track title"
+          aria-label={t.trackTitle}
           value={title}
           maxLength={100}
           readOnly={pending}
@@ -106,16 +108,16 @@ function TrackRow({ track }: { track: MusicTrackSummary }) {
         />
         {track.status === "processing" ? (
           <ItemDescription className="flex items-center gap-1.5">
-            <Spinner aria-label={`Processing ${track.title}`} />
-            <span>Processing…</span>
+            <Spinner aria-label={t.processingTrack(track.title)} />
+            <span>{t.processing}</span>
           </ItemDescription>
         ) : track.status === "failed" ? (
           <ItemDescription className="text-destructive">
-            {track.error ?? "This file couldn't be read"}
+            {track.error ? translateError(track.error, locale) : t.unreadable}
           </ItemDescription>
         ) : (
           <ItemDescription>
-            {formatDuration(track.durationMs)} · {usage(track.usedBy)}
+            {formatDuration(track.durationMs)} · {t.usage(track.usedBy)}
           </ItemDescription>
         )}
       </ItemContent>
@@ -126,7 +128,7 @@ function TrackRow({ track }: { track: MusicTrackSummary }) {
               <Button
                 variant="ghost"
                 size="icon"
-                aria-label={`Delete ${track.title}`}
+                aria-label={t.deleteTrack(track.title)}
               />
             }
           >
@@ -137,20 +139,21 @@ function TrackRow({ track }: { track: MusicTrackSummary }) {
               <AlertDialogMedia className="bg-destructive/10 text-destructive">
                 <TrashIcon />
               </AlertDialogMedia>
-              <AlertDialogTitle>Delete “{track.title}”?</AlertDialogTitle>
+              <AlertDialogTitle>{t.deleteTitle(track.title)}</AlertDialogTitle>
               <AlertDialogDescription>
-                The file is removed from this workspace. This can&apos;t be
-                undone.
+                {t.deleteDescription}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
+              <AlertDialogCancel disabled={pending}>
+                {c.cancel}
+              </AlertDialogCancel>
               <AlertDialogAction
                 variant="destructive"
                 disabled={pending}
                 onClick={remove}
               >
-                Delete track
+                {t.deleteConfirm}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -162,6 +165,7 @@ function TrackRow({ track }: { track: MusicTrackSummary }) {
 
 export function MusicLibrary({ tracks }: { tracks: MusicTrackSummary[] }) {
   const router = useRouter()
+  const t = useMessages(settings).library
   const anyProcessing = tracks.some((track) => track.status === "processing")
 
   React.useEffect(() => {
@@ -174,8 +178,8 @@ export function MusicLibrary({ tracks }: { tracks: MusicTrackSummary[] }) {
     <SettingsSection aria-labelledby="music-title">
       <SettingsSectionHeader
         id="music-title"
-        title="Music library"
-        description="Tracks here can go under any clip in this workspace. MP3, M4A, AAC, WAV, OGG or FLAC, up to 50 MB."
+        title={t.title}
+        description={t.description}
       >
         <MusicUploadButton />
       </SettingsSectionHeader>
@@ -185,10 +189,8 @@ export function MusicLibrary({ tracks }: { tracks: MusicTrackSummary[] }) {
             <EmptyMedia variant="icon">
               <MusicNotesIcon />
             </EmptyMedia>
-            <EmptyTitle>No music yet</EmptyTitle>
-            <EmptyDescription>
-              Upload a track to put it under your clips.
-            </EmptyDescription>
+            <EmptyTitle>{t.emptyTitle}</EmptyTitle>
+            <EmptyDescription>{t.emptyDescription}</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (

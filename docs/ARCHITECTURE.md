@@ -109,8 +109,9 @@ components/
   ui/                shadcn + shadcn-style primitives
   app-shell/         sidebar, page header, command palette
   <domain>/          app-specific composites (projects, clips, captions, layout-fields…)
+                     each with its messages.ts: the en-US and pt-BR text of that area
 features/<name>/     domain logic per feature
-lib/                 db, env, logger, storage, sse, result/errors, utils
+lib/                 db, env, logger, storage, sse, result/errors, i18n, utils
 worker/              worker entry point
 scripts/             doctor, fixtures, migrations, storage push
 tests/               integration, contracts, e2e, fixtures, utils

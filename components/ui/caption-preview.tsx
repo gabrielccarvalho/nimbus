@@ -1,7 +1,9 @@
 import { cn } from "cn"
 import * as React from "react"
 
+import { ui } from "@/components/ui/messages"
 import { OVERLAY_MARGIN_X, OVERLAY_TOP_Y } from "@/features/captions/overlay"
+import { useMessages } from "@/lib/i18n/client"
 
 type CaptionPreviewWord = { text: string; startMs: number; endMs: number }
 
@@ -61,6 +63,7 @@ function useBaselineDrag({
   max: number
   onBaselineChange?: (baseline: number) => void
 }) {
+  const t = useMessages(ui).captionPreview
   const grab = React.useRef<{ offset: number; height: number; top: number }>(
     null
   )
@@ -75,7 +78,7 @@ function useBaselineDrag({
     "aria-valuemin": Math.round(min * 100),
     "aria-valuemax": Math.round(max * 100),
     "aria-valuenow": percent,
-    "aria-valuetext": `${percent}% from the top`,
+    "aria-valuetext": t.baseline(percent),
     onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => {
       const frame = event.currentTarget.parentElement?.getBoundingClientRect()
       if (!frame?.height || event.button !== 0) return

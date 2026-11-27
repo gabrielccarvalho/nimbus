@@ -1,6 +1,9 @@
 import { getSessionCookie } from "better-auth/cookies"
 import { NextResponse, type NextRequest } from "next/server"
 
+import { isLocale, LOCALE_COOKIE, matchLocale } from "@/lib/i18n/config"
+import { translateError } from "@/lib/i18n/errors"
+
 const LANDING_PATH = "/welcome"
 
 const PUBLIC_PATHS = [
@@ -20,8 +23,13 @@ export function proxy(request: NextRequest) {
   )
   if (signedIn || isPublic) return NextResponse.next()
   if (pathname.startsWith("/api/")) {
+    const chosen = request.cookies.get(LOCALE_COOKIE)?.value
+    const locale = isLocale(chosen)
+      ? chosen
+      : matchLocale(request.headers.get("accept-language"))
+    const message = translateError("Sign in to continue", locale)
     return Response.json(
-      { error: { code: "UNAUTHORIZED", message: "Sign in to continue" } },
+      { error: { code: "UNAUTHORIZED", message } },
       { status: 401 }
     )
   }
