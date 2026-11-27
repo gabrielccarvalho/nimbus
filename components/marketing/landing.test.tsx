@@ -52,7 +52,8 @@ describe("Landing", () => {
     const plans = within(pricing).getAllByRole("listitem")
     expect(plans).toHaveLength(3)
     const [free, creator, studio] = plans
-    expect(free).toHaveTextContent("R$0")
+    expect(within(free!).getAllByText("Free")).toHaveLength(2)
+    expect(free).not.toHaveTextContent("R$")
     expect(
       within(free!).getByText(String(PLANS.free.renderMinutes))
     ).toBeInTheDocument()

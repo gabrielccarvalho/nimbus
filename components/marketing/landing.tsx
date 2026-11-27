@@ -568,6 +568,7 @@ const PLAN_COPY: Record<
   {
     who: string
     price: string | null
+    money?: boolean
     per?: string
     cta: string
     contact?: boolean
@@ -576,12 +577,13 @@ const PLAN_COPY: Record<
 > = {
   free: {
     who: "Try it on one stream",
-    price: "0",
+    price: "Free",
     cta: "Get started",
   },
   creator: {
     who: "For posting every week",
     price: "67,69",
+    money: true,
     per: "a month",
     cta: "Choose Creator",
     featured: true,
@@ -650,7 +652,7 @@ function Pricing() {
                 <p className="text-sm text-tertiary">{copy.who}</p>
               </div>
               <p className="flex items-baseline gap-2">
-                {!custom && (
+                {copy.money && (
                   <span className="mt-1.5 self-start text-xl leading-none font-semibold text-muted-foreground">
                     R$
                   </span>
