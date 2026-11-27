@@ -19,7 +19,7 @@ const CHAPTER = cn(SECTION, "relative scroll-mt-6 pt-[clamp(110px,14vw,200px)]")
 const H2 =
   "max-w-[980px] text-[clamp(36px,5.4vw,70px)] leading-[1.04] font-semibold tracking-[-0.04em] text-balance"
 const LEDE =
-  "max-w-[36em] text-[clamp(18px,1.8vw,23px)] leading-[1.45] tracking-[-0.017em] text-muted-foreground [&_b]:font-medium [&_b]:text-foreground"
+  "max-w-[560px] text-[clamp(16px,1.4vw,19px)] leading-normal text-muted-foreground [&_b]:font-medium [&_b]:text-foreground"
 const H3 =
   "text-[clamp(22px,2.2vw,28px)] leading-[1.18] font-semibold tracking-[-0.025em]"
 const BODY = "text-[15.5px] leading-[1.55] text-muted-foreground"
@@ -205,7 +205,7 @@ function HowItWorks() {
         <h2 id="how-title" className={H2}>
           Three hours in. <span className={MUTE}>Nine clips out.</span>
         </h2>
-        <p className="max-w-[560px] text-[clamp(16px,1.4vw,19px)] leading-normal text-muted-foreground">
+        <p className={LEDE}>
           nimbus reads the whole stream, marks the moments worth keeping and
           hands each one back as a vertical clip. You say which ones go out.
         </p>
