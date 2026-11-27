@@ -103,6 +103,12 @@ export class WhisperCppTranscriber implements Transcriber {
         "-ml",
         "1",
         "-sow",
+        // The previous window's text as a prompt carries a hallucinated line
+        // forward for minutes; 2.8 retries a window that repeats itself.
+        "-mc",
+        "0",
+        "-et",
+        "2.8",
         "-pp",
       ],
       {

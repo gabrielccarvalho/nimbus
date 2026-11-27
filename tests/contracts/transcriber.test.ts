@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 
@@ -84,6 +84,23 @@ describe("whisper.cpp adapter", () => {
     } finally {
       delete process.env.FAKE_WHISPER_FAIL
     }
+  })
+
+  it("decodes each window without the previous text and with a stricter repetition check", async () => {
+    const argsPath = path.join(dir, "args.json")
+    process.env.FAKE_WHISPER_ARGS = argsPath
+    try {
+      await new WhisperCppTranscriber({
+        binary: fakeWhisper,
+        model,
+        threads: 1,
+      }).transcribe({ audioPath, durationMs: 1000 })
+    } finally {
+      delete process.env.FAKE_WHISPER_ARGS
+    }
+    const args = JSON.parse(await readFile(argsPath, "utf8")) as string[]
+    expect(args[args.indexOf("-mc") + 1]).toBe("0")
+    expect(args[args.indexOf("-et") + 1]).toBe("2.8")
   })
 
   it.each([

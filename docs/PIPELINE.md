@@ -66,9 +66,9 @@ Then the configured Transcriber:
 
 - **whisper.cpp** (`features/transcription/whisper-cpp.ts`):
   ```sh
-  whisper-cli -m <model> -f <audio.wav> -l <lang|auto> -ojf -of <out-prefix> -ml 1 -sow -pp
+  whisper-cli -m <model> -f <audio.wav> -l <lang|auto> -ojf -of <out-prefix> -ml 1 -sow -mc 0 -et 2.8 -pp
   ```
-  `-ojf` writes full JSON with per-token timestamps (`offsets.from/to` in ms) and probabilities (`p`). `-ml 1 -sow` gives roughly one word per segment. Progress is parsed from `-pp` stderr lines (`progress = NN%`). Output is normalized (see BUSINESS_LOGIC → Transcription).
+  `-ojf` writes full JSON with per-token timestamps (`offsets.from/to` in ms) and probabilities (`p`). `-ml 1 -sow` gives roughly one word per segment. `-mc 0` decodes each 30 s window without the text of the one before, and `-et 2.8` makes whisper retry a window whose text repeats itself (ADR-0082). Progress is parsed from `-pp` stderr lines (`progress = NN%`). Output is normalized (see BUSINESS_LOGIC → Transcription).
 - **fake** (`features/transcription/fake.ts`): deterministic sentences from `features/transcription/fake-transcript.json` (timed to the 20 s fixture), repeated every 20 s for longer media and cut at the media duration. Words are spread evenly across each sentence.
 
 Failure modes: binary or model missing (`DEPENDENCY_MISSING`, non-retryable; the model path is checked before spawning), whisper crash (retryable), empty transcript (succeeds with zero words; selection falls back to loudness only).

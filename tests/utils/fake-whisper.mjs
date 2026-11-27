@@ -8,6 +8,9 @@ if (process.env.FAKE_WHISPER_FAIL) {
   process.stderr.write("error: failed to load model\n")
   process.exit(3)
 }
+if (process.env.FAKE_WHISPER_ARGS) {
+  writeFileSync(process.env.FAKE_WHISPER_ARGS, JSON.stringify(args))
+}
 process.stderr.write("whisper_print_progress_callback: progress =  50%\n")
 writeFileSync(
   `${value("-of")}.json`,
