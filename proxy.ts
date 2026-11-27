@@ -1,7 +1,10 @@
 import { getSessionCookie } from "better-auth/cookies"
 import { NextResponse, type NextRequest } from "next/server"
 
+const LANDING_PATH = "/welcome"
+
 const PUBLIC_PATHS = [
+  LANDING_PATH,
   "/login",
   "/signup",
   "/forgot-password",
@@ -22,8 +25,12 @@ export function proxy(request: NextRequest) {
       { status: 401 }
     )
   }
+  // The front door: a signed-out visitor gets the landing page at "/" itself.
+  if (pathname === "/") {
+    return NextResponse.rewrite(new URL(LANDING_PATH, request.url))
+  }
   const login = new URL("/login", request.url)
-  if (pathname !== "/") login.searchParams.set("next", `${pathname}${search}`)
+  login.searchParams.set("next", `${pathname}${search}`)
   return NextResponse.redirect(login)
 }
 

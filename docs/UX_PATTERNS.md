@@ -4,6 +4,8 @@ The clip editor (`components/projects/clip-editor.tsx`, ADR-0074 to 0076) is the
 
 When a page needs something this file doesn't cover, look at how the clip editor solved it first. If it didn't, choose, then add the pattern here in the same commit.
 
+This file is about signed-in pages. The public landing page and the sign-in screens are marketing surfaces: they follow [Design system](DESIGN_SYSTEM.md) and ADR-0083, not the frame below.
+
 ## The frame
 
 Every signed-in page is the same four regions. A page may leave out the inspector or the dock; it never adds a fifth region or moves one.

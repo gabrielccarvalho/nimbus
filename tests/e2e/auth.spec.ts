@@ -38,7 +38,11 @@ test.describe("signed out", () => {
     await page.getByRole("menuitem", { name: "Sign out" }).click()
     await expect(page).toHaveURL(/\/login$/)
     await page.goto("/")
-    await expect(page).toHaveURL(/\/login$/)
+    await expect(
+      page.getByRole("link", { name: "Sign in" }).first()
+    ).toBeVisible()
+    await page.goto("/settings/profile")
+    await expect(page).toHaveURL(/\/login\?next=/)
   })
 
   test("a new account gets its own empty workspace", async ({ page }) => {

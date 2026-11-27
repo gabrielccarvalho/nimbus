@@ -487,6 +487,15 @@ Spec: `docs/UX_PATTERNS.md` and the "Nimbus pages redesign" canvas. The clip edi
 - [x] Selection and review: candidates with `parts`, frames from every part
 - [x] Editor: a block per part on the video track, split, trim, reorder, add, delete; the player plays the parts back to back
 
+### Phase 44: Landing page (ADR-0083)
+
+- [x] `Landing` and `HeroEdit` in `components/marketing/`, route `/welcome`, signed-out `/` rewritten to it in `proxy.ts`
+- [x] Plan limits from `PLANS`, languages from `components/settings/languages.ts`
+- [x] Unit tests, `tests/e2e/landing.spec.ts` (front door, axe, phone width), `auth.spec.ts` updated
+- [ ] Real gameplay footage or frames in the hero stage instead of the dotted placeholder
+- [ ] Prices and a checkout for Creator and Studio once billing exists
+- [ ] A larger hero stage on phones
+
 ### Not verified
 
 - Joined clips on a real recording: rendering was checked with real ffmpeg on the 20 s fixture, and the editor through component tests, not by hand in a browser. How long the preview stalls at a cut on a multi-hour proxy is unknown.
