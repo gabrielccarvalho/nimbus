@@ -1,4 +1,5 @@
 import { ArrowRightIcon, PlusIcon } from "@phosphor-icons/react/ssr"
+import type { Route } from "next"
 import Link from "next/link"
 
 import { Logo, LogoMark } from "@/components/app-shell/logo"
@@ -9,6 +10,7 @@ import { SignalDot } from "@/components/ui/signal-dot"
 import { StatusPill } from "@/components/ui/status-pill"
 import { getLocale } from "@/lib/i18n/server"
 import { PLANS, type PlanId } from "@/features/accounts/schema"
+import { CREATOR_PRICE_CENTS } from "@/features/billing/schema"
 import { common } from "@/lib/i18n/common"
 import type { Locale } from "@/lib/i18n/config"
 import { cn } from "@/lib/utils"
@@ -529,10 +531,14 @@ const CONTACT_HREF = "mailto:gabe@nimbus.dev"
 // In reais; `null` is a price agreed by email.
 const PLAN_OFFERS: Record<
   Exclude<PlanId, "admin">,
-  { price: number | null; featured?: boolean }
+  { price: number | null; featured?: boolean; href?: Route }
 > = {
   free: { price: 0 },
-  creator: { price: 67.69, featured: true },
+  creator: {
+    price: CREATOR_PRICE_CENTS / 100,
+    featured: true,
+    href: "/signup?next=%2Fsettings%2Fworkspace%2Fplan",
+  },
   studio: { price: null },
 }
 
@@ -634,7 +640,7 @@ function Pricing({ locale }: { locale: Locale }) {
                     {copy.cta}
                   </a>
                 ) : (
-                  <Link href="/signup" className={button}>
+                  <Link href={offer.href ?? "/signup"} className={button}>
                     {copy.cta}
                   </Link>
                 )}

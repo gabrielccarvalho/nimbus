@@ -88,7 +88,7 @@ describe("Landing", () => {
     ).toBeInTheDocument()
     expect(
       within(creator!).getByRole("link", { name: "Choose Creator" })
-    ).toHaveAttribute("href", "/signup")
+    ).toHaveAttribute("href", "/signup?next=%2Fsettings%2Fworkspace%2Fplan")
 
     expect(within(studio!).getAllByText("Custom")).toHaveLength(5)
     expect(within(studio!).queryByText("1,200")).not.toBeInTheDocument()

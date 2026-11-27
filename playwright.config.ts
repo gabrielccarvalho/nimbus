@@ -20,6 +20,7 @@ const testEnv = {
   TRANSCRIBER: "fake",
   DOWNLOADER: "fake",
   YOUTUBE_CLIENT: "fake",
+  BILLING_CLIENT: "fake",
   FAKE_DOWNLOAD_FILE: path.resolve(
     "tests/fixtures/.generated/gameplay-16x9.mp4"
   ),

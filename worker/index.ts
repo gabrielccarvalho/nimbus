@@ -21,6 +21,7 @@ import {
   pipelineHandlers,
 } from "@/features/pipeline/handlers"
 import { enqueueDueAnalyticsSyncs } from "@/features/analytics/service"
+import { expireLapsedPlans } from "@/features/billing/service"
 import {
   enqueueDueStatsSyncs,
   sweepStaleYouTubeData,
@@ -96,6 +97,13 @@ const scheduleStats = () =>
     sweepYouTubeData().catch((error: unknown) =>
       logger.error({ err: error }, "couldn't sweep stale YouTube data")
     ),
+    expireLapsedPlans(db, new Date())
+      .then((expired) => {
+        if (expired > 0) logger.info({ expired }, "moved lapsed plans to Free")
+      })
+      .catch((error: unknown) =>
+        logger.error({ err: error }, "couldn't expire lapsed plans")
+      ),
   ])
 
 const unavailableCapabilities: SerializedCapabilities = {

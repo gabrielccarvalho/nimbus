@@ -150,7 +150,18 @@ export const workspaces = pgTable("workspaces", {
   image: text("image"),
   anthropicKey: text("anthropic_key"),
   anthropicKeyHint: text("anthropic_key_hint"),
+  billingCustomerId: text("billing_customer_id"),
+  billingCheckoutId: text("billing_checkout_id"),
+  billingSubscriptionId: text("billing_subscription_id"),
+  planPaidThrough: timestamptz("plan_paid_through"),
+  planCancelledAt: timestamptz("plan_cancelled_at"),
   ...timestamps,
+})
+
+export const billingEvents = pgTable("billing_events", {
+  id: text("id").primaryKey(),
+  type: text("type").notNull(),
+  createdAt: timestamptz("created_at").notNull().defaultNow(),
 })
 
 export const workspaceMembers = pgTable(

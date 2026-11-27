@@ -64,6 +64,8 @@ Daemons have no environment of their own: the worker reads the project's variabl
 | `NIMBUS_SECRET_KEY`                                                  | both    | 32+ random characters; signs upload tokens and encrypts workspace secrets                                                          |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                           | both    | Google sign-in and YouTube; the worker refreshes tokens when publishing                                                            |
 | `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`                           | web     | Twitch sign-in                                                                                                                     |
+| `ABACATEPAY_API_KEY`, `ABACATEPAY_CREATOR_PRODUCT_ID`                | web     | Creator checkout (see Billing below); without both, Plan & usage offers no checkout                                                |
+| `ABACATEPAY_WEBHOOK_SECRET`                                          | web     | 32+ characters, the same secret given to the AbacatePay webhook; without it the webhook route answers 404                          |
 | `ANTHROPIC_API_KEY`                                                  | both    | The `anthropic` highlight selector                                                                                                 |
 | `HIGHLIGHT_SELECTOR`                                                 | both    | Default selector for new projects                                                                                                  |
 | `MAX_UPLOAD_BYTES`                                                   | both    | Upload cap (default 20 GiB)                                                                                                        |
@@ -74,6 +76,17 @@ Daemons have no environment of their own: the worker reads the project's variabl
 | `NIMBUS_ROLE`                                                        | doctor  | `web` when running `pnpm run doctor` against the web side; the worker image sets `worker`                                          |
 
 Don't set `WHISPER_MODEL`, `SCRATCH_DIR` or the binary paths on Vercel. The worker image sets the first two (and `WORKER_SHUTDOWN_GRACE_MS`) and puts ffmpeg, whisper-cli and yt-dlp on the PATH; a project value would most likely replace them, though whether a project variable overrides the image's `ENV` in a Daemon is not verified.
+
+### Billing
+
+Creator is sold as an AbacatePay subscription (API v2, ADR-0090). Once per environment, in AbacatePay's test mode first:
+
+1. Create a v2 API key with CUSTOMER:CREATE, SUBSCRIPTION:CREATE and SUBSCRIPTION:READ, and set it as `ABACATEPAY_API_KEY`. Test keys start `abc_dev_`, production keys `abc_prod_`.
+2. Run `pnpm billing:product` with that key and set the id it prints as `ABACATEPAY_CREATOR_PRODUCT_ID`.
+3. In Integração › Webhooks, add a v2 webhook to `<BETTER_AUTH_URL>/api/billing/webhook` with the events `subscription.completed`, `subscription.renewed` and `subscription.cancelled`, and the secret from `ABACATEPAY_WEBHOOK_SECRET`. AbacatePay refuses `localhost`, so test locally through a tunnel.
+4. Upgrade from Settings › Plan & usage with the test card `4242 4242 4242 4242`, and check that the workspace moves to Creator within a minute.
+
+The worker moves a Creator workspace back to Free once its paid month (plus 4 days for AbacatePay's retries) has passed without a renewal.
 
 ### Previews have no worker
 

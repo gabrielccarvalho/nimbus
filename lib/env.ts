@@ -90,6 +90,10 @@ const envFields = z.object({
   YOUTUBE_DAILY_UPLOADS: z.coerce.number().int().positive().default(100),
   TWITCH_CLIENT_ID: z.string().min(1).optional(),
   TWITCH_CLIENT_SECRET: z.string().min(1).optional(),
+  BILLING_CLIENT: z.enum(["abacatepay", "fake"]).default("abacatepay"),
+  ABACATEPAY_API_KEY: z.string().min(1).optional(),
+  ABACATEPAY_CREATOR_PRODUCT_ID: z.string().min(1).optional(),
+  ABACATEPAY_WEBHOOK_SECRET: z.string().min(32).optional(),
 })
 
 const S3_REQUIRED = [

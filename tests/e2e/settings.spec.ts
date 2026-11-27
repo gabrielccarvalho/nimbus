@@ -174,3 +174,14 @@ test("publishing defaults persist", async ({ page }) => {
   await page.getByRole("button", { name: "Save project defaults" }).click()
   await expect(page.getByText("Project defaults saved")).toBeVisible()
 })
+
+test("a Free workspace can upgrade to Creator", async ({ page }) => {
+  await page.route("https://pay.example.com/**", (route) =>
+    route.fulfill({ status: 200, body: "AbacatePay checkout" })
+  )
+  await page.goto("/settings/workspace/plan")
+  await expect(page.getByText("Creator · R$67.69 a month")).toBeVisible()
+  await expectNoSeriousA11yViolations(page)
+  await page.getByRole("button", { name: "Upgrade to Creator" }).click()
+  await expect(page).toHaveURL(/^https:\/\/pay\.example\.com\/bill_fake_\d+$/)
+})

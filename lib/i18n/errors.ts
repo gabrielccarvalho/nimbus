@@ -110,6 +110,7 @@ const patternsPtBR: [RegExp, Build][] = [
     (status) => `Falha ao renovar o acesso do Google (${status})`,
   ],
   [/^YouTube returned (\d+)$/, (status) => `O YouTube retornou ${status}`],
+  [/^AbacatePay returned (.+)$/, (reason) => `A AbacatePay retornou ${reason}`],
   [
     /^Your plan allows (\d+) publishes a day$/,
     (count) => `Seu plano permite ${count} publicações por dia`,

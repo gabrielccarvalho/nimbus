@@ -285,6 +285,16 @@ const publishing: Record<string, string> = {
   "Already importing your Shorts": "Seus Shorts já estão sendo importados",
 }
 
+const billing: Record<string, string> = {
+  "AbacatePay didn't answer": "A AbacatePay não respondeu",
+  "Billing isn't set up": "A cobrança não está configurada",
+  "Your plan already includes Creator": "Seu plano já inclui o Creator",
+  "Your workspace is already on Creator": "Seu workspace já está no Creator",
+  "This workspace has no subscription": "Este workspace não tem assinatura",
+  "Invalid billing event": "Evento de cobrança inválido",
+  "Invalid webhook secret": "Segredo do webhook inválido",
+}
+
 const insights: Record<string, string> = {
   "Channel not found": "Canal não encontrado",
   "Rule not found": "Regra não encontrada",
@@ -311,4 +321,5 @@ export const errorsPtBR: Record<string, string> = {
   ...music,
   ...publishing,
   ...insights,
+  ...billing,
 }

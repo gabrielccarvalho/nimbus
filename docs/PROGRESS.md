@@ -494,7 +494,7 @@ Spec: `docs/UX_PATTERNS.md` and the "Nimbus pages redesign" canvas. The clip edi
 - [x] Plan limits from `PLANS`, languages from `components/settings/languages.ts`
 - [x] Unit tests, `tests/e2e/landing.spec.ts` (front door, axe, phone width), `auth.spec.ts` updated
 - [ ] Real gameplay footage or frames in the hero stage instead of the dotted placeholder
-- [ ] A checkout for Creator once billing exists ("Choose Creator" goes to sign-up and the account starts on Free)
+- [x] A checkout for Creator once billing exists (Phase 49: "Choose Creator" signs up into Plan & usage, which opens the AbacatePay checkout)
 - [ ] A larger hero stage on phones
 
 ### Phase 45: Landing page prices and motion (ADR-0085)
@@ -532,7 +532,8 @@ Spec: `docs/UX_PATTERNS.md` and the "Nimbus pages redesign" canvas. The clip edi
 
 - [x] Render minutes, storage and Claude picks enforced where the work is asked for; selection over the limit falls back to the built-in selector
 - [x] Limit errors in pt-BR; Plan & usage no longer says usage isn't limited
-- [ ] A checkout for Creator (R$ 67,69 a month) that moves the workspace to the plan
+- [x] Creator checkout through AbacatePay, the webhook that moves the workspace, the customer portal, and the worker downgrading lapsed plans (ADR-0090, migration 0026)
+- [ ] A real AbacatePay test-mode run: key, `pnpm billing:product`, webhook through a tunnel, payment with the test card (only the fake was exercised)
 
 ### Not verified
 

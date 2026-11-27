@@ -157,6 +157,20 @@ export const settings = defineMessages({
       publishesToday: "Publishes today",
       publishes: (used: number, limit: number) => `${used} of ${limit}`,
       noLimit: "No limit",
+      billing: {
+        title: "Billing",
+        creator: (price: string) => `Creator · ${price} a month`,
+        creatorPerks:
+          "300 render minutes, 100 GB, 40 Claude picks a month and 5 publishes a day. Paid by card through AbacatePay; cancel any time.",
+        upgrade: "Upgrade to Creator",
+        active: (date: string) => `Renews on ${date}.`,
+        ending: (date: string) =>
+          `Cancelled. You keep Creator until ${date}, then the workspace moves to Free.`,
+        manage: "Manage billing",
+        manageHint: "Change the card, see payments or cancel.",
+        pending:
+          "Payment received. The plan changes as soon as AbacatePay confirms it, usually within a minute.",
+      },
     },
     form: {
       sections: {
@@ -459,6 +473,20 @@ export const settings = defineMessages({
       publishesToday: "Publicações hoje",
       publishes: (used: number, limit: number) => `${used} de ${limit}`,
       noLimit: "Sem limite",
+      billing: {
+        title: "Cobrança",
+        creator: (price: string) => `Creator · ${price} por mês`,
+        creatorPerks:
+          "300 minutos de renderização, 100 GB, 40 seleções com o Claude por mês e 5 publicações por dia. Pago no cartão pela AbacatePay; cancele quando quiser.",
+        upgrade: "Assinar o Creator",
+        active: (date: string) => `Renova em ${date}.`,
+        ending: (date: string) =>
+          `Cancelado. Você fica no Creator até ${date}; depois o workspace volta para o Grátis.`,
+        manage: "Gerenciar cobrança",
+        manageHint: "Troque o cartão, veja os pagamentos ou cancele.",
+        pending:
+          "Pagamento recebido. O plano muda assim que a AbacatePay confirmar, em geral em menos de um minuto.",
+      },
     },
     form: {
       sections: {
