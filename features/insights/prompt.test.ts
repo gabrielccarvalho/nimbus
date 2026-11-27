@@ -15,6 +15,7 @@ function clip(overrides: Partial<NimbusInsightClip> = {}): NimbusInsightClip {
     reason: "Peak",
     score: 0.8,
     niche: "FPS",
+    durationMs: 22_000,
     transcript: "[0.0–2.0] go go",
     effects: ["zoom"],
     beats: ["hook"],
@@ -46,6 +47,10 @@ describe("buildInsightsPrompt", () => {
   it("lists each clip id once", () => {
     expect(prompt.match(/clip-aaa/g)).toHaveLength(1)
     expect(prompt.match(/clip-bbb/g)).toHaveLength(1)
+  })
+
+  it("gives each clip's length, so clips of similar length can be compared", () => {
+    expect(prompt.match(/Duration: 22\.0s/g)).toHaveLength(2)
   })
 
   it("lists the current rules with ids and targets", () => {

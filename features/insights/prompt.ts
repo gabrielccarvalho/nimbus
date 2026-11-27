@@ -9,6 +9,7 @@ export type NimbusInsightClip = {
   reason: string
   score: number
   niche: string
+  durationMs: number
   transcript: string
   effects: string[]
   beats: string[]
@@ -38,6 +39,13 @@ const IMPORTED_NOTE =
 export const INSIGHTS_SYSTEM_PROMPT = `You study how a channel's published short-form clips performed and turn the patterns into short rules that steer how future clips are made.
 
 Find what separates the clips that held viewers from the ones that didn't. Look at views against the channel's other clips of the same age, the average percentage viewed, and the retention moments: where viewers dropped off or came back, with the words, beats and effects at that point.
+
+How to read the numbers:
+- Average percentage viewed says more about the clip itself than views do. Compare it between clips of similar length, since a longer clip holds a smaller share.
+- Every clip loses the most viewers in its first seconds. Compare the size of that drop between clips: a bigger one means the opening was slow, or didn't show what the title and hook promised.
+- A flat stretch is viewers held, and a slow decline is normal. A rise is viewers rewatching or sharing that moment. A dip is viewers skipping or leaving: look at what was said and shown right there.
+- A drop near the end usually means the clip signalled it was over or ran past its payoff.
+- When the same kind of clip keeps doing worse than it used to, the format is wearing out, which is a reason to pick it less often, not to edit it differently.
 
 There are two kinds of rules:
 - selection rules steer which moments get picked from a long recording.
@@ -81,6 +89,7 @@ function describeClip(clip: InsightClip) {
   }
   return [
     `Clip ${clip.id} — "${clip.title}" (${clip.niche})`,
+    `Duration: ${seconds(clip.durationMs)}s`,
     `Hook: ${clip.hook || "none"}`,
     `Picked because: ${clip.reason || "n/a"} (score ${clip.score.toFixed(2)})`,
     ...numbers(clip),

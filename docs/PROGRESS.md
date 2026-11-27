@@ -475,8 +475,14 @@ Spec: `docs/UX_PATTERNS.md` and the "Nimbus pages redesign" canvas. The clip edi
 - [ ] Settings: one header Save with "Unsaved changes", the 9:16 preview beside caption and layout forms
 - [ ] Migrate the `track-picker` footer rule off `border-t` and drop its exception
 
+### Phase 42: Retention rules in the Claude prompts (ADR-0080)
+
+- [x] Selection and review prompts: promise kept by the opening, strongest true wording, rarity, one-sentence clarity, no dull stretch, abrupt end, variety, no sponsor reads, outcome-in-doubt starts
+- [x] Insights prompt reads the retention curve and sees each clip's length
+
 ### Not verified
 
+- The Phase 42 prompts on a real stream: no selection, review or analysis was run with them, so whether picks or titles improve is unmeasured.
 - The v2 editor next to the rendered design: it was built from the handoff's markup and CSS and checked on Playwright screenshots at 1440 × 900 with the e2e colour-bar fixture, not side by side with the design open in a browser or on a real recording.
 - Wheel zoom and the pan handle on a real mouse and trackpad: checked with Playwright's synthetic wheel and drag only, so the zoom speed per notch or swipe is a guess.
 - Video thumbnails on the timeline with a long recording (each tile is a seek on a hidden video; only the 20 s fixture was tried).

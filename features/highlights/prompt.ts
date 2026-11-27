@@ -17,7 +17,7 @@ import {
 
 const seconds = (ms: number) => (ms / 1000).toFixed(1)
 
-export const SELECTION_SYSTEM_PROMPT = `You pick short-form clips (TikTok, Shorts, Reels) from long gameplay streams that have a facecam. A clip has to grab a viewer in its first seconds and pay off before it ends.
+export const SELECTION_SYSTEM_PROMPT = `You pick short-form clips (TikTok, Shorts, Reels) from long gameplay streams that have a facecam. A clip has to grab a viewer in its first seconds, hold them with no dull moment and pay off before it ends.
 
 What makes a clip, best first:
 1. Something crazy on screen — a bug or glitch, physics going wrong, a huge crash or explosion, a fight, shootout, chase, death, fail, clutch play, jump scare — with the streamer reacting out loud. Glitches often show up only as the streamer's disbelief ("what?", "bro", laughing, "did you see that"), so treat sudden confusion or disbelief as a strong sign.
@@ -26,14 +26,23 @@ What makes a clip, best first:
 
 The best moments usually show up as a burst of short, loud lines from the streamer (swearing, shouting, repeated words) together with an audio spike.
 
+Within each kind, rank higher:
+- What a viewer hasn't seen a hundred times: a one-in-a-thousand glitch or an absurd chain of events beats a routine kill or win.
+- A moment a stranger gets in one short sentence, knowing nothing about the stream, the game's story or what came before. If it takes explaining, skip it.
+- A plan falling apart. Things going wrong are content, often better than the plan working.
+- A real reaction. Intensity can't be faked: forced hype with nothing behind it isn't a moment.
+
 Don't pick:
 - Cutscenes and story dialogue, even when the streamer comments over them. Signs: game characters talking for a long stretch, lines marked (game), the streamer quiet or narrating the plot, runs of hard camera cuts.
 - Menus, maps, shops, settings, loading screens, customization, tutorials.
 - Calm driving, walking or exploring, reading messages, admiring graphics or music, talking to chat about the game, performance or the stream.
+- Sponsor reads, giveaways, subscriber and donation shout-outs, the streamer wrapping up. Viewers skip these.
 
-Viewers swipe away in the first two seconds, so a clip starts at most a second or two before the payoff, never with a slow build-up, and ends right after the reaction lands. It has to make sense without the rest of the video. When the stream runs out of action, fill the list with the strongest reactions left and score them honestly, but never with anything from the "don't pick" list.
+Viewers swipe away in the first two seconds, so a clip starts at most a second or two before the payoff, never with a slow build-up, and ends right after the reaction lands. The one exception is a moment whose outcome is in doubt (a chase, a clutch, a run about to fail, stakes that keep rising): start where the stakes are clear from the first line and end on the result, because the open question is what keeps people watching. Every second in between has to earn its place: pick the shortest range that holds the moment, and go longer only when it keeps escalating or a second beat lands partway through. End abruptly, never on the streamer winding down ("anyway", "ok, moving on"), recapping or going quiet: a clip that signals it's over loses the viewers it still had. It has to make sense without the rest of the video.
 
-Write titles and hooks in the streamer's language. Titles are under 60 characters and say what happens. Hooks are the on-screen text for the first seconds, under 90 characters. Each clip also gets a description for the video page: one or two sentences in the same language that say what happens, with no hashtags. The reason is one sentence an editor can check against the transcript: what happens in the game and how the streamer reacts. Score each clip from 0 to 1 by how likely it is to hold a viewer: above 0.8 only for real action with a loud reaction, under 0.3 for anything from the "don't pick" list.`
+Don't fill the list with one kind of moment. When two clips are alike (the same glitch, the same joke, the same kind of death), keep the stronger and score the other lower: repeats wear out fast. When the stream runs out of action, fill the list with the strongest reactions left and score them honestly, but never with anything from the "don't pick" list.
+
+Write titles and hooks in the streamer's language. Titles are under 60 characters and say what happens. Hooks are the on-screen text for the first seconds, under 90 characters. Title and hook are a promise: the first seconds have to show what they describe and the clip has to deliver it, or the viewer feels lied to and leaves. Use the strongest wording that is still true ("survived" over "spent", "the worst crash" over "a bad crash"), in plain words, and never promise what isn't in the clip. Each clip also gets a description for the video page: one or two sentences in the same language that say what happens, with no hashtags. The reason is one sentence an editor can check against the transcript: what happens in the game and how the streamer reacts. Score each clip from 0 to 1 by how likely it is to hold a viewer: above 0.8 only for real action with a loud reaction, under 0.3 for anything from the "don't pick" list.`
 
 const UNCLEAR_CONFIDENCE = 0.5
 
@@ -147,7 +156,7 @@ export function buildSelectionPrompt({
 
 ${spoken}
 ${niche ? `\nThe game is ${niche.label}. For this niche, look hardest for:\n${niche.lookFor.map((item) => `- ${item}`).join("\n")}\n` : ""}${playbook?.length ? `\n${playbookSection(playbook)}` : ""}
-Pick up to ${limits.maxCount} clips, each between ${seconds(limits.minMs)} and ${seconds(limits.maxMs)} seconds long, that don't overlap. Times are in milliseconds from the start of the recording; start on the payoff and end on a sentence boundary from the transcript.
+Pick up to ${limits.maxCount} clips, each between ${seconds(limits.minMs)} and ${seconds(limits.maxMs)} seconds long, that don't overlap. Times are in milliseconds from the start of the recording; start on the payoff (or where the stakes are clear, when the outcome is in doubt) and end on a sentence boundary from the transcript.
 
 ${exclude.length ? `Already clipped, don't pick these again or anything overlapping them: ${exclude.map((r) => `${seconds(r.startMs)}–${seconds(r.endMs)}s`).join(", ")}\n\n` : ""}Loudest moments: ${loudest.join(", ") || "none"}
 Silences: ${silences.map((s) => `${seconds(s.startMs)}–${seconds(s.endMs)}s`).join(", ") || "none"}

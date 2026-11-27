@@ -142,6 +142,7 @@ export async function eligibleInsightClips(
         reason: clip.reason,
         score: clip.score,
         niche: context.niche,
+        durationMs: range.endMs - range.startMs,
         transcript: transcriptLines(
           {
             words: context.words,
