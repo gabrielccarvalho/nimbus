@@ -12,6 +12,18 @@ import * as React from "react"
 
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
+import {
+  partIndexAt,
+  partsRange,
+  partStarts,
+  toSourceMs,
+} from "@/features/clips/parts"
+
+type Part = { startMs: number; endMs: number }
+
+// Jumping this early hides the frame after a part's end, which would
+// otherwise show for one paint before the seek lands.
+const PART_END_LEAD_MS = 30
 
 type VideoPlayerContextValue = {
   videoRef: React.RefObject<HTMLVideoElement | null>
@@ -25,6 +37,7 @@ type VideoPlayerContextValue = {
   seek: (ms: number) => void
   setMuted: (muted: boolean) => void
   sync: () => void
+  now: () => number
 }
 
 const VideoPlayerContext = React.createContext<VideoPlayerContextValue | null>(
@@ -68,6 +81,7 @@ type VideoPlayerProviderProps = {
   defaultMuted?: boolean
   onMutedChange?: (muted: boolean) => void
   onTimeUpdate?: (ms: number) => void
+  parts?: readonly Part[]
   children?: React.ReactNode
 }
 
@@ -76,6 +90,7 @@ function VideoPlayerProvider({
   defaultMuted = false,
   onMutedChange,
   onTimeUpdate,
+  parts,
   children,
 }: VideoPlayerProviderProps) {
   const videoRef = React.useRef<HTMLVideoElement | null>(null)
@@ -94,17 +109,76 @@ function VideoPlayerProvider({
     if (videoRef.current) videoRef.current.muted = muted
   }, [muted])
 
+  const joined = parts && parts.length > 1 ? parts : undefined
+  const joinedRef = React.useRef(joined)
+  const partRef = React.useRef(0)
+
+  const now = React.useCallback(() => {
+    const video = videoRef.current
+    if (!video) return 0
+    const mediaMs = Math.round(video.currentTime * 1000)
+    const list = joinedRef.current
+    if (!list) return mediaMs
+    let index = Math.min(partRef.current, list.length - 1)
+    const last = list.length - 1
+    if (
+      index < last &&
+      !video.paused &&
+      mediaMs >= list[index]!.endMs - PART_END_LEAD_MS
+    ) {
+      index += 1
+      partRef.current = index
+      video.currentTime = list[index]!.startMs / 1000
+      return partStarts(list)[index]!
+    }
+    const part = list[index]!
+    const offset = mediaMs - part.startMs
+    return (
+      partStarts(list)[index]! +
+      Math.min(
+        index === 0 ? offset : Math.max(0, offset),
+        index === last ? Infinity : part.endMs - part.startMs
+      )
+    )
+  }, [])
+
   const sync = React.useCallback(() => {
     const video = videoRef.current
     if (!video) return
-    const ms = Math.round(video.currentTime * 1000)
+    const ms = now()
     setCurrentMs(ms)
     setPaused(video.paused)
     if (Number.isFinite(video.duration)) {
-      setDurationMs(Math.round(video.duration * 1000))
+      const list = joinedRef.current
+      const mediaMs = Math.round(video.duration * 1000)
+      setDurationMs(
+        list ? partsRange(list).endMs + mediaMs - list.at(-1)!.endMs : mediaMs
+      )
     }
     onTimeUpdateRef.current?.(ms)
-  }, [])
+  }, [now])
+
+  const partsKey = JSON.stringify(joined ?? null)
+  React.useEffect(() => {
+    const list = JSON.parse(partsKey) as Part[] | null
+    joinedRef.current = list ?? undefined
+    const video = videoRef.current
+    if (list && video) {
+      const mediaMs = Math.round(video.currentTime * 1000)
+      const inside = list.findIndex(
+        (part) => mediaMs >= part.startMs && mediaMs < part.endMs
+      )
+      partRef.current =
+        inside !== -1
+          ? inside
+          : mediaMs < list[0]!.startMs
+            ? 0
+            : list.length - 1
+    } else {
+      partRef.current = 0
+    }
+    sync()
+  }, [partsKey, sync])
 
   React.useEffect(() => {
     if (paused) return
@@ -134,7 +208,10 @@ function VideoPlayerProvider({
         const video = videoRef.current
         if (!video) return
         const max = Number.isFinite(video.duration) ? video.duration : Infinity
-        video.currentTime = Math.min(max, Math.max(0, ms / 1000))
+        const list = joinedRef.current
+        if (list) partRef.current = partIndexAt(list, ms)
+        const mediaMs = list ? toSourceMs(list, ms) : ms
+        video.currentTime = Math.min(max, Math.max(0, mediaMs / 1000))
         sync()
       },
       setMuted: (next) => {
@@ -142,8 +219,9 @@ function VideoPlayerProvider({
         onMutedChange?.(next)
       },
       sync,
+      now,
     }),
-    [currentMs, durationMs, paused, muted, mutedProp, onMutedChange, sync]
+    [currentMs, durationMs, paused, muted, mutedProp, onMutedChange, sync, now]
   )
 
   return (

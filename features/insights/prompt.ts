@@ -10,6 +10,7 @@ export type NimbusInsightClip = {
   score: number
   niche: string
   durationMs: number
+  parts: number
   transcript: string
   effects: string[]
   beats: string[]
@@ -89,7 +90,7 @@ function describeClip(clip: InsightClip) {
   }
   return [
     `Clip ${clip.id} — "${clip.title}" (${clip.niche})`,
-    `Duration: ${seconds(clip.durationMs)}s`,
+    `Duration: ${seconds(clip.durationMs)}s${clip.parts > 1 ? `, joined from ${clip.parts} parts of the recording` : ""}`,
     `Hook: ${clip.hook || "none"}`,
     `Picked because: ${clip.reason || "n/a"} (score ${clip.score.toFixed(2)})`,
     ...numbers(clip),

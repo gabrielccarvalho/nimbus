@@ -1,6 +1,12 @@
 "use client"
 
-import { ArrowCounterClockwiseIcon, TrashIcon } from "@phosphor-icons/react"
+import {
+  ArrowCounterClockwiseIcon,
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  PlusIcon,
+  TrashIcon,
+} from "@phosphor-icons/react"
 import * as React from "react"
 
 import { Button } from "@/components/ui/button"
@@ -35,7 +41,7 @@ import {
   type MusicClip,
   type ReadyMusicTrack,
 } from "@/features/music/schema"
-import { formatDuration, formatTimestamp } from "@/lib/format"
+import { formatDuration, formatTimestamp, parseTimestamp } from "@/lib/format"
 
 const TRACK_STEP_MS = 100
 const SHAKE_INTENSITIES = [
@@ -529,6 +535,109 @@ export function VideoInspector({
             }
           />
         </div>
+      </div>
+    </>
+  )
+}
+
+function TimestampField({
+  label,
+  valueMs,
+  onCommit,
+}: {
+  label: string
+  valueMs: number
+  onCommit: (ms: number) => void
+}) {
+  const id = React.useId()
+  const [draft, setDraft] = React.useState<string | null>(null)
+  const commit = () => {
+    const ms = draft === null ? null : parseTimestamp(draft)
+    setDraft(null)
+    if (ms !== null && ms !== valueMs) onCommit(ms)
+  }
+  return (
+    <div className="grid flex-1 gap-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
+        inputMode="decimal"
+        className="h-8 font-mono"
+        value={draft ?? formatTimestamp(valueMs)}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") commit()
+        }}
+      />
+    </div>
+  )
+}
+
+export function PartInspector({
+  index,
+  count,
+  part,
+  onChange,
+  onMove,
+  onAdd,
+  onDelete,
+}: {
+  index: number
+  count: number
+  part: { startMs: number; endMs: number }
+  onChange: (part: { startMs: number; endMs: number }) => void
+  onMove: (to: number) => void
+  onAdd: () => void
+  onDelete: () => void
+}) {
+  return (
+    <>
+      <PopoverHeader>
+        <PopoverTitle>
+          Part {index + 1} of {count}
+        </PopoverTitle>
+        <PopoverDescription>
+          {seconds(part.endMs - part.startMs)} s of the recording. Parts play in
+          order, back to back.
+        </PopoverDescription>
+      </PopoverHeader>
+      <div className="flex gap-3">
+        <TimestampField
+          label="From"
+          valueMs={part.startMs}
+          onCommit={(startMs) => onChange({ ...part, startMs })}
+        />
+        <TimestampField
+          label="To"
+          valueMs={part.endMs}
+          onCommit={(endMs) => onChange({ ...part, endMs })}
+        />
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        <Button
+          type="button"
+          size="sm"
+          disabled={index === 0}
+          onClick={() => onMove(index - 1)}
+        >
+          <ArrowLeftIcon data-icon="inline-start" aria-hidden />
+          Earlier
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          disabled={index === count - 1}
+          onClick={() => onMove(index + 1)}
+        >
+          Later
+          <ArrowRightIcon data-icon="inline-end" aria-hidden />
+        </Button>
+        <Button type="button" size="sm" onClick={onAdd}>
+          <PlusIcon data-icon="inline-start" aria-hidden />
+          Add a part
+        </Button>
+        {count > 1 && <DeleteButton onDelete={onDelete} />}
       </div>
     </>
   )

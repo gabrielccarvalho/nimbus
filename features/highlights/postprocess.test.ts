@@ -283,3 +283,134 @@ describe("heuristic selector", () => {
     expect(candidates.every((c) => c.score === 0)).toBe(true)
   })
 })
+
+describe("candidates joined from parts", () => {
+  const joined = (
+    parts: { startMs: number; endMs: number }[],
+    score = 0.5
+  ): RawCandidate => ({
+    ...raw(parts[0]!.startMs, parts[0]!.endMs, score),
+    parts,
+  })
+
+  it("snaps every part and puts the clip on its own timeline", () => {
+    const [clip] = postprocessCandidates(
+      [
+        joined([
+          { startMs: 80_200, endMs: 89_500 },
+          { startMs: 9_900, endMs: 19_700 },
+        ]),
+      ],
+      context
+    )
+    expect(clip).toMatchObject({
+      startMs: 80_000,
+      endMs: 80_000 + 9600 + 9600,
+      parts: [
+        { startMs: 80_000, endMs: 89_600 },
+        { startMs: 10_000, endMs: 19_600 },
+      ],
+    })
+  })
+
+  it("drops parts that are too short or overlap an earlier one", () => {
+    const [clip] = postprocessCandidates(
+      [
+        joined([
+          { startMs: 0, endMs: 9_600 },
+          { startMs: 5_000, endMs: 12_000 },
+          { startMs: 30_000, endMs: 30_300 },
+          { startMs: 50_000, endMs: 59_600 },
+        ]),
+      ],
+      context
+    )
+    expect(clip?.parts).toEqual([
+      { startMs: 0, endMs: 9_600 },
+      { startMs: 50_000, endMs: 59_600 },
+    ])
+  })
+
+  it("shortens from the end when the parts run over the limit", () => {
+    const [clip] = postprocessCandidates(
+      [
+        joined([
+          { startMs: 0, endMs: 29_600 },
+          { startMs: 40_000, endMs: 69_600 },
+          { startMs: 80_000, endMs: 99_600 },
+        ]),
+      ],
+      context
+    )
+    expect(clip!.endMs - clip!.startMs).toBeLessThanOrEqual(limits.maxMs)
+    expect(clip?.parts).toEqual([
+      { startMs: 0, endMs: 29_600 },
+      { startMs: 40_000, endMs: 69_600 },
+    ])
+  })
+
+  it("is an ordinary clip when the parts continue each other", () => {
+    const [clip] = postprocessCandidates(
+      [
+        joined([
+          { startMs: 10_000, endMs: 20_000 },
+          { startMs: 20_000, endMs: 39_600 },
+        ]),
+      ],
+      context
+    )
+    expect(clip).toMatchObject({ startMs: 10_000, endMs: 39_600 })
+    expect(clip?.parts).toBeUndefined()
+  })
+
+  it("drops a joined clip that is too short to save", () => {
+    expect(
+      postprocessCandidates(
+        [
+          joined([
+            { startMs: 100_000, endMs: 104_600 },
+            { startMs: 110_000, endMs: 119_600 },
+          ]),
+        ],
+        { ...context, limits: { ...limits, minMs: 30_000 } }
+      )
+    ).toEqual([])
+  })
+
+  it("compares overlap part by part, so a wide compilation doesn't block what lies between", () => {
+    const clips = postprocessCandidates(
+      [
+        joined(
+          [
+            { startMs: 0, endMs: 9_600 },
+            { startMs: 100_000, endMs: 109_600 },
+          ],
+          0.9
+        ),
+        raw(40_000, 59_600, 0.8),
+        raw(0, 19_600, 0.7),
+      ],
+      context
+    )
+    expect(clips.map((c) => c.score)).toEqual([0.9, 0.8])
+  })
+
+  it("keeps beats that fall inside a part", () => {
+    const [clip] = postprocessCandidates(
+      [
+        {
+          ...joined([
+            { startMs: 0, endMs: 9_600 },
+            { startMs: 50_000, endMs: 59_600 },
+          ]),
+          beats: [
+            { ms: 52_000, kind: "weird" },
+            { ms: 30_000, kind: "weird" },
+          ],
+        },
+      ],
+      context
+    )
+    expect(clip?.beats).toEqual([{ ms: 52_000, kind: "weird" }])
+  })
+})

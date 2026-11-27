@@ -138,3 +138,64 @@ describe("VideoPlayer", () => {
     ).toHaveTextContent("Seek")
   })
 })
+
+describe("playing a clip's parts back to back", () => {
+  const parts = [
+    { startMs: 60_000, endMs: 70_000 },
+    { startMs: 10_000, endMs: 15_000 },
+  ]
+
+  function Probe() {
+    const player = useVideoPlayer()
+    return (
+      <>
+        <output data-testid="ms">{player.currentMs}</output>
+        <output data-testid="length">{player.durationMs}</output>
+        <button onClick={() => player.seek(72_000)}>Seek</button>
+        <button onClick={player.sync}>Sync</button>
+        <button onClick={player.play}>Play</button>
+      </>
+    )
+  }
+
+  function Joined() {
+    return (
+      <VideoPlayerProvider parts={parts}>
+        <VideoPlayerVideo src="/clip.mp4" />
+        <Probe />
+      </VideoPlayerProvider>
+    )
+  }
+
+  it("seeks to the place in the recording that the clip's timeline points at", async () => {
+    render(<Joined />)
+    await userEvent.click(screen.getByRole("button", { name: "Seek" }))
+    expect(time).toBe(12)
+    expect(screen.getByTestId("ms").textContent).toBe("72000")
+  })
+
+  it("jumps to the next part when one ends during playback", async () => {
+    render(<Joined />)
+    time = 69.99
+    await userEvent.click(screen.getByRole("button", { name: "Play" }))
+    await userEvent.click(screen.getByRole("button", { name: "Sync" }))
+    expect(time).toBe(10)
+    expect(screen.getByTestId("ms").textContent).toBe("70000")
+  })
+
+  it("stays on a part's last frame while paused", async () => {
+    render(<Joined />)
+    time = 69.99
+    await userEvent.click(screen.getByRole("button", { name: "Sync" }))
+    expect(time).toBe(69.99)
+    expect(screen.getByTestId("ms").textContent).toBe("69990")
+  })
+
+  it("counts the recording after the last part as the rest of the timeline", async () => {
+    render(<Joined />)
+    await userEvent.click(screen.getByRole("button", { name: "Sync" }))
+    expect(screen.getByTestId("length").textContent).toBe(
+      String(75_000 + 90_000 - 15_000)
+    )
+  })
+})

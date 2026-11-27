@@ -4,6 +4,7 @@ import { withTransaction, type Db } from "@/lib/db"
 import { AppError } from "@/lib/errors"
 
 import { NICHE_PROFILES, resolveNiche } from "../highlights/niches"
+import { clipParts, timelineItems, timelinePoints } from "../clips/parts"
 import { transcriptLines } from "../highlights/prompt"
 import type { Workspace } from "../accounts/repository"
 import { CLAUDE_KEY_MISSING_MESSAGE } from "../accounts/schema"
@@ -132,6 +133,11 @@ export async function eligibleInsightClips(
         startMs: publication.clipStartMs ?? clip.startMs,
         endMs: publication.clipEndMs ?? clip.endMs,
       }
+      const parts = clipParts(
+        publication.clipStartMs === null
+          ? clip
+          : { ...range, parts: publication.clipParts }
+      )
       const effects = clip.effects?.events ?? []
       const beats = clip.beats ?? []
       return {
@@ -143,20 +149,25 @@ export async function eligibleInsightClips(
         score: clip.score,
         niche: context.niche,
         durationMs: range.endMs - range.startMs,
-        transcript: transcriptLines(
-          {
-            words: context.words,
-            segments: context.segments,
-            language: context.language,
-          },
-          range.startMs,
-          range.endMs
-        ),
+        parts: parts.length,
+        transcript: parts
+          .map((part) =>
+            transcriptLines(
+              {
+                words: context.words,
+                segments: context.segments,
+                language: context.language,
+              },
+              part.startMs,
+              part.endMs
+            )
+          )
+          .join("\n(cut)\n"),
         effects: [...new Set(effects.map((effect) => effect.kind))],
         beats: [...new Set(beats.map((beat) => beat.kind))],
         moments: retentionMoments(snapshot.retention ?? [], range, {
-          words: context.words,
-          beats,
+          words: timelineItems(context.words, parts),
+          beats: parts.length > 1 ? timelinePoints(beats, parts) : beats,
           effects,
         }),
         views: snapshot.views,

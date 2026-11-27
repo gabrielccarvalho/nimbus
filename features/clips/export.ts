@@ -26,6 +26,7 @@ export async function exportContents(db: Db, projectId: string) {
       hook: clip.hook,
       startMs: clip.startMs,
       endMs: clip.endMs,
+      ...(clip.parts ? { parts: clip.parts } : {}),
       editedSinceRender: clip.status !== "rendered",
     })
   }

@@ -17,6 +17,15 @@ export function formatTimestamp(ms: number): string {
   return `${formatDuration(ms)}.${tenths}`
 }
 
+// "1:02:03.5", "2:03" or plain seconds.
+export function parseTimestamp(text: string): number | null {
+  const fields = text.trim().split(":")
+  if (fields.length === 0 || fields.length > 3) return null
+  if (fields.some((field) => !/^\d+(\.\d+)?$/.test(field))) return null
+  const seconds = fields.reduce((sum, field) => sum * 60 + Number(field), 0)
+  return Math.round(seconds * 1000)
+}
+
 const BYTE_UNITS = ["B", "KB", "MB", "GB", "TB"]
 
 export function formatBytes(bytes: number | null | undefined): string {

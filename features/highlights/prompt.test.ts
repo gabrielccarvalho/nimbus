@@ -204,3 +204,21 @@ describe("parseCandidatesJson description", () => {
     expect(b!.description).toBeUndefined()
   })
 })
+
+describe("clips joined from parts", () => {
+  it("asks for parts in the prompt a person pastes elsewhere", () => {
+    const prompt = buildManualPrompt(base)
+    expect(prompt).toContain("A clip can also join several parts")
+    expect(prompt).toContain('A clip joined from parts adds "parts":')
+  })
+
+  it("reads parts from pasted JSON", () => {
+    const [clip] = parseCandidatesJson(
+      '{"clips":[{"startMs":1000,"endMs":9000,"title":"t","parts":[{"startMs":"1000","endMs":9000},{"startMs":40000,"endMs":52000}]}]}'
+    )
+    expect(clip?.parts).toEqual([
+      { startMs: 1000, endMs: 9000 },
+      { startMs: 40_000, endMs: 52_000 },
+    ])
+  })
+})

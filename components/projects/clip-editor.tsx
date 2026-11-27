@@ -59,7 +59,17 @@ import {
   setClipStatusAction,
   updateClipAction,
 } from "@/features/clips/actions"
+import {
+  clipParts,
+  partsDuration,
+  partsRange,
+  remapItems,
+  resizeParts,
+  timelineItems,
+} from "@/features/clips/parts"
 import type { Clip } from "@/features/clips/repository"
+import { CLIP_MAX_EDIT_MS, CLIP_MIN_EDIT_MS } from "@/features/clips/schema"
+import type { TimeRange } from "@/features/analysis/schema"
 import { detectWebcam } from "@/features/layout/detect-webcam"
 import { withDetection } from "@/features/layout/geometry"
 import {
@@ -84,7 +94,7 @@ import type {
 import type { ProjectSettings } from "@/features/projects/schema"
 import { renderClipsAction } from "@/features/render/actions"
 import type { Word } from "@/features/transcription/schema"
-import { formatTimestamp } from "@/lib/format"
+import { formatDuration, formatTimestamp } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 import { ClipEffectsPreview } from "./clip-effects"
@@ -165,9 +175,10 @@ function useWide() {
 }
 
 export function ClipEditor(props: ClipEditorProps) {
+  const editor = useClipEdit(() => initialClipEdit(props.clip, props.settings))
   return (
-    <VideoPlayerProvider>
-      <Editor {...props} />
+    <VideoPlayerProvider parts={editor.edit.parts}>
+      <Editor {...props} editor={editor} />
     </VideoPlayerProvider>
   )
 }
@@ -192,17 +203,16 @@ function Editor({
   musicTracks,
   trendingMusic,
   loudness,
-}: ClipEditorProps) {
+  editor: { edit, patch, undo, redo },
+}: ClipEditorProps & { editor: ReturnType<typeof useClipEdit> }) {
   const router = useRouter()
   const snapshot = useProjectEvents(initialSnapshot)
   const [pending, startTransition] = React.useTransition()
   const [planning, startPlanning] = React.useTransition()
-  const { edit, patch, undo, redo } = useClipEdit(() =>
-    initialClipEdit(clip, settings)
-  )
   const {
     startMs,
     endMs,
+    parts,
     title,
     hook,
     styleRef,
@@ -295,15 +305,13 @@ function Editor({
     [src, sourceWidth, sourceHeight, patch]
   )
   const [autoDetect] = React.useState(() => needsWebcam(clip.layout))
+  const [firstPart] = React.useState(() => clipParts(clip)[0]!)
   React.useEffect(() => {
     if (!autoDetect) return
     const controller = new AbortController()
-    void findWebcam(
-      { startMs: clip.startMs, endMs: clip.endMs },
-      controller.signal
-    )
+    void findWebcam(firstPart, controller.signal)
     return () => controller.abort()
-  }, [autoDetect, findWebcam, clip.startMs, clip.endMs])
+  }, [autoDetect, findWebcam, firstPart])
 
   const cropChanged =
     JSON.stringify([
@@ -329,8 +337,8 @@ function Editor({
   const style = resolveCaptionStyle(styleRef)
   const durationMs = endMs - startMs
   const clipWords = React.useMemo(
-    () => wordsInRange(words, startMs, endMs),
-    [words, startMs, endMs]
+    () => wordsInRange(timelineItems(words, parts), startMs, endMs),
+    [words, parts, startMs, endMs]
   )
   const basePages = React.useMemo(
     () =>
@@ -403,14 +411,12 @@ function Editor({
     status: clipStatus,
   })
 
-  const trim = (nextStart: number, nextEnd: number) => {
-    const start = Math.max(0, Math.min(Math.round(nextStart), sourceDurationMs))
-    const end = Math.max(0, Math.min(Math.round(nextEnd), sourceDurationMs))
-    const length = end - start
-    setSelection(null)
-    patch((current) => ({
-      startMs: start,
-      endMs: end,
+  const fitted = (current: typeof edit, next: readonly TimeRange[]) => {
+    const range = partsRange(next)
+    const length = range.endMs - range.startMs
+    return {
+      ...range,
+      parts: next.map((part) => ({ ...part })),
       captions: {
         ...current.captions,
         pageEdits: {},
@@ -422,12 +428,44 @@ function Editor({
       },
       textOverlays: overlaysInClip(current.textOverlays, length),
       audioMix: musicInClip(current.audioMix, length),
+    }
+  }
+  const trim = (nextStart: number, nextEnd: number) => {
+    setSelection(null)
+    patch((current) =>
+      fitted(
+        current,
+        resizeParts(
+          current.parts,
+          { startMs: nextStart, endMs: nextEnd },
+          sourceDurationMs
+        )
+      )
+    )
+  }
+  const changeParts = (next: readonly TimeRange[]) => {
+    const length = partsDuration(next)
+    if (length < CLIP_MIN_EDIT_MS || length > CLIP_MAX_EDIT_MS) {
+      toast.error(
+        `Keep the clip between ${CLIP_MIN_EDIT_MS / 1000} s and ${CLIP_MAX_EDIT_MS / 60_000} min.`
+      )
+      return
+    }
+    setSelection(null)
+    patch((current) => ({
+      ...fitted(current, next),
+      effects: current.effects && {
+        ...current.effects,
+        events: remapItems(current.effects.events, current.parts, next),
+      },
     }))
   }
+  const timelineEndMs = endMs + sourceDurationMs - parts.at(-1)!.endMs
 
   const payload = {
     startMs,
     endMs,
+    parts: parts.length > 1 ? parts : null,
     title,
     hook,
     captionOverrides: {
@@ -533,6 +571,7 @@ function Editor({
       const planned = await planClipEffectsAction(projectId, clip.id, {
         startMs,
         endMs,
+        parts: parts.length > 1 ? parts : null,
         layout,
       })
       if (!planned.ok) {
@@ -632,7 +671,7 @@ function Editor({
           detecting={detecting}
           onFindWebcam={() => {
             setDetecting(true)
-            void findWebcam({ startMs, endMs })
+            void findWebcam(parts[0]!)
           }}
           onModeChange={(mode) =>
             editLayout(withLayoutMode(layout, mode, sourceWidth, sourceHeight))
@@ -662,7 +701,9 @@ function Editor({
                 ` · Clip ${siblings.index + 1} of ${siblings.count}`}{" "}
               ·{" "}
               <span className="font-mono tabular-nums">
-                {formatTimestamp(startMs)} → {formatTimestamp(endMs)}
+                {parts.length > 1
+                  ? `${parts.length} parts, ${formatDuration(durationMs)}`
+                  : `${formatTimestamp(startMs)} → ${formatTimestamp(endMs)}`}
               </span>
             </PageHeaderContext>
             <PageHeaderTitleLine>
@@ -992,8 +1033,11 @@ function Editor({
             }}
           />
           <ClipTimeline
+            parts={parts}
+            onPartsChange={changeParts}
+            recordingMs={sourceDurationMs}
             src={src}
-            sourceDurationMs={sourceDurationMs}
+            sourceDurationMs={timelineEndMs}
             startMs={startMs}
             endMs={endMs}
             onTrim={trim}

@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/progress"
 import { Timeline, TimelineRange } from "@/components/ui/timeline"
 import { approveAllCandidatesAction } from "@/features/clips/actions"
+import { clipParts } from "@/features/clips/parts"
 import type { Clip } from "@/features/clips/repository"
 import type { ProjectSnapshot } from "@/features/pipeline/snapshot"
 import { findMoreHighlightsAction } from "@/features/projects/actions"
@@ -403,17 +404,19 @@ function ClipsTimeline({
       className="h-10"
     >
       {audio && <AudioTimelineLayers audio={audio} />}
-      {clips.map((clip) => (
-        <TimelineRange
-          key={clip.id}
-          startMs={clip.startMs}
-          endMs={clip.endMs}
-          variant="clip"
-          title={clip.title}
-          className="pointer-events-auto cursor-pointer"
-          onClick={() => onOpen(clip.id)}
-        />
-      ))}
+      {clips.flatMap((clip) =>
+        clipParts(clip).map((part) => (
+          <TimelineRange
+            key={`${clip.id}:${part.startMs}`}
+            startMs={part.startMs}
+            endMs={part.endMs}
+            variant="clip"
+            title={clip.title}
+            className="pointer-events-auto cursor-pointer"
+            onClick={() => onOpen(clip.id)}
+          />
+        ))
+      )}
     </Timeline>
   )
 }

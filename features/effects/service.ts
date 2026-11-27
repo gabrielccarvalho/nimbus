@@ -2,6 +2,7 @@ import "server-only"
 
 import type { SignalsData } from "../analysis/schema"
 import { signalsRepository } from "../analysis/repository"
+import { clipParts, partsRange, partStarts } from "../clips/parts"
 import { clipRepository, type Clip } from "../clips/repository"
 import { renderableLayout, usesWebcam } from "../layout/schema"
 import { assetRepository } from "../projects/repository"
@@ -9,7 +10,7 @@ import type { Db } from "@/lib/db"
 
 import { zoomRegion, type FloatRect } from "./frame"
 import { planEffects } from "./planner"
-import type { Beat, ClipEffects } from "./schema"
+import { normalizeEffects, type Beat, type ClipEffects } from "./schema"
 
 const NO_SIGNALS: SignalsData = {
   silences: [],
@@ -32,7 +33,8 @@ function toZoomRegion(beat: Beat, region: FloatRect): Beat {
 export async function autoEffectsFor(
   db: Db,
   projectId: string,
-  clips: readonly Pick<Clip, "id" | "startMs" | "endMs" | "beats" | "layout">[]
+  clips: readonly (Pick<Clip, "id" | "startMs" | "endMs" | "beats" | "layout"> &
+    Partial<Pick<Clip, "parts">>)[]
 ): Promise<Map<string, ClipEffects>> {
   const signals = (await signalsRepository(db).get(projectId)) ?? NO_SIGNALS
   const source = await assetRepository(db).findByKind(projectId, "source")
@@ -42,14 +44,23 @@ export async function autoEffectsFor(
   for (const clip of clips) {
     const used = renderableLayout(clip.layout)
     const region = zoomRegion(used, size)
+    const parts = clipParts(clip)
+    const starts = partStarts(parts)
+    const beats = (clip.beats ?? []).map((beat) => toZoomRegion(beat, region))
+    const hasWebcam = usesWebcam(used.mode) && Boolean(used.webcamRect)
+    const events = parts.flatMap((part, i) => {
+      const shift = starts[i]! - part.startMs
+      return planEffects({ ...part, hasWebcam, signals, beats }).map(
+        (event) => ({
+          ...event,
+          startMs: event.startMs + shift,
+          endMs: event.endMs + shift,
+        })
+      )
+    })
     effects.set(clip.id, {
-      events: planEffects({
-        startMs: clip.startMs,
-        endMs: clip.endMs,
-        hasWebcam: usesWebcam(used.mode) && Boolean(used.webcamRect),
-        signals,
-        beats: (clip.beats ?? []).map((beat) => toZoomRegion(beat, region)),
-      }),
+      events:
+        parts.length > 1 ? normalizeEffects(events, partsRange(parts)) : events,
       edited: false,
     })
   }

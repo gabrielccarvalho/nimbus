@@ -109,6 +109,17 @@ import {
 } from "@/features/timeline/lanes"
 import { retimeMusic } from "@/features/timeline/music"
 import { splitCaption, splitItem, splitMusic } from "@/features/timeline/split"
+import type { TimeRange } from "@/features/analysis/schema"
+import {
+  CLIP_PART_MIN_MS,
+  movePart,
+  partIndexAt,
+  partsProblem,
+  partStarts,
+  splitPartAt,
+  toSourceMs,
+  trimPart,
+} from "@/features/clips/parts"
 import { formatTimestamp } from "@/lib/format"
 
 import { START_SLACK_MS } from "./clip-transport"
@@ -116,6 +127,7 @@ import { IconAction } from "./icon-action"
 import {
   CaptionInspector,
   EffectInspector,
+  PartInspector,
   effectLabel,
   MusicInspector,
   SourceInspector,
@@ -126,6 +138,7 @@ import { useClipHotkeys } from "./use-clip-hotkeys"
 
 export type TimelineSelection =
   | { type: "video" }
+  | { type: "part"; index: number }
   | { type: "source" }
   | { type: "effect"; index: number }
   | { type: "caption"; ref: CaptionRef }
@@ -154,6 +167,8 @@ const SPOT_MS = 1000
 const VIEW_GRIP_PX = 44
 const VIEW_ZOOM_MAX_PERCENT = 50
 const AXIS_PADDING_MS = 10_000
+const NEW_PART_MS = 5000
+const NEW_PART_GAP_MS = 1000
 const TICK_STEPS_MS = [500, 1000, 2000, 5000, 10_000, 30_000, 60_000]
 const MIN_TICK_PX = 64
 const LANE_BASELINE_STEP = 0.15
@@ -558,8 +573,11 @@ function ViewHandle({
 export function ClipTimeline({
   src,
   sourceDurationMs,
+  recordingMs,
   startMs,
   endMs,
+  parts,
+  onPartsChange,
   onTrim,
   hasWebcam,
   effects,
@@ -589,8 +607,11 @@ export function ClipTimeline({
 }: {
   src: string
   sourceDurationMs: number
+  recordingMs: number
   startMs: number
   endMs: number
+  parts: readonly TimeRange[]
+  onPartsChange(parts: TimeRange[]): void
   onTrim(startMs: number, endMs: number): void
   hasWebcam: boolean
   effects: ClipEffects | null
@@ -667,7 +688,18 @@ export function ClipTimeline({
     () => thumbTiles(axisStartMs, axisEndMs),
     [axisStartMs, axisEndMs]
   )
-  const frames = useThumbnails(src, tiles)
+  const sampleOf = (tile: { sampleMs: number }) =>
+    Math.round(toSourceMs(parts, tile.sampleMs))
+  const frames = useThumbnails(
+    src,
+    tiles.map((tile) => ({ atMs: sampleOf(tile), sampleMs: sampleOf(tile) }))
+  )
+  const joined = parts.length > 1
+  const starts = partStarts(parts)
+  const [partDraft, setPartDraft] = React.useState<
+    ({ index: number } & Span) | null
+  >(null)
+  const partDraftRef = React.useRef<typeof partDraft>(null)
 
   const library = React.useMemo(
     () => [
@@ -1107,6 +1139,8 @@ export function ClipTimeline({
       onTextOverlaysChange(textOverlays.filter((_, i) => i !== selection.index))
     } else if (selection.type === "music") {
       setMusic(audioMix.music.filter((_, i) => i !== selection.index))
+    } else if (selection.type === "part" && joined) {
+      onPartsChange(parts.filter((_, i) => i !== selection.index))
     } else {
       return
     }
@@ -1115,7 +1149,47 @@ export function ClipTimeline({
   const deletable =
     selection !== null &&
     selection.type !== "video" &&
-    selection.type !== "source"
+    selection.type !== "source" &&
+    (selection.type !== "part" || joined)
+
+  const movePartTo = (index: number, to: number) => {
+    onPartsChange(movePart(parts, index, to))
+    select({ type: "part", index: to })
+  }
+  const addPart = () => {
+    const last = parts.at(-1)!
+    const taken = [...parts].sort((a, b) => a.startMs - b.startMs)
+    let from = last.endMs + NEW_PART_GAP_MS
+    for (const part of taken) {
+      if (from < part.endMs && part.startMs < from + NEW_PART_MS) {
+        from = part.endMs + NEW_PART_GAP_MS
+      }
+    }
+    if (from + NEW_PART_MS > recordingMs) {
+      toast.error("No room after the last part. Set a part's times instead.")
+      return
+    }
+    onPartsChange([...parts, { startMs: from, endMs: from + NEW_PART_MS }])
+    select({ type: "part", index: parts.length })
+  }
+  const commitPart = () => {
+    const next = partDraftRef.current
+    partDraftRef.current = null
+    setPartDraft(null)
+    if (!next) return
+    const at = starts[next.index]!
+    const part = parts[next.index]!
+    onPartsChange(
+      trimPart(
+        parts,
+        next.index,
+        next.startMs - at,
+        next.endMs - (at + part.endMs - part.startMs),
+        recordingMs
+      )
+    )
+    select({ type: "part", index: next.index })
+  }
 
   const splitSelected = (): (() => void) | undefined => {
     if (selection?.type === "effect") {
@@ -1148,6 +1222,20 @@ export function ClipTimeline({
     if (selection?.type === "caption") {
       const next = splitCaption(captions, selection.ref, atMs, MIN_CAPTION_MS)
       return next && (() => onCaptionsChange(next))
+    }
+    if (
+      (!selection || selection.type === "video" || selection.type === "part") &&
+      currentMs > startMs &&
+      currentMs < endMs
+    ) {
+      const next = splitPartAt(parts, currentMs)
+      return (
+        next &&
+        (() => {
+          onPartsChange(next)
+          select({ type: "part", index: partIndexAt(next, currentMs) })
+        })
+      )
     }
     return undefined
   }
@@ -1222,6 +1310,7 @@ export function ClipTimeline({
     selectedCaption !== undefined ||
     selectedText !== undefined ||
     selectedMusic !== undefined ||
+    (selection?.type === "part" && parts[selection.index] !== undefined) ||
     selection?.type === "video" ||
     selection?.type === "source"
 
@@ -1267,6 +1356,10 @@ export function ClipTimeline({
             <CaretDownIcon data-icon="inline-end" aria-hidden />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="min-w-44">
+            <DropdownMenuItem onClick={addPart}>
+              <FilmStripIcon aria-hidden />
+              Part of the recording
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={addText}>
               <TextTIcon aria-hidden />
               Text
@@ -1841,7 +1934,7 @@ export function ClipTimeline({
                     className="pointer-events-none absolute inset-x-0 inset-y-1 flex gap-0.5 overflow-hidden rounded-lg"
                   >
                     {tiles.map((tile) => {
-                      const frame = frames.get(tile.atMs)
+                      const frame = frames.get(sampleOf(tile))
                       return (
                         <span
                           key={tile.atMs}
@@ -1873,30 +1966,80 @@ export function ClipTimeline({
                     durationMs={axisMs}
                     className={TRACK}
                   >
-                    <TimelineBlock
-                      ref={anchorFor({ type: "video" })}
-                      aria-label={`Clip ${formatTimestamp(shown.startMs)} → ${formatTimestamp(shown.endMs)}`}
-                      startMs={shown.startMs - axisStartMs}
-                      endMs={shown.endMs - axisStartMs}
-                      minMs={CLIP_MIN_EDIT_MS}
-                      snapMs={[currentMs - axisStartMs]}
-                      variant="clip"
-                      selected={isSelected({ type: "video" })}
-                      onSelect={() => select({ type: "video" })}
-                      onKeyDown={(event) =>
-                        focusInspector({ type: "video" }, event)
-                      }
-                      onChange={(s, e) => {
-                        if (e - s > CLIP_MAX_EDIT_MS) return
-                        const next = {
-                          startMs: s + axisStartMs,
-                          endMs: e + axisStartMs,
+                    {joined &&
+                      parts.map((part, index) => {
+                        const at = starts[index]!
+                        const block =
+                          partDraft?.index === index
+                            ? partDraft
+                            : {
+                                startMs: at,
+                                endMs: at + part.endMs - part.startMs,
+                              }
+                        const target = { type: "part", index } as const
+                        return (
+                          <TimelineBlock
+                            key={index}
+                            ref={anchorFor(target)}
+                            data-testid="clip-part"
+                            aria-label={`Part ${index + 1} of ${parts.length}, ${formatTimestamp(part.startMs)} → ${formatTimestamp(part.endMs)} in the recording`}
+                            startMs={block.startMs - axisStartMs}
+                            endMs={block.endMs - axisStartMs}
+                            minMs={CLIP_PART_MIN_MS}
+                            snapMs={[currentMs - axisStartMs]}
+                            variant="clip"
+                            selected={isSelected(target)}
+                            onSelect={() => select(target)}
+                            onDelete={deleteSelected}
+                            onKeyDown={(event) => focusInspector(target, event)}
+                            onChange={(s, e) => {
+                              const length = e - s
+                              const before = part.endMs - part.startMs
+                              // A drag that keeps the length is a move, and
+                              // parts are reordered from the inspector.
+                              if (length === before) return
+                              const next = {
+                                index,
+                                startMs: s + axisStartMs,
+                                endMs: e + axisStartMs,
+                              }
+                              partDraftRef.current = next
+                              setPartDraft(next)
+                            }}
+                            onCommit={commitPart}
+                          >
+                            <span className="pointer-events-none truncate text-[11px] font-medium">
+                              {index + 1}
+                            </span>
+                          </TimelineBlock>
+                        )
+                      })}
+                    {!joined && (
+                      <TimelineBlock
+                        ref={anchorFor({ type: "video" })}
+                        aria-label={`Clip ${formatTimestamp(shown.startMs)} → ${formatTimestamp(shown.endMs)}`}
+                        startMs={shown.startMs - axisStartMs}
+                        endMs={shown.endMs - axisStartMs}
+                        minMs={CLIP_MIN_EDIT_MS}
+                        snapMs={[currentMs - axisStartMs]}
+                        variant="clip"
+                        selected={isSelected({ type: "video" })}
+                        onSelect={() => select({ type: "video" })}
+                        onKeyDown={(event) =>
+                          focusInspector({ type: "video" }, event)
                         }
-                        draftRef.current = next
-                        setDraft(next)
-                      }}
-                      onCommit={commitTrim}
-                    />
+                        onChange={(s, e) => {
+                          if (e - s > CLIP_MAX_EDIT_MS) return
+                          const next = {
+                            startMs: s + axisStartMs,
+                            endMs: e + axisStartMs,
+                          }
+                          draftRef.current = next
+                          setDraft(next)
+                        }}
+                        onCommit={commitTrim}
+                      />
+                    )}
                   </TimelineTrack>
                 </div>
 
@@ -2182,6 +2325,24 @@ export function ClipTimeline({
             )}
             {selection?.type === "video" && (
               <VideoInspector startMs={startMs} endMs={endMs} onTrim={onTrim} />
+            )}
+            {selection?.type === "part" && parts[selection.index] && (
+              <PartInspector
+                index={selection.index}
+                count={parts.length}
+                part={parts[selection.index]!}
+                onChange={(part) => {
+                  const next = parts.map((p, i) =>
+                    i === selection.index ? part : p
+                  )
+                  const problem = partsProblem(next, recordingMs)
+                  if (problem) toast.error(problem)
+                  else onPartsChange(next)
+                }}
+                onMove={(to) => movePartTo(selection.index, to)}
+                onAdd={addPart}
+                onDelete={deleteSelected}
+              />
             )}
           </PopoverContent>
         )}

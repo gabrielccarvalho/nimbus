@@ -6,7 +6,7 @@ export const EDITOR_SHORTCUTS: readonly Shortcut[] = [
   { keys: ["⇧", "←", "→"], label: "Step one second" },
   { keys: ["I"], label: "Start the clip at the playhead" },
   { keys: ["O"], label: "End the clip at the playhead" },
-  { keys: ["S"], label: "Split the selected item" },
+  { keys: ["S"], label: "Split the selected item, or the clip into parts" },
   { keys: ["Delete"], label: "Remove the selected item" },
   { keys: ["A"], label: "Approve" },
   { keys: ["X"], label: "Reject" },

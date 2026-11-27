@@ -13,6 +13,7 @@ import {
   VideoPlayerProvider,
   VideoPlayerVideo,
 } from "@/components/ui/video-player"
+import { partsRange } from "@/features/clips/parts"
 import type { TextOverlay } from "@/features/captions/overlay"
 import type { CaptionPage } from "@/features/captions/pages"
 import type { ClipEffects } from "@/features/effects/schema"
@@ -58,6 +59,7 @@ const spoken: CaptionPage[] = [
 type State = {
   startMs: number
   endMs: number
+  parts?: { startMs: number; endMs: number }[]
   effects: ClipEffects | null
   captions: CaptionState
   captionsEnabled: boolean
@@ -86,14 +88,20 @@ function setup(initial: Partial<State> = {}, hasWebcam = true) {
     })
     const set = (patch: Partial<State>) =>
       setState((current) => ({ ...current, ...patch }))
+    const parts = state.parts ?? [
+      { startMs: state.startMs, endMs: state.endMs },
+    ]
     return (
-      <VideoPlayerProvider>
+      <VideoPlayerProvider parts={parts}>
         <VideoPlayerVideo data-testid="source" />
         <ClipTimeline
           src="/media/proxy.mp4"
           sourceDurationMs={120_000}
+          recordingMs={120_000}
           startMs={state.startMs}
           endMs={state.endMs}
+          parts={parts}
+          onPartsChange={(next) => set({ ...partsRange(next), parts: next })}
           onTrim={(startMs, endMs) => set({ startMs, endMs })}
           hasWebcam={hasWebcam}
           effects={state.effects}
@@ -566,6 +574,96 @@ describe("ClipTimeline editing keys", () => {
     setup()
     playTo(22_400)
     expect(screen.getByTestId("timeline-playhead")).toHaveTextContent("0:12.4")
+  })
+})
+
+describe("a clip joined from parts", () => {
+  const parts = [
+    { startMs: 60_000, endMs: 70_000 },
+    { startMs: 10_000, endMs: 15_000 },
+  ]
+  const joined = { startMs: 60_000, endMs: 75_000, parts }
+
+  it("splits the clip at the playhead and deletes the part that isn't wanted", async () => {
+    const { latest } = setup()
+    playTo(22_000)
+    await userEvent.keyboard("s")
+    await waitFor(() =>
+      expect(latest().parts).toEqual([
+        { startMs: 10_000, endMs: 22_000 },
+        { startMs: 22_000, endMs: 40_000 },
+      ])
+    )
+    expect(latest().selection).toEqual({ type: "part", index: 1 })
+    expect(screen.getAllByTestId("clip-part")).toHaveLength(2)
+
+    await userEvent.keyboard("{Delete}")
+    await waitFor(() =>
+      expect(latest()).toMatchObject({
+        startMs: 10_000,
+        endMs: 22_000,
+        parts: [{ startMs: 10_000, endMs: 22_000 }],
+      })
+    )
+  })
+
+  it("shows every part where it sits on the clip's timeline", () => {
+    setup(joined)
+    const second = screen.getByRole("button", {
+      name: "Part 2 of 2, 0:10.0 → 0:15.0 in the recording",
+    })
+    expect(parseFloat(second.style.left)).toBeCloseTo(
+      ((70_000 - 50_000) / (85_000 - 50_000)) * 100,
+      2
+    )
+  })
+
+  it("reorders a part from its inspector", async () => {
+    const { latest } = setup({
+      ...joined,
+      selection: { type: "part", index: 1 },
+    })
+    expect(await screen.findByText("Part 2 of 2")).toBeInTheDocument()
+    await userEvent.click(screen.getByRole("button", { name: "Earlier" }))
+    await waitFor(() =>
+      expect(latest()).toMatchObject({
+        startMs: 10_000,
+        endMs: 25_000,
+        parts: [parts[1], parts[0]],
+        selection: { type: "part", index: 0 },
+      })
+    )
+  })
+
+  it("sets where a part comes from in the recording", async () => {
+    const { latest } = setup({
+      ...joined,
+      selection: { type: "part", index: 1 },
+    })
+    const from = await screen.findByLabelText("From")
+    await userEvent.clear(from)
+    await userEvent.type(from, "0:11{Enter}")
+    await waitFor(() =>
+      expect(latest().parts?.[1]).toEqual({ startMs: 11_000, endMs: 15_000 })
+    )
+
+    const to = screen.getByLabelText("To")
+    await userEvent.clear(to)
+    await userEvent.type(to, "1:05{Enter}")
+    expect(latest().parts?.[1]).toEqual({ startMs: 11_000, endMs: 15_000 })
+  })
+
+  it("adds a part after the last one", async () => {
+    const { latest } = setup({
+      ...joined,
+      selection: { type: "part", index: 1 },
+    })
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Add a part" })
+    )
+    await waitFor(() =>
+      expect(latest().parts?.[2]).toEqual({ startMs: 16_000, endMs: 21_000 })
+    )
   })
 })
 

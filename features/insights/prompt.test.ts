@@ -16,6 +16,7 @@ function clip(overrides: Partial<NimbusInsightClip> = {}): NimbusInsightClip {
     score: 0.8,
     niche: "FPS",
     durationMs: 22_000,
+    parts: 1,
     transcript: "[0.0–2.0] go go",
     effects: ["zoom"],
     beats: ["hook"],

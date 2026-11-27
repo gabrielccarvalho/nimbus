@@ -16,6 +16,13 @@ import { musicRepository } from "../music/repository"
 import { musicInClip } from "../music/schema"
 import { assetRepository, projectRepository } from "../projects/repository"
 import { transcriptRepository } from "../transcription/repository"
+import {
+  clipParts,
+  mergeParts,
+  partsProblem,
+  partsRange,
+  storedParts,
+} from "./parts"
 import { clipRepository } from "./repository"
 import {
   CLIP_MAX_EDIT_MS,
@@ -166,19 +173,21 @@ export async function updateClip(
   }
   const source = await assetRepository(db).findByKind(projectId, "source")
   const durationMs = source?.durationMs ?? 0
-  const length = edit.endMs - edit.startMs
-  if (edit.endMs > durationMs || length <= 0) {
-    throw new AppError("VALIDATION", "The clip must stay inside the recording")
-  }
+  const parts = mergeParts(
+    edit.parts ?? [{ startMs: edit.startMs, endMs: edit.endMs }]
+  )
+  const problem = partsProblem(parts, durationMs)
+  if (problem) throw new AppError("VALIDATION", problem)
+  const range = partsRange(parts)
+  const length = range.endMs - range.startMs
   if (length < CLIP_MIN_EDIT_MS || length > CLIP_MAX_EDIT_MS) {
     throw new AppError(
       "VALIDATION",
       `Clips must be between ${CLIP_MIN_EDIT_MS / 1000} and ${CLIP_MAX_EDIT_MS / 1000} seconds long`
     )
   }
-  const trimmed = edit.startMs !== clip.startMs || edit.endMs !== clip.endMs
+  const trimmed = !isDeepStrictEqual(parts, [...clipParts(clip)])
   const relaidOut = !isDeepStrictEqual(edit.layout, clip.layout)
-  const range = { startMs: edit.startMs, endMs: edit.endMs }
   const stored = edit.effects ?? clip.effects
   let effects: ClipEffects | null | undefined
   if (stored?.edited) {
@@ -190,7 +199,7 @@ export async function updateClip(
     effects =
       (
         await autoEffectsFor(db, projectId, [
-          { ...clip, ...range, layout: edit.layout },
+          { ...clip, ...storedParts(parts), layout: edit.layout },
         ])
       ).get(clip.id) ?? null
   } else if (edit.effects) {
@@ -200,8 +209,7 @@ export async function updateClip(
     }
   }
   const patch = {
-    startMs: edit.startMs,
-    endMs: edit.endMs,
+    ...storedParts(parts),
     title: edit.title,
     hook: edit.hook,
     captionOverrides: {

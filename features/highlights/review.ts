@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import type { TimeRange } from "../analysis/schema"
+import { clipParts, partsDuration } from "../clips/parts"
 import { playbookSection } from "../insights/playbook"
 import { beatSchema, type Beat } from "../effects/schema"
 import { languageName, transcriptLines } from "./prompt"
@@ -35,6 +36,8 @@ Then tighten the clip for retention:
 - title and hook: say what is visible, concretely ("car launches into orbit off a curb"), in the language you are told. The hook is on-screen text for the first seconds, under 90 characters, and must make people want to see what happens. Both are a promise the first seconds have to keep: use the strongest wording the frames still back up, in plain words, and nothing the clip doesn't show.
 - reason: one sentence an editor can check: what the frames show and how the streamer reacts.
 - beats: up to 4 moments, each { ms, kind }. "reaction" where the streamer's face in the webcam visibly reacts (shock, laughter, screaming); "weird" where something strange or impactful happens in the game, with x and y (0–1 of the full frame) for where on screen. Use frame times.
+
+A candidate made of several parts plays them back to back as one clip, and its frames come from every part. Score it as one clip: the first part has to hook, every part has to earn its place, and the cut between them has to make sense to someone who never saw the stream. Its parts are fixed, so return its startMs and endMs as given.
 
 Return every candidate you were given, by id, even the bad ones, with an honest score.`
 
@@ -77,10 +80,22 @@ export function reviewPoolSize(maxCount: number) {
 }
 
 export function reviewFrameTimes(
-  { startMs, endMs }: Pick<Candidate, "startMs" | "endMs">,
+  candidate: Pick<Candidate, "startMs" | "endMs" | "parts">,
   durationMs: number,
   count = REVIEW_FRAME_COUNT
-) {
+): number[] {
+  const parts = clipParts(candidate)
+  if (parts.length > 1) {
+    const total = partsDuration(parts)
+    return parts.flatMap((part) =>
+      reviewFrameTimes(
+        { startMs: part.startMs + REVIEW_LEAD_MS, endMs: part.endMs },
+        durationMs,
+        Math.max(2, Math.round((count * (part.endMs - part.startMs)) / total))
+      )
+    )
+  }
+  const { startMs, endMs } = candidate
   const from = Math.max(0, startMs - REVIEW_LEAD_MS)
   const to = Math.min(durationMs, endMs)
   if (count <= 1 || to <= from) return [from]
@@ -113,9 +128,24 @@ export function buildReviewContent(
     },
   ]
   batch.forEach(({ candidate, times, frames }, index) => {
+    const parts = clipParts(candidate)
+    const joined = parts.length > 1
     blocks.push({
       type: "text",
-      text: `Candidate id ${firstId + index}: ${candidate.startMs}–${candidate.endMs} ms. First pass said: "${candidate.title}" — ${candidate.reason}\nTranscript:\n${transcriptLines(input, times[0] ?? candidate.startMs, candidate.endMs)}\nFrames:`,
+      text: `Candidate id ${firstId + index}: ${candidate.startMs}–${candidate.endMs} ms${joined ? `, made of ${parts.length} parts played back to back: ${parts.map((part) => `${part.startMs}–${part.endMs} ms`).join(", ")}` : ""}. First pass said: "${candidate.title}" — ${candidate.reason}\nTranscript:\n${
+        joined
+          ? parts
+              .map(
+                (part, i) =>
+                  `Part ${i + 1}:\n${transcriptLines(input, part.startMs, part.endMs)}`
+              )
+              .join("\n")
+          : transcriptLines(
+              input,
+              times[0] ?? candidate.startMs,
+              candidate.endMs
+            )
+      }\nFrames:`,
     })
     frames.forEach((data, i) => {
       blocks.push({ type: "text", text: `${times[i]} ms` })
@@ -163,6 +193,23 @@ export function applyReviews(
     const review = byId.get(id)
     if (!review) {
       return { ...candidate, score: candidate.score * UNREVIEWED_PENALTY }
+    }
+    const parts = clipParts(candidate)
+    if (parts.length > 1) {
+      return {
+        ...candidate,
+        title: review.title.trim() || candidate.title,
+        hook: review.hook.trim() || candidate.hook,
+        reason: review.reason.trim() || candidate.reason,
+        score: review.score,
+        ...(review.beats
+          ? {
+              beats: parts.flatMap((part) =>
+                normalizeBeats(review.beats, part)
+              ),
+            }
+          : {}),
+      }
     }
     const within = (ms: number) =>
       Number.isFinite(ms) &&

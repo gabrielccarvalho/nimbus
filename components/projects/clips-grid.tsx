@@ -161,6 +161,7 @@ function ClipTile({
           <span className="font-mono tabular-nums">
             {formatDuration(clip.startMs)}
           </span>
+          {clip.parts && <span>{clip.parts.length} parts</span>}
         </span>
         {publication && publication.status !== "removed" && (
           <PublicationStatusView publication={publication} />

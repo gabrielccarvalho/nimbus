@@ -1,10 +1,12 @@
 import { z } from "zod"
 
+import { timeRangeSchema } from "../analysis/schema"
 import { textOverlaysSchema } from "../captions/overlay"
 import { CAPTION_BASELINE_RANGE } from "../captions/styles"
 import { clipEffectsSchema } from "../effects/schema"
 import { layoutInputSchema } from "../layout/schema"
 import { audioMixSchema } from "../music/schema"
+import { CLIP_MAX_PARTS } from "./parts"
 
 export const clipStatuses = [
   "candidate",
@@ -93,9 +95,16 @@ export const clipTextSchema = z.object({
 export const CLIP_MIN_EDIT_MS = 3_000
 export const CLIP_MAX_EDIT_MS = 180_000
 
+export const clipPartsSchema = z
+  .array(timeRangeSchema)
+  .min(1)
+  .max(CLIP_MAX_PARTS)
+  .nullish()
+
 export const clipEditSchema = clipTextSchema.extend({
   startMs: z.number().int().nonnegative(),
   endMs: z.number().int().positive(),
+  parts: clipPartsSchema,
   captionOverrides: captionOverridesSchema,
   layout: layoutInputSchema,
   effects: clipEffectsSchema.nullable().default(null),
@@ -105,7 +114,7 @@ export const clipEditSchema = clipTextSchema.extend({
 export type ClipEdit = z.infer<typeof clipEditSchema>
 
 export const clipPlanSchema = clipEditSchema
-  .pick({ startMs: true, endMs: true, layout: true })
+  .pick({ startMs: true, endMs: true, parts: true, layout: true })
   .refine((plan) => plan.endMs > plan.startMs, {
     message: "The clip must end after it starts",
     path: ["endMs"],

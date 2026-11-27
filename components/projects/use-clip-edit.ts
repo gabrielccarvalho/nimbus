@@ -2,7 +2,9 @@
 
 import * as React from "react"
 
+import type { TimeRange } from "@/features/analysis/schema"
 import type { TextOverlay } from "@/features/captions/overlay"
+import { clipParts } from "@/features/clips/parts"
 import type { Clip } from "@/features/clips/repository"
 import type { ClipEffects } from "@/features/effects/schema"
 import type { LayoutInput } from "@/features/layout/schema"
@@ -13,6 +15,7 @@ import type { CaptionState } from "@/features/timeline/captions"
 export type ClipEditState = {
   startMs: number
   endMs: number
+  parts: TimeRange[]
   title: string
   hook: string
   styleRef: ProjectSettings["captionStyle"]
@@ -104,6 +107,7 @@ export function initialClipEdit(
   return {
     startMs: clip.startMs,
     endMs: clip.endMs,
+    parts: clipParts(clip).map((part) => ({ ...part })),
     title: clip.title,
     hook: clip.hook,
     styleRef: clip.captionOverrides?.style ?? settings.captionStyle,

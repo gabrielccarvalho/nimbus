@@ -13,6 +13,7 @@ import { signalsRepository } from "../analysis/repository"
 import { clipCaptionLanes, clipCaptionsEnabled } from "../captions/pages"
 import { speakerTranscriptWords } from "../captions/speaker"
 import { resolveCaptionStyle } from "../captions/styles"
+import { clipParts, timelineItems, type Parted } from "../clips/parts"
 import { clipRepository } from "../clips/repository"
 import { NICHE_PROFILES, resolveNiche } from "../highlights/niches"
 import { loadPlaybook } from "../insights/repository"
@@ -254,7 +255,12 @@ export async function getProjectClips(id: string) {
       return [
         clip.id,
         {
-          lanes: clipCaptionLanes(words, clip, style, null),
+          lanes: clipCaptionLanes(
+            timelineItems(words, clipParts(clip)),
+            clip,
+            style,
+            null
+          ),
           style,
           enabled: clipCaptionsEnabled(clip, project.settings),
         },
@@ -349,17 +355,37 @@ const LOUDNESS_PADDING_MS = 3 * 60_000
 function sourceLoudness(
   lufs: readonly number[],
   intervalMs: number,
-  clip: { startMs: number; endMs: number }
+  clip: Parted
 ) {
-  const from = Math.max(
-    0,
-    Math.floor((clip.startMs - LOUDNESS_PADDING_MS) / intervalMs)
-  )
-  const to = Math.ceil((clip.endMs + LOUDNESS_PADDING_MS) / intervalMs)
+  const parts = clipParts(clip)
+  const first = parts[0]!
+  const last = parts.at(-1)!
+  const at = (ms: number) => Math.max(0, Math.floor(ms / intervalMs))
+  const from = at(first.startMs - LOUDNESS_PADDING_MS)
+  const to = Math.ceil((last.endMs + LOUDNESS_PADDING_MS) / intervalMs)
+  if (parts.length === 1) {
+    return {
+      fromMs: from * intervalMs,
+      intervalMs,
+      values: normalizeLoudness(lufs.slice(from, to)),
+    }
+  }
+  // Laid out on the clip's timeline: the parts' loudness back to back, with
+  // the recording around the first and last part on either side.
+  const lead = lufs.slice(from, at(first.startMs))
   return {
-    fromMs: from * intervalMs,
+    fromMs: first.startMs - lead.length * intervalMs,
     intervalMs,
-    values: normalizeLoudness(lufs.slice(from, to)),
+    values: normalizeLoudness([
+      ...lead,
+      ...parts.flatMap((part) =>
+        lufs.slice(
+          at(part.startMs),
+          Math.max(at(part.startMs) + 1, at(part.endMs))
+        )
+      ),
+      ...lufs.slice(at(last.endMs), to),
+    ]),
   }
 }
 

@@ -37,6 +37,39 @@ export function seekFor(startMs: number) {
   return { seekMs, offsetMs: startMs - seekMs }
 }
 
+// Each part is its own input of the same file, so every one gets an input
+// seek and a part hours into the recording costs no more than the first.
+export function joinedSource(parts: readonly TimeRange[]) {
+  const trims = parts.map((part) => {
+    const { offsetMs } = seekFor(part.startMs)
+    return `trim=start=${seconds(offsetMs)}:end=${seconds(offsetMs + part.endMs - part.startMs)}`
+  })
+  const each = (kind: "v" | "a") =>
+    trims.map(
+      (trim, i) =>
+        `[${i}:${kind}]${kind === "a" ? "a" : ""}${trim},${kind === "a" ? "a" : ""}setpts=PTS-STARTPTS[p${kind}${i}]`
+    )
+  const labels = (kind: "v" | "a") =>
+    trims.map((_, i) => `[p${kind}${i}]`).join("")
+  return {
+    inputs: parts.length,
+    lines: [
+      ...each("v"),
+      `${labels("v")}concat=n=${parts.length}:v=1:a=0[vjoin]`,
+      ...each("a"),
+      `${labels("a")}concat=n=${parts.length}:v=0:a=1[ajoin]`,
+    ],
+    video: "[vjoin]setpts=PTS-STARTPTS",
+    audio: "[ajoin]asetpts=PTS-STARTPTS",
+  }
+}
+
+type Joined = ReturnType<typeof joinedSource>
+
+export const isJoined = (
+  parts: readonly TimeRange[] | null | undefined
+): parts is readonly TimeRange[] => (parts?.length ?? 0) > 1
+
 const STEREO_48K = "aformat=sample_rates=48000:channel_layouts=stereo"
 const LIMITER = "alimiter=limit=0.95:level=0:latency=1"
 
@@ -75,16 +108,19 @@ export function audioGraph({
   from,
   to,
   audio,
+  joined,
 }: {
   from: string
   to: string
   audio?: AudioPlan | null
+  joined?: Joined
 }) {
   const sourceDb = audio ? audio.sourceDb : 0
   const music = audio?.music ?? []
   const source = [
-    `[0:a]atrim=start=${from}:end=${to}`,
-    "asetpts=PTS-STARTPTS",
+    ...(joined
+      ? [joined.audio]
+      : [`[0:a]atrim=start=${from}:end=${to}`, "asetpts=PTS-STARTPTS"]),
     ...(sourceDb === null
       ? ["volume=0"]
       : sourceDb !== 0
@@ -101,7 +137,9 @@ export function audioGraph({
   const labels = music.map((_, i) => `[m${i}]`).join("")
   return [
     `${[...source, STEREO_48K].join(",")}[src]`,
-    ...music.map((plan, i) => `${musicBranch(plan, i + 1)}[m${i}]`),
+    ...music.map(
+      (plan, i) => `${musicBranch(plan, i + (joined?.inputs ?? 1))}[m${i}]`
+    ),
     `[src]${labels}amix=inputs=${music.length + 1}:duration=first:dropout_transition=0:normalize=0,${LIMITER}[a]`,
   ].join(";\n")
 }
@@ -113,6 +151,7 @@ export function verticalGraph({
   fps,
   subtitles,
   audio,
+  parts,
 }: {
   plan: LayoutPlan
   startMs: number
@@ -120,13 +159,19 @@ export function verticalGraph({
   fps: number
   subtitles?: Subtitles
   audio?: AudioPlan | null
+  parts?: readonly TimeRange[] | null
 }) {
   const { offsetMs } = seekFor(startMs)
   const from = seconds(offsetMs)
   const to = seconds(offsetMs + endMs - startMs)
-  const trim = `[0:v]trim=start=${from}:end=${to},setpts=PTS-STARTPTS`
+  const joined = isJoined(parts) ? joinedSource(parts) : undefined
+  const trim =
+    joined?.video ?? `[0:v]trim=start=${from}:end=${to},setpts=PTS-STARTPTS`
   const tail = `fps=${fps},format=yuv420p${subtitleFilter(subtitles)}[v]`
-  const audioLines = audioGraph({ from, to, audio })
+  const audioLines = [
+    ...(joined?.lines ?? []),
+    audioGraph({ from, to, audio, joined }),
+  ].join(";\n")
 
   if (plan.mode === "no-cam-blur-fill") {
     return [
@@ -231,7 +276,7 @@ export function renderArgs({
   output,
 }: {
   input: string
-  seekMs: number
+  seekMs: number | readonly number[]
   music?: readonly { file: string; seekMs: number }[]
   graphFile: string
   encoder: Encoder
@@ -239,9 +284,9 @@ export function renderArgs({
   output: string
 }) {
   return [
-    ...(seekMs > 0 ? ["-ss", seconds(seekMs)] : []),
-    "-i",
-    input,
+    ...[seekMs]
+      .flat()
+      .flatMap((ms) => [...(ms > 0 ? ["-ss", seconds(ms)] : []), "-i", input]),
     ...(music ?? []).flatMap((track) => [
       ...(track.seekMs > 0 ? ["-ss", seconds(track.seekMs)] : []),
       "-i",

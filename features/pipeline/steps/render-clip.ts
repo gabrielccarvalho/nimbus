@@ -17,6 +17,7 @@ import {
   wordsInRange,
 } from "../../captions/pages"
 import { captionBaseline, resolveCaptionStyle } from "../../captions/styles"
+import { clipParts, timelineItems } from "../../clips/parts"
 import { clipRepository } from "../../clips/repository"
 import type { JobHandler } from "../../jobs/worker-loop"
 import { OUTPUT_HEIGHT, OUTPUT_WIDTH, planLayout } from "../../layout/geometry"
@@ -118,10 +119,13 @@ export const renderClipStep: JobHandler = async ({
       )
   )
 
-  const words =
+  const parts = clipParts(clip)
+  const words = timelineItems(
     captions || audioMix?.duck
       ? speakerTranscriptWords(await transcriptRepository(db).get(project.id))
-      : []
+      : [],
+    parts
+  )
   const audio = planAudio(
     audioMix,
     tracks,
@@ -172,6 +176,7 @@ export const renderClipStep: JobHandler = async ({
       commandsFile: commands ? workFile("cmds.txt") : undefined,
       subtitles,
       audio,
+      parts,
     })
   } else {
     graph = verticalGraph({
@@ -179,6 +184,7 @@ export const renderClipStep: JobHandler = async ({
       ...range,
       subtitles,
       audio,
+      parts,
     })
   }
   await writeFile(workFile("graph.txt"), graph)
@@ -208,7 +214,7 @@ export const renderClipStep: JobHandler = async ({
     await runFfmpeg(
       renderArgs({
         input,
-        seekMs: seekFor(clip.startMs).seekMs,
+        seekMs: parts.map((part) => seekFor(part.startMs).seekMs),
         music,
         graphFile: workFile("graph.txt"),
         encoder,

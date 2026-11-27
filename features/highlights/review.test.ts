@@ -288,3 +288,70 @@ describe("visual review", () => {
     expect(clip!.beats).toEqual([{ ms: 25_001, kind: "weird", x: 1, y: 0 }])
   })
 })
+
+describe("reviewing a clip joined from parts", () => {
+  const joined: Candidate = {
+    ...candidate(20_000, 38_000),
+    parts: [
+      { startMs: 20_000, endMs: 32_000 },
+      { startMs: 90_000, endMs: 96_000 },
+    ],
+  }
+
+  it("samples frames inside every part, more from the longer one", () => {
+    const times = reviewFrameTimes(joined, 120_000)
+    const inFirst = times.filter((ms) => ms >= 20_000 && ms < 32_000)
+    const inSecond = times.filter((ms) => ms >= 90_000 && ms < 96_000)
+    expect(inFirst.length + inSecond.length).toBe(times.length)
+    expect(inFirst).toHaveLength(8)
+    expect(inSecond).toHaveLength(4)
+  })
+
+  it("tells the reviewer the parts and gives each one's transcript", () => {
+    const [, block] = buildReviewContent(
+      [{ candidate: joined, times: [20_000], frames: ["AAAA"] }],
+      0,
+      {
+        words,
+        segments: buildSegments(words),
+        language: "pt",
+        limits: { minMs: 15_000, maxMs: 60_000, maxCount: 3 },
+      }
+    )
+    const text = block?.type === "text" ? block.text : ""
+    expect(text).toContain(
+      "made of 2 parts played back to back: 20000–32000 ms, 90000–96000 ms"
+    )
+    expect(text).toContain("Part 1:\n[20.0–20.9] Que isso?!")
+    expect(text).toContain("Part 2:\n(no speech detected)")
+  })
+
+  it("takes the score and copy but keeps the parts where they are", () => {
+    const [reviewed] = applyReviews(
+      [joined],
+      [
+        {
+          id: 0,
+          startMs: 25_000,
+          endMs: 30_000,
+          title: "Seen",
+          hook: "seen hook",
+          reason: "frames",
+          score: 0.9,
+          beats: [
+            { ms: 91_000, kind: "weird" },
+            { ms: 60_000, kind: "weird" },
+          ],
+        },
+      ]
+    )
+    expect(reviewed).toMatchObject({
+      startMs: 20_000,
+      endMs: 38_000,
+      parts: joined.parts,
+      title: "Seen",
+      score: 0.9,
+      beats: [{ ms: 91_000, kind: "weird" }],
+    })
+  })
+})

@@ -691,3 +691,92 @@ describe("export", () => {
     expect(updated.renderAssetId).not.toBeNull()
   })
 })
+
+describe("clips joined from parts", () => {
+  const parts = [
+    { startMs: 12_000, endMs: 16_000 },
+    { startMs: 2000, endMs: 6000 },
+  ]
+
+  it("stores the parts and puts the clip on its own timeline", async () => {
+    const { projectId, clip } = await reviewedProject()
+    const saved = await updateClip(env.db, projectId, clip.id, edit({ parts }))
+    expect(saved).toMatchObject({ startMs: 12_000, endMs: 20_000, parts })
+    expect(saved.captionOverrides?.pages).toEqual([])
+  })
+
+  it("is an ordinary clip again when its parts continue each other", async () => {
+    const { projectId, clip } = await reviewedProject()
+    await updateClip(env.db, projectId, clip.id, edit({ parts }))
+    const saved = await updateClip(
+      env.db,
+      projectId,
+      clip.id,
+      edit({
+        parts: [
+          { startMs: 2000, endMs: 6000 },
+          { startMs: 6000, endMs: 12_000 },
+        ],
+      })
+    )
+    expect(saved).toMatchObject({ startMs: 2000, endMs: 12_000, parts: null })
+  })
+
+  it("rejects parts that overlap, leave the recording or add up too short", async () => {
+    const { projectId, clip } = await reviewedProject()
+    const save = (next: typeof parts) =>
+      updateClip(env.db, projectId, clip.id, edit({ parts: next }))
+    await expect(
+      save([
+        { startMs: 2000, endMs: 8000 },
+        { startMs: 6000, endMs: 12_000 },
+      ])
+    ).rejects.toThrow("overlap")
+    await expect(
+      save([
+        { startMs: 2000, endMs: 8000 },
+        { startMs: 18_000, endMs: 26_000 },
+      ])
+    ).rejects.toThrow("inside the recording")
+    await expect(
+      save([
+        { startMs: 2000, endMs: 3000 },
+        { startMs: 10_000, endMs: 11_000 },
+      ])
+    ).rejects.toThrow("between")
+  })
+
+  it("renders the parts back to back", async () => {
+    const { projectId, clip } = await reviewedProject()
+    await updateClip(
+      env.db,
+      projectId,
+      clip.id,
+      edit({
+        parts,
+        effects: {
+          edited: true,
+          events: [
+            {
+              kind: "zoom",
+              startMs: 15_000,
+              endMs: 17_000,
+              scale: 1.4,
+              focus: { x: 0.5, y: 0.5 },
+            },
+          ],
+        },
+      })
+    )
+    await setClipReviewStatus(env.db, projectId, clip.id, "approved")
+    await startClipRenders(env.db, projectId, [clip.id])
+    await runJobs(env.db, ["render_clip"])
+    const rendered = await clipRepository(env.db).get(clip.id)
+    expect(rendered?.status).toBe("rendered")
+    const [render] = await env.db
+      .select()
+      .from(assets)
+      .where(eq(assets.id, rendered!.renderAssetId!))
+    expect(render?.durationMs).toBe(8000)
+  })
+})

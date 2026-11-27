@@ -480,8 +480,17 @@ Spec: `docs/UX_PATTERNS.md` and the "Nimbus pages redesign" canvas. The clip edi
 - [x] Selection and review prompts: promise kept by the opening, strongest true wording, rarity, one-sentence clarity, no dull stretch, abrupt end, variety, no sponsor reads, outcome-in-doubt starts
 - [x] Insights prompt reads the retention curve and sees each clip's length
 
+### Phase 43: Clips joined from parts (ADR-0081)
+
+- [x] `clips.parts`, the clip timeline and its pure mapping (`features/clips/parts.ts`), validation in `updateClip`
+- [x] Render: one input per part, concat, then the usual graph; captions on the clip's timeline
+- [x] Selection and review: candidates with `parts`, frames from every part
+- [x] Editor: a block per part on the video track, split, trim, reorder, add, delete; the player plays the parts back to back
+
 ### Not verified
 
+- Joined clips on a real recording: rendering was checked with real ffmpeg on the 20 s fixture, and the editor through component tests, not by hand in a browser. How long the preview stalls at a cut on a multi-hour proxy is unknown.
+- Whether Claude proposes good joined clips: the prompt change was tested against parsing and post-processing only, no real selection was run.
 - The Phase 42 prompts on a real stream: no selection, review or analysis was run with them, so whether picks or titles improve is unmeasured.
 - The v2 editor next to the rendered design: it was built from the handoff's markup and CSS and checked on Playwright screenshots at 1440 × 900 with the e2e colour-bar fixture, not side by side with the design open in a browser or on a real recording.
 - Wheel zoom and the pan handle on a real mouse and trackpad: checked with Playwright's synthetic wheel and drag only, so the zoom speed per notch or swipe is a guess.

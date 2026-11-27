@@ -19,23 +19,23 @@ These hold everywhere. A change that breaks one is a product decision, not a ref
 
 ## Entities
 
-| Entity       | Key fields                                                                                                                                                                                                                                            |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Project      | id, workspaceId, name, sourceAssetId, sourceUrl, sourceLanguage, awaitingManualSelection, status, failedStep, error, settings snapshot (captionStyle, clipMinMs, clipMaxMs, selectorMode, targetClipCount), createdAt, updatedAt                      |
-| Asset        | id, projectId, kind (`source` · `audio` · `thumbnail` · `proxy` · `render` · `subtitle`), storageKey, mime, bytes, durationMs, width, height, fps, codec                                                                                              |
-| Transcript   | projectId, language, words[] `{text, startMs, endMs, confidence}`, segments[] `{text, startMs, endMs, firstWord, lastWord}`                                                                                                                           |
-| Signals      | projectId, silences[] `{startMs, endMs}`, loudness[] (LUFS, 1 sample / 250 ms), speechDensity[] (words per second per 10 s window)                                                                                                                    |
-| Clip         | id, projectId, startMs, endMs, title, hook, reason, score 0–1, status (`candidate` · `approved` · `rejected` · `rendering` · `rendered` · `failed`), layout, captionOverrides, effects, audioMix, textOverlays, playbookRuleIds, renderAssetId, error |
-| CaptionStyle | presetId + overrides (font, fontSize, primary/highlight color token, outline, position, maxWordsPerPage, maxCharsPerLine, uppercase)                                                                                                                  |
-| Job          | id, projectId, type, payload, status (`queued` · `running` · `succeeded` · `failed` · `cancelled`), attempts, maxAttempts, runAfter, leasedUntil, leaseOwner, progress 0–100, error, timestamps                                                       |
-| Setting      | key, value (JSON, zod-validated per key)                                                                                                                                                                                                              |
-| Workspace    | id, name, plan (`free` · `creator` · `studio` · `admin`), image, anthropicKey (encrypted) + hint; members `{userId, role: owner · member}`. Owns projects, music tracks and one YouTube channel                                                       |
-| MusicTrack   | id, workspaceId, title, storageKey, mime, bytes, status, durationMs, peaks[], error                                                                                                                                                                   |
-| Channel      | id, workspaceId (unique: one channel per workspace), channelId, title, status (`ok` · `needs_reconnect`), uploadsSyncedAt, analyticsSyncedAt                                                                                                          |
-| Publication  | id, clipId, channelId, origin (`nimbus` · `imported`), renderAssetId, metadata, status (`queued` · `waiting_quota` · `uploading` · `processing` · `published` · `failed` · `removed`), videoId, url                                                   |
-| PlaybookRule | id, channelId, target (`selection` · `review`), text, status (`active` · `retired`), supersedesId, sourceSuggestionId                                                                                                                                 |
-| Suggestion   | id, channelId, target, kind, ruleId, text, rationale, evidenceFor[], evidenceAgainst[], confidence 0–1, status (`pending` · `approved` · `rejected`)                                                                                                  |
-| UsageEvent   | id, workspaceId, projectId, kind (`render_seconds` · `claude_run`), amount                                                                                                                                                                            |
+| Entity       | Key fields                                                                                                                                                                                                                                                   |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Project      | id, workspaceId, name, sourceAssetId, sourceUrl, sourceLanguage, awaitingManualSelection, status, failedStep, error, settings snapshot (captionStyle, clipMinMs, clipMaxMs, selectorMode, targetClipCount), createdAt, updatedAt                             |
+| Asset        | id, projectId, kind (`source` · `audio` · `thumbnail` · `proxy` · `render` · `subtitle`), storageKey, mime, bytes, durationMs, width, height, fps, codec                                                                                                     |
+| Transcript   | projectId, language, words[] `{text, startMs, endMs, confidence}`, segments[] `{text, startMs, endMs, firstWord, lastWord}`                                                                                                                                  |
+| Signals      | projectId, silences[] `{startMs, endMs}`, loudness[] (LUFS, 1 sample / 250 ms), speechDensity[] (words per second per 10 s window)                                                                                                                           |
+| Clip         | id, projectId, startMs, endMs, parts, title, hook, reason, score 0–1, status (`candidate` · `approved` · `rejected` · `rendering` · `rendered` · `failed`), layout, captionOverrides, effects, audioMix, textOverlays, playbookRuleIds, renderAssetId, error |
+| CaptionStyle | presetId + overrides (font, fontSize, primary/highlight color token, outline, position, maxWordsPerPage, maxCharsPerLine, uppercase)                                                                                                                         |
+| Job          | id, projectId, type, payload, status (`queued` · `running` · `succeeded` · `failed` · `cancelled`), attempts, maxAttempts, runAfter, leasedUntil, leaseOwner, progress 0–100, error, timestamps                                                              |
+| Setting      | key, value (JSON, zod-validated per key)                                                                                                                                                                                                                     |
+| Workspace    | id, name, plan (`free` · `creator` · `studio` · `admin`), image, anthropicKey (encrypted) + hint; members `{userId, role: owner · member}`. Owns projects, music tracks and one YouTube channel                                                              |
+| MusicTrack   | id, workspaceId, title, storageKey, mime, bytes, status, durationMs, peaks[], error                                                                                                                                                                          |
+| Channel      | id, workspaceId (unique: one channel per workspace), channelId, title, status (`ok` · `needs_reconnect`), uploadsSyncedAt, analyticsSyncedAt                                                                                                                 |
+| Publication  | id, clipId, channelId, origin (`nimbus` · `imported`), renderAssetId, metadata, status (`queued` · `waiting_quota` · `uploading` · `processing` · `published` · `failed` · `removed`), videoId, url                                                          |
+| PlaybookRule | id, channelId, target (`selection` · `review`), text, status (`active` · `retired`), supersedesId, sourceSuggestionId                                                                                                                                        |
+| Suggestion   | id, channelId, target, kind, ruleId, text, rationale, evidenceFor[], evidenceAgainst[], confidence 0–1, status (`pending` · `approved` · `rejected`)                                                                                                         |
+| UsageEvent   | id, workspaceId, projectId, kind (`render_seconds` · `claude_run`), amount                                                                                                                                                                                   |
 
 ## Project state machine
 
@@ -170,6 +170,18 @@ The visual review scores each candidate from its frames: 0.8–1 only for someth
 
 Transcripts over ~60k characters are split into parts with a minute of overlap, sent in parallel, each asking for its share of the clips plus two; post-processing merges them.
 
+### Joined clips
+
+A clip can be joined from up to 12 parts of the recording (`features/clips/parts.ts`, ADR-0081): a compilation, a setup with its payoff from later, or a start, middle and end. `parts` is the ordered list of ranges, in play order, which doesn't have to be the order they happened in. `null` means one part.
+
+- Each part is at least 1 s long, inside the recording, and no two parts overlap. Parts that continue each other are merged, so two halves of one stretch are an ordinary clip again.
+- The clip lives on its own timeline: it starts at the first part's start and runs for the sum of the parts. `startMs` and `endMs` hold that range, which for a one-part clip is the range in the recording. Effects, caption edits, on-screen texts and music are placed on this timeline; beats stay in recording time.
+- The 3 s to 3 min edit limit applies to the total length.
+- Changing the parts resets per-page caption edits, like a trim does, and moves each effect with the part it sat on. An effect on a removed part goes with it.
+- The first selector pass may return `parts` for a candidate (2–6 ranges, each 2 s or more). Post-processing snaps every part to sentence boundaries, drops parts that are too short or overlap an earlier one, trims from the end over the maximum length, and merges parts less than 1 s apart. Overlap between clips is measured part by part, so a compilation spread over an hour doesn't block the clips in between.
+- The visual review samples frames from every part, in proportion to its length, and scores the clip as one. It can't move a joined clip's parts.
+- Webcam detection looks at the first part.
+
 ### Layout
 
 - Every clip has its own layout (`clips.layout`): webcamRect `{x,y,w,h}` normalized 0–1 or null, gameplayRect, gameplayFocusX 0–1, mode (`cam-top` · `split-50` · `no-cam-fill` · `no-cam-blur-fill`), camPosition. There is no project layout.
@@ -190,6 +202,7 @@ Transcripts over ~60k characters are split into parts with a minute of overlap, 
 - `no-cam-fill`: a 9:16 crop of the gameplay rect scaled to 1080×1920, positioned by `gameplayFocusX`. The usual Shorts look when there's no webcam.
 - `no-cam-blur-fill`: source scaled to cover 1080×1920, boxblur 20, darkened; the whole source fitted inside 1080×1920 (contain), centered on top.
 - Horizontal edit: source resolution, silences longer than 1000 ms removed, 150 ms of padding kept on each side of every cut, subtitles burned in.
+- A joined clip renders its parts back to back with hard cuts, picture and sound together, then gets the same layout, effects, captions and music as any other clip.
 - Disk check: refuse to start a render when free space < 2× the estimated output size (bitrate × duration) + 500 MB.
 
 ### Effects

@@ -4,6 +4,7 @@ import { getStorage } from "@/lib/storage"
 
 import { recordUsage, resolveAnthropicKey } from "../../accounts/usage"
 import { signalsRepository } from "../../analysis/repository"
+import { clipParts } from "../../clips/parts"
 import { clipRepository } from "../../clips/repository"
 import { loadAudienceHeatmap } from "../../downloads/service"
 import { autoEffectsFor } from "../../effects/service"
@@ -35,6 +36,7 @@ export const selectStep: JobHandler = async ({
   const existing = more
     ? await clipRepository(db).listForProject(project.id)
     : []
+  const exclude = existing.flatMap(clipParts)
 
   if (settings.selectorMode === "manual" && !more) {
     await projectRepository(db).setAwaitingManualSelection(project.id, true)
@@ -95,7 +97,7 @@ export const selectStep: JobHandler = async ({
       language: transcript?.language ?? settings.language,
       reactionPhrases: settings.reactionPhrases,
       audience,
-      exclude: existing,
+      exclude,
       niche: NICHE_PROFILES[niche],
       playbook: playbook && {
         selection: playbook.selection,
@@ -113,7 +115,7 @@ export const selectStep: JobHandler = async ({
             segments: transcript?.segments ?? [],
             limits,
             language: transcript?.language ?? settings.language,
-            exclude: existing,
+            exclude,
           }),
           parts
         )
@@ -141,6 +143,7 @@ export const selectStep: JobHandler = async ({
     candidates.map((c) => ({
       startMs: c.startMs,
       endMs: c.endMs,
+      parts: c.parts ?? null,
       title: c.title,
       hook: c.hook,
       description: c.description ?? c.hook,

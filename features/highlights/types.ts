@@ -14,6 +14,9 @@ export const rawCandidateSchema = z.object({
   reason: z.string(),
   score: z.number(),
   beats: z.array(beatSchema).optional(),
+  parts: z
+    .array(z.object({ startMs: z.number(), endMs: z.number() }))
+    .optional(),
 })
 export type RawCandidate = z.infer<typeof rawCandidateSchema>
 

@@ -133,7 +133,7 @@ function MusicVoicePlayer({
   routed: boolean
   onUnavailable: () => void
 }) {
-  const { videoRef, paused, muted } = useVideoPlayer()
+  const { videoRef, paused, muted, now } = useVideoPlayer()
   const audioRef = React.useRef<HTMLAudioElement>(null)
   const [music, setMusic] = React.useState<GainNode | null>(null)
   const latest = React.useRef({ plan, clipStartMs })
@@ -184,7 +184,7 @@ function MusicVoicePlayer({
     const ctx = context
     const sync = () => {
       const { plan, clipStartMs } = latest.current
-      const t = video.currentTime * 1000 - clipStartMs - plan.startMs
+      const t = now() - clipStartMs - plan.startMs
       if (
         video.paused ||
         video.readyState < video.HAVE_FUTURE_DATA ||
@@ -219,7 +219,7 @@ function MusicVoicePlayer({
       video.removeEventListener("waiting", sync)
       video.removeEventListener("playing", sync)
     }
-  }, [paused, music, videoRef])
+  }, [paused, music, videoRef, now])
 
   return (
     <audio

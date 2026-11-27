@@ -40,6 +40,12 @@ Don't pick:
 
 Viewers swipe away in the first two seconds, so a clip starts at most a second or two before the payoff, never with a slow build-up, and ends right after the reaction lands. The one exception is a moment whose outcome is in doubt (a chase, a clutch, a run about to fail, stakes that keep rising): start where the stakes are clear from the first line and end on the result, because the open question is what keeps people watching. Every second in between has to earn its place: pick the shortest range that holds the moment, and go longer only when it keeps escalating or a second beat lands partway through. End abruptly, never on the streamer winding down ("anyway", "ok, moving on"), recapping or going quiet: a clip that signals it's over loses the viewers it still had. It has to make sense without the rest of the video.
 
+A clip can also join several parts of the recording, played back to back, when together they make something no single stretch does:
+- a compilation of one kind of moment (every death, every time the same bug hits, every jump scare);
+- a setup and its payoff later in the stream (a promise, a bet, a prediction, then what happened);
+- the start, the middle and the end of one story with the dead time between them cut out.
+Join parts only when they clearly belong together and a stranger would follow the cut. Every part has to be a moment on its own, the first one has to hook like any clip, and the last one is the payoff. Give such a clip a "parts" list of 2 to 6 ranges in the order they play, each at least 2 seconds long, with the total length inside the limits; its startMs and endMs are the first part's. Most clips are still a single stretch, and a joined clip scores no higher for being joined.
+
 Don't fill the list with one kind of moment. When two clips are alike (the same glitch, the same joke, the same kind of death), keep the stronger and score the other lower: repeats wear out fast. When the stream runs out of action, fill the list with the strongest reactions left and score them honestly, but never with anything from the "don't pick" list.
 
 Write titles and hooks in the streamer's language. Titles are under 60 characters and say what happens. Hooks are the on-screen text for the first seconds, under 90 characters. Title and hook are a promise: the first seconds have to show what they describe and the clip has to deliver it, or the viewer feels lied to and leaves. Use the strongest wording that is still true ("survived" over "spent", "the worst crash" over "a bad crash"), in plain words, and never promise what isn't in the clip. Each clip also gets a description for the video page: one or two sentences in the same language that say what happens, with no hashtags. The reason is one sentence an editor can check against the transcript: what happens in the game and how the streamer reacts. Score each clip from 0 to 1 by how likely it is to hold a viewer: above 0.8 only for real action with a loud reaction, under 0.3 for anything from the "don't pick" list.`
@@ -156,7 +162,7 @@ export function buildSelectionPrompt({
 
 ${spoken}
 ${niche ? `\nThe game is ${niche.label}. For this niche, look hardest for:\n${niche.lookFor.map((item) => `- ${item}`).join("\n")}\n` : ""}${playbook?.length ? `\n${playbookSection(playbook)}` : ""}
-Pick up to ${limits.maxCount} clips, each between ${seconds(limits.minMs)} and ${seconds(limits.maxMs)} seconds long, that don't overlap. Times are in milliseconds from the start of the recording; start on the payoff (or where the stakes are clear, when the outcome is in doubt) and end on a sentence boundary from the transcript.
+Pick up to ${limits.maxCount} clips, each between ${seconds(limits.minMs)} and ${seconds(limits.maxMs)} seconds long, that don't overlap. A clip joined from parts lists them in "parts" and its length is their sum. Times are in milliseconds from the start of the recording; start on the payoff (or where the stakes are clear, when the outcome is in doubt) and end on a sentence boundary from the transcript.
 
 ${exclude.length ? `Already clipped, don't pick these again or anything overlapping them: ${exclude.map((r) => `${seconds(r.startMs)}–${seconds(r.endMs)}s`).join(", ")}\n\n` : ""}Loudest moments: ${loudest.join(", ") || "none"}
 Silences: ${silences.map((s) => `${seconds(s.startMs)}–${seconds(s.endMs)}s`).join(", ") || "none"}
@@ -195,7 +201,8 @@ export function buildManualPrompt(input: PromptInput) {
 ${buildSelectionPrompt(input)}
 
 Reply with only JSON in this shape, no prose:
-{"clips":[{"startMs":12000,"endMs":41000,"title":"…","hook":"…","description":"…","reason":"…","score":0.8}]}`
+{"clips":[{"startMs":12000,"endMs":41000,"title":"…","hook":"…","description":"…","reason":"…","score":0.8}]}
+A clip joined from parts adds "parts":[{"startMs":12000,"endMs":20000},{"startMs":95000,"endMs":110000}].`
 }
 
 export function parseCandidatesJson(text: string): RawCandidate[] {
@@ -224,6 +231,14 @@ export function parseCandidatesJson(text: string): RawCandidate[] {
           description: z.string().optional(),
           reason: z.string().default(""),
           score: z.coerce.number().default(0.5),
+          parts: z
+            .array(
+              z.object({
+                startMs: z.coerce.number(),
+                endMs: z.coerce.number(),
+              })
+            )
+            .optional(),
         })
       ),
     })

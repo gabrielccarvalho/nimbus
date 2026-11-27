@@ -704,3 +704,90 @@ describe("keepRanges", () => {
     ])
   })
 })
+
+describe("a clip joined from parts", () => {
+  const parts = [
+    { startMs: 3_600_000, endMs: 3_608_000 },
+    { startMs: 500, endMs: 5_500 },
+  ]
+  const range = { startMs: 3_600_000, endMs: 3_613_000, fps: 30 }
+
+  it("trims each part from its own input and joins them before the layout", async () => {
+    const graph = verticalGraph({
+      plan: planLayout(
+        {
+          webcamRect: null,
+          gameplayRect: FULL_FRAME,
+          gameplayFocusX: 0.5,
+          mode: "no-cam-fill",
+        },
+        1920,
+        1080
+      ),
+      ...range,
+      subtitles,
+      audio: { sourceDb: -3, music: [music] },
+      parts,
+    })
+    await expect(graph).toMatchFileSnapshot("./__golden__/joined-fill.txt")
+    expect(graph).toContain("[2:a]atrim=end=15.000")
+  })
+
+  it("joins the parts under effects too", () => {
+    const graph = effectsGraph({
+      layout: {
+        webcamRect: null,
+        gameplayRect: FULL_FRAME,
+        gameplayFocusX: 0.5,
+        mode: "no-cam-fill",
+      },
+      source: { width: 1920, height: 1080 },
+      events: clipEffectsSchema.parse({
+        edited: true,
+        events: [{ kind: "zoom", startMs: 3_607_000, endMs: 3_609_000 }],
+      }).events,
+      ...range,
+      parts,
+    })
+    expect(graph).toContain("[pv0][pv1]concat=n=2:v=1:a=0[vjoin]")
+    expect(graph).toContain("[vjoin]setpts=PTS-STARTPTS,fps=30,")
+    expect(graph).not.toContain("[0:v]trim=start=2.000:end=15.000")
+  })
+
+  it("is the plain graph when the clip has one part", () => {
+    const plan = planLayout(
+      {
+        webcamRect: null,
+        gameplayRect: FULL_FRAME,
+        gameplayFocusX: 0.5,
+        mode: "no-cam-fill",
+      },
+      1920,
+      1080
+    )
+    const one = { plan, startMs: 12_000, endMs: 41_500, fps: 30 }
+    expect(
+      verticalGraph({ ...one, parts: [{ startMs: 12_000, endMs: 41_500 }] })
+    ).toBe(verticalGraph(one))
+  })
+
+  it("opens the recording once per part, each with its own seek", () => {
+    const args = renderArgs({
+      input: "/in.mp4",
+      seekMs: parts.map((part) => seekFor(part.startMs).seekMs),
+      music: [{ file: "/m.mp3", seekMs: 0 }],
+      graphFile: "/g.txt",
+      encoder: "libx264",
+      output: "/out.mp4",
+    })
+    expect(args.slice(0, 7)).toEqual([
+      "-ss",
+      "3598.000",
+      "-i",
+      "/in.mp4",
+      "-i",
+      "/in.mp4",
+      "-i",
+    ])
+  })
+})

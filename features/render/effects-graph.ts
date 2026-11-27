@@ -6,10 +6,13 @@ import {
 } from "../effects/frame"
 import type { Effect } from "../effects/schema"
 import { usesWebcam, type LayoutInput } from "../layout/schema"
+import type { TimeRange } from "../analysis/schema"
 import type { AudioPlan } from "../music/envelope"
 import {
   audioGraph,
   escapeFilterPath,
+  isJoined,
+  joinedSource,
   seconds,
   seekFor,
   subtitleFilter,
@@ -148,16 +151,21 @@ export function effectsGraph({
   commandsFile,
   subtitles,
   audio,
+  parts,
   ...input
 }: EffectsInput & {
   commandsFile?: string
   subtitles?: Subtitles
   audio?: AudioPlan | null
+  parts?: readonly TimeRange[] | null
 }) {
   const { startMs, endMs, fps } = input
   const { offsetMs } = seekFor(startMs)
   const from = seconds(offsetMs)
   const to = seconds(offsetMs + endMs - startMs)
+  const joined = isJoined(parts) ? joinedSource(parts) : undefined
+  const head =
+    joined?.video ?? `[0:v]trim=start=${from}:end=${to},setpts=PTS-STARTPTS`
   const slots = slotsAt(input, startMs, [])
   const targets = focusTargets(input)
   const stacked = slots.slice(0, slots.length - targets.length)
@@ -168,7 +176,8 @@ export function effectsGraph({
     : ""
 
   return [
-    `[0:v]trim=start=${from}:end=${to},setpts=PTS-STARTPTS,fps=${fps},${sendcmd}split=${slots.length}${splits}`,
+    ...(joined?.lines ?? []),
+    `${head},fps=${fps},${sendcmd}split=${slots.length}${splits}`,
     ...slots.map(branch),
     ...(targets.length > 0
       ? [
@@ -180,6 +189,6 @@ export function effectsGraph({
           }),
         ]
       : [`${composite(stacked)},${tail}`]),
-    audioGraph({ from, to, audio }),
+    audioGraph({ from, to, audio, joined }),
   ].join(";\n")
 }
