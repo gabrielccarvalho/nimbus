@@ -171,7 +171,7 @@ export function SettingsForm({
                       )
                   : undefined
               }
-              className="max-w-[220px] flex-[1_1_180px] rounded-2xl md:sticky md:top-6"
+              className="max-w-[220px] flex-[1_1_180px] rounded-2xl md:sticky md:top-[84px]"
             />
           </div>
         )}

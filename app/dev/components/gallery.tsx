@@ -11,7 +11,12 @@ import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { DotMeter } from "@/components/ui/dot-meter"
-import { Segmented, SegmentedItem } from "@/components/ui/segmented"
+import {
+  Segmented,
+  SegmentedItem,
+  SegmentedLink,
+  SegmentedNav,
+} from "@/components/ui/segmented"
 import { SignalDot } from "@/components/ui/signal-dot"
 import { StatusPill } from "@/components/ui/status-pill"
 import {
@@ -304,6 +309,13 @@ export function ComponentGallery() {
           <SegmentedItem value="fill">Fill</SegmentedItem>
           <SegmentedItem value="fit">Fit</SegmentedItem>
         </Segmented>
+        <SegmentedNav aria-label="Sections">
+          <SegmentedLink href="#overview" current>
+            Overview
+          </SegmentedLink>
+          <SegmentedLink href="#shorts">Shorts</SegmentedLink>
+          <SegmentedLink href="#insights">Insights</SegmentedLink>
+        </SegmentedNav>
       </Section>
 
       <Section title="Dropzone">

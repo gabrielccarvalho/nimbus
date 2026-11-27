@@ -30,6 +30,8 @@ Left to right, in this order:
 5. A hairline divider, then secondary actions (glass or ghost), then **the primary action**.
 
 - No page title in the body. The header title is the `h1`.
+- Build it from `PageHeader` and its parts (`components/app-shell/page-header.tsx`). It stays at the top while a page scrolls, so anything sticky below it starts 60 px lower.
+- A top-level page has no back button; its context line names what the page belongs to (the workspace, the channel). Search is not in the header: it is the Search row in the sidebar and `⌘K`.
 - A control that changes what the whole page shows (the analytics period) lives in the header, not in one tab's body, and must not look like the tabs: tabs are a `Segmented`, a filter is a glass button with a caret.
 
 ## Actions

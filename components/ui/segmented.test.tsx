@@ -3,7 +3,12 @@ import userEvent from "@testing-library/user-event"
 import * as React from "react"
 import { describe, expect, it, vi } from "vitest"
 
-import { Segmented, SegmentedItem } from "./segmented"
+import {
+  Segmented,
+  SegmentedItem,
+  SegmentedLink,
+  SegmentedNav,
+} from "./segmented"
 
 describe("Segmented", () => {
   it("presses the chosen item and reports the value", async () => {
@@ -110,5 +115,28 @@ describe("Segmented", () => {
       </Segmented>
     )
     expect(screen.getByRole("button", { name: "One" })).toBeDisabled()
+  })
+
+  it("renders links in a nav and marks the current one", () => {
+    render(
+      <SegmentedNav aria-label="Sections">
+        <SegmentedLink href="/a" current>
+          Overview
+        </SegmentedLink>
+        <SegmentedLink href="/b" className="custom">
+          Shorts
+        </SegmentedLink>
+      </SegmentedNav>
+    )
+    const nav = screen.getByRole("navigation", { name: "Sections" })
+    expect(nav).toHaveAttribute("data-slot", "segmented-nav")
+    expect(screen.getByRole("link", { name: "Overview" })).toHaveAttribute(
+      "aria-current",
+      "page"
+    )
+    const other = screen.getByRole("link", { name: "Shorts" })
+    expect(other).not.toHaveAttribute("aria-current")
+    expect(other).toHaveClass("custom")
+    expect(other).toHaveAttribute("href", "/b")
   })
 })

@@ -1,7 +1,6 @@
 "use client"
 
 import {
-  ArrowLeftIcon,
   CaretLeftIcon,
   CaretRightIcon,
   CheckIcon,
@@ -14,6 +13,16 @@ import { useRouter } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
 
+import {
+  PageHeader,
+  PageHeaderBack,
+  PageHeaderContext,
+  PageHeaderDivider,
+  PageHeaderHeading,
+  PageHeaderState,
+  PageHeaderTitle,
+  PageHeaderTitleLine,
+} from "@/components/app-shell/page-header"
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
   CropRegion,
@@ -644,23 +653,10 @@ function Editor({
         onUnavailable={() => setPreviewUnavailable(true)}
       />
       <div data-slot="clip-editor" className="flex min-h-0 flex-1 flex-col">
-        <header className="flex h-[60px] shrink-0 items-center gap-3 ps-2.5 pe-4 shadow-[inset_0_-1px_0_var(--hair)]">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Link
-                  href={clipsHref}
-                  aria-label="Back to clips"
-                  className={buttonVariants({ variant: "ghost", size: "icon" })}
-                />
-              }
-            >
-              <ArrowLeftIcon aria-hidden />
-            </TooltipTrigger>
-            <TooltipContent side="bottom">Back to clips</TooltipContent>
-          </Tooltip>
-          <div className="grid min-w-0 flex-1 gap-0.5">
-            <span className="truncate text-xs text-tertiary">
+        <PageHeader>
+          <PageHeaderBack href={clipsHref as Route} label="Back to clips" />
+          <PageHeaderHeading>
+            <PageHeaderContext>
               {projectName}
               {siblings.index >= 0 &&
                 ` · Clip ${siblings.index + 1} of ${siblings.count}`}{" "}
@@ -668,12 +664,10 @@ function Editor({
               <span className="font-mono tabular-nums">
                 {formatTimestamp(startMs)} → {formatTimestamp(endMs)}
               </span>
-            </span>
-            <div className="flex min-w-0 items-baseline gap-1.5">
-              <h1 className="truncate text-base leading-tight font-semibold tracking-[-0.02em]">
-                {title || clip.title}
-              </h1>
-              <span className="flex shrink-0 gap-1 text-xs text-tertiary">
+            </PageHeaderContext>
+            <PageHeaderTitleLine>
+              <PageHeaderTitle>{title || clip.title}</PageHeaderTitle>
+              <PageHeaderState className="gap-1">
                 <span aria-hidden>·</span>
                 <span
                   data-testid="save-state"
@@ -684,9 +678,9 @@ function Editor({
                   {saveState}
                   {saveError && <span className="sr-only">: {saveError}</span>}
                 </span>
-              </span>
-            </div>
-          </div>
+              </PageHeaderState>
+            </PageHeaderTitleLine>
+          </PageHeaderHeading>
           <div className="flex shrink-0 items-center gap-0.5">
             <SiblingLink
               href={siblings.previousId ? clipHref(siblings.previousId) : null}
@@ -708,7 +702,7 @@ function Editor({
               <CaretRightIcon aria-hidden />
             </SiblingLink>
           </div>
-          <span aria-hidden className="h-6 w-px shrink-0 bg-hair" />
+          <PageHeaderDivider />
           <Segmented
             aria-label="Review decision"
             className="shrink-0"
@@ -759,7 +753,7 @@ function Editor({
               <SidebarSimpleIcon mirrored aria-hidden />
             </IconAction>
           )}
-        </header>
+        </PageHeader>
 
         <div
           className="flex min-h-0"

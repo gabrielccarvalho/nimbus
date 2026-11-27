@@ -5,16 +5,13 @@ import { expectNoSeriousA11yViolations } from "./utils/axe"
 test("navigates between projects and settings", async ({ page }) => {
   await page.goto("/")
   await expect(
-    page.getByRole("heading", {
-      level: 1,
-      name: /^(Good \w+|Up late), Gabe\.$/,
-    })
+    page.getByRole("heading", { level: 1, name: "Projects" })
   ).toBeVisible()
+  await expect(page.getByText(/^(Good \w+|Up late), Gabe$/)).toBeVisible()
   await page.keyboard.press(",")
   await expect(page).toHaveURL(/\/settings\/profile$/)
-  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible()
   await expect(
-    page.getByRole("navigation", { name: "breadcrumb" }).getByText("Settings")
+    page.getByRole("heading", { level: 1, name: "Settings" })
   ).toBeVisible()
   await expectNoSeriousA11yViolations(page)
 })

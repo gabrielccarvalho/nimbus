@@ -32,7 +32,7 @@ export function SettingsNav() {
   return (
     <nav
       aria-label="Settings sections"
-      className="grid flex-[1_1_180px] content-start gap-0.5 md:sticky md:top-6 md:max-w-[220px]"
+      className="grid flex-[1_1_180px] content-start gap-0.5 md:sticky md:top-[84px] md:max-w-[220px]"
     >
       {GROUPS.map((group, index) => (
         <div key={group.label} className="contents">

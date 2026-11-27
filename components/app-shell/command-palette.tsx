@@ -23,6 +23,11 @@ import {
 } from "@/components/ui/command"
 import { Kbd } from "@/components/ui/kbd"
 import { SignalDot } from "@/components/ui/signal-dot"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { getSearchIndexAction } from "@/features/projects/actions"
 import { formatTimestamp } from "@/lib/format"
 import { cn } from "@/lib/utils"
@@ -147,24 +152,40 @@ export function CommandPaletteProvider({
 export function SearchTrigger({
   className,
   label = "Search recordings and clips",
+  collapsed = false,
 }: {
   className?: string
   label?: string
+  collapsed?: boolean
 }) {
   const open = React.useContext(CommandPaletteContext)
-  return (
+  const button = (
     <button
       type="button"
       onClick={() => open?.()}
       aria-keyshortcuts="Meta+K"
       className={cn(
-        "flex h-9 w-[min(340px,100%)] items-center gap-2 rounded-full bg-glass ps-3 pe-2 text-start text-[13.5px] text-tertiary inset-ring-1 inset-ring-hair transition-colors hover:bg-glass-2 hover:text-muted-foreground",
+        "flex h-[38px] w-full items-center gap-[11px] rounded-xl px-2.5 text-start text-sm font-medium text-muted-foreground transition-colors hover:bg-glass hover:text-foreground",
+        collapsed && "md:justify-center md:px-0",
         className
       )}
     >
       <MagnifyingGlassIcon className="size-4 shrink-0" aria-hidden />
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-      <Kbd>⌘K</Kbd>
+      <span className={cn("min-w-0 flex-1", collapsed && "md:sr-only")}>
+        Search
+      </span>
+      <Kbd aria-hidden className={cn(collapsed && "md:hidden")}>
+        ⌘K
+      </Kbd>
     </button>
+  )
+  if (!collapsed) return button
+  return (
+    <Tooltip>
+      <TooltipTrigger render={button} />
+      <TooltipContent side="right" className="max-md:hidden">
+        {label}
+      </TooltipContent>
+    </Tooltip>
   )
 }

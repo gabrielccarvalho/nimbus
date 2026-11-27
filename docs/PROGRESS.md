@@ -465,7 +465,7 @@ Spec: `docs/UX_PATTERNS.md` and the "Nimbus pages redesign" canvas. The clip edi
 
 - [x] `docs/UX_PATTERNS.md`, Invariants in `docs/BUSINESS_LOGIC.md`, page rule and non-negotiables in `CLAUDE.md`
 - [x] `pnpm check:guidelines` with a unit test, in pre-commit and CI
-- [ ] Shared page header (context line, title, state, `Segmented` tabs, one primary action) in `components/app-shell/`, replacing the breadcrumb bar and `PageTitle`
+- [x] Shared page header (context line, title, state, `Segmented` tabs, one primary action) in `components/app-shell/`, replacing the breadcrumb bar and `PageTitle`; the editor uses it too and search moved to the sidebar (ADR-0078)
 - [ ] Clips review: select into a 340 px inspector, `StatusPill` on every tile, "Horizontal edit" as a button, timeline in a dock
 - [ ] Transcript: "Make a clip" in the header, timeline dock with a legend that matches its colours
 - [ ] Project overview: pipeline and project settings as inspector tabs, real thumbnails in Top picks

@@ -78,7 +78,7 @@ export function TranscriptView({
   return (
     <VideoPlayerProvider>
       <div className="flex flex-wrap items-start gap-[22px]">
-        <div className="grid min-w-0 flex-[999_1_520px] gap-3.5 lg:sticky lg:top-4">
+        <div className="grid min-w-0 flex-[999_1_520px] gap-3.5 lg:sticky lg:top-[76px]">
           <VideoPlayer aria-label="Source video" className="rounded-[18px]">
             <VideoPlayerVideo src={src} poster={poster} />
             <SpokenLine segments={segments} />

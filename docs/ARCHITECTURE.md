@@ -107,7 +107,7 @@ app/                 routes only: pages, layouts, route handlers, loading/error 
   api/               uploads, media, SSE
 components/
   ui/                shadcn + shadcn-style primitives
-  app-shell/         sidebar, header, breadcrumbs
+  app-shell/         sidebar, page header, command palette
   <domain>/          app-specific composites (projects, clips, captions, layout-fields…)
 features/<name>/     domain logic per feature
 lib/                 db, env, logger, storage, sse, result/errors, utils

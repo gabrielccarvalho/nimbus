@@ -1,12 +1,13 @@
 import { FolderSimpleIcon } from "@phosphor-icons/react/ssr"
 import type { Metadata } from "next"
 
+import { Page, PageLede } from "@/components/app-shell/page"
 import {
-  Page,
   PageHeader,
-  PageLede,
-  PageTitle,
-} from "@/components/app-shell/page"
+  PageHeaderContext,
+  PageHeaderHeading,
+  PageHeaderTitle,
+} from "@/components/app-shell/page-header"
 import { ImportCard } from "@/components/projects/import-card"
 import { NeedsYouBanner, ProjectGrid } from "@/components/projects/project-grid"
 import { projectSignal } from "@/components/projects/status-badge"
@@ -58,12 +59,17 @@ export default async function ProjectsPage() {
   const firstName = user.name.trim().split(/\s+/)[0]
 
   return (
-    <Page>
+    <>
       <PageHeader>
-        <PageTitle>
-          {greeting(new Date().getHours())}
-          {firstName ? `, ${firstName}` : ""}.
-        </PageTitle>
+        <PageHeaderHeading>
+          <PageHeaderContext>
+            {greeting(new Date().getHours())}
+            {firstName ? `, ${firstName}` : ""}
+          </PageHeaderContext>
+          <PageHeaderTitle>Projects</PageHeaderTitle>
+        </PageHeaderHeading>
+      </PageHeader>
+      <Page>
         <PageLede>
           Drop a long recording and nimbus marks the moments worth a vertical
           clip.{" "}
@@ -71,29 +77,29 @@ export default async function ProjectsPage() {
             Nothing leaves here until you approve it.
           </b>
         </PageLede>
-      </PageHeader>
-      <ImportCard
-        maxBytes={getEnv().MAX_UPLOAD_BYTES}
-        defaults={defaults.defaults}
-        claudeAvailable={defaults.claudeAvailable}
-      />
-      {waiting && <NeedsYouBanner project={waiting} />}
-      {items.length === 0 ? (
-        <Empty className="rounded-[18px] bg-graphite">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <FolderSimpleIcon />
-            </EmptyMedia>
-            <EmptyTitle>No recordings yet</EmptyTitle>
-            <EmptyDescription>
-              Drop a recording or paste a link above. Each one shows up here
-              with its clips and where it is in the pipeline.
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      ) : (
-        <ProjectGrid projects={items} />
-      )}
-    </Page>
+        <ImportCard
+          maxBytes={getEnv().MAX_UPLOAD_BYTES}
+          defaults={defaults.defaults}
+          claudeAvailable={defaults.claudeAvailable}
+        />
+        {waiting && <NeedsYouBanner project={waiting} />}
+        {items.length === 0 ? (
+          <Empty className="rounded-[18px] bg-graphite">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <FolderSimpleIcon />
+              </EmptyMedia>
+              <EmptyTitle>No recordings yet</EmptyTitle>
+              <EmptyDescription>
+                Drop a recording or paste a link above. Each one shows up here
+                with its clips and where it is in the pipeline.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          <ProjectGrid projects={items} />
+        )}
+      </Page>
+    </>
   )
 }

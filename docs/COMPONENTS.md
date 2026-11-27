@@ -19,7 +19,7 @@ Before building any UI element:
 
 Installed with `pnpm exec shadcn add` (style `base-nova`, Base UI). Generated files import `cn` from the `cn` package; custom primitives in `components/ui/` do the same so they read identically.
 
-alert, alert-dialog, badge, breadcrumb, button, card, chart, combobox, command, dialog, dropdown-menu, empty, field, input, input-group, item, kbd, label, popover, progress, radio-group, scroll-area, select, separator, sheet, skeleton, slider, sonner, spinner, stat-card*, switch, table, tabs, textarea, toggle, toggle-group, tooltip.
+alert, alert-dialog, badge, button, card, chart, combobox, command, dialog, dropdown-menu, empty, field, input, input-group, item, kbd, label, popover, progress, radio-group, scroll-area, select, separator, sheet, skeleton, slider, sonner, spinner, stat-card*, switch, table, tabs, textarea, toggle, toggle-group, tooltip.
 
 \* custom, see below.
 
@@ -59,7 +59,7 @@ Ten round dots lit in proportion to `value / max` (`max` defaults to 10), clampe
 
 A pill of toggle buttons where one choice is pressed (heycamps `seg`), on Base UI `ToggleGroup` + `Toggle`. Use it for a short set of modes or a two-way decision; tabs stay `Tabs`.
 
-- Parts: `Segmented` (the group; `value` / `defaultValue` / `onValueChange` are arrays like `ToggleGroup`, controlled or uncontrolled; give it an `aria-label`), `SegmentedItem` (`value`, a `<button>` with `aria-pressed`).
+- Parts: `Segmented` (the group; `value` / `defaultValue` / `onValueChange` are arrays like `ToggleGroup`, controlled or uncontrolled; give it an `aria-label`), `SegmentedItem` (`value`, a `<button>` with `aria-pressed`). For section tabs that are real URLs: `SegmentedNav` (a `<nav>`, give it an `aria-label`) and `SegmentedLink` (an `<a>`, `render` for a router link, `current` sets `aria-current="page"`). Same pill, no toggle semantics on links.
 - Variants: `layout` = `inline` (hugs its items) | `fill` (full width, equal items).
 - Clicking the pressed item reports `[]`. Ignore that in `onValueChange` when one choice must stay pressed, or use it to clear (the clip editor's Reject | Approve does).
 - A11y: arrow keys move between items (roving focus), Space/Enter press.
@@ -230,7 +230,6 @@ Added with `pnpm dlx shadcn@latest add chart` and left unedited (`base-nova`, Re
 
 App composites for `/analytics`; they read data shaped by `features/analytics/queries`. Charts use `Chart` (above), carry a text summary and offer their data as a table.
 
-- `AnalyticsNav`: the Overview, Shorts and Insights tabs, each a real URL.
 - `PeriodPicker`: 7, 28 or 90 days, kept in the `?period=` search param.
 - `Overview`: stat tiles with the change against the previous period, `ViewsChart`, the top Shorts of the period, and the empty and syncing states.
 - `ViewsChart`: views per day as stacked bars (Shorts and long-form); "Show as table" lists days.
@@ -246,9 +245,9 @@ App composites, not primitives; they read app data and routes.
 
 - `Logo` / `LogoMark`: lowercase wordmark and the dot-grid cloud (one amber dot).
 - `AppSidebar`: 260 px column, a 68 px icon rail when collapsed (the `sidebar_state` cookie keeps it across reloads), stacked on top under 768 px with a menu button. New project (`N`), sections, the three most recent projects with a `SignalDot` and status line.
-- `CommandPaletteProvider` / `SearchTrigger`: the ⌘K palette over recordings, clips and pages. It loads the index from `getSearchIndexAction` each time it opens. `SearchTrigger` is the search field in the top bar.
-- `AppBreadcrumbs` / `BreadcrumbLabel`: crumbs from the path; project tabs are not crumbs, a clip is. Pages register dynamic labels with `BreadcrumbLabel`.
-- `Page`, `PageHeader`, `PageTitle`, `PageLede`: the 1240 px page column and its heading.
+- `CommandPaletteProvider` / `SearchTrigger`: the ⌘K palette over recordings, clips and pages. It loads the index from `getSearchIndexAction` each time it opens. `SearchTrigger` is the Search row in the sidebar (an icon with a tooltip on the collapsed rail).
+- `PageHeader` (`page-header.tsx`): the 60 px header every signed-in page starts with, the editor included ([UX patterns › Header](UX_PATTERNS.md#header)). Parts, in order: `PageHeaderBack` (`href`, `label`), `PageHeaderHeading` holding `PageHeaderContext` over a `PageHeaderTitleLine` with `PageHeaderTitle` (the page's `h1`) and `PageHeaderState`, then `PageHeaderTabs` (`tabs` of `{ href, label, count?, exact? }`, current from the path), `PageHeaderDivider` and `PageHeaderActions`. It sticks to the top on pages that scroll and wraps when it runs out of width.
+- `Page`, `PageLede`: the 1240 px page column and an intro paragraph.
 - `useHotkey(key, handler, { meta })`: single-key shortcuts that ignore fields and open dialogs; `meta` for ⌘/Ctrl chords. It skips events another handler already prevented.
 - `AppSidebar` takes `shortcuts`, a page's own keys to list before the app's in the shortcuts dialog; the clip editor's layout passes `EDITOR_SHORTCUTS`.
 - `WorkspaceButton`, `UsageCard`, `AccountMenu`, `ShortcutsDialog` (`sidebar-account.tsx`): the sidebar's workspace menu, render-minute `DotMeter`, and account menu (Account, Plan & usage, Settings `,`, Keyboard shortcuts `?`, Sign out).
@@ -259,7 +258,7 @@ Projects home: `ImportCard` (a `clickable={false}` `Dropzone` holding the link f
 
 Layout fields (`components/projects/layout-fields.tsx`, used by the clip editor's Layout tab and Settings › Layout): `LayoutModeOptions` (mode cards with a slot diagram, in Settings; the editor shows the same `LAYOUT_MODES` as a `Segmented`), `CamPositionField` ("Webcam goes": On top / At the bottom), `GameplayRegion` (the dashed gameplay box on the source) and `withLayoutMode`. `CaptionStyleFields` has preset cards that draw a sample in the preset's font and colours.
 
-`ProjectHeader` (`components/projects/`) is the project title, `StatusPill` from `projectSignal`, one-line meta, open source, the ⋯ menu (Project settings sheet, Delete) and the tabs, with the clip count on Clips.
+`ProjectHeader` (`components/projects/`) is the project's `PageHeader`: back to projects, the one-line meta as the context line, the name, a `SignalDot` and label from `projectSignal`, the Overview · Transcript · Clips tabs with the clip count, open source and the ⋯ menu (Project settings sheet, Delete).
 
 ## Modified generated files
 

@@ -13,32 +13,6 @@ export function Page({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-export function PageHeader({
-  className,
-  ...props
-}: React.ComponentProps<"section">) {
-  return (
-    <section
-      data-slot="page-header"
-      className={cn("grid gap-2.5", className)}
-      {...props}
-    />
-  )
-}
-
-export function PageTitle({ className, ...props }: React.ComponentProps<"h1">) {
-  return (
-    <h1
-      data-slot="page-title"
-      className={cn(
-        "font-heading text-[32px] leading-[1.1] text-balance max-md:text-[26px]",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
 export function PageLede({ className, ...props }: React.ComponentProps<"p">) {
   return (
     <p

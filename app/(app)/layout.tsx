@@ -1,14 +1,7 @@
 import { cookies } from "next/headers"
 
 import { AppSidebar } from "@/components/app-shell/app-sidebar"
-import {
-  AppBreadcrumbs,
-  BreadcrumbLabelsProvider,
-} from "@/components/app-shell/breadcrumbs"
-import {
-  CommandPaletteProvider,
-  SearchTrigger,
-} from "@/components/app-shell/command-palette"
+import { CommandPaletteProvider } from "@/components/app-shell/command-palette"
 import { SIDEBAR_COOKIE } from "@/components/app-shell/sidebar-cookie"
 import { initials, PLANS } from "@/features/accounts/schema"
 import { requireViewer } from "@/features/accounts/session"
@@ -54,19 +47,13 @@ export default async function AppLayout({
           }}
         />
         <div className="flex min-w-0 flex-1 flex-col">
-          <BreadcrumbLabelsProvider>
-            <header className="flex min-h-[58px] flex-wrap items-center gap-3 px-[max(20px,2.5vw)] py-2 shadow-[inset_0_-1px_0_var(--hair)]">
-              <AppBreadcrumbs />
-              <SearchTrigger />
-            </header>
-            <main
-              id="main"
-              tabIndex={-1}
-              className="flex flex-1 flex-col outline-none"
-            >
-              {children}
-            </main>
-          </BreadcrumbLabelsProvider>
+          <main
+            id="main"
+            tabIndex={-1}
+            className="flex flex-1 flex-col outline-none"
+          >
+            {children}
+          </main>
         </div>
       </div>
     </CommandPaletteProvider>

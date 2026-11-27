@@ -2,17 +2,19 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { Suspense } from "react"
 
+import { Page } from "@/components/app-shell/page"
 import {
-  Page,
   PageHeader,
-  PageLede,
-  PageTitle,
-} from "@/components/app-shell/page"
+  PageHeaderContext,
+  PageHeaderHeading,
+  PageHeaderTitle,
+} from "@/components/app-shell/page-header"
 import { ChannelIcon } from "@/components/channels/channel-icon"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StatusPill } from "@/components/ui/status-pill"
+import { requireViewer } from "@/features/accounts/session"
 import { getYouTubeChannelCard } from "@/features/publishing/queries"
 
 export const metadata: Metadata = { title: "Channels" }
@@ -87,30 +89,33 @@ function YouTubeCardSkeleton() {
   )
 }
 
-export default function ChannelsPage() {
+export default async function ChannelsPage() {
+  const { workspace } = await requireViewer()
   return (
-    <Page>
+    <>
       <PageHeader>
-        <PageTitle>Channels</PageTitle>
-        <PageLede>
-          Where your recordings come from and where your clips go.
-        </PageLede>
+        <PageHeaderHeading>
+          <PageHeaderContext>{workspace.name}</PageHeaderContext>
+          <PageHeaderTitle>Channels</PageHeaderTitle>
+        </PageHeaderHeading>
       </PageHeader>
-      <Suspense fallback={<YouTubeCardSkeleton />}>
-        <YouTubeCard />
-      </Suspense>
-      <ul className="grid gap-2 sm:grid-cols-3">
-        {COMING_SOON.map(({ provider, name }) => (
-          <li
-            key={provider}
-            className="flex items-center gap-3.5 rounded-[14px] bg-graphite-2 p-3.5"
-          >
-            <ChannelIcon provider={provider} />
-            <span className="min-w-0 flex-1 font-medium">{name}</span>
-            <StatusPill tone="neutral">Soon</StatusPill>
-          </li>
-        ))}
-      </ul>
-    </Page>
+      <Page>
+        <Suspense fallback={<YouTubeCardSkeleton />}>
+          <YouTubeCard />
+        </Suspense>
+        <ul className="grid gap-2 sm:grid-cols-3">
+          {COMING_SOON.map(({ provider, name }) => (
+            <li
+              key={provider}
+              className="flex items-center gap-3.5 rounded-[14px] bg-graphite-2 p-3.5"
+            >
+              <ChannelIcon provider={provider} />
+              <span className="min-w-0 flex-1 font-medium">{name}</span>
+              <StatusPill tone="neutral">Soon</StatusPill>
+            </li>
+          ))}
+        </ul>
+      </Page>
+    </>
   )
 }

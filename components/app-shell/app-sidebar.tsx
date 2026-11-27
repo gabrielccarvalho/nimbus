@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
+import { SearchTrigger } from "./command-palette"
 import { Logo, LogoMark } from "./logo"
 import {
   AccountMenu,
@@ -203,7 +204,8 @@ export function AppSidebar({
         )}
       >
         <WorkspaceButton workspace={workspace} collapsed={collapsed} />
-        <nav aria-label="Sections" className="mt-2 grid gap-0.5">
+        <SearchTrigger collapsed={collapsed} className="mt-2" />
+        <nav aria-label="Sections" className="grid gap-0.5">
           {nav.map((item) => (
             <SidebarLink key={item.href} item={item} collapsed={collapsed} />
           ))}
