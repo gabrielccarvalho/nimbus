@@ -30,10 +30,11 @@ type CookieRow = {
   schema: string
 }
 
+// Partitioned rows belong to embeds on other sites; cookies.txt can't express that, so they'd replace the real ones.
 const QUERY = `select host_key, name, value, hex(encrypted_value) as encrypted, path, expires_utc, is_secure,
   (select value from meta where key = 'version') as schema
   from cookies
-  where host_key like '%youtube.com' or host_key like '%google.com'`
+  where (host_key like '%youtube.com' or host_key like '%google.com') and top_frame_site_key = ''`
 
 // The first read pops a macOS Keychain prompt; "Always Allow" keeps later reads silent.
 const KEYCHAIN_TIMEOUT_MS = 120_000

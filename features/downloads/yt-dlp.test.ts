@@ -15,6 +15,8 @@ let calls: string
 const STUB = `#!/bin/sh
 echo "$*" >> "$CALLS"
 case "$*" in
+  *--cookies*blocked*) echo "ERROR: [youtube] blocked: Requested format is not available. Use --list-formats for a list of available formats" >&2; exit 1 ;;
+  *blocked*) echo "ERROR: [youtube] blocked: Sign in to confirm you're not a bot" >&2; exit 1 ;;
   *--cookies*) echo "ERROR: [youtube] abc: Requested format is not available. Use --list-formats for a list of available formats" >&2; exit 1 ;;
   *--format*) out=""; prev=""; for a in "$@"; do [ "$prev" = "--paths" ] && out="$a"; prev="$a"; done; : > "$out/source.mp4" ;;
   *) echo '{"id":"abc","title":"Clip","duration":60}' ;;
@@ -63,6 +65,14 @@ describe("YtDlpDownloader", () => {
     )
 
     expect(info.title).toBe("Clip")
+  })
+
+  it("reports the signed-in failure when the retry without cookies fails too", async () => {
+    await expect(
+      downloader("/tmp/cookies.txt").info(
+        "https://www.youtube.com/watch?v=blocked"
+      )
+    ).rejects.toThrow(/out of date/)
   })
 
   it("doesn't retry when no cookies were sent", async () => {

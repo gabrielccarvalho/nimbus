@@ -65,11 +65,12 @@ export class YtDlpDownloader implements Downloader {
       this.hasCookies() &&
       NO_FORMATS.test(result.stderrTail)
     ) {
-      return runProcess(
+      const anonymous = await runProcess(
         this.options.binary,
         [...this.baseArgs(undefined, { anonymous: true }), ...args],
         options
       )
+      if (anonymous.code === 0) return anonymous
     }
     return result
   }

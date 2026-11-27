@@ -160,7 +160,21 @@ const KNOWN_ERRORS: [RegExp, AppError["code"], string][] = [
     "EXTERNAL",
     "Couldn't reach the site. Check your connection and try again.",
   ],
+  [
+    /Requested format is not available|No video formats found/i,
+    "DEPENDENCY_MISSING",
+    "yt-dlp found nothing it can play for this video, which usually means it's out of date. Update it (brew upgrade yt-dlp) and try again.",
+  ],
 ]
+
+export const YTDLP_STALE_DAYS = 21
+
+export function ytDlpAgeDays(version: string, now = new Date()): number | null {
+  const match = /^(\d{4})\.(\d{1,2})\.(\d{1,2})/.exec(version.trim())
+  if (!match) return null
+  const released = Date.UTC(+match[1]!, +match[2]! - 1, +match[3]!)
+  return Math.floor((now.getTime() - released) / 86_400_000)
+}
 
 export function describeYtDlpError(
   stderr: string,

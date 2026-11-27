@@ -8,6 +8,7 @@ import {
   parseInfo,
   parseProgressLine,
   downloadProgress,
+  ytDlpAgeDays,
 } from "./yt-dlp-parse"
 
 describe("parseVideoUrl", () => {
@@ -159,6 +160,15 @@ describe("progress", () => {
   })
 })
 
+describe("ytDlpAgeDays", () => {
+  it("reads the release date from the version", () => {
+    const now = new Date("2026-11-27T12:00:00Z")
+    expect(ytDlpAgeDays("2026.10.26", now)).toBe(32)
+    expect(ytDlpAgeDays("2026.11.23.232614", now)).toBe(4)
+    expect(ytDlpAgeDays("nightly", now)).toBeNull()
+  })
+})
+
 describe("describeYtDlpError", () => {
   it.each([
     ["ERROR: [youtube] abc: Private video. Sign in", "VALIDATION", /private/],
@@ -190,6 +200,16 @@ describe("describeYtDlpError", () => {
       /^Download failed: Something new broke$/,
     ],
     ["ERROR: Unsupported URL: https://x.com", "VALIDATION", /isn't a video/],
+    [
+      "ERROR: [youtube] abc: Requested format is not available. Use --list-formats for a list of available formats",
+      "DEPENDENCY_MISSING",
+      /out of date/,
+    ],
+    [
+      "ERROR: [youtube] abc: No video formats found!; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues",
+      "DEPENDENCY_MISSING",
+      /out of date/,
+    ],
     [
       "ERROR: Unable to download webpage: <urlopen error getaddrinfo failed>",
       "EXTERNAL",

@@ -20,6 +20,10 @@ import { Client } from "pg"
 
 import { cookieDatabasePath } from "@/features/downloads/browser-cookies"
 import { parseBrowserSpec } from "@/features/downloads/chromium-cookies"
+import {
+  YTDLP_STALE_DAYS,
+  ytDlpAgeDays,
+} from "@/features/downloads/yt-dlp-parse"
 import { CAPTION_FONT_IDS, CAPTION_FONTS } from "@/features/captions/styles"
 import { chooseEncoder } from "@/features/render/filtergraph"
 import { installedCaptionFonts } from "@/features/render/fonts"
@@ -221,13 +225,23 @@ async function checkWorkerTools(env: ReturnType<typeof getEnv>) {
     const ytdlp = await runProcess(env.YTDLP_PATH, ["--version"], {
       timeoutMs: 10_000,
     })
-    add(
-      "yt-dlp",
-      ytdlp.code === 0 ? "ok" : "warn",
-      ytdlp.code === 0
-        ? `${ytdlp.stdout.trim()} (link imports)`
-        : `${env.YTDLP_PATH} failed; link imports won't work`
-    )
+    const version = ytdlp.stdout.trim()
+    const age = ytdlp.code === 0 ? ytDlpAgeDays(version) : null
+    if (age !== null && age > YTDLP_STALE_DAYS) {
+      add(
+        "yt-dlp",
+        "warn",
+        `${version} is ${age} days old; YouTube breaks old releases (brew upgrade yt-dlp)`
+      )
+    } else {
+      add(
+        "yt-dlp",
+        ytdlp.code === 0 ? "ok" : "warn",
+        ytdlp.code === 0
+          ? `${version} (link imports)`
+          : `${env.YTDLP_PATH} failed; link imports won't work`
+      )
+    }
   } catch {
     add(
       "yt-dlp",
