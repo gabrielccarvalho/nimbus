@@ -34,10 +34,14 @@ export function createLoudnessCollector(intervalMs = LOUDNESS_INTERVAL_MS) {
 }
 
 export function normalizeLoudness(values: readonly number[]): number[] {
-  const audible = values.filter((v) => v > LOUDNESS_FLOOR_LUFS)
-  if (audible.length === 0) return values.map(() => 0)
-  const max = Math.max(...audible)
-  const min = Math.min(...audible)
+  let max = -Infinity
+  let min = Infinity
+  for (const v of values) {
+    if (v <= LOUDNESS_FLOOR_LUFS) continue
+    if (v > max) max = v
+    if (v < min) min = v
+  }
+  if (max === -Infinity) return values.map(() => 0)
   const span = max - min
   return values.map((v) => {
     if (v <= LOUDNESS_FLOOR_LUFS) return 0

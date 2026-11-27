@@ -75,6 +75,14 @@ describe("loudness collector", () => {
     expect(normalizeLoudness([-70, -70])).toEqual([0, 0])
     expect(normalizeLoudness([-70, -15, -15])).toEqual([0, 1, 1])
   })
+
+  it("normalizes a ten-hour recording", () => {
+    const values = Array.from({ length: 144_000 }, (_, i) => -40 + (i % 31))
+    const normalized = normalizeLoudness(values)
+    expect(normalized).toHaveLength(values.length)
+    expect(Math.min(...normalized.slice(0, 31))).toBe(0)
+    expect(Math.max(...normalized.slice(0, 31))).toBe(1)
+  })
 })
 
 describe("speech density", () => {
