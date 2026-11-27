@@ -1,9 +1,4 @@
-import {
-  ArrowRightIcon,
-  CheckIcon,
-  PlusIcon,
-  UploadSimpleIcon,
-} from "@phosphor-icons/react/ssr"
+import { ArrowRightIcon, PlusIcon } from "@phosphor-icons/react/ssr"
 import Link from "next/link"
 
 import { Logo, LogoMark } from "@/components/app-shell/logo"
@@ -16,6 +11,7 @@ import { cn } from "@/lib/utils"
 
 import { HeroEdit } from "./hero-edit"
 import styles from "./landing.module.css"
+import { StreamToClips } from "./stream-to-clips"
 
 const SECTION = "mx-auto w-full max-w-[1280px] px-[max(20px,4vw)]"
 const CHAPTER = cn(SECTION, "scroll-mt-6 pt-[clamp(110px,14vw,200px)]")
@@ -146,78 +142,19 @@ function Hero() {
 const STEPS = [
   {
     title: "Drop a recording",
-    body: "A file, or a link to a YouTube video or a Twitch VOD. Wide and ultrawide both work.",
-    visual: (
-      <div className="grid place-items-center content-center gap-2.5 text-center">
-        <span className="grid size-11 place-items-center rounded-full bg-glass-2 inset-ring-1 inset-ring-white/10 [&_svg]:size-[18px]">
-          <UploadSimpleIcon />
-        </span>
-        <span className="font-mono text-xs text-tertiary">
-          friday-stream.mp4 · 2.3 GB
-        </span>
-      </div>
-    ),
+    body: "A file, a YouTube link or a Twitch VOD. Wide and ultrawide both work.",
   },
   {
     title: "It reads all of it",
-    body: "Every word with its timing, every silence, every loud moment. You can search the whole stream.",
-    visual: (
-      <div className="grid content-center gap-2 px-4 text-[13px] text-muted-foreground">
-        <span className="flex gap-2.5">
-          <span className="font-mono text-[11px] text-tertiary">12:41</span>
-          okay, one more left on the stairs
-        </span>
-        <span className="flex gap-2.5 text-foreground">
-          <span className="font-mono text-[11px] text-tertiary">12:46</span>
-          <span>
-            no way <span className="rounded-sm bg-lav px-1 text-night">he</span>{" "}
-            peeks, no way
-          </span>
-        </span>
-        <span className="flex gap-2.5">
-          <span className="font-mono text-[11px] text-tertiary">12:52</span>
-          he peeked, he actually peeked
-        </span>
-      </div>
-    ),
+    body: "Every word with its timing, every silence, every loud moment.",
   },
   {
     title: "It picks and frames",
-    body: "Each moment comes back vertical, with your webcam found, a title, a hook and word-by-word captions.",
-    visual: (
-      <div className="flex items-center justify-center gap-2.5">
-        {[false, true, false].map((approved, index) => (
-          <span
-            key={index}
-            className={cn(
-              "relative aspect-[9/16] h-[118px] overflow-hidden rounded-[9px] bg-night",
-              approved
-                ? "inset-ring-2 inset-ring-mint/70"
-                : "inset-ring-1 inset-ring-white/10"
-            )}
-          >
-            <i className="absolute inset-x-0 top-0 h-[38%] bg-lav/14" />
-          </span>
-        ))}
-      </div>
-    ),
+    body: "Each moment comes back vertical, with your webcam, a title and captions.",
   },
   {
     title: "You decide",
-    body: "Approve the ones you like. Only those render, and only the ones you publish go to YouTube.",
-    visual: (
-      <div className="grid place-items-center">
-        <span className="flex gap-0.5 rounded-full bg-glass p-[3px] text-[13.5px] font-medium inset-ring-1 inset-ring-hair">
-          <span className="flex h-8 items-center px-3.5 text-muted-foreground">
-            Reject
-          </span>
-          <span className="flex h-8 items-center gap-1.5 rounded-full bg-mint/18 px-3.5 text-mint inset-ring-1 inset-ring-mint/50">
-            <CheckIcon className="size-[13px]" weight="bold" />
-            Approved
-          </span>
-        </span>
-      </div>
-    ),
+    body: "Only the clips you approve render. Only the ones you publish go out.",
   },
 ] as const
 
@@ -226,34 +163,42 @@ function HowItWorks() {
     <section id="how" aria-labelledby="how-title" className={CHAPTER}>
       <Intro label="How it works">
         <h2 id="how-title" className={H2}>
-          You drop it. <span className={MUTE}>nimbus does the busy work.</span>
+          Three hours in. <span className={MUTE}>Nine clips out.</span>
         </h2>
+        <p className="max-w-[560px] text-[clamp(16px,1.4vw,19px)] leading-normal text-muted-foreground">
+          nimbus reads the whole stream, marks the moments worth keeping and
+          hands each one back as a vertical clip. You say which ones go out.
+        </p>
       </Intro>
-      <ol
+      <div
         className={cn(
           STAGE_GAP,
-          "grid grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-[18px]"
+          "overflow-hidden rounded-[22px] bg-graphite shadow-[0_40px_100px_-40px_rgb(0_0_0/0.7)] inset-ring-1 inset-ring-white/6"
         )}
       >
-        {STEPS.map((step, index) => (
-          <li
-            key={step.title}
-            className="grid content-start gap-[18px] rounded-[18px] bg-graphite p-[22px]"
-          >
-            <div
-              aria-hidden
-              className="grid h-[150px] rounded-[14px] bg-graphite-2"
+        <StreamToClips />
+        <ol className="-ms-px grid grid-cols-[repeat(auto-fit,minmax(230px,1fr))]">
+          {STEPS.map((step, index) => (
+            <li
+              key={step.title}
+              className={cn(
+                styles.a,
+                styles.h,
+                styles[`how${index + 1}`],
+                "grid content-start gap-1.5 px-6 pt-[22px] pb-[26px] shadow-[inset_1px_0_0_rgb(255_255_255/0.06),inset_0_1px_0_rgb(255_255_255/0.06)]"
+              )}
             >
-              {step.visual}
-            </div>
-            <div className="grid gap-1.5">
               <span className="mono-label">0{index + 1}</span>
-              <h3 className={H3}>{step.title}</h3>
-              <p className={BODY}>{step.body}</p>
-            </div>
-          </li>
-        ))}
-      </ol>
+              <h3 className="text-[19px] leading-tight font-semibold tracking-[-0.02em]">
+                {step.title}
+              </h3>
+              <p className="text-[14.5px] leading-normal text-muted-foreground">
+                {step.body}
+              </p>
+            </li>
+          ))}
+        </ol>
+      </div>
     </section>
   )
 }
@@ -543,13 +488,37 @@ function Learn() {
 const gigabytes = (bytes: number) => `${Math.round(bytes / 1024 ** 3)} GB`
 const count = new Intl.NumberFormat("en-US")
 
+const CONTACT_HREF = "mailto:gabe@nimbus.dev"
+
 const PLAN_COPY: Record<
   Exclude<PlanId, "admin">,
-  { who: string; available: boolean }
+  {
+    who: string
+    price: string | null
+    per?: string
+    cta: string
+    contact?: boolean
+    featured?: boolean
+  }
 > = {
-  free: { who: "Try it on your next stream", available: true },
-  creator: { who: "For streaming every week", available: false },
-  studio: { who: "For daily streams and editors", available: false },
+  free: {
+    who: "Try it on your next stream",
+    price: "0",
+    cta: "Get started",
+  },
+  creator: {
+    who: "For streaming every week",
+    price: "67,69",
+    per: "a month",
+    cta: "Choose Creator",
+    featured: true,
+  },
+  studio: {
+    who: "For daily streams and editors",
+    price: null,
+    cta: "Get in contact",
+    contact: true,
+  },
 }
 
 function Pricing() {
@@ -557,7 +526,7 @@ function Pricing() {
     <section id="pricing" aria-labelledby="pricing-title" className={CHAPTER}>
       <Intro label="Pricing">
         <h2 id="pricing-title" className={H2}>
-          Start free. <span className={MUTE}>Bigger plans are on the way.</span>
+          Start free. <span className={MUTE}>Pay when you post more.</span>
         </h2>
       </Intro>
       <ul
@@ -569,6 +538,7 @@ function Pricing() {
         {(Object.keys(PLAN_COPY) as (keyof typeof PLAN_COPY)[]).map((id) => {
           const plan = PLANS[id]
           const copy = PLAN_COPY[id]
+          const custom = copy.price === null
           const lines = [
             ["Render minutes a month", plan.renderMinutes],
             [
@@ -578,57 +548,70 @@ function Pricing() {
             ["Clip picks with Claude a month", plan.claudeRuns],
             ["Publishes a day", plan.publishesPerDay],
           ] as const
+          const button = buttonVariants({
+            variant: copy.featured ? "primary" : "default",
+            size: "lg",
+          })
           return (
             <li
               key={id}
               className={cn(
-                "grid gap-[22px] rounded-[30px] p-[34px]",
-                copy.available
-                  ? "bg-graphite-2 shadow-[0_40px_100px_-30px_rgb(0_0_0/0.7)] inset-ring-1 inset-ring-white/16"
-                  : "bg-graphite inset-ring-1 inset-ring-white/7"
+                "grid gap-[22px] rounded-[30px]",
+                copy.featured
+                  ? "bg-graphite-2 bg-[radial-gradient(120%_70%_at_50%_0%,color-mix(in_oklab,var(--lav)_20%,transparent),transparent_62%)] px-[34px] pt-11 pb-[42px] shadow-[0_0_90px_-24px_color-mix(in_oklab,var(--lav)_50%,transparent),0_40px_100px_-30px_rgb(0_0_0/0.7)] inset-ring-[1.5px] inset-ring-lav/55 md:-mt-[18px]"
+                  : "bg-graphite p-[34px] inset-ring-1 inset-ring-white/7"
               )}
             >
               <div className="grid gap-1.5">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
                   <h3 className="text-xl font-semibold tracking-[-0.02em]">
                     {plan.name}
                   </h3>
-                  {!copy.available && (
-                    <StatusPill tone="neutral">Soon</StatusPill>
+                  {copy.featured && (
+                    <StatusPill tone="lav">Recommended</StatusPill>
                   )}
                 </div>
                 <p className="text-sm text-tertiary">{copy.who}</p>
               </div>
-              {copy.available ? (
-                <>
-                  <p className="text-[52px] leading-none font-semibold tracking-[-0.05em] tabular-nums">
-                    $0
-                  </p>
-                  <Link
-                    href="/signup"
-                    className={buttonVariants({
-                      variant: "primary",
-                      size: "lg",
-                    })}
-                  >
-                    Get started
-                  </Link>
-                </>
+              <p className="flex items-baseline gap-2">
+                {!custom && (
+                  <span className="mt-1.5 self-start text-xl leading-none font-semibold text-muted-foreground">
+                    R$
+                  </span>
+                )}
+                <span
+                  className={cn(
+                    "leading-none font-semibold tracking-[-0.05em] tabular-nums",
+                    copy.featured ? "text-[64px]" : "text-[52px]"
+                  )}
+                >
+                  {copy.price ?? "Custom"}
+                </span>
+                {copy.per && (
+                  <span className="text-sm text-tertiary">{copy.per}</span>
+                )}
+              </p>
+              {copy.contact ? (
+                <a href={CONTACT_HREF} className={button}>
+                  {copy.cta}
+                </a>
               ) : (
-                <p className="text-[15.5px] text-muted-foreground">
-                  Not open yet. Everyone starts on Free for now.
-                </p>
+                <Link href="/signup" className={button}>
+                  {copy.cta}
+                </Link>
               )}
               <dl className="grid gap-3 text-[15.5px] text-muted-foreground">
                 {lines.map(([label, value]) => (
                   <div key={label} className="flex justify-between gap-3">
                     <dt>{label}</dt>
                     <dd className="font-medium text-foreground tabular-nums">
-                      {value === null
-                        ? "No limit"
-                        : typeof value === "number"
-                          ? count.format(value)
-                          : value}
+                      {custom
+                        ? "Custom"
+                        : value === null
+                          ? "No limit"
+                          : typeof value === "number"
+                            ? count.format(value)
+                            : value}
                     </dd>
                   </div>
                 ))}
@@ -744,7 +727,11 @@ function Closing() {
         viewBox="0 0 1200 150"
         preserveAspectRatio="xMidYMax slice"
         aria-hidden
-        className={cn(STAGE_GAP, "block h-[clamp(90px,12vw,150px)] w-full")}
+        className={cn(
+          STAGE_GAP,
+          styles.arch,
+          "block h-[clamp(90px,12vw,150px)] w-full overflow-visible"
+        )}
       >
         <defs>
           <linearGradient id="horizon" x1="0" x2="1" y1="0" y2="0">
@@ -760,18 +747,19 @@ function Closing() {
           stroke="url(#horizon)"
           strokeWidth="5"
           strokeDasharray="5 9"
+          className={styles.arc1}
         />
         <path
           d="M-40 170 Q600 -8 1240 170"
           fill="none"
-          className="stroke-white/14"
+          className={cn(styles.arc2, "stroke-white/14")}
           strokeWidth="4"
           strokeDasharray="4 10"
         />
         <path
           d="M-40 192 Q600 16 1240 192"
           fill="none"
-          className="stroke-white/7"
+          className={cn(styles.arc3, "stroke-white/7")}
           strokeWidth="4"
           strokeDasharray="4 10"
         />

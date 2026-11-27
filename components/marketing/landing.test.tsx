@@ -34,24 +34,46 @@ describe("Landing", () => {
     ).toBeInTheDocument()
   })
 
-  it("takes the plan limits from the code and only opens Free", () => {
+  it("describes the stream becoming clips, with the four steps", () => {
+    render(<Landing />)
+    expect(
+      screen.getByRole("img", { name: /^A three hour stream on a timeline/ })
+    ).toBeInTheDocument()
+    const how = screen.getByRole("region", { name: /Three hours in/ })
+    expect(within(how).getAllByRole("listitem")).toHaveLength(4)
+    expect(
+      within(how).getByRole("heading", { name: "You decide" })
+    ).toBeInTheDocument()
+  })
+
+  it("prices the plans and takes Free and Creator limits from the code", () => {
     render(<Landing />)
     const pricing = screen.getByRole("region", { name: /Start free/ })
     const plans = within(pricing).getAllByRole("listitem")
     expect(plans).toHaveLength(3)
     const [free, creator, studio] = plans
-    expect(within(free!).getByText("$0")).toBeInTheDocument()
+    expect(free).toHaveTextContent("R$0")
     expect(
       within(free!).getByText(String(PLANS.free.renderMinutes))
     ).toBeInTheDocument()
     expect(
       within(free!).getByRole("link", { name: "Get started" })
+    ).toHaveAttribute("href", "/signup")
+
+    expect(creator).toHaveTextContent("R$67,69a month")
+    expect(within(creator!).getByText("Recommended")).toBeInTheDocument()
+    expect(
+      within(creator!).getByText(String(PLANS.creator.renderMinutes))
     ).toBeInTheDocument()
-    for (const plan of [creator!, studio!]) {
-      expect(within(plan).getByText("Soon")).toBeInTheDocument()
-      expect(within(plan).queryByRole("link")).not.toBeInTheDocument()
-    }
-    expect(within(studio!).getByText("1,200")).toBeInTheDocument()
+    expect(
+      within(creator!).getByRole("link", { name: "Choose Creator" })
+    ).toHaveAttribute("href", "/signup")
+
+    expect(within(studio!).getAllByText("Custom")).toHaveLength(5)
+    expect(within(studio!).queryByText("1,200")).not.toBeInTheDocument()
+    expect(
+      within(studio!).getByRole("link", { name: "Get in contact" })
+    ).toHaveAttribute("href", expect.stringMatching(/^mailto:/))
   })
 
   it("answers the questions in native disclosures", () => {

@@ -494,8 +494,15 @@ Spec: `docs/UX_PATTERNS.md` and the "Nimbus pages redesign" canvas. The clip edi
 - [x] Plan limits from `PLANS`, languages from `components/settings/languages.ts`
 - [x] Unit tests, `tests/e2e/landing.spec.ts` (front door, axe, phone width), `auth.spec.ts` updated
 - [ ] Real gameplay footage or frames in the hero stage instead of the dotted placeholder
-- [ ] Prices and a checkout for Creator and Studio once billing exists
+- [ ] A checkout for Creator once billing exists ("Choose Creator" goes to sign-up and the account starts on Free)
 - [ ] A larger hero stage on phones
+
+### Phase 45: Landing page prices and motion (ADR-0085)
+
+- [x] `StreamToClips`: How it works as a 12 s loop of a stream becoming clips, over the four steps
+- [x] Prices in reais: Free R$ 0, Creator R$ 67,69 a month (recommended), Studio custom with a contact link
+- [x] The closing horizon moves
+- [ ] `tests/e2e/landing.spec.ts` run against the new sections (not run in this session)
 
 ### Not verified
 
