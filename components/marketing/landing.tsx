@@ -125,16 +125,16 @@ function Hero() {
           className="inline-flex items-center gap-2.5 rounded-full bg-glass px-3.5 py-[7px] text-sm font-medium inset-ring-1 inset-ring-hair transition-colors hover:bg-white/10"
         >
           <SignalDot tone="amber" lit />
-          For streamers who record more than they post
+          For streamers and the people who clip them
         </a>
         <h1 className="max-w-[980px] text-[clamp(46px,6.4vw,92px)] leading-[1.02] font-semibold tracking-[-0.045em] text-balance">
           Long streams in.{" "}
           <span className="text-gradient">Short clips out.</span>
         </h1>
         <p className={LEDE}>
-          Drop a long recording. nimbus reads all of it, marks the moments worth
-          a vertical clip, frames your webcam and writes the captions.{" "}
-          <b>Nothing is published until you approve it.</b>
+          Paste a YouTube or Twitch link. nimbus picks the moments worth a
+          vertical clip and edits each one: framing, captions, effects. Change
+          anything you like. <b>Nothing is published until you approve it.</b>
         </p>
         <div className="flex flex-wrap justify-center gap-3">
           <Link
@@ -149,7 +149,7 @@ function Hero() {
           </a>
         </div>
         <p className="flex flex-wrap justify-center gap-x-3 gap-y-1.5 text-sm text-tertiary">
-          <span>Your recordings stay private</span>
+          <span>Your projects stay private</span>
           <span aria-hidden className="text-foreground/25">
             ·
           </span>
@@ -180,8 +180,8 @@ function Hero() {
 
 const STEPS = [
   {
-    title: "Drop a recording",
-    body: "A file, a YouTube link or a Twitch VOD. Wide and ultrawide both work.",
+    title: "Paste a link",
+    body: "A YouTube video, a Twitch VOD or a file of your own. Wide and ultrawide both work.",
   },
   {
     title: "It reads all of it",
@@ -189,7 +189,7 @@ const STEPS = [
   },
   {
     title: "It picks and frames",
-    body: "Each moment comes back vertical, with your webcam, a title and captions.",
+    body: "Each moment comes back vertical, with the webcam, a title and captions.",
   },
   {
     title: "You decide",
@@ -384,7 +384,7 @@ function EditorSection() {
               </div>
               <div className="relative h-[34px]">
                 <TrackBlock left={6} width={84} tone="mint">
-                  Night drive · ducks under your voice
+                  Night drive · ducks under the voice
                 </TrackBlock>
               </div>
               <i
@@ -575,19 +575,19 @@ const PLAN_COPY: Record<
   }
 > = {
   free: {
-    who: "Try it on your next stream",
+    who: "Try it on one stream",
     price: "0",
     cta: "Get started",
   },
   creator: {
-    who: "For streaming every week",
+    who: "For posting every week",
     price: "67,69",
     per: "a month",
     cta: "Choose Creator",
     featured: true,
   },
   studio: {
-    who: "For daily streams and editors",
+    who: "For daily streams and clipping teams",
     price: null,
     cta: "Get in contact",
     contact: true,
@@ -714,6 +714,10 @@ const FAQ = [
     a: "No. A clip renders only after you approve it, and it goes to YouTube only when you press publish on that clip. You can change the title, description and privacy each time.",
   },
   {
+    q: "I clip other people's streams. Is nimbus for me?",
+    a: "Yes. Paste the link to the stream and nimbus picks and edits the clips the same way. You review them and publish to your own channel. Get the streamer's permission first: nimbus doesn't check who owns a video.",
+  },
+  {
     q: "What can I import?",
     a: "MP4, MOV, MKV or WebM files, and links to YouTube videos, Twitch VODs and most video sites. Only import videos you own or have the rights to use.",
   },
@@ -786,7 +790,7 @@ function Closing() {
           id="closing-title"
           className="max-w-[980px] text-[clamp(44px,6.4vw,84px)] leading-[1.02] font-semibold tracking-[-0.045em] text-balance"
         >
-          Your next stream already has{" "}
+          The next stream already has{" "}
           <span className="text-gradient">the clips.</span>
         </h2>
         <div>

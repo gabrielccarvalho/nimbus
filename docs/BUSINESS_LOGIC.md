@@ -2,6 +2,15 @@
 
 The product creates **drafts for human review**. Nothing is auto-published. Rendering finals always requires explicit clip approval. YouTube demonetizes templated, mass-produced content, so the review step and per-clip titles/hooks keep output varied.
 
+## Who it is for
+
+Two kinds of people, one product:
+
+- **Streamers** who want Shorts out of their own streams.
+- **Clippers** who cut other people's streams and post the clips on their own channels.
+
+The offer is the same for both: paste a YouTube or Twitch link (or upload a file), Nimbus selects the clips and edits them, and the person can step in and change anything it did. The last word is theirs. So copy speaks to both: say "the stream", "the webcam", "the streamer", not "your stream" or "your webcam"; "your" is for what every user has, which is their clips, their channel and their decisions. Never describe the product as for streamers only.
+
 ## Invariants
 
 These hold everywhere. A change that breaks one is a product decision, not a refactor: it needs an ADR first. Each names where it is enforced, so a change to the rule and a change to the code land together.
@@ -15,7 +24,7 @@ These hold everywhere. A change that breaks one is a product decision, not a ref
 7. **Input is parsed at the edge.** Every Server Action and route parses its input with zod and returns `Result<T, AppError>`; nothing throws to the client. (`lib/server-action.ts`)
 8. **Secrets stay on the server.** The Claude key is stored encrypted and only its last four characters are shown again; OAuth tokens never reach the client. (`features/accounts/crypto.ts`)
 9. **The preview is the render.** Captions, layout, text and effects are computed by the same pure functions for the browser preview and for the ffmpeg filtergraph. A look that exists only in one of them is a bug. (`features/captions`, `features/layout`, `features/effects`)
-10. **Only your own videos.** Imports and music are the user's responsibility and the UI says so where they are added; Nimbus doesn't check rights.
+10. **Only videos you have the rights to.** A streamer's own stream, or someone else's with their permission. Imports and music are the user's responsibility and the UI says so where they are added; Nimbus doesn't check rights.
 
 ## Entities
 

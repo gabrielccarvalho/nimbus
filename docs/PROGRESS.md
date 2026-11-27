@@ -513,6 +513,11 @@ Spec: `docs/UX_PATTERNS.md` and the "Nimbus pages redesign" canvas. The clip edi
 - [ ] The thread in Firefox and Safari (checked in Chrome only; without scroll timelines it is a static line)
 - [ ] The motion and the three-row clips on a phone (e2e passes at 390 px with reduced motion; not looked at by eye)
 
+### Phase 47: Streamers and clippers (ADR-0087)
+
+- [x] "Who it is for" in `docs/BUSINESS_LOGIC.md`; invariant 10 renamed
+- [x] Landing page copy speaks to both and leads with the link; a question for clippers
+
 ### Not verified
 
 - Joined clips on a real recording: rendering was checked with real ffmpeg on the 20 s fixture, and the editor through component tests, not by hand in a browser. How long the preview stalls at a cut on a multi-hour proxy is unknown.

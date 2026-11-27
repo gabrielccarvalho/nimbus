@@ -180,7 +180,7 @@ export function HeroEdit({ className }: { className?: string }) {
           Trimmed to 0:28
         </Chip>
         <Chip side="right" top="45%" tone="mint" appear="in77">
-          Night drive, under your voice
+          Night drive, under the voice
         </Chip>
 
         <div className="absolute inset-x-0 top-[67%] bottom-0 bg-sheet text-[1cqw] font-medium shadow-[inset_0_1px_0_var(--hair)]">
