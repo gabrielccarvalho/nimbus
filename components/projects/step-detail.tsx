@@ -276,12 +276,24 @@ function RenderGrid({
   )
 }
 
+let clock = 0
+
+function subscribeToClock(onTick: () => void) {
+  clock = Date.now()
+  const timer = setInterval(() => {
+    clock = Date.now()
+    onTick()
+  }, 1000)
+  return () => clearInterval(timer)
+}
+
+const noClock = () => () => {}
+
+// null on the server and while hydrating: the two clocks never agree.
 export function useNow(active: boolean) {
-  const [now, setNow] = React.useState(() => Date.now())
-  React.useEffect(() => {
-    if (!active) return
-    const timer = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(timer)
-  }, [active])
-  return now
+  return React.useSyncExternalStore<number | null>(
+    active ? subscribeToClock : noClock,
+    () => (clock ||= Date.now()),
+    () => null
+  )
 }

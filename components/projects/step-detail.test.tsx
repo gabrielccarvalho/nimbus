@@ -1,10 +1,11 @@
 import { render, screen } from "@testing-library/react"
+import { renderToString } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
 import type { StepDetail } from "@/features/pipeline/detail"
 import type { ProjectSnapshot } from "@/features/pipeline/snapshot"
 
-import { StepDetailView } from "./step-detail"
+import { StepDetailView, useNow } from "./step-detail"
 
 type Job = ProjectSnapshot["jobs"][number]
 
@@ -175,5 +176,21 @@ describe("StepDetailView", () => {
       />
     )
     expect(container).toBeEmptyDOMElement()
+  })
+})
+
+describe("useNow", () => {
+  function Clock() {
+    const now = useNow(true)
+    return <p data-testid="clock">{now === null ? "none" : "time"}</p>
+  }
+
+  it("has no time on the server, so hydration can't disagree with it", () => {
+    expect(renderToString(<Clock />)).toContain("none")
+  })
+
+  it("has the time in the browser", () => {
+    render(<Clock />)
+    expect(screen.getByTestId("clock").textContent).toBe("time")
   })
 })

@@ -212,9 +212,10 @@ export function ProjectOverview({
   const queued = pipelineJobs.some((job) => job.status === "queued")
   const running = isRunning(snapshot.status)
   const now = useNow(running)
-  const elapsedMs = activeJob?.startedAt
-    ? Math.max(0, now - Date.parse(activeJob.startedAt))
-    : null
+  const elapsedMs =
+    activeJob?.startedAt && now !== null
+      ? Math.max(0, now - Date.parse(activeJob.startedAt))
+      : null
   const remainingMs =
     elapsedMs === null
       ? null
