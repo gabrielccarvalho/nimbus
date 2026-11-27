@@ -88,8 +88,8 @@ export default async function ProjectsPage() {
             {items.length > 0 && <AppHeaderState>· {summary}</AppHeaderState>}
           </AppHeaderTitleRow>
         </AppHeaderHeading>
-        <AppHeaderActions>
-          <SearchTrigger className="max-sm:w-full" />
+        <AppHeaderActions className="flex-nowrap max-sm:flex-wrap">
+          <SearchTrigger className="w-[300px] max-sm:w-full" />
           {items.length > 0 && (
             <a
               href="#import"

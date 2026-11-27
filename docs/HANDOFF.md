@@ -14,8 +14,8 @@ Passing: `pnpm check:guidelines`, `pnpm lint`, `pnpm typecheck`, `pnpm test:unit
 
 Not passing or not verified:
 
-- `pnpm test:e2e`: 8 failures out of the first 39 tests of 49 when this was written; the run had not finished. Details below.
-- Nobody has looked at the rebuilt pages in a browser. Expect layout bugs.
+- `pnpm test:e2e`: 34 passed, 14 failed (plus a throwaway screenshot spec). Details below.
+- Only two pages were looked at in a browser, at 1440 × 900: Projects home and the project overview. Both hold together. On home the search field and New project wrapped onto two lines; that is fixed but not re-checked. Clips, transcript, analytics, channels and settings have not been seen. Expect layout bugs.
 - `pnpm test:integration`: 14 failures in `render.test.ts`, `clip-editing.test.ts` and `publish-step.test.ts`. They fail the same way on `ea9e886`, before any of this work: ffmpeg in the cloud container cannot open its inputs. Check them on a machine with a working ffmpeg before blaming this branch.
 
 ## What was built
@@ -43,7 +43,9 @@ Run with a Postgres on `localhost:5442` (user and password `nimbus`). In the clo
 3. `music.spec.ts:13`: the editor's Title field never shows. Same cause as 2, most likely.
 4. `settings.spec.ts:62` "workspace caption defaults": timed out. Save is now in the header and disabled until something changes; read the spec against `settings-form.tsx`.
 5. `golden-path.spec.ts:6`, `publish.spec.ts:31` and `:78`: the tile reads "Render failed". Rendering fails in this container before this branch too (see the integration note). Re-run on a machine where ffmpeg works before changing anything.
-6. Tests 40 to 49 had not run. Run the whole suite.
+6. `settings.spec.ts:95`, `:128`, `:160`: time out like `:62`. Same first suspect: Save moved to the header and is disabled until the form is dirty; `:95` also opens Project settings, now a header icon button.
+7. `transcript.spec.ts:6` and `url-import.spec.ts:5`: `audio-summary` now reads "1 across 0:20 · 2 silences · 17% silent" and the "most rewatched on YouTube" text moved into the dock legend. Update the two assertions.
+8. `shorts.spec.ts:6`: axe reports three serious violations on a page of this flow. Read `test-results/shorts-*/error-context.md` after a re-run; this one is a real accessibility regression to fix in the markup, not in the spec.
 
 ## Still to do
 
