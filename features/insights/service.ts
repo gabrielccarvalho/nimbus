@@ -8,7 +8,7 @@ import { clipParts, timelineItems, timelinePoints } from "../clips/parts"
 import { transcriptLines } from "../highlights/prompt"
 import type { Workspace } from "../accounts/repository"
 import { CLAUDE_KEY_MISSING_MESSAGE } from "../accounts/schema"
-import { claudeAvailable } from "../accounts/usage"
+import { assertClaudeRun, claudeAvailable } from "../accounts/usage"
 import { relativePerformance } from "../analytics/curves"
 import { channelCurves } from "../analytics/service"
 import { jobQueue } from "../jobs/queue"
@@ -369,12 +369,13 @@ export function restoreRule(
 
 export async function findPatterns(
   db: Db,
-  workspace: Pick<Workspace, "anthropicKey">,
+  workspace: Pick<Workspace, "id" | "anthropicKey">,
   channelId: string
 ): Promise<void> {
   if (!claudeAvailable(workspace)) {
     throw new AppError("DEPENDENCY_MISSING", CLAUDE_KEY_MISSING_MESSAGE)
   }
+  await assertClaudeRun(db, workspace.id)
   const eligible = await eligibleInsightCount(db, channelId)
   if (eligible < INSIGHTS_MIN_CLIPS) {
     throw new AppError(

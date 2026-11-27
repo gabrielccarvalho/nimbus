@@ -6,6 +6,7 @@ import { newId, now, withTransaction, type Db } from "@/lib/db"
 import {
   account,
   assets,
+  clips,
   musicTracks,
   projects,
   settings,
@@ -183,6 +184,24 @@ export function accountRepository(db: Db) {
         renderSeconds: total("render_seconds"),
         claudeRuns: total("claude_run"),
       }
+    },
+
+    async renderingClips(workspaceId: string) {
+      return db
+        .select({
+          id: clips.id,
+          startMs: clips.startMs,
+          endMs: clips.endMs,
+          parts: clips.parts,
+        })
+        .from(clips)
+        .innerJoin(projects, eq(projects.id, clips.projectId))
+        .where(
+          and(
+            eq(projects.workspaceId, workspaceId),
+            eq(clips.status, "rendering")
+          )
+        )
     },
 
     async storageBytes(workspaceId: string) {

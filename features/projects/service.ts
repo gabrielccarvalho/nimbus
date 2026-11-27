@@ -5,6 +5,7 @@ import { AppError } from "@/lib/errors"
 import { logger } from "@/lib/logger"
 import { storageKeys, type StorageAdapter } from "@/lib/storage"
 
+import { assertRenderAllowance } from "../accounts/usage"
 import { clipRepository } from "../clips/repository"
 import { jobQueue } from "../jobs/queue"
 import { jobTypes } from "../jobs/schema"
@@ -37,17 +38,20 @@ export async function retryProject(db: Db, projectId: string) {
       await jobQueue(tx).enqueue({ type: jobType, projectId })
       return
     }
-    const retryable = (
-      await clipRepository(tx).listByStatus(projectId, [
-        "failed",
-        "rendering",
-        "approved",
-      ])
-    ).map((clip) => clip.id)
+    const retryable = await clipRepository(tx).listByStatus(projectId, [
+      "failed",
+      "rendering",
+      "approved",
+    ])
     if (retryable.length === 0) {
       throw new AppError("CONFLICT", "There are no clips to render")
     }
-    await enqueueClipRenders(tx, projectId, retryable)
+    await assertRenderAllowance(tx, project.workspaceId, retryable)
+    await enqueueClipRenders(
+      tx,
+      projectId,
+      retryable.map((clip) => clip.id)
+    )
   })
 }
 

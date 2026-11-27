@@ -6,6 +6,7 @@ import { getDb, newId } from "@/lib/db"
 import { AppError } from "@/lib/errors"
 import { getStorage, storageKeys } from "@/lib/storage"
 
+import { assertStorageAllowance } from "../accounts/usage"
 import { AUDIO_MAGIC_BYTES, trackTitleFromFile } from "../music/media"
 import { musicRepository } from "../music/repository"
 import { MUSIC_FORMATS, type MusicFormat } from "../music/schema"
@@ -70,6 +71,7 @@ export async function startUpload(
   const options =
     kind === "video" ? parseImportOptions(parsed.data.options) : undefined
   if (bytes === 0) throw new AppError("VALIDATION", "The upload was empty")
+  await assertStorageAllowance(getDb(), actor.workspaceId, bytes)
 
   const target = await getStorage().uploadTarget(key, {
     bytes,

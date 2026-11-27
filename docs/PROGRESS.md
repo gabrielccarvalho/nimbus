@@ -528,6 +528,12 @@ Spec: `docs/UX_PATTERNS.md` and the "Nimbus pages redesign" canvas. The clip edi
 - [ ] A Portuguese speaker reading every screen: the translation was written and type-checked, not proofread in the app
 - [ ] `hreflang` or a `/pt` landing page if Portuguese search traffic matters
 
+### Phase 49: Plans as the landing page sells them (ADR-0089)
+
+- [x] Render minutes, storage and Claude picks enforced where the work is asked for; selection over the limit falls back to the built-in selector
+- [x] Limit errors in pt-BR; Plan & usage no longer says usage isn't limited
+- [ ] A checkout for Creator (R$ 67,69 a month) that moves the workspace to the plan
+
 ### Not verified
 
 - Joined clips on a real recording: rendering was checked with real ffmpeg on the 20 s fixture, and the editor through component tests, not by hand in a browser. How long the preview stalls at a cut on a multi-hour proxy is unknown.

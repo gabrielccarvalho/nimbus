@@ -115,6 +115,31 @@ const patternsPtBR: [RegExp, Build][] = [
     (count) => `Seu plano permite ${count} publicações por dia`,
   ],
   [
+    /^You've used your plan's (\d+) render minutes for this month$/,
+    (minutes) =>
+      `Você já usou os ${minutes} minutos de renderização do seu plano neste mês`,
+  ],
+  [
+    /^Rendering this takes about (\d+) min and your plan has (\d+) min left this month$/,
+    (need, left) =>
+      `Renderizar isso leva cerca de ${need} min e seu plano tem ${left} min sobrando neste mês`,
+  ],
+  [
+    /^Your plan's (\d+) GB of storage is full\. Delete a project to make room\.$/,
+    (gigabytes) =>
+      `Os ${gigabytes} GB de armazenamento do seu plano estão cheios. Exclua um projeto para liberar espaço.`,
+  ],
+  [
+    /^This file doesn't fit in what's left of your plan's (\d+) GB of storage$/,
+    (gigabytes) =>
+      `Este arquivo não cabe no que sobra dos ${gigabytes} GB de armazenamento do seu plano`,
+  ],
+  [
+    /^You've used your plan's (\d+) Claude picks for this month$/,
+    (runs) =>
+      `Você já usou as ${runs} seleções com o Claude do seu plano neste mês`,
+  ],
+  [
     /^Can't move a project from (\w+) to (\w+)$/,
     (from, to) =>
       `Não dá para mover um projeto de ${projectStatuses[from] ?? from} para ${projectStatuses[to] ?? to}`,

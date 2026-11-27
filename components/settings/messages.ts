@@ -149,7 +149,7 @@ export const settings = defineMessages({
       adminSummary: (date: string) =>
         `Admin plan · resets ${date}. No limits; usage is still tracked.`,
       summary: (plan: string, date: string) =>
-        `${plan} plan · resets ${date}. Usage is tracked but not limited; billing isn't set up yet.`,
+        `${plan} plan · resets ${date}. A render, upload or Claude pick that would go past a limit is refused until then.`,
       renderMinutes: "Render minutes",
       storage: "Storage",
       claudeRuns: "Highlight runs with Claude",
@@ -451,7 +451,7 @@ export const settings = defineMessages({
       adminSummary: (date: string) =>
         `Plano Admin · reinicia em ${date} · sem limites; o uso continua sendo registrado.`,
       summary: (plan: string, date: string) =>
-        `Plano ${plan} · reinicia em ${date} · o uso é registrado, mas não limitado; a cobrança ainda não está configurada.`,
+        `Plano ${plan} · reinicia em ${date}. Até lá, uma renderização, um envio ou uma seleção com o Claude que passe de um limite é recusada.`,
       renderMinutes: "Minutos de renderização",
       storage: "Armazenamento",
       claudeRuns: "Buscas de destaques com o Claude",

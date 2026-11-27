@@ -3,6 +3,7 @@ import "server-only"
 import { withTransaction, type Db } from "@/lib/db"
 import { AppError } from "@/lib/errors"
 
+import { assertRenderAllowance } from "../accounts/usage"
 import { clipRepository } from "../clips/repository"
 import { jobQueue } from "../jobs/queue"
 import { enqueueClipRenders } from "../projects/service"
@@ -34,6 +35,7 @@ export async function startClipRenders(
   ) {
     throw new AppError("VALIDATION", "Approve clips before rendering them")
   }
+  await assertRenderAllowance(db, project.workspaceId, clips)
   await withTransaction(db, async (tx) => {
     if (project.status !== "rendering") {
       await projectRepository(tx).transition(projectId, "rendering")
@@ -55,6 +57,7 @@ export async function startEditRender(db: Db, projectId: string) {
   if ((await queue.countActive(projectId, ["render_edit"])) > 0) {
     throw new AppError("CONFLICT", "The edit is already rendering")
   }
+  await assertRenderAllowance(db, project.workspaceId)
   return queue.enqueue({ type: "render_edit", projectId, payload: {} })
 }
 

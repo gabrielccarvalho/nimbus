@@ -8,6 +8,7 @@ import { AppError } from "@/lib/errors"
 import { getStorage, storageKeys } from "@/lib/storage"
 import { assertDiskSpace } from "@/lib/storage/disk"
 
+import { assertStorageAllowance } from "../../accounts/usage"
 import { getDownloader } from "../../downloads"
 import { isPublicUrl } from "../../downloads/url"
 import type { JobContext, JobHandler } from "../../jobs/worker-loop"
@@ -97,6 +98,7 @@ export const downloadStep: JobHandler = async ({
         "This video is larger than the upload limit"
       )
     }
+    await assertStorageAllowance(db, project.workspaceId, info.approxBytes)
     await assertDiskSpace(
       env.SCRATCH_DIR,
       info.approxBytes,

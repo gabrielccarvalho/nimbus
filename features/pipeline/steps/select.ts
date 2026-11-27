@@ -2,7 +2,11 @@ import "server-only"
 
 import { getStorage } from "@/lib/storage"
 
-import { recordUsage, resolveAnthropicKey } from "../../accounts/usage"
+import {
+  claudeRunsUsedUp,
+  recordUsage,
+  resolveAnthropicKey,
+} from "../../accounts/usage"
 import { signalsRepository } from "../../analysis/repository"
 import { clipParts } from "../../clips/parts"
 import { clipRepository } from "../../clips/repository"
@@ -57,7 +61,15 @@ export const selectStep: JobHandler = async ({
         await getStorage().localCopy(proxy.storageKey, scratch, signal)
       )
     : undefined
-  const reviewing = settings.selectorMode === "anthropic" && Boolean(frames)
+  const usedUp =
+    settings.selectorMode === "anthropic"
+      ? await claudeRunsUsedUp(db, project.workspaceId)
+      : null
+  const selector =
+    settings.selectorMode === "manual" || usedUp
+      ? "heuristic"
+      : settings.selectorMode
+  const reviewing = selector === "anthropic" && Boolean(frames)
   const firstPassShare = reviewing ? 50 : 80
   reportProgress(10)
   const limits = {
@@ -81,8 +93,8 @@ export const selectStep: JobHandler = async ({
     } satisfies StepDetail)
   const found: RawCandidate[] = []
 
-  const { candidates, fallbackReason, reviewFailure } = await selectHighlights(
-    settings.selectorMode === "manual" ? "heuristic" : settings.selectorMode,
+  const { candidates, reviewFailure, ...selected } = await selectHighlights(
+    selector,
     {
       durationMs,
       words: transcript?.words ?? [],
@@ -128,7 +140,8 @@ export const selectStep: JobHandler = async ({
   )
   throwIfAborted(signal)
   showCandidates(candidates, null)
-  const usedClaude = settings.selectorMode === "anthropic" && !fallbackReason
+  const fallbackReason = usedUp?.message ?? selected.fallbackReason
+  const usedClaude = selector === "anthropic" && !fallbackReason
   if (usedClaude) await recordUsage(db, project, "claude_run", 1)
   const reviewed = reviewing && !fallbackReason && !reviewFailure
   const appliedRuleIds = [

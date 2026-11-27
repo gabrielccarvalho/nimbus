@@ -3,6 +3,7 @@ import "server-only"
 import { newId, withTransaction, type Db } from "@/lib/db"
 import type { Logger } from "@/lib/logger"
 
+import { assertStorageAllowance } from "../accounts/usage"
 import { jobQueue } from "../jobs/queue"
 import { projectRepository } from "../projects/repository"
 import { parseImportOptions, projectSettingsFromApp } from "../projects/upload"
@@ -17,6 +18,7 @@ export async function importFromUrl(
   workspaceId: string | null = null
 ) {
   const url = parseVideoUrl(input)
+  await assertStorageAllowance(db, workspaceId)
   const projectId = newId()
   const settings = await projectSettingsFromApp(
     parseImportOptions(options),

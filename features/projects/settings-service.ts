@@ -3,6 +3,7 @@ import "server-only"
 import { withTransaction, type Db } from "@/lib/db"
 import { AppError } from "@/lib/errors"
 
+import { assertClaudeRun } from "../accounts/usage"
 import { clipRepository } from "../clips/repository"
 import { syncAutoEffects } from "../effects/service"
 import { jobQueue } from "../jobs/queue"
@@ -70,6 +71,9 @@ export async function rerunProject(db: Db, projectId: string, step: RerunStep) {
       rendered.map((clip) => clip.id)
     )
   }
+  if (step === "select" && project.settings.selectorMode === "anthropic") {
+    await assertClaudeRun(db, project.workspaceId)
+  }
   await withTransaction(db, async (tx) => {
     await projectRepository(tx).transition(
       projectId,
@@ -89,6 +93,9 @@ export async function findMoreHighlights(db: Db, projectId: string) {
         ? "Wait for the current step to finish"
         : "Highlights haven't been found yet"
     )
+  }
+  if (project.settings.selectorMode === "anthropic") {
+    await assertClaudeRun(db, project.workspaceId)
   }
   await withTransaction(db, async (tx) => {
     await projectRepository(tx).transition(projectId, "selecting")

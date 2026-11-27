@@ -314,7 +314,11 @@ Tracks belong to the workspace's music library: MP3, M4A/AAC, WAV, OGG or FLAC u
 
 - Signing up creates a personal workspace with the user as `owner`. Everything a person makes belongs to the workspace, not the user.
 - Plans: Free (60 render minutes, 25 GB, 10 Claude runs a month, 2 publishes a day), Creator (300, 100 GB, 40, 5), Studio (1200, 500 GB, 200, 15), Admin (no limits; given to `gabe@nimbus.dev` at sign-up and to no other address).
-- Usage (`render_seconds`, `claude_run`) is recorded per workspace and summed per calendar month in UTC. Render minutes, storage and Claude runs are shown against the plan but not enforced yet; publishes per day are enforced.
+- Usage (`render_seconds`, `claude_run`) is recorded per workspace and summed per calendar month in UTC. Every limit is enforced where the work is asked for, in `features/accounts/usage.ts` (ADR-0089):
+  - Render minutes: starting clip renders, the horizontal edit or a retry is refused when this month's minutes, plus the clips already rendering, plus the clips asked for, go past the plan. The edit is checked against what's already used.
+  - Storage: an upload is refused when it doesn't fit in what's left (source media, renders and music all count); a link import is refused when storage is full, and its download fails when the size estimate doesn't fit.
+  - Claude runs: "Find more", re-running selection with Claude and Find patterns are refused once the month's runs are used. A pipeline that reaches selection over the limit uses the built-in selector and says why in each clip's reason.
+  - Publishes per day are counted in Pacific time (below).
 - Claude features use the workspace's own API key and are unavailable without one. The heuristic and manual selectors need no key.
 
 ### Language
