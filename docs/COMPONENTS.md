@@ -262,9 +262,11 @@ Layout fields (`components/projects/layout-fields.tsx`, used by the clip editor'
 
 ## Marketing (`components/marketing/`)
 
-Server Components only; no client JavaScript.
+Server Components, except `InView`, the page's only client JavaScript.
 
-- `Landing` (`landing.tsx`): the public page at the front door (ADR-0083): nav, hero, How it works, The editor, the promise with the spinning seal, What it learns, Pricing (limits from `PLANS`, prices per ADR-0085), Questions as native `<details>`, the closing call to action over the dotted horizon, footer. One `h1`; each chapter is a labelled `section`.
+- `InView` (`in-view.tsx`): tells the stylesheet when its element has been scrolled to (ADR-0086). No `data-view` until the script runs, `pending` once mounted off screen, `seen` when `amount` of it is visible (default: its top is 12% up the screen). `replay` sends it back to `pending`, animations rewound, each time it leaves the screen: that is what the two loops use. Takes `render` like the `ui` components. All the motion is in `landing.module.css`: loops under a `pending` wrapper hold their first frame, direct children of a `.cascade` wrapper rise in turn, `.pop`, `.draw` and `.yes` are the editor blocks, chart lines and Approve pill.
+
+- `Landing` (`landing.tsx`): the public page at the front door (ADR-0083): nav, hero, How it works, The editor, the promise with the spinning seal, What it learns, Pricing (limits from `PLANS`, prices per ADR-0085), Questions as native `<details>`, the closing call to action over the dotted horizon, footer. One `h1`; each chapter is a labelled `section`. The hero comes in on load (`.entrance`); every later chapter starts with `Thread`, the amber playhead that runs down the gap as the chapter scrolls in, and reveals its parts through `InView`.
 - `StreamToClips` (`stream-to-clips.tsx`, `landing.module.css`): the How it works picture (ADR-0085), a 12 s loop of a stream being read, nine moments marked and turned into clips, then decided on. One `role="img"` with a text alternative. The clips and the waveform are built from the `CLIPS` list, so moving a clip moves its mark, its line and its tile together; the keyframes are numbered per clip (`range0`…`tile8`).
 - `HeroEdit` (`hero-edit.tsx`, `landing.module.css`): the 14 s loop of a clip being edited. One `role="img"` with a full text alternative; the six step names under it light up in turn. To retime it, change the percentages in the stylesheet's header comment and keyframes together.
 

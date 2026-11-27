@@ -10,11 +10,12 @@ import { PLANS, type PlanId } from "@/features/accounts/schema"
 import { cn } from "@/lib/utils"
 
 import { HeroEdit } from "./hero-edit"
+import { InView } from "./in-view"
 import styles from "./landing.module.css"
 import { StreamToClips } from "./stream-to-clips"
 
 const SECTION = "mx-auto w-full max-w-[1280px] px-[max(20px,4vw)]"
-const CHAPTER = cn(SECTION, "scroll-mt-6 pt-[clamp(110px,14vw,200px)]")
+const CHAPTER = cn(SECTION, "relative scroll-mt-6 pt-[clamp(110px,14vw,200px)]")
 const H2 =
   "max-w-[980px] text-[clamp(36px,5.4vw,70px)] leading-[1.04] font-semibold tracking-[-0.04em] text-balance"
 const LEDE =
@@ -33,10 +34,36 @@ function Intro({
   children: React.ReactNode
 }) {
   return (
-    <div className="grid justify-items-center gap-5 text-center">
+    <InView
+      className={cn(
+        styles.cascade,
+        "grid justify-items-center gap-5 text-center"
+      )}
+    >
       {label && <span className="mono-label">{label}</span>}
       {children}
-    </div>
+    </InView>
+  )
+}
+
+function Thread() {
+  return (
+    <i
+      aria-hidden
+      className={cn(
+        styles.thread,
+        "pointer-events-none absolute top-[clamp(18px,2.4vw,36px)] left-1/2 -ml-px h-[clamp(72px,9.4vw,134px)] w-0.5 rounded-full bg-white/8"
+      )}
+    >
+      <i
+        className={cn(
+          styles.threadFill,
+          "absolute inset-0 rounded-full bg-linear-to-b from-amber/0 to-amber"
+        )}
+      >
+        <i className="absolute bottom-0 left-1/2 size-[7px] -translate-x-1/2 translate-y-1/2 rounded-full bg-amber shadow-[0_0_18px_2px_color-mix(in_oklab,var(--amber)_50%,transparent)]" />
+      </i>
+    </i>
   )
 }
 
@@ -87,6 +114,7 @@ function Hero() {
     <section
       className={cn(
         SECTION,
+        styles.entrance,
         "grid justify-items-center gap-6 pt-[clamp(64px,9vw,128px)] text-center"
       )}
     >
@@ -133,7 +161,9 @@ function Hero() {
           aria-hidden
           className="pointer-events-none absolute top-1/2 left-1/2 h-[900px] w-[1300px] -translate-1/2 bg-[radial-gradient(closest-side,rgb(120_132_230/0.085),rgb(120_132_230/0.03)_55%,transparent)]"
         />
-        <HeroEdit className="relative" />
+        <InView replay amount={0.4} className="relative">
+          <HeroEdit />
+        </InView>
       </div>
     </section>
   )
@@ -161,6 +191,7 @@ const STEPS = [
 function HowItWorks() {
   return (
     <section id="how" aria-labelledby="how-title" className={CHAPTER}>
+      <Thread />
       <Intro label="How it works">
         <h2 id="how-title" className={H2}>
           Three hours in. <span className={MUTE}>Nine clips out.</span>
@@ -170,35 +201,36 @@ function HowItWorks() {
           hands each one back as a vertical clip. You say which ones go out.
         </p>
       </Intro>
-      <div
-        className={cn(
-          STAGE_GAP,
-          "overflow-hidden rounded-[22px] bg-graphite shadow-[0_40px_100px_-40px_rgb(0_0_0/0.7)] inset-ring-1 inset-ring-white/6"
-        )}
-      >
-        <StreamToClips />
-        <ol className="-ms-px grid grid-cols-[repeat(auto-fit,minmax(230px,1fr))]">
-          {STEPS.map((step, index) => (
-            <li
-              key={step.title}
-              className={cn(
-                styles.a,
-                styles.h,
-                styles[`how${index + 1}`],
-                "grid content-start gap-1.5 px-6 pt-[22px] pb-[26px] shadow-[inset_1px_0_0_rgb(255_255_255/0.06),inset_0_1px_0_rgb(255_255_255/0.06)]"
-              )}
-            >
-              <span className="mono-label">0{index + 1}</span>
-              <h3 className="text-[19px] leading-tight font-semibold tracking-[-0.02em]">
-                {step.title}
-              </h3>
-              <p className="text-[14.5px] leading-normal text-muted-foreground">
-                {step.body}
-              </p>
-            </li>
-          ))}
-        </ol>
-      </div>
+      <InView className={cn(styles.cascade, STAGE_GAP)}>
+        <InView
+          replay
+          amount={0.4}
+          className="overflow-hidden rounded-[22px] bg-graphite shadow-[0_40px_100px_-40px_rgb(0_0_0/0.7)] inset-ring-1 inset-ring-white/6"
+        >
+          <StreamToClips />
+          <ol className="-ms-px grid grid-cols-[repeat(auto-fit,minmax(230px,1fr))]">
+            {STEPS.map((step, index) => (
+              <li
+                key={step.title}
+                className={cn(
+                  styles.a,
+                  styles.h,
+                  styles[`how${index + 1}`],
+                  "grid content-start gap-1.5 px-6 pt-[22px] pb-[26px] shadow-[inset_1px_0_0_rgb(255_255_255/0.06),inset_0_1px_0_rgb(255_255_255/0.06)]"
+                )}
+              >
+                <span className="mono-label">0{index + 1}</span>
+                <h3 className="text-[19px] leading-tight font-semibold tracking-[-0.02em]">
+                  {step.title}
+                </h3>
+                <p className="text-[14.5px] leading-normal text-muted-foreground">
+                  {step.body}
+                </p>
+              </li>
+            ))}
+          </ol>
+        </InView>
+      </InView>
     </section>
   )
 }
@@ -234,18 +266,25 @@ function TrackBlock({
   tone,
   children,
 }: {
-  left: string
-  width: string
+  left: number
+  width: number
   tone: keyof typeof TRACK_TONES
   children: React.ReactNode
 }) {
   return (
     <span
       className={cn(
+        styles.pop,
         "absolute inset-y-[5px] flex items-center overflow-hidden rounded-[7px] px-[9px] whitespace-nowrap inset-ring-1",
         TRACK_TONES[tone]
       )}
-      style={{ left, width }}
+      style={
+        {
+          left: `${left}%`,
+          width: `${width}%`,
+          "--n": left / 10,
+        } as React.CSSProperties
+      }
     >
       {children}
     </span>
@@ -255,6 +294,7 @@ function TrackBlock({
 function EditorSection() {
   return (
     <section id="editor" aria-labelledby="editor-title" className={CHAPTER}>
+      <Thread />
       <Intro label="The editor">
         <h2 id="editor-title" className={H2}>
           A first cut in minutes.{" "}
@@ -265,87 +305,97 @@ function EditorSection() {
           the webcam, add a song. <b>What you see is what renders.</b>
         </p>
       </Intro>
-      <div
-        role="img"
-        aria-label="The clip editor's timeline with text, captions, effects, video and music tracks"
+      <InView className={cn(styles.cascade, STAGE_GAP)}>
+        <div
+          role="img"
+          aria-label="The clip editor's timeline with text, captions, effects, video and music tracks"
+          className="overflow-hidden rounded-[18px] bg-sheet shadow-[0_40px_100px_-30px_rgb(0_0_0/0.7)] inset-ring-1 inset-ring-white/7"
+        >
+          <div className="flex h-[46px] items-center gap-2.5 px-4 text-[13.5px] font-medium shadow-[inset_0_-1px_0_var(--hair)]">
+            <span>Add</span>
+            <span className="text-muted-foreground">Auto effects</span>
+            <span className="flex-1" />
+            <span className="font-mono text-xs text-muted-foreground">
+              0:11.4 / 0:28.6
+            </span>
+          </div>
+          <div className="flex">
+            <div className="w-[92px] shrink-0 py-2.5 text-xs text-tertiary shadow-[inset_-1px_0_0_var(--hair)] max-sm:hidden">
+              {["Text", "Captions", "Effects"].map((label) => (
+                <div key={label} className="flex h-[34px] items-center ps-4">
+                  {label}
+                </div>
+              ))}
+              <div className="flex h-12 items-center ps-4">Video</div>
+              <div className="flex h-[34px] items-center ps-4">Music</div>
+            </div>
+            <div className="relative min-w-0 flex-1 px-6 py-2.5 text-xs font-medium">
+              <div className="relative h-[34px]">
+                <TrackBlock left={6} width={22} tone="lav">
+                  1v4 with 12 HP
+                </TrackBlock>
+              </div>
+              <div className="relative h-[34px]">
+                <TrackBlock left={6} width={13} tone="mint">
+                  okay okay
+                </TrackBlock>
+                <TrackBlock left={20} width={17} tone="mint">
+                  one more left
+                </TrackBlock>
+                <TrackBlock left={38} width={16} tone="mint">
+                  no way he peeks
+                </TrackBlock>
+                <TrackBlock left={55} width={20} tone="mint">
+                  he peeked, he peeked
+                </TrackBlock>
+                <TrackBlock left={76} width={14} tone="mint">
+                  let&apos;s go
+                </TrackBlock>
+              </div>
+              <div className="relative h-[34px]">
+                <TrackBlock left={40} width={15} tone="sky">
+                  Full game
+                </TrackBlock>
+                <TrackBlock left={70} width={15} tone="lav">
+                  Full cam
+                </TrackBlock>
+              </div>
+              <div className="relative h-12">
+                <span className="absolute inset-x-0 inset-y-1 flex gap-0.5 overflow-hidden rounded-lg">
+                  {Array.from({ length: 10 }, (_, index) => (
+                    <i
+                      key={index}
+                      className={cn(
+                        "flex-1",
+                        index % 2 ? "bg-graphite-3" : "bg-graphite-2"
+                      )}
+                    />
+                  ))}
+                </span>
+                <span className="absolute inset-y-0.5 right-[10%] left-[6%] rounded-[9px] inset-ring-2 inset-ring-foreground" />
+              </div>
+              <div className="relative h-[34px]">
+                <TrackBlock left={6} width={84} tone="mint">
+                  Night drive · ducks under your voice
+                </TrackBlock>
+              </div>
+              <i
+                className={cn(
+                  styles.seek,
+                  "absolute inset-y-1.5 left-[46%] w-0.5 bg-amber"
+                )}
+              />
+            </div>
+          </div>
+        </div>
+      </InView>
+      <InView
+        render={<ul />}
         className={cn(
-          STAGE_GAP,
-          "overflow-hidden rounded-[18px] bg-sheet shadow-[0_40px_100px_-30px_rgb(0_0_0/0.7)] inset-ring-1 inset-ring-white/7"
+          styles.cascade,
+          "mt-[34px] grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-x-[34px] gap-y-[18px]"
         )}
       >
-        <div className="flex h-[46px] items-center gap-2.5 px-4 text-[13.5px] font-medium shadow-[inset_0_-1px_0_var(--hair)]">
-          <span>Add</span>
-          <span className="text-muted-foreground">Auto effects</span>
-          <span className="flex-1" />
-          <span className="font-mono text-xs text-muted-foreground">
-            0:11.4 / 0:28.6
-          </span>
-        </div>
-        <div className="flex">
-          <div className="w-[92px] shrink-0 py-2.5 text-xs text-tertiary shadow-[inset_-1px_0_0_var(--hair)] max-sm:hidden">
-            {["Text", "Captions", "Effects"].map((label) => (
-              <div key={label} className="flex h-[34px] items-center ps-4">
-                {label}
-              </div>
-            ))}
-            <div className="flex h-12 items-center ps-4">Video</div>
-            <div className="flex h-[34px] items-center ps-4">Music</div>
-          </div>
-          <div className="relative min-w-0 flex-1 px-6 py-2.5 text-xs font-medium">
-            <div className="relative h-[34px]">
-              <TrackBlock left="6%" width="22%" tone="lav">
-                1v4 with 12 HP
-              </TrackBlock>
-            </div>
-            <div className="relative h-[34px]">
-              <TrackBlock left="6%" width="13%" tone="mint">
-                okay okay
-              </TrackBlock>
-              <TrackBlock left="20%" width="17%" tone="mint">
-                one more left
-              </TrackBlock>
-              <TrackBlock left="38%" width="16%" tone="mint">
-                no way he peeks
-              </TrackBlock>
-              <TrackBlock left="55%" width="20%" tone="mint">
-                he peeked, he peeked
-              </TrackBlock>
-              <TrackBlock left="76%" width="14%" tone="mint">
-                let&apos;s go
-              </TrackBlock>
-            </div>
-            <div className="relative h-[34px]">
-              <TrackBlock left="40%" width="15%" tone="sky">
-                Full game
-              </TrackBlock>
-              <TrackBlock left="70%" width="15%" tone="lav">
-                Full cam
-              </TrackBlock>
-            </div>
-            <div className="relative h-12">
-              <span className="absolute inset-x-0 inset-y-1 flex gap-0.5 overflow-hidden rounded-lg">
-                {Array.from({ length: 10 }, (_, index) => (
-                  <i
-                    key={index}
-                    className={cn(
-                      "flex-1",
-                      index % 2 ? "bg-graphite-3" : "bg-graphite-2"
-                    )}
-                  />
-                ))}
-              </span>
-              <span className="absolute inset-y-0.5 right-[10%] left-[6%] rounded-[9px] inset-ring-2 inset-ring-foreground" />
-            </div>
-            <div className="relative h-[34px]">
-              <TrackBlock left="6%" width="84%" tone="mint">
-                Night drive · ducks under your voice
-              </TrackBlock>
-            </div>
-            <i className="absolute inset-y-1.5 left-[46%] w-0.5 bg-amber" />
-          </div>
-        </div>
-      </div>
-      <ul className="mt-[34px] grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-x-[34px] gap-y-[18px]">
         {EDITOR_NOTES.map((note) => (
           <li key={note.title} className="grid content-start gap-1.5">
             <h3 className="text-xl leading-[1.35] font-medium tracking-[-0.02em]">
@@ -354,7 +404,7 @@ function EditorSection() {
             <p className={BODY}>{note.body}</p>
           </li>
         ))}
-      </ul>
+      </InView>
     </section>
   )
 }
@@ -362,7 +412,13 @@ function EditorSection() {
 function Promise() {
   return (
     <section aria-labelledby="promise-title" className={CHAPTER}>
-      <div className="flex flex-wrap items-center justify-center gap-x-[88px] gap-y-12">
+      <Thread />
+      <InView
+        className={cn(
+          styles.cascade,
+          "flex flex-wrap items-center justify-center gap-x-[88px] gap-y-12"
+        )}
+      >
         <div
           role="img"
           aria-label="Seal: nothing leaves without you"
@@ -397,7 +453,7 @@ function Promise() {
             reads like a template.
           </p>
         </div>
-      </div>
+      </InView>
     </section>
   )
 }
@@ -405,6 +461,7 @@ function Promise() {
 function Learn() {
   return (
     <section id="learn" aria-labelledby="learn-title" className={CHAPTER}>
+      <Thread />
       <Intro label="What it learns">
         <h2 id="learn-title" className={H2}>
           Post. See what worked. <span className={MUTE}>Do more of that.</span>
@@ -415,8 +472,9 @@ function Learn() {
           <b>You approve those too.</b>
         </p>
       </Intro>
-      <div
+      <InView
         className={cn(
+          styles.cascade,
           STAGE_GAP,
           "grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-[18px]"
         )}
@@ -440,7 +498,7 @@ function Learn() {
             <path
               d="M0 146 C40 132 70 122 110 112 S200 98 320 90"
               fill="none"
-              className="stroke-lav"
+              className={cn(styles.draw, styles.draw2, "stroke-lav")}
               strokeWidth="3"
               strokeLinecap="round"
               vectorEffect="non-scaling-stroke"
@@ -448,7 +506,7 @@ function Learn() {
             <path
               d="M0 146 C30 110 60 74 110 52 S220 22 320 14"
               fill="none"
-              className="stroke-amber"
+              className={cn(styles.draw, "stroke-amber")}
               strokeWidth="2"
               strokeLinecap="round"
               vectorEffect="non-scaling-stroke"
@@ -477,10 +535,17 @@ function Learn() {
             className="flex w-fit gap-0.5 rounded-full bg-glass p-[3px] text-[13.5px] font-medium text-muted-foreground inset-ring-1 inset-ring-hair"
           >
             <span className="flex h-8 items-center px-3.5">Reject</span>
-            <span className="flex h-8 items-center px-3.5">Approve</span>
+            <span
+              className={cn(
+                styles.yes,
+                "flex h-8 items-center rounded-full bg-mint/18 px-3.5 text-mint inset-ring-1 inset-ring-mint/50"
+              )}
+            >
+              Approve
+            </span>
           </span>
         </div>
-      </div>
+      </InView>
     </section>
   )
 }
@@ -524,13 +589,16 @@ const PLAN_COPY: Record<
 function Pricing() {
   return (
     <section id="pricing" aria-labelledby="pricing-title" className={CHAPTER}>
+      <Thread />
       <Intro label="Pricing">
         <h2 id="pricing-title" className={H2}>
           Start free. <span className={MUTE}>Pay when you post more.</span>
         </h2>
       </Intro>
-      <ul
+      <InView
+        render={<ul />}
         className={cn(
+          styles.cascade,
           STAGE_GAP,
           "grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] items-start gap-[18px]"
         )}
@@ -619,7 +687,7 @@ function Pricing() {
             </li>
           )
         })}
-      </ul>
+      </InView>
       <p className="mx-auto mt-[34px] max-w-[46em] text-center text-sm text-tertiary">
         Picking and titling clips with Claude uses your own Claude API key. The
         built-in selector needs no key.
@@ -666,31 +734,34 @@ function Faq() {
       aria-labelledby="faq-title"
       className={cn(CHAPTER, "max-w-[980px]")}
     >
-      <h2
-        id="faq-title"
-        className={cn(H2, "mb-[clamp(32px,4vw,56px)] text-center")}
-      >
-        Questions
-      </h2>
-      {FAQ.map((item) => (
-        <details
-          key={item.q}
-          className="group shadow-[inset_0_-1px_0_var(--hair)]"
+      <Thread />
+      <InView className={styles.cascade}>
+        <h2
+          id="faq-title"
+          className={cn(H2, "mb-[clamp(32px,4vw,56px)] text-center")}
         >
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-5 py-6 text-xl leading-[1.35] font-medium tracking-[-0.02em] transition-colors hover:text-white [&::-webkit-details-marker]:hidden">
-            {item.q}
-            <span
-              aria-hidden
-              className="grid size-8 shrink-0 place-items-center rounded-full bg-glass-2 transition-transform duration-[350ms] ease-snappy group-open:rotate-45"
-            >
-              <PlusIcon className="size-3.5" />
-            </span>
-          </summary>
-          <p className="max-w-[46em] pe-[52px] pb-6 text-[17px] text-muted-foreground">
-            {item.a}
-          </p>
-        </details>
-      ))}
+          Questions
+        </h2>
+        {FAQ.map((item) => (
+          <details
+            key={item.q}
+            className="group shadow-[inset_0_-1px_0_var(--hair)]"
+          >
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-5 py-6 text-xl leading-[1.35] font-medium tracking-[-0.02em] transition-colors hover:text-white [&::-webkit-details-marker]:hidden">
+              {item.q}
+              <span
+                aria-hidden
+                className="grid size-8 shrink-0 place-items-center rounded-full bg-glass-2 transition-transform duration-[350ms] ease-snappy group-open:rotate-45"
+              >
+                <PlusIcon className="size-3.5" />
+              </span>
+            </summary>
+            <p className="max-w-[46em] pe-[52px] pb-6 text-[17px] text-muted-foreground">
+              {item.a}
+            </p>
+          </details>
+        ))}
+      </InView>
     </section>
   )
 }
@@ -699,9 +770,10 @@ function Closing() {
   return (
     <section
       aria-labelledby="closing-title"
-      className="px-[max(20px,4vw)] pt-[clamp(110px,14vw,200px)] text-center"
+      className="relative px-[max(20px,4vw)] pt-[clamp(110px,14vw,200px)] text-center"
     >
-      <div className="grid justify-items-center gap-6">
+      <Thread />
+      <InView className={cn(styles.cascade, "grid justify-items-center gap-6")}>
         <h2
           id="closing-title"
           className="max-w-[980px] text-[clamp(44px,6.4vw,84px)] leading-[1.02] font-semibold tracking-[-0.045em] text-balance"
@@ -709,61 +781,64 @@ function Closing() {
           Your next stream already has{" "}
           <span className="text-gradient">the clips.</span>
         </h2>
-        <Link
-          href="/signup"
-          className={buttonVariants({
-            variant: "primary",
-            size: "lg",
-            className: "h-[58px] px-[34px] text-[19px]",
-          })}
-        >
-          Get started
-        </Link>
+        <div>
+          <Link
+            href="/signup"
+            className={buttonVariants({
+              variant: "primary",
+              size: "lg",
+              className: "h-[58px] px-[34px] text-[19px]",
+            })}
+          >
+            Get started
+          </Link>
+        </div>
         <p className="text-sm text-tertiary">
           Free to start. Only import videos you own or have the rights to use.
         </p>
-      </div>
-      <svg
-        viewBox="0 0 1200 150"
-        preserveAspectRatio="xMidYMax slice"
-        aria-hidden
-        className={cn(
-          STAGE_GAP,
-          styles.arch,
-          "block h-[clamp(90px,12vw,150px)] w-full overflow-visible"
-        )}
-      >
-        <defs>
-          <linearGradient id="horizon" x1="0" x2="1" y1="0" y2="0">
-            <stop offset="0" stopColor="var(--amber)" />
-            <stop offset=".34" stopColor="var(--pink)" />
-            <stop offset=".66" stopColor="var(--lav)" />
-            <stop offset="1" stopColor="var(--mint)" />
-          </linearGradient>
-        </defs>
-        <path
-          d="M-40 150 Q600 -30 1240 150"
-          fill="none"
-          stroke="url(#horizon)"
-          strokeWidth="5"
-          strokeDasharray="5 9"
-          className={styles.arc1}
-        />
-        <path
-          d="M-40 170 Q600 -8 1240 170"
-          fill="none"
-          className={cn(styles.arc2, "stroke-white/14")}
-          strokeWidth="4"
-          strokeDasharray="4 10"
-        />
-        <path
-          d="M-40 192 Q600 16 1240 192"
-          fill="none"
-          className={cn(styles.arc3, "stroke-white/7")}
-          strokeWidth="4"
-          strokeDasharray="4 10"
-        />
-      </svg>
+      </InView>
+      <InView replay className={STAGE_GAP}>
+        <svg
+          viewBox="0 0 1200 150"
+          preserveAspectRatio="xMidYMax slice"
+          aria-hidden
+          className={cn(
+            styles.arch,
+            "block h-[clamp(90px,12vw,150px)] w-full overflow-visible"
+          )}
+        >
+          <defs>
+            <linearGradient id="horizon" x1="0" x2="1" y1="0" y2="0">
+              <stop offset="0" stopColor="var(--amber)" />
+              <stop offset=".34" stopColor="var(--pink)" />
+              <stop offset=".66" stopColor="var(--lav)" />
+              <stop offset="1" stopColor="var(--mint)" />
+            </linearGradient>
+          </defs>
+          <path
+            d="M-40 150 Q600 -30 1240 150"
+            fill="none"
+            stroke="url(#horizon)"
+            strokeWidth="5"
+            strokeDasharray="5 9"
+            className={styles.arc1}
+          />
+          <path
+            d="M-40 170 Q600 -8 1240 170"
+            fill="none"
+            className={cn(styles.arc2, "stroke-white/14")}
+            strokeWidth="4"
+            strokeDasharray="4 10"
+          />
+          <path
+            d="M-40 192 Q600 16 1240 192"
+            fill="none"
+            className={cn(styles.arc3, "stroke-white/7")}
+            strokeWidth="4"
+            strokeDasharray="4 10"
+          />
+        </svg>
+      </InView>
     </section>
   )
 }

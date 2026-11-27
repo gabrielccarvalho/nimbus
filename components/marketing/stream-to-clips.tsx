@@ -101,7 +101,7 @@ export function StreamToClips({ className }: { className?: string }) {
             <UploadSimpleIcon />
           </span>
           friday-stream.mp4
-          <span className="font-mono text-xs text-tertiary">
+          <span className="font-mono text-xs text-muted-foreground">
             3:12:04 · 2.3 GB
           </span>
         </span>
@@ -177,19 +177,19 @@ export function StreamToClips({ className }: { className?: string }) {
         })}
       </svg>
 
-      <div className="-mx-1.5 grid grid-cols-9 max-md:mt-[18px] max-md:grid-cols-[repeat(9,104px)] max-md:overflow-x-auto">
+      <div className="-mx-1.5 grid grid-cols-9 max-md:mt-[18px] max-md:grid-cols-3 max-md:gap-y-3.5">
         {CLIPS.map((clip, index) => {
           const approved = clip.decision === "approved"
           const rejected = clip.decision === "rejected"
           return (
             <div key={clip.at} className={cn(h(`tile${index}`), "px-1.5")}>
-              <div
-                className={cn(
-                  "grid gap-[9px]",
-                  rejected && cn(h("rejected"), "opacity-30")
-                )}
-              >
-                <span className="relative block aspect-[9/16] overflow-hidden rounded-xl bg-night bg-[radial-gradient(rgb(255_255_255/0.07)_1px,transparent_1.2px)] bg-size-[9px_9px] inset-ring-1 inset-ring-white/10">
+              <div className="grid gap-[9px]">
+                <span
+                  className={cn(
+                    "relative block aspect-[9/16] overflow-hidden rounded-xl bg-night bg-[radial-gradient(rgb(255_255_255/0.07)_1px,transparent_1.2px)] bg-size-[9px_9px] inset-ring-1 inset-ring-white/10",
+                    rejected && cn(h("rejected"), "opacity-30")
+                  )}
+                >
                   <i className="absolute inset-x-0 top-0 h-[37%] bg-lav/13 shadow-[inset_0_-1px_0_rgb(255_255_255/0.08)]" />
                   <b
                     className={cn(

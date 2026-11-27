@@ -502,7 +502,15 @@ Spec: `docs/UX_PATTERNS.md` and the "Nimbus pages redesign" canvas. The clip edi
 - [x] `StreamToClips`: How it works as a 12 s loop of a stream becoming clips, over the four steps
 - [x] Prices in reais: Free R$ 0, Creator R$ 67,69 a month (recommended), Studio custom with a contact link
 - [x] The closing horizon moves
-- [ ] `tests/e2e/landing.spec.ts` run against the new sections (not run in this session)
+- [x] `tests/e2e/landing.spec.ts` run against the new sections (Phase 46: it failed axe on `StreamToClips`; the meta text is now readable, a rejected clip dims its picture only, and on a phone the nine clips sit in three rows instead of a strip that scrolls sideways)
+
+### Phase 46: Landing page motion on scroll (ADR-0086)
+
+- [x] `InView`: the loops start when their stage is scrolled to and rewind when it leaves
+- [x] Chapters reveal as they are reached; the editor timeline, the chart and the suggested rule animate once
+- [x] `Thread`: the amber playhead between chapters, driven by scroll
+- [ ] The thread in Firefox and Safari (checked in Chrome only; without scroll timelines it is a static line)
+- [ ] The motion and the three-row clips on a phone (e2e passes at 390 px with reduced motion; not looked at by eye)
 
 ### Not verified
 
