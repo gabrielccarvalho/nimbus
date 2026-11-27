@@ -97,7 +97,7 @@ function ClipTile({
           href={`/projects/${projectId}/clips/${clip.id}`}
           data-clip-id={clip.id}
           aria-labelledby={`${id}-title`}
-          aria-describedby={`${id}-meta`}
+          aria-describedby={`${id}-status ${id}-meta`}
           aria-current={selected ? "true" : undefined}
           onFocus={onSelect}
           onClick={(event) => {
@@ -161,10 +161,15 @@ function ClipTile({
                 : "inset-ring-1 inset-ring-white/10"
           )}
         />
-        <ClipStatusBadge
-          status={clip.status}
-          className="pointer-events-none absolute start-2 bottom-2 bg-night/78 py-1 text-xs"
-        />
+        <span
+          id={`${id}-status`}
+          className="pointer-events-none absolute start-2 bottom-2"
+        >
+          <ClipStatusBadge
+            status={clip.status}
+            className="bg-night/78 py-1 text-xs"
+          />
+        </span>
       </div>
       <div className="grid gap-1.5 px-0.5">
         <span

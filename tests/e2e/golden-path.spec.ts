@@ -20,7 +20,7 @@ test("upload, find the webcam, render, download and edit a clip", async ({
     .getByRole("list", { name: "Clips" })
     .locator("[data-clip-id]")
     .first()
-  await first.click()
+  await first.dblclick()
   await expect(page.getByText(/Webcam found/)).toBeVisible({ timeout: 30_000 })
   await expect(page.getByTestId("save-state")).toHaveText("Saved")
   await expect(page.getByRole("main").getByTestId("clip-status")).toHaveText(
@@ -38,7 +38,7 @@ test("upload, find the webcam, render, download and edit a clip", async ({
     timeout: 120_000,
   })
 
-  await first.click()
+  await first.dblclick()
   await expect(page.getByRole("main").getByTestId("clip-status")).toHaveText(
     "Rendered"
   )
@@ -61,7 +61,7 @@ test("upload, find the webcam, render, download and edit a clip", async ({
   await expect(page.getByRole("link", { name: "Download all" })).toBeVisible()
   await expectNoSeriousA11yViolations(page)
 
-  await first.click()
+  await first.dblclick()
   await expect(page.getByLabel("Title")).toBeVisible()
   await expect(page.getByRole("main").getByTestId("clip-status")).toHaveText(
     "Rendered"

@@ -50,10 +50,10 @@ Approve and reject are the product's core gesture, so they look the same everywh
 
 ## Selection and the inspector
 
-- A grid or list that has more to say about an item than fits on its tile selects on click and shows the rest in the inspector. Opening the full editor is a second, explicit step (`Enter`, or the "Open in the editor" button).
+- A grid or list that has more to say about an item than fits on its tile selects on click (and on keyboard focus) and shows the rest in the inspector. Opening the full editor is a second, explicit step: double-click, `Enter`, or the "Open in the editor" button. The tile stays a real link, so ⌘-click and the context menu still work.
 - Selected is a 2 px `foreground` inset ring. Approved is a 2 px mint ring. Never both on one element: selection wins and the status moves to the pill.
 - The inspector starts with a mono label naming what it shows ("Selected · #3"), then the title, then the decision control, then details.
-- More than one group of settings in an inspector: `Tabs` at its top, as the editor's Details · Captions · Layout. Project settings are an inspector tab, not a separate sheet.
+- More than one group of settings in an inspector: `Tabs` at its top, as the editor's Details · Captions · Layout. A form too wide for 340 px (project settings) opens in a right-hand sheet from a labelled header icon button, never from a `⋯` menu.
 - A one-line note that explains the consequence of what is on screen goes in the inspector's footer, above a hairline ("Only approved clips render. About 6 render minutes.").
 
 ## Status
@@ -100,7 +100,7 @@ Approve and reject are the product's core gesture, so they look the same everywh
 - Plain, short, second person, present tense. Say what it does, how long it takes, what it costs.
 - No exclamation marks, no emoji, no hype.
 - The product is "nimbus" in the wordmark and "Nimbus" in sentences.
-- Don't send people to logs or settings without saying where: "Settings › Connected channels".
+- Don't send people to logs or settings without saying where: "Settings › Project defaults".
 
 ## Checklist for a new or changed page
 

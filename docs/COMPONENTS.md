@@ -230,7 +230,7 @@ Added with `pnpm dlx shadcn@latest add chart` and left unedited (`base-nova`, Re
 
 App composites for `/analytics`; they read data shaped by `features/analytics/queries`. Charts use `Chart` (above), carry a text summary and offer their data as a table.
 
-- `AnalyticsNav`: the Overview, Shorts and Insights tabs, each a real URL.
+- `AnalyticsHeader`: the page header for all three tabs: the channel as context, the Overview, Shorts and Insights tabs (each a real URL) and, on Overview, the `PeriodPicker` (a glass button that opens a menu of period links, so it never reads as tabs).
 - `PeriodPicker`: 7, 28 or 90 days, kept in the `?period=` search param.
 - `Overview`: stat tiles with the change against the previous period, `ViewsChart`, the top Shorts of the period, and the empty and syncing states.
 - `ViewsChart`: views per day as stacked bars (Shorts and long-form); "Show as table" lists days.
@@ -246,9 +246,10 @@ App composites, not primitives; they read app data and routes.
 
 - `Logo` / `LogoMark`: lowercase wordmark and the dot-grid cloud (one amber dot).
 - `AppSidebar`: 260 px column, a 68 px icon rail when collapsed (the `sidebar_state` cookie keeps it across reloads), stacked on top under 768 px with a menu button. New project (`N`), sections, the three most recent projects with a `SignalDot` and status line.
-- `CommandPaletteProvider` / `SearchTrigger`: the ⌘K palette over recordings, clips and pages. It loads the index from `getSearchIndexAction` each time it opens. `SearchTrigger` is the search field in the top bar.
-- `AppBreadcrumbs` / `BreadcrumbLabel`: crumbs from the path; project tabs are not crumbs, a clip is. Pages register dynamic labels with `BreadcrumbLabel`.
-- `Page`, `PageHeader`, `PageTitle`, `PageLede`: the 1240 px page column and its heading.
+- `CommandPaletteProvider` / `SearchTrigger`: the ⌘K palette over recordings, clips and pages. It loads the index from `getSearchIndexAction` each time it opens. `SearchTrigger` is the search field in the Projects header.
+- `AppHeader` and its parts (`app-header.tsx`): the 60 px header every signed-in page starts with (UX_PATTERNS › Header). `AppHeaderBack`, `AppHeaderHeading` holding `AppHeaderContext` (12 px line above) and `AppHeaderTitleRow` with `AppHeaderTitle` (the page's `h1`) and `AppHeaderState`; `AppHeaderTabs` / `AppHeaderTab` (links styled as a `Segmented`, `aria-current` on the active one, optional mono count); `AppHeaderDivider`; `AppHeaderActions`. Server-safe, no state.
+- `AppHeaderSlot` / `HeaderSlot` (`header-slot.tsx`): a page's client components portal their actions into the header (`HeaderSlot`) or their state beside the title (`target={HEADER_STATE_SLOT_ID}`), so the one primary button lives in the header even when its state is further down the tree. With no header on the page (a unit test) the children render in place.
+- `Page`: the padded, scrolling body of a workspace page, under its `AppHeader`.
 - `useHotkey(key, handler, { meta })`: single-key shortcuts that ignore fields and open dialogs; `meta` for ⌘/Ctrl chords. It skips events another handler already prevented.
 - `AppSidebar` takes `shortcuts`, a page's own keys to list before the app's in the shortcuts dialog; the clip editor's layout passes `EDITOR_SHORTCUTS`.
 - `WorkspaceButton`, `UsageCard`, `AccountMenu`, `ShortcutsDialog` (`sidebar-account.tsx`): the sidebar's workspace menu, render-minute `DotMeter`, and account menu (Account, Plan & usage, Settings `,`, Keyboard shortcuts `?`, Sign out).
@@ -259,7 +260,9 @@ Projects home: `ImportCard` (a `clickable={false}` `Dropzone` holding the link f
 
 Layout fields (`components/projects/layout-fields.tsx`, used by the clip editor's Layout tab and Settings › Layout): `LayoutModeOptions` (mode cards with a slot diagram, in Settings; the editor shows the same `LAYOUT_MODES` as a `Segmented`), `CamPositionField` ("Webcam goes": On top / At the bottom), `GameplayRegion` (the dashed gameplay box on the source) and `withLayoutMode`. `CaptionStyleFields` has preset cards that draw a sample in the preset's font and colours.
 
-`ProjectHeader` (`components/projects/`) is the project title, `StatusPill` from `projectSignal`, one-line meta, open source, the ⋯ menu (Project settings sheet, Delete) and the tabs, with the clip count on Clips.
+`ProjectHeader` (`components/projects/`) is the project's `AppHeader`: back to Projects, the one-line meta as context, the name with a `StatusPill` from `projectSignal`, the tabs with the clip count on Clips, icon buttons for the source video, Project settings (a sheet) and Delete, then the page's own actions through `AppHeaderSlot`.
+
+`TimelineDock` / `DockLegend` (`components/projects/timeline-dock.tsx`): the dock at the bottom of a project page: a mono label, a summary, a legend with one entry per colour or texture drawn (`clip`, `selected`, `selection`, `silence`, `audience`, `playhead`), the timeline as children and a five-point mono axis. `AudioOverview`, the clips review and the transcript use it.
 
 ## Modified generated files
 

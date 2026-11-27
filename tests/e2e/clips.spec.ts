@@ -48,13 +48,13 @@ test("reviews highlight candidates", async ({ page }) => {
   await page
     .getByRole("img", { name: "Clips in the recording" })
     .getByTitle(title)
-    .click()
+    .dblclick()
   await expect(page).toHaveURL(new RegExp(`/clips/${first}$`))
 })
 
 test("drives the editor from the keyboard", async ({ page }) => {
   const tiles = await uploadAndOpenClips(page)
-  await tiles.first().click()
+  await tiles.first().dblclick()
   await expect(page.getByText(/Webcam found/)).toBeVisible({ timeout: 30_000 })
   await expect(page.getByTestId("save-state")).toHaveText("Saved")
 
@@ -123,11 +123,13 @@ test("filters, rejects and approves from the keyboard, then finds more highlight
         document.getElementById(el.getAttribute("aria-labelledby")!)!
           .textContent
     ))!
-  await page
-    .getByRole("list", { name: "Clips" })
-    .getByRole("listitem")
-    .first()
-    .getByRole("button", { name: "Reject clip" })
+  await tiles.first().dblclick()
+  await expect(page).toHaveURL(/\/clips$/)
+  const inspector = page.getByRole("complementary", { name: "Selected clip" })
+  await expect(inspector.getByRole("heading")).toHaveText(title)
+  await inspector
+    .getByRole("group", { name: "Review decision" })
+    .getByRole("button", { name: "Reject" })
     .click()
   const filters = page.getByRole("group", { name: "Filter clips" })
   await expect(
@@ -169,7 +171,7 @@ test("filters, rejects and approves from the keyboard, then finds more highlight
 
 test("adds a zoom effect in the clip editor", async ({ page }) => {
   const tiles = await uploadAndOpenClips(page)
-  await tiles.first().click()
+  await tiles.first().dblclick()
   await expect(page.getByText(/Webcam found/)).toBeVisible({ timeout: 30_000 })
 
   const timeline = page.getByRole("region", { name: "Timeline" })
@@ -237,7 +239,7 @@ test("starts the timeline at the clip and moves it without a scrollbar", async (
   page,
 }) => {
   const tiles = await uploadAndOpenClips(page)
-  await tiles.first().click()
+  await tiles.first().dblclick()
 
   const timeline = page.getByRole("region", { name: "Timeline" })
   const scroller = page.getByTestId("timeline-scroller")
@@ -278,7 +280,7 @@ test("adds a text where a track is hovered and resizes the timeline", async ({
 }) => {
   await page.setViewportSize({ width: 1440, height: 1000 })
   const tiles = await uploadAndOpenClips(page)
-  await tiles.first().click()
+  await tiles.first().dblclick()
 
   const timeline = page.getByRole("region", { name: "Timeline" })
   const dockHeight = async () => (await timeline.boundingBox())!.height
@@ -315,7 +317,7 @@ test("adds a text where a track is hovered and resizes the timeline", async ({
 
 test("moves the gameplay box in the clip editor", async ({ page }) => {
   const tiles = await uploadAndOpenClips(page)
-  await tiles.first().click()
+  await tiles.first().dblclick()
   await expect(page.getByText(/Webcam found/)).toBeVisible({ timeout: 30_000 })
 
   const region = page.getByRole("group", { name: "Gameplay region" })
@@ -345,7 +347,7 @@ test("moves the gameplay box in the clip editor", async ({ page }) => {
 
 test("places this clip's captions by hand", async ({ page }) => {
   const tiles = await uploadAndOpenClips(page)
-  await tiles.first().click()
+  await tiles.first().dblclick()
   await expect(page.getByText(/Webcam found/)).toBeVisible({ timeout: 30_000 })
 
   const caption = page.getByRole("slider", { name: "Caption position" })

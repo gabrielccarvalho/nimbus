@@ -5,16 +5,18 @@ import { expectNoSeriousA11yViolations } from "./utils/axe"
 test("navigates between projects and settings", async ({ page }) => {
   await page.goto("/")
   await expect(
-    page.getByRole("heading", {
-      level: 1,
-      name: /^(Good \w+|Up late), Gabe\.$/,
-    })
+    page.getByRole("heading", { level: 1, name: "Projects" })
   ).toBeVisible()
+  await expect(page.getByTestId("greeting")).toHaveText(
+    /^(Good \w+|Up late), Gabe\./
+  )
   await page.keyboard.press(",")
   await expect(page).toHaveURL(/\/settings\/profile$/)
-  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible()
   await expect(
-    page.getByRole("navigation", { name: "breadcrumb" }).getByText("Settings")
+    page.getByRole("heading", { level: 1, name: "Profile" })
+  ).toBeVisible()
+  await expect(
+    page.getByRole("navigation", { name: "Settings sections" })
   ).toBeVisible()
   await expectNoSeriousA11yViolations(page)
 })
@@ -32,8 +34,8 @@ test("channels is a page of its own", async ({ page }) => {
     page.getByRole("heading", { name: "Channels", level: 1 })
   ).toBeVisible()
   await expectNoSeriousA11yViolations(page)
-  await page.getByRole("link", { name: "Connect", exact: true }).click()
-  await expect(page).toHaveURL(/\/settings\/channels$/)
+  await page.goto("/settings/channels")
+  await expect(page).toHaveURL(/\/channels$/)
 })
 
 test("sidebar collapse state persists across reloads", async ({ page }) => {
@@ -92,8 +94,8 @@ test("unknown pages show a styled 404", async ({ page }) => {
 })
 
 test("connected channels show each network", async ({ page }) => {
-  await page.goto("/settings/channels")
-  const list = page.getByRole("list").filter({ hasText: "YouTube" })
+  await page.goto("/channels")
+  const list = page.locator("[data-slot=channel-list]")
   for (const name of ["YouTube", "Twitch", "TikTok", "Instagram"]) {
     await expect(list.getByText(name, { exact: true })).toBeVisible()
   }

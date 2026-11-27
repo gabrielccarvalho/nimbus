@@ -46,7 +46,7 @@ Pills. `variant="primary"` is the white button, one per view. The default varian
 
 ## Typography
 
-Geist and Geist Mono from the `geist` package (`--font-geist-sans`, `--font-geist-mono`). Body is 15 px with `-0.011em` tracking. Headlines are 600 weight at `-0.04em` (`font-heading`): page title 32 px (26 px under 760 px wide), section 19 px, card title 15 px. Mono is only for small uppercase labels (`mono-label`: 11 px, 600, `.12em`, tertiary), timestamps and numbers (`font-mono tabular-nums`).
+Geist and Geist Mono from the `geist` package (`--font-geist-sans`, `--font-geist-mono`). Body is 15 px with `-0.011em` tracking. Headlines are 600 weight at `-0.04em` (`font-heading`): page title 16 px in the `AppHeader` (the sign-in headline is the only large one), section 19 px, card title 15 px. Mono is only for small uppercase labels (`mono-label`: 11 px, 600, `.12em`, tertiary), timestamps and numbers (`font-mono tabular-nums`).
 
 Caption fonts (Oxanium, Nunito Sans, Pricedown) are not UI fonts: the caption preview loads them from `/api/fonts/[font]` via `@font-face` in `globals.css`.
 

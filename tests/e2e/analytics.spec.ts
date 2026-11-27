@@ -44,7 +44,7 @@ test("imports past Shorts and shows the channel overview", async ({ page }) => {
   }).toPass({ timeout: 60_000 })
   await expect(
     page
-      .getByRole("region", { name: "Top Shorts this period" })
+      .getByRole("complementary", { name: "Top Shorts this period" })
       .getByText("Past short three")
   ).toBeVisible()
   await expectNoSeriousA11yViolations(page)

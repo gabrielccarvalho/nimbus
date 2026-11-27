@@ -32,7 +32,7 @@ test("publishes a rendered clip to YouTube", async ({ page }) => {
   test.setTimeout(240_000)
   const tile = await renderFirstClip(page)
 
-  await tile.click()
+  await tile.dblclick()
   await page.getByRole("button", { name: "More export options" }).click()
   await page.getByRole("menuitem", { name: /^Publish to YouTube…/ }).click()
   const form = page.getByRole("dialog", { name: "Publish to YouTube" })
@@ -51,7 +51,7 @@ test("publishes a rendered clip to YouTube", async ({ page }) => {
     { timeout: 60_000 }
   )
 
-  await tile.click()
+  await tile.dblclick()
   await page.getByRole("button", { name: "More export options" }).click()
   await expect(
     page.getByRole("menuitem", { name: /^Published on YouTube/ })
@@ -81,7 +81,7 @@ test("an edited clip can't be published until it is rendered again", async ({
   test.setTimeout(240_000)
   const tile = await renderFirstClip(page)
 
-  await tile.click()
+  await tile.dblclick()
   const more = page.getByRole("button", { name: "More export options" })
   const publish = page.getByRole("menuitem", { name: /^Publish to YouTube…/ })
   await more.click()

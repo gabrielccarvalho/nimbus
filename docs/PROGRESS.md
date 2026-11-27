@@ -465,14 +465,18 @@ Spec: `docs/UX_PATTERNS.md` and the "Nimbus pages redesign" canvas. The clip edi
 
 - [x] `docs/UX_PATTERNS.md`, Invariants in `docs/BUSINESS_LOGIC.md`, page rule and non-negotiables in `CLAUDE.md`
 - [x] `pnpm check:guidelines` with a unit test, in pre-commit and CI
-- [ ] Shared page header (context line, title, state, `Segmented` tabs, one primary action) in `components/app-shell/`, replacing the breadcrumb bar and `PageTitle`
-- [ ] Clips review: select into a 340 px inspector, `StatusPill` on every tile, "Horizontal edit" as a button, timeline in a dock
-- [ ] Transcript: "Make a clip" in the header, timeline dock with a legend that matches its colours
-- [ ] Project overview: pipeline and project settings as inspector tabs, real thumbnails in Top picks
-- [ ] Projects home: one-row import once projects exist, a "Failed" filter, "Done" instead of "Exported"
-- [ ] Analytics and Insights: period in the header, sparkline and comparison on stat cards, Reject | Approve on suggestions, playbook in the inspector
-- [ ] Channels: merge with Settings › Connected channels
-- [ ] Settings: one header Save with "Unsaved changes", the 9:16 preview beside caption and layout forms
+- [x] Shared page header: `AppHeader` parts and `HeaderSlot` in `components/app-shell/`, replacing the breadcrumb bar, `PageHeader`, `PageTitle` and `PageLede`
+- [x] Project frame: full height from `lg`, `ProjectHeader` on `AppHeader` with Project settings and Delete as icon buttons, `TimelineDock` with a legend, clip ranges in `lav`
+- [x] Clips review: tiles select into a 340 px inspector (Reject | Approve, why this clip, hook, stats, Open in the editor), `StatusPill` on every tile, Render horizontal edit as a button, Render approved in the header, timeline in the dock
+- [x] Transcript: Make a clip and Clear in the header, the transcript as the right panel, seekable timeline in the dock with the selection drawn on it
+- [x] Project overview: next step and live step detail on the stage, pipeline in the inspector, real frames in Top picks, Review clips in the header
+- [x] Projects home: one-row import once projects exist, New project (`N`) in the header, a "Failed" filter, "Done" instead of "Exported", the next step on each tile
+- [x] Analytics and Insights: tabs and the period menu in the header, comparison text on stat cards, top Shorts and the playbook as side panels, the decision pair on suggestions, icon empty states, errors in pink
+- [x] Channels: one page for connecting and status; `/settings/channels` redirects to it
+- [x] Settings: section title in the header, one Save and Discard there with "Unsaved changes", "Output · 9:16" beside the caption form
+- [ ] Sparklines on the analytics stat cards (needs a daily series per metric from `getAnalyticsOverview`; only views has one today)
+- [ ] Project settings as an inspector tab (the form needs a 340 px layout first; it stays a sheet)
+- [ ] Period on the Shorts and Insights tabs (their queries take no period)
 - [ ] Migrate the `track-picker` footer rule off `border-t` and drop its exception
 
 ### Not verified

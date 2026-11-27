@@ -18,7 +18,7 @@ test("turns a 4:3 recording into a full-screen short", async ({ page }) => {
     .getByRole("list", { name: "Clips" })
     .locator("[data-clip-id]")
     .first()
-  await first.click()
+  await first.dblclick()
   await page.getByRole("tab", { name: "Layout" }).click()
   await expect(page.getByRole("button", { name: "Find webcam" })).toBeEnabled({
     timeout: 30_000,
@@ -46,7 +46,7 @@ test("turns a 4:3 recording into a full-screen short", async ({ page }) => {
   await expect(first).toHaveAccessibleDescription(/Rendered/, {
     timeout: 120_000,
   })
-  await first.click()
+  await first.dblclick()
   await page.getByRole("button", { name: "More export options" }).click()
   const href = await page
     .getByRole("menuitem", { name: "Download last render" })
