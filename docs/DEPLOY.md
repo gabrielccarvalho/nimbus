@@ -6,12 +6,12 @@ Nimbus runs in two shapes: on Vercel (web on functions, the worker as a Vercel D
 
 You need:
 
-- A Vercel Pro team. Daemons are a public beta and run on production deployments only.
+- A Vercel Pro team. Daemons are a public beta and run on production deployments only. A personal, non-commercial instance fits on Hobby with the changes in [Vercel Hobby](#vercel-hobby-personal-use).
 - Postgres: Neon from the Vercel Marketplace.
 - A Cloudflare R2 (or AWS S3) bucket and an access key that can read, write, list and delete in it.
 - Vercel CLI 65.2 or newer if you validate `vercel.json` locally. Older CLIs don't know `daemons` with `livenessProbe`.
 
-`vercel.json` already declares the worker: built from `Dockerfile.worker`, linux/amd64, one instance in `iad1`, 8Gi, `terminationGracePeriodSeconds: 600`, liveness on `GET /healthz` port 8787. Change `iad1` to the region nearest your database. The build migrates the database only when `VERCEL_ENV=production`, then fetches the MediaPipe assets (`pnpm setup:vision`) and runs `next build`.
+`vercel.json` already declares the worker: built from `Dockerfile.worker`, linux/amd64, sized for Hobby: 2Gi and no instances in `iad1` until you scale it up (see [Running the worker](#running-the-worker)), `terminationGracePeriodSeconds: 600`, liveness on `GET /healthz` port 8787. Change `iad1` to the region nearest your database. On Pro, set `"instances": { "iad1": 1 }` and `"memory": "8Gi"` so the worker is always on (ADR-0094). The build migrates the database only when `VERCEL_ENV=production`, then fetches the MediaPipe assets (`pnpm setup:vision`) and runs `next build`.
 
 ### Bucket CORS
 
@@ -105,6 +105,72 @@ A local worker pointed at the production database processes production jobs. Don
 1. Pull the production env (`vercel env pull`) and run `NIMBUS_ROLE=web pnpm run doctor` with it: env validation, Postgres, the bucket and its CORS.
 2. Check that the deployed site serves `/vendor/mediapipe/*` (for example `/vendor/mediapipe/blaze_face_short_range.tflite`); webcam detection loads it in the browser. Whether the daemon's `root: "./"` affects the web build's static assets is unverified.
 3. Upload a short video and check that it reaches the bucket, the worker picks it up and the settings page shows the worker online.
+
+## Vercel Hobby (personal use)
+
+Hobby runs Nimbus for one person if the worker is on only while there is work. It can't host the paid product: Vercel's terms limit Hobby to "personal or non-commercial use", and Nimbus sells Creator. The daemon quota is shared by the whole team, so the capacity below is the total for every user.
+
+Limits as of November 2026 ([Daemons limits](https://vercel.com/docs/daemons/limits), [Limits](https://vercel.com/docs/limits), [Hobby](https://vercel.com/docs/plans/hobby)):
+
+| Resource                   | Hobby                                              | What it means here                                                                    |
+| -------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Daemon size                | 1 GiB or 2 GiB, 1 vCPU                             | Pro's `8Gi` isn't available                                                           |
+| Daemon Active CPU          | 5 h per month                                      | The real ceiling: ffmpeg time (budget below)                                          |
+| Daemon Provisioned Memory  | 420 GB-h per month, counted while idle             | One 2 GiB instance left on runs out in about 9 days; about 210 instance-hours a month |
+| Quota reached              | Daemons stop until the 1st (UTC) or an upgrade     | Jobs wait in `jobs`                                                                   |
+| Functions                  | 2 GB / 1 vCPU, 300 s max; 4 h Active CPU, 360 GB-h | See "Open project pages" below                                                        |
+| Function quota reached     | The feature pauses, in most cases for 30 days      | The site can go down for the rest of the month                                        |
+| Fast Data Transfer         | 100 GB                                             | Media plays from the bucket, so this stays small                                      |
+| Static files, request body | 100 MB per CLI deploy, 4.5 MB per request          | `public/` is about 29 MB; uploads go straight to the bucket                           |
+| Container Registry         | 10 GB storage                                      | The worker image is about 2.1 GB; whether old images count isn't verified             |
+| Runtime logs               | 1 hour                                             | Read worker logs soon after a failure                                                 |
+
+### Active CPU budget
+
+Measured with ffmpeg on one Apple M5 core on a synthetic 1080p60 source at 10 Mb/s, then doubled for a Vercel vCPU. The factor of two is a guess, so treat these as estimates and check the daemon's Active CPU in Usage after the first real project.
+
+| Step                                    | CPU per unit             | Per 1 h recording with 5 clips |
+| --------------------------------------- | ------------------------ | ------------------------------ |
+| probe (640 px proxy of the whole video) | ~35 min per source hour  | ~35 min                        |
+| audio, analysis, cut detection          | ~1–2 min per source hour | ~2 min                         |
+| render_clip (60 s, 1080×1920)           | ~2–5 min per clip        | ~10–25 min                     |
+| render_edit (horizontal edit)           | ~3 h per source hour     | don't run it on the daemon     |
+
+That is about 50–60 CPU-minutes per 1-hour recording, so 5 h covers roughly 5 one-hour recordings a month (10 half-hour ones). Transcription (Groq) and selection (Claude) are network calls and use almost no CPU. Wall time is about one hour per 1-hour recording on 1 vCPU, about 2 GB-h of memory, so memory only runs out when the worker is left on idle.
+
+### Free tiers next to it
+
+- **Neon Free**: 100 CU-hours per project per month, and the compute can't sleep while anything queries it for 5 minutes. The worker polls every `WORKER_POLL_MS` (1 s) and an open project page polls every 500 ms, so a worker left on keeps the database awake: about 180 CU-hours a month at 0.25 CU, and Neon suspends the compute mid-month. Fix the compute size at 0.25 CU in the Neon console; Free autoscales up to 2 CU, which burns 8× faster. 1 GB storage and 5 GB transfer are enough for one person.
+- **R2 Free**: 10 GB-month of storage, free egress. A 1-hour 1080p60 recording at 10 Mb/s is about 4.5 GB, so two recordings fill it and anything past that is billed. Delete projects once their clips are exported.
+
+### Changes from the Pro setup
+
+1. `vercel.json` already sets the daemon to `"memory": "2Gi"` and `"instances": { "iad1": 0 }`.
+2. Use Vercel CLI 65.2 or newer (`vercel daemons scale` needs 64.3).
+3. Set `WORKER_CONCURRENCY=1` (one vCPU), `SCRATCH_CACHE_BYTES` and `MAX_UPLOAD_BYTES` well under the daemon's disk (for example 10 GiB and 6 GiB). The daemon's ephemeral disk size isn't documented, and the defaults assume 64 GiB.
+4. Leave `ABACATEPAY_*` unset so there is no checkout. Sign up with the address in `ADMIN_EMAIL` (`features/accounts/schema.ts`) to get the `admin` plan; any other account is Free (60 render minutes, 25 GB).
+5. Keep `HIGHLIGHT_SELECTOR` and the rest as in the Pro table.
+
+### Running the worker
+
+`instances: 0` keeps the daemon off, so uploads wait in the queue and Settings shows "No worker online". Start it when there is work and stop it once the queue is empty:
+
+```sh
+vercel daemons scale worker iad1=1    # starts in a minute or so
+vercel daemons scale worker iad1=0    # SIGTERM; running jobs get the grace period, the rest go back to the queue
+```
+
+The override survives deploys and wins over `instances` until `vercel daemons scale worker --reset`.
+
+For heavy work (long recordings, the horizontal edit), run the worker on your own machine instead: `vercel env pull .env.production.local --environment=production`, then `NODE_ENV=production pnpm worker`, which reads that file ahead of `.env.local`. Add `VIDEO_ENCODER=auto` to it, and drop `SCRATCH_DIR` and the binary paths if the pull brought any. It uses no daemon quota and gets the machine's hardware encoder. It processes production jobs, which here is the point. It needs ffmpeg and yt-dlp locally (`pnpm run doctor`).
+
+The worker also runs the maintenance timers: the 6-hour sweep, stats syncs, and the daily deletion of YouTube stats older than 30 days. While it's off, none of these run and old YouTube data stays past 30 days, so start it at least once a week.
+
+Scaling isn't automated. The full fix would be for the web side to scale the daemon to 1 through the Vercel REST API when it enqueues a job and finds no live heartbeat, and for the worker to scale itself to 0 after a few idle minutes. That isn't built yet.
+
+### Open project pages
+
+`/api/projects/[id]/events` streams for as long as the page is open: Vercel cuts it at 300 s and `EventSource` reconnects. Each open project page keeps a function instance alive at 2 GB and keeps Neon awake, so 360 GB-h is about 180 instance-hours a month (tabs open together may share an instance; not verified). Close project tabs you aren't watching. The fix in code would be to end the stream once the project has no running jobs. That isn't built either.
 
 ## Self-hosting
 

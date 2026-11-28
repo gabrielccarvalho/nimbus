@@ -6,8 +6,8 @@
     "worker": {
       "root": "./",
       "entrypoint": "Dockerfile.worker",
-      "instances": { "iad1": 1 },
-      "resources": { "requests": { "memory": "8Gi" } },
+      "instances": { "iad1": 0 },
+      "resources": { "requests": { "memory": "2Gi" } },
       "terminationGracePeriodSeconds": 600,
       "livenessProbe": {
         "httpGet": { "port": 8787, "path": "/healthz" },
