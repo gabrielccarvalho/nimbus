@@ -340,7 +340,7 @@ describe("direct uploads", () => {
     const { target } = await start({ bytes: 4 })
     env.cleanup()
     env = await createTestEnv({
-      STORAGE_DRIVER: "s3",
+      STORAGE_BACKEND: "s3",
       S3_ENDPOINT: "http://localhost:1",
       S3_BUCKET: "nimbus",
       S3_ACCESS_KEY_ID: "key",

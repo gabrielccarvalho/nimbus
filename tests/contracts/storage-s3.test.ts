@@ -521,7 +521,7 @@ describe.skipIf(!reachable)("S3Storage", () => {
 
     async function createS3Env() {
       const env = await createTestEnv({
-        STORAGE_DRIVER: "s3",
+        STORAGE_BACKEND: "s3",
         S3_ENDPOINT: endpoint,
         S3_BUCKET: bucket,
         S3_ACCESS_KEY_ID: process.env.S3_TEST_ACCESS_KEY_ID ?? "nimbus",

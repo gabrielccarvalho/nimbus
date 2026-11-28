@@ -1,6 +1,6 @@
 # Deploying
 
-Nimbus runs in two shapes: on Vercel (web on functions, the worker as a Vercel Daemon) or self-hosted with Docker Compose. Both use Postgres and an S3-compatible bucket (`STORAGE_DRIVER=s3`). See ADR-0070 and [ARCHITECTURE.md](ARCHITECTURE.md).
+Nimbus runs in two shapes: on Vercel (web on functions, the worker as a Vercel Daemon) or self-hosted with Docker Compose. Both use Postgres and an S3-compatible bucket (`STORAGE_BACKEND=s3`). See ADR-0070 and [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Vercel
 
@@ -53,7 +53,7 @@ Daemons have no environment of their own: the worker reads the project's variabl
 | ------------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `DATABASE_URL`                                          | both    | Postgres connection string; the Neon integration should set it (not verified)                                                      |
 | `DATABASE_POOL_MAX`                                     | both    | Connections per process (default 10); keep it low for functions                                                                    |
-| `STORAGE_DRIVER`                                        | both    | `s3`                                                                                                                               |
+| `STORAGE_BACKEND`                                       | both    | `s3`                                                                                                                               |
 | `S3_ENDPOINT`                                           | both    | `https://<account>.r2.cloudflarestorage.com` for R2; leave unset on AWS                                                            |
 | `S3_REGION`                                             | both    | `auto` for R2; required on AWS (the bucket's region)                                                                               |
 | `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | both    | Bucket and credentials                                                                                                             |
@@ -190,4 +190,4 @@ Transcription needs no server setup: each workspace adds its own Groq key in Set
 
 ### Moving existing media
 
-`pnpm storage:push` copies media from `DATA_DIR` into the configured bucket. Run it on the host with `STORAGE_DRIVER=s3` and the bucket settings (for the self-host stack: `S3_ENDPOINT=http://localhost:9010`, `S3_BUCKET=nimbus`, `S3_FORCE_PATH_STYLE=true` and MinIO's root user as the keys). It streams each file, skips `tmp/` and keys whose size in the bucket already matches, and prints copied, skipped and failed counts. It exits non-zero when a copy failed; run it again to retry. Move the database separately (`pg_dump` into the new Postgres).
+`pnpm storage:push` copies media from `DATA_DIR` into the configured bucket. Run it on the host with `STORAGE_BACKEND=s3` and the bucket settings (for the self-host stack: `S3_ENDPOINT=http://localhost:9010`, `S3_BUCKET=nimbus`, `S3_FORCE_PATH_STYLE=true` and MinIO's root user as the keys). It streams each file, skips `tmp/` and keys whose size in the bucket already matches, and prints copied, skipped and failed counts. It exits non-zero when a copy failed; run it again to retry. Move the database separately (`pg_dump` into the new Postgres).

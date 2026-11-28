@@ -9,7 +9,7 @@ export async function PUT(
   ctx: RouteContext<"/api/uploads/[token]">
 ) {
   try {
-    if (getEnv().STORAGE_DRIVER !== "local") {
+    if (getEnv().STORAGE_BACKEND !== "local") {
       throw new AppError("NOT_FOUND", "Not found")
     }
     if (!request.body) throw new AppError("VALIDATION", "The upload was empty")

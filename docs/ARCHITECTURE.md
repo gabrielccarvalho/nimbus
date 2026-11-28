@@ -1,6 +1,6 @@
 # Architecture
 
-Nimbus is one Next.js app plus one long-running Node worker process. They share a Postgres database and media storage: a data directory on local disk (`STORAGE_DRIVER=local`, the default) or an S3-compatible bucket (`STORAGE_DRIVER=s3`). Run locally, nothing leaves the machine except optional calls to the Anthropic API and the Google (YouTube) APIs used for publishing and insights.
+Nimbus is one Next.js app plus one long-running Node worker process. They share a Postgres database and media storage: a data directory on local disk (`STORAGE_BACKEND=local`, the default) or an S3-compatible bucket (`STORAGE_BACKEND=s3`). Run locally, nothing leaves the machine except optional calls to the Anthropic API and the Google (YouTube) APIs used for publishing and insights.
 
 The web side never spawns a binary, so it can run on Vercel functions. The worker is one image (`Dockerfile.worker`, with ffmpeg and yt-dlp) that runs as a Vercel Daemon in production or under Docker Compose when self-hosted, and on the host with `pnpm dev`. See ADR-0070 and [DEPLOY.md](DEPLOY.md).
 
@@ -126,7 +126,7 @@ All external capabilities sit behind interfaces so tests can swap them and the s
 
 ```ts
 interface StorageAdapter {
-  // LocalStorage (DATA_DIR) or S3Storage, picked by STORAGE_DRIVER
+  // LocalStorage (DATA_DIR) or S3Storage, picked by STORAGE_BACKEND
   write(
     key: string,
     body: Readable,

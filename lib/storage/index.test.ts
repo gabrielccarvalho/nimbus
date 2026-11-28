@@ -16,14 +16,14 @@ afterEach(() => {
 
 describe("getStorage", () => {
   it("uses the local driver by default", () => {
-    vi.stubEnv("STORAGE_DRIVER", "")
+    vi.stubEnv("STORAGE_BACKEND", "")
     vi.stubEnv("DATA_DIR", path.join(os.tmpdir(), "nimbus-storage-index"))
     resetEnvCache()
     expect(getStorage()).toBeInstanceOf(LocalStorage)
   })
 
-  it("uses S3 when STORAGE_DRIVER=s3", () => {
-    vi.stubEnv("STORAGE_DRIVER", "s3")
+  it("uses S3 when STORAGE_BACKEND=s3", () => {
+    vi.stubEnv("STORAGE_BACKEND", "s3")
     vi.stubEnv("S3_ENDPOINT", "http://localhost:9010")
     vi.stubEnv("S3_BUCKET", "nimbus")
     vi.stubEnv("S3_ACCESS_KEY_ID", "key")

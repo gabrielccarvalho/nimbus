@@ -15,7 +15,7 @@ let instance: { root: string; storage: StorageAdapter } | undefined
 
 export function getStorage(): StorageAdapter {
   const env = getEnv()
-  const root = env.STORAGE_DRIVER === "s3" ? "s3" : env.DATA_DIR
+  const root = env.STORAGE_BACKEND === "s3" ? "s3" : env.DATA_DIR
   if (!instance || instance.root !== root) {
     instance = { root, storage: createStorage(env) }
   }
@@ -39,7 +39,7 @@ export function createS3Client(env: Env, endpoint = env.S3_ENDPOINT) {
 }
 
 function createStorage(env: Env): StorageAdapter {
-  if (env.STORAGE_DRIVER === "local") {
+  if (env.STORAGE_BACKEND === "local") {
     mkdirSync(env.DATA_DIR, { recursive: true })
     return new LocalStorage(env.DATA_DIR)
   }

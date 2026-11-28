@@ -288,7 +288,7 @@ async function checkWorkerTools(env: ReturnType<typeof getEnv>) {
 }
 
 async function checkStorage(env: ReturnType<typeof getEnv>) {
-  if (env.STORAGE_DRIVER === "local") {
+  if (env.STORAGE_BACKEND === "local") {
     add("storage", "ok", `local (${env.DATA_DIR})`)
     return
   }

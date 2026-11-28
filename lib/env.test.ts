@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import { parseEnv } from "./env"
 
 const s3 = {
-  STORAGE_DRIVER: "s3",
+  STORAGE_BACKEND: "s3",
   S3_ENDPOINT: "http://localhost:9010",
   S3_BUCKET: "nimbus",
   S3_ACCESS_KEY_ID: "key",
@@ -12,7 +12,7 @@ const s3 = {
 
 describe("parseEnv storage", () => {
   it("defaults to the local driver", () => {
-    expect(parseEnv({}).STORAGE_DRIVER).toBe("local")
+    expect(parseEnv({}).STORAGE_BACKEND).toBe("local")
   })
 
   it("reads the s3 settings", () => {
@@ -21,7 +21,7 @@ describe("parseEnv storage", () => {
       S3_FORCE_PATH_STYLE: "true",
     })
     expect(env).toMatchObject({
-      STORAGE_DRIVER: "s3",
+      STORAGE_BACKEND: "s3",
       S3_REGION: "auto",
       S3_FORCE_PATH_STYLE: true,
       S3_BUCKET: "nimbus",
@@ -31,7 +31,7 @@ describe("parseEnv storage", () => {
   it("s3 driver on AWS requires a region", () => {
     const aws = { ...s3, S3_ENDPOINT: undefined }
     expect(() => parseEnv(aws)).toThrow(
-      "S3_REGION is required when STORAGE_DRIVER=s3 has no S3_ENDPOINT"
+      "S3_REGION is required when STORAGE_BACKEND=s3 has no S3_ENDPOINT"
     )
     expect(() => parseEnv({ ...aws, S3_REGION: "auto" })).toThrow(
       "S3_REGION is required"
@@ -50,7 +50,7 @@ describe("parseEnv storage", () => {
     "requires %s with the s3 driver",
     (name) => {
       expect(() => parseEnv({ ...s3, [name]: undefined })).toThrow(
-        `${name} is required when STORAGE_DRIVER=s3`
+        `${name} is required when STORAGE_BACKEND=s3`
       )
     }
   )
@@ -59,7 +59,7 @@ describe("parseEnv storage", () => {
 describe("parseEnv hosted settings", () => {
   it("s3 driver without a bucket fails env parsing", () => {
     expect(() => parseEnv({ ...s3, S3_BUCKET: undefined })).toThrow(
-      "S3_BUCKET is required when STORAGE_DRIVER=s3"
+      "S3_BUCKET is required when STORAGE_BACKEND=s3"
     )
   })
 

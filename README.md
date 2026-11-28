@@ -107,7 +107,7 @@ See `.env.example` for the full list. Values that also appear in Settings are on
 | `pnpm fixtures`                                              | Generate test videos                                                           |
 | `pnpm run doctor`                                            | Dependency check                                                               |
 | `pnpm db:generate`, `pnpm db:migrate`                        | Drizzle migrations                                                             |
-| `pnpm storage:push`                                          | Copy `DATA_DIR` media into the S3 bucket (`STORAGE_DRIVER=s3`)                 |
+| `pnpm storage:push`                                          | Copy `DATA_DIR` media into the S3 bucket (`STORAGE_BACKEND=s3`)                |
 
 ## Docs
 

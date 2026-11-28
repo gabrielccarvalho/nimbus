@@ -20,7 +20,7 @@ const envFields = z.object({
     .int()
     .positive()
     .default(64 * 1024 ** 3),
-  STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),
+  STORAGE_BACKEND: z.enum(["local", "s3"]).default("local"),
   S3_ENDPOINT: z.url().optional(),
   S3_PUBLIC_ENDPOINT: z.url().optional(),
   S3_REGION: z.string().min(1).default("auto"),
@@ -97,13 +97,13 @@ const S3_REQUIRED = [
 ] as const
 
 const envSchema = envFields.superRefine((env, ctx) => {
-  if (env.STORAGE_DRIVER !== "s3") return
+  if (env.STORAGE_BACKEND !== "s3") return
   for (const name of S3_REQUIRED) {
     if (!env[name]) {
       ctx.addIssue({
         code: "custom",
         path: [name],
-        message: `${name} is required when STORAGE_DRIVER=s3`,
+        message: `${name} is required when STORAGE_BACKEND=s3`,
       })
     }
   }
@@ -112,7 +112,7 @@ const envSchema = envFields.superRefine((env, ctx) => {
       code: "custom",
       path: ["S3_REGION"],
       message:
-        "S3_REGION is required when STORAGE_DRIVER=s3 has no S3_ENDPOINT (AWS needs a real region, e.g. us-east-1)",
+        "S3_REGION is required when STORAGE_BACKEND=s3 has no S3_ENDPOINT (AWS needs a real region, e.g. us-east-1)",
     })
   }
 })

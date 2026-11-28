@@ -6,9 +6,9 @@ import { LocalStorage } from "@/lib/storage/local"
 import { pushStorage } from "@/lib/storage/push"
 
 const env = getEnv()
-if (env.STORAGE_DRIVER !== "s3") {
+if (env.STORAGE_BACKEND !== "s3") {
   console.error(
-    "storage:push copies DATA_DIR into the bucket: set STORAGE_DRIVER=s3 and the S3_* variables first"
+    "storage:push copies DATA_DIR into the bucket: set STORAGE_BACKEND=s3 and the S3_* variables first"
   )
   process.exit(1)
 }
