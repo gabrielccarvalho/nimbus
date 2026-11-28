@@ -61,37 +61,19 @@ test.describe("signed out", () => {
   })
 })
 
-for (const { title, key, hint } of [
-  {
-    title: "Claude API key",
-    key: "sk-ant-api03-e2e-0123456789abcdefghij-a41f",
-    hint: "sk-ant-…a41f",
-  },
-  {
-    title: "Groq API key",
-    key: "gsk_e2e0123456789abcdefghijklmnop7c2e",
-    hint: "gsk_e2e…7c2e",
-  },
-]) {
-  test(`keeps the ${title} encrypted and shows only a hint`, async ({
-    page,
-  }) => {
-    await page.goto("/settings/workspace")
-    const row = page
-      .locator("div")
-      .filter({ has: page.getByText(title, { exact: true }) })
-      .filter({ has: page.getByRole("button") })
-      .last()
-    await row.getByRole("button", { name: "Add key" }).click()
-    await page.getByLabel("Key", { exact: true }).fill(key)
-    await page.getByRole("button", { name: "Save key" }).click()
-    await expect(row.getByText(hint)).toBeVisible()
-    await expect(page.getByText("0123456789abcdefghij")).toHaveCount(0)
-    await expectNoSeriousA11yViolations(page)
-    await row.getByRole("button", { name: "Remove" }).click()
-    await expect(row.getByRole("button", { name: "Add key" })).toBeVisible()
-  })
-}
+test("keeps the Groq key encrypted and shows only a hint", async ({ page }) => {
+  await page.goto("/settings/workspace")
+  await page.getByRole("button", { name: "Add key" }).click()
+  await page
+    .getByLabel("Key", { exact: true })
+    .fill("gsk_e2e0123456789abcdefghijklmnop7c2e")
+  await page.getByRole("button", { name: "Save key" }).click()
+  await expect(page.getByText("gsk_e2e…7c2e")).toBeVisible()
+  await expect(page.getByText("0123456789abcdefghij")).toHaveCount(0)
+  await expectNoSeriousA11yViolations(page)
+  await page.getByRole("button", { name: "Remove" }).click()
+  await expect(page.getByRole("button", { name: "Add key" })).toBeVisible()
+})
 
 test("lists each session and signs one out", async ({ page, browser }) => {
   const other = await browser.newContext({

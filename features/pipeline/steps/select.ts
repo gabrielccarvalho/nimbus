@@ -1,12 +1,9 @@
 import "server-only"
 
+import { getEnv } from "@/lib/env"
 import { getStorage } from "@/lib/storage"
 
-import {
-  claudeRunsUsedUp,
-  recordUsage,
-  resolveAnthropicKey,
-} from "../../accounts/usage"
+import { claudeRunsUsedUp, recordUsage } from "../../accounts/usage"
 import { signalsRepository } from "../../analysis/repository"
 import { clipParts } from "../../clips/parts"
 import { clipRepository } from "../../clips/repository"
@@ -116,7 +113,7 @@ export const selectStep: JobHandler = async ({
         review: playbook.review,
       },
       frames,
-      apiKey: await resolveAnthropicKey(db, project.workspaceId),
+      apiKey: getEnv().ANTHROPIC_API_KEY,
       onPart: (candidates, parts) => {
         found.push(...candidates)
         reportProgress(10 + (firstPassShare * parts.done) / parts.total)

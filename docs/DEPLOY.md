@@ -66,7 +66,7 @@ Daemons have no environment of their own: the worker reads the project's variabl
 | `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`              | web     | Twitch sign-in                                                                                                                     |
 | `ABACATEPAY_API_KEY`, `ABACATEPAY_CREATOR_PRODUCT_ID`   | web     | Creator checkout (see Billing below); without both, Plan & usage offers no checkout                                                |
 | `ABACATEPAY_WEBHOOK_SECRET`                             | web     | 32+ characters, the same secret given to the AbacatePay webhook; without it the webhook route answers 404                          |
-| `ANTHROPIC_API_KEY`                                     | both    | The `anthropic` highlight selector                                                                                                 |
+| `ANTHROPIC_API_KEY`                                     | both    | Claude picks and Find patterns for every workspace (ADR-0092)                                                                      |
 | `HIGHLIGHT_SELECTOR`                                    | both    | Default selector for new projects                                                                                                  |
 | `MAX_UPLOAD_BYTES`                                      | both    | Upload cap (default 20 GiB)                                                                                                        |
 | `YTDLP_COOKIES_TEXT`                                    | worker  | Contents of a cookies.txt for link imports; the daemon has no browser to read                                                      |

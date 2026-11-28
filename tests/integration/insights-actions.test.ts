@@ -32,6 +32,7 @@ import { defaultProjectSettings } from "@/features/projects/schema"
 import { publishingRepository } from "@/features/publishing/repository"
 import { statsRepository } from "@/features/publishing/stats-repository"
 import { AppError } from "@/lib/errors"
+import { resetEnvCache } from "@/lib/env"
 import { jobs, projects, user, workspaces } from "@/lib/db/schema"
 
 import { fixtures } from "../../scripts/make-fixtures"
@@ -626,7 +627,7 @@ describe("findPatternsAction", () => {
     env.db.select().from(jobs).where(eq(jobs.type, "analyze_performance"))
 
   it("refuses without Claude, too few clips, or an active job", async () => {
-    const { workspace, channel } = await seed()
+    const { channel } = await seed()
     expect(await findPatternsAction()).toMatchObject({
       ok: false,
       error: {
@@ -635,11 +636,8 @@ describe("findPatternsAction", () => {
       },
     })
 
-    await accountRepository(env.db).setAnthropicKey(
-      workspace.id,
-      "sealed",
-      "test"
-    )
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test"
+    resetEnvCache()
     expect(await findPatternsAction()).toMatchObject({
       ok: false,
       error: { code: "CONFLICT" },
@@ -662,12 +660,9 @@ describe("findPatternsAction", () => {
   })
 
   it("reports status through getInsights", async () => {
-    const { workspace, channel } = await seed()
-    await accountRepository(env.db).setAnthropicKey(
-      workspace.id,
-      "sealed",
-      "test"
-    )
+    const { channel } = await seed()
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test"
+    resetEnvCache()
     const clips = await publishClips(channel.id, 8)
     const imported = await insertImportedPublication(env.db, channel.id, {
       publishedAt: new Date(Date.now() - 10 * 86_400_000),

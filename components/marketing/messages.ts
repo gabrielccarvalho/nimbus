@@ -196,7 +196,7 @@ export const marketing = defineMessages({
       claudeRuns: "Clip picks with Claude a month",
       publishes: "Publishes a day",
       noLimit: "No limit",
-      note: "Picking and titling clips with Claude uses your own Claude API key. The built-in selector needs no key.",
+      note: "Claude picks are included up to your plan's monthly number. Captions need your own Groq key for transcription.",
     },
     faq: {
       publishing: {
@@ -221,8 +221,8 @@ export const marketing = defineMessages({
           `It detects the spoken language on its own, or you can set it: ${names.slice(0, -1).join(", ")} and ${names.at(-1)}.`,
       },
       apiKey: {
-        q: "Do I need a Claude API key?",
-        a: "Only if you want Claude to pick and title the clips or to suggest rules from your results. The built-in selector scores loudness, speech and your catchphrases with no key at all.",
+        q: "Do I need an API key?",
+        a: "Not for Claude: picking, titling and suggesting rules are included in your plan. Captions need a Groq key for transcription, about $0.04 per hour of audio, added in Settings. Without one, Nimbus still finds highlights from the audio.",
       },
       destinations: {
         q: "Where can I publish?",
@@ -433,7 +433,7 @@ export const marketing = defineMessages({
       claudeRuns: "Seleções de cortes com o Claude por mês",
       publishes: "Publicações por dia",
       noLimit: "Sem limite",
-      note: "Escolher os cortes e dar título a eles com o Claude usa a sua própria chave de API do Claude. O seletor integrado não precisa de chave.",
+      note: "As escolhas do Claude estão incluídas até o número mensal do seu plano. As legendas precisam da sua própria chave do Groq para a transcrição.",
     },
     faq: {
       publishing: {
@@ -458,8 +458,8 @@ export const marketing = defineMessages({
           `Ele detecta sozinho o idioma falado, ou você pode definir: ${names.slice(0, -1).join(", ")} e ${names.at(-1)}.`,
       },
       apiKey: {
-        q: "Preciso de uma chave de API do Claude?",
-        a: "Só se você quiser que o Claude escolha os cortes e dê título a eles, ou que sugira regras a partir dos seus resultados. O seletor integrado pontua volume, fala e os seus bordões sem chave nenhuma.",
+        q: "Preciso de uma chave de API?",
+        a: "Não para o Claude: escolher, dar título e sugerir regras estão incluídos no seu plano. As legendas precisam de uma chave do Groq para a transcrição, cerca de US$ 0,04 por hora de áudio, adicionada nas configurações. Sem ela, o Nimbus ainda encontra os destaques pelo áudio.",
       },
       destinations: {
         q: "Onde posso publicar?",

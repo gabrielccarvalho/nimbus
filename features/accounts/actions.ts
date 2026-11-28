@@ -18,34 +18,12 @@ import { getAuth } from "./auth"
 import { removeAvatar, saveAvatar } from "./avatar"
 import { accountRepository } from "./repository"
 import { getSession, requireActor, workspaceId } from "./session"
-import {
-  removeAnthropicKey,
-  removeGroqKey,
-  renameWorkspace,
-  saveAnthropicKey,
-  saveGroqKey,
-} from "./service"
+import { removeGroqKey, renameWorkspace, saveGroqKey } from "./service"
 
 export async function renameWorkspaceAction(name: unknown) {
   return runAction(
     "renameWorkspace",
     async () => renameWorkspace(getDb(), await workspaceId(), name),
-    ["/"]
-  )
-}
-
-export async function saveAnthropicKeyAction(key: unknown) {
-  return runAction(
-    "saveAnthropicKey",
-    async () => saveAnthropicKey(getDb(), await workspaceId(), key),
-    ["/"]
-  )
-}
-
-export async function removeAnthropicKeyAction() {
-  return runAction(
-    "removeAnthropicKey",
-    async () => removeAnthropicKey(getDb(), await workspaceId()),
     ["/"]
   )
 }

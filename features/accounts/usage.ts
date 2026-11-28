@@ -27,26 +27,6 @@ export async function recordUsage(
   })
 }
 
-export function workspaceAnthropicKey(workspace: Workspace) {
-  if (!workspace.anthropicKey) return undefined
-  try {
-    return decryptSecret(workspace.anthropicKey)
-  } catch (error) {
-    logger.error({ err: error }, "couldn't decrypt the workspace's Claude key")
-    return undefined
-  }
-}
-
-export async function resolveAnthropicKey(db: Db, workspaceId: string | null) {
-  const workspace = workspaceId
-    ? await accountRepository(db).getWorkspace(workspaceId)
-    : undefined
-  return (
-    (workspace && workspaceAnthropicKey(workspace)) ??
-    getEnv().ANTHROPIC_API_KEY
-  )
-}
-
 export async function resolveGroqKey(db: Db, workspaceId: string | null) {
   const workspace = workspaceId
     ? await accountRepository(db).getWorkspace(workspaceId)
@@ -64,8 +44,8 @@ export function transcriptionAvailable(workspace: Pick<Workspace, "groqKey">) {
   return getEnv().TRANSCRIBER === "fake" || Boolean(workspace.groqKey)
 }
 
-export function claudeAvailable(workspace: Pick<Workspace, "anthropicKey">) {
-  return Boolean(workspace.anthropicKey || getEnv().ANTHROPIC_API_KEY)
+export function claudeAvailable() {
+  return Boolean(getEnv().ANTHROPIC_API_KEY)
 }
 
 async function limitedPlan(db: Db, workspaceId: string | null) {

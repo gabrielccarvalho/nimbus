@@ -59,18 +59,6 @@ export const settings = defineMessages({
       members: "Members",
       membersHint: "Personal workspace. Inviting people comes later.",
     },
-    apiKey: {
-      title: "Claude API key",
-      hint: "Used by the Claude highlight selector. Stored encrypted.",
-      description:
-        "Stored encrypted. Only the last four characters are shown again.",
-      key: "Key",
-      add: "Add key",
-      replace: "Replace",
-      save: "Save key",
-      saved: "Claude API key saved",
-      removed: "Claude API key removed",
-    },
     groqKey: {
       title: "Groq API key",
       hint: "Transcribes recordings with Whisper on Groq, about $0.04 per audio hour. Without it, transcription is skipped. Stored encrypted.",
@@ -273,8 +261,7 @@ export const settings = defineMessages({
             "Gives you a prompt to paste into any chat, then the reply.",
         },
       } satisfies Record<SelectorMode, Option>,
-      claudeKeyMissing:
-        "Add a Claude API key in Workspace settings to use Claude.",
+      claudeKeyMissing: "Claude isn't set up on this server.",
       clipMin: "Shortest clip (s)",
       clipMax: "Longest clip (s)",
       clipCount: "Clips to find",
@@ -386,18 +373,6 @@ export const settings = defineMessages({
       renamed: "Workspace renomeado",
       members: "Membros",
       membersHint: "Workspace pessoal. Convidar pessoas vem depois.",
-    },
-    apiKey: {
-      title: "Chave de API do Claude",
-      hint: "Usada pelo seletor de destaques com Claude. Fica criptografada.",
-      description:
-        "Fica criptografada. Só os quatro últimos caracteres aparecem de novo.",
-      key: "Chave",
-      add: "Adicionar chave",
-      replace: "Substituir",
-      save: "Salvar chave",
-      saved: "Chave de API do Claude salva",
-      removed: "Chave de API do Claude removida",
     },
     groqKey: {
       title: "Chave de API do Groq",
@@ -604,8 +579,7 @@ export const settings = defineMessages({
             "Gera um prompt para você colar em qualquer chat e depois trazer a resposta.",
         },
       },
-      claudeKeyMissing:
-        "Adicione uma chave de API do Claude nas configurações do workspace para usar o Claude.",
+      claudeKeyMissing: "O Claude não está configurado neste servidor.",
       clipMin: "Corte mais curto (s)",
       clipMax: "Corte mais longo (s)",
       clipCount: "Cortes a encontrar",

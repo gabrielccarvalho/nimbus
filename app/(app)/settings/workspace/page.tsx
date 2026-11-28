@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 
 import {
-  ApiKeyRow,
+  GroqKeyRow,
   WorkspaceName,
 } from "@/components/settings/account-settings"
 import { AvatarField } from "@/components/settings/avatar-field"
@@ -39,8 +39,7 @@ export default async function WorkspacePage() {
         shape="square"
       />
       <WorkspaceName name={workspace.name} />
-      <ApiKeyRow provider="claude" keyHint={workspace.keyHint} />
-      <ApiKeyRow provider="groq" keyHint={workspace.groqKeyHint} />
+      <GroqKeyRow keyHint={workspace.groqKeyHint} />
       <SettingRow
         title={t.workspace.members}
         description={t.workspace.membersHint}

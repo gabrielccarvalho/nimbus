@@ -1,6 +1,6 @@
 # Nimbus
 
-Turn long gameplay or screen recordings into vertical 9:16 clips with word-by-word captions. Upload a video and the app transcribes it, finds the best moments, detects the webcam overlay and renders drafts. You review, tweak and export them. Everything runs locally except two optional calls, each with the workspace's own key: Groq for transcription and the Anthropic API for highlight selection.
+Turn long gameplay or screen recordings into vertical 9:16 clips with word-by-word captions. Upload a video and the app transcribes it, finds the best moments, detects the webcam overlay and renders drafts. You review, tweak and export them. Everything runs locally except two optional calls: Groq for transcription, with each workspace's own key, and the Anthropic API for highlight selection, with the server's key.
 
 ## Requirements
 
@@ -85,7 +85,7 @@ See `.env.example` for the full list. Values that also appear in Settings are on
 | `YTDLP_COOKIES`                | —                    | Netscape `cookies.txt` path, the alternative to a browser                                                                                                          |
 | `DOWNLOADER`                   | `yt-dlp`             | `yt-dlp` or `fake` (copies `FAKE_DOWNLOAD_FILE`)                                                                                                                   |
 | `HIGHLIGHT_SELECTOR`           | `heuristic`          | `anthropic`, `manual` or `heuristic` (default for new projects; overridable in Settings)                                                                           |
-| `ANTHROPIC_API_KEY`            | —                    | Needed for the `anthropic` selector. Never sent to the browser                                                                                                     |
+| `ANTHROPIC_API_KEY`            | —                    | The server's key for every workspace's Claude picks and pattern finding. Never sent to the browser                                                                 |
 | `ANTHROPIC_MODEL`              | `claude-sonnet-5-5`  | Model id                                                                                                                                                           |
 | `MAX_UPLOAD_BYTES`             | 21474836480          | Upload limit (20 GiB)                                                                                                                                              |
 | `LOG_LEVEL`                    | `info`               | pino level                                                                                                                                                         |

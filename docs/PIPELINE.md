@@ -54,7 +54,7 @@ ffmpeg -i <source> [-map 0:a:<voice track>] -vn -ac 1 -ar 16000 -c:a pcm_s16le <
 
 The voice track comes from project settings (`audioTrack`, null for the default). Analysis keeps using the full mix when a voice track is chosen.
 
-The Transcriber needs the workspace's Groq key (Settings › Workspace, `workspaces.groq_key`, encrypted like the Claude key). Without one the step stops after the audio, saves no transcript and finishes as skipped (`detail.phase: "skipped"`); analysis and selection run on the audio alone, clips have no captions, and the overview's Transcribe step links to Settings, or offers "Transcribe now" (a `transcribe` re-run) once a key exists. A re-run without a key leaves an earlier transcript as it was (ADR-0091).
+The Transcriber needs the workspace's Groq key (Settings › Workspace, `workspaces.groq_key`, stored encrypted). Without one the step stops after the audio, saves no transcript and finishes as skipped (`detail.phase: "skipped"`); analysis and selection run on the audio alone, clips have no captions, and the overview's Transcribe step links to Settings, or offers "Transcribe now" (a `transcribe` re-run) once a key exists. A re-run without a key leaves an earlier transcript as it was (ADR-0091).
 
 Spoken language, first match wins (`features/transcription/language.ts`):
 

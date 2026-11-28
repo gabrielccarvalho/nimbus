@@ -27,7 +27,7 @@ const GB = 1024 ** 3
 let env: TestEnv
 
 beforeEach(async () => {
-  env = await createTestEnv()
+  env = await createTestEnv({ ANTHROPIC_API_KEY: "sk-ant-test" })
 })
 afterEach(() => env.cleanup())
 
@@ -220,11 +220,7 @@ describe("Claude picks", () => {
       message
     )
     await expect(
-      findPatterns(
-        env.db,
-        { id: workspace.id, anthropicKey: "sealed" },
-        "channel"
-      )
+      findPatterns(env.db, { id: workspace.id }, "channel")
     ).rejects.toThrow(message)
   })
 

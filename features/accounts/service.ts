@@ -12,12 +12,7 @@ import type { StorageAdapter } from "@/lib/storage/types"
 import { deleteProject } from "../projects/service"
 import { encryptSecret } from "./crypto"
 import { accountRepository } from "./repository"
-import {
-  anthropicKeySchema,
-  groqKeySchema,
-  keyHint,
-  nameSchema,
-} from "./schema"
+import { groqKeySchema, keyHint, nameSchema } from "./schema"
 
 function parse<T>(schema: z.ZodType<T>, input: unknown) {
   const parsed = schema.safeParse(input)
@@ -39,24 +34,6 @@ export async function renameWorkspace(
     workspaceId,
     parse(nameSchema, name)
   )
-}
-
-export async function saveAnthropicKey(
-  db: Db,
-  workspaceId: string,
-  key: unknown
-) {
-  const value = parse(anthropicKeySchema, key)
-  await accountRepository(db).setAnthropicKey(
-    workspaceId,
-    encryptSecret(value),
-    keyHint(value)
-  )
-  return { hint: keyHint(value) }
-}
-
-export async function removeAnthropicKey(db: Db, workspaceId: string) {
-  await accountRepository(db).setAnthropicKey(workspaceId, null, null)
 }
 
 export async function saveGroqKey(db: Db, workspaceId: string, key: unknown) {

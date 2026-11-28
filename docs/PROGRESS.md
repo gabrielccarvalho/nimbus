@@ -543,6 +543,11 @@ Spec: `docs/UX_PATTERNS.md` and the "Nimbus pages redesign" canvas. The clip edi
 - [x] Without a key the step finishes as skipped: the overview links to Settings or offers "Transcribe now", and the transcript page says why it is empty
 - [ ] A real Groq run on a long recording (`pnpm test:heavy` with `GROQ_API_KEY`; nothing has been sent to Groq yet)
 
+### Phase 51: Claude on the server's key (ADR-0092)
+
+- [x] Workspace Claude key, its settings row and actions removed; selection and Find patterns use `ANTHROPIC_API_KEY`; landing copy updated
+- [ ] Drop `workspaces.anthropic_key` / `anthropic_key_hint` (kept for now so no saved key is deleted without a decision)
+
 ### Not verified
 
 - Joined clips on a real recording: rendering was checked with real ffmpeg on the 20 s fixture, and the editor through component tests, not by hand in a browser. How long the preview stalls at a cut on a multi-hour proxy is unknown.

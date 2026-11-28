@@ -369,10 +369,10 @@ export function restoreRule(
 
 export async function findPatterns(
   db: Db,
-  workspace: Pick<Workspace, "id" | "anthropicKey">,
+  workspace: Pick<Workspace, "id">,
   channelId: string
 ): Promise<void> {
-  if (!claudeAvailable(workspace)) {
+  if (!claudeAvailable()) {
     throw new AppError("DEPENDENCY_MISSING", CLAUDE_KEY_MISSING_MESSAGE)
   }
   await assertClaudeRun(db, workspace.id)

@@ -34,12 +34,10 @@ const accounts: Record<string, string> = {
   "Unknown language": "Idioma desconhecido",
   "Enter a name": "Digite um nome",
   "Use at least 10 characters": "Use pelo menos 10 caracteres",
-  "That doesn't look like a Claude API key":
-    "Isso não parece uma chave de API do Claude",
   "That doesn't look like a Groq API key":
     "Isso não parece uma chave de API do Groq",
-  "Add a Claude API key in Workspace settings to use Claude.":
-    "Adicione uma chave de API do Claude nas configurações do workspace para usar o Claude.",
+  "Claude isn't set up on this server.":
+    "O Claude não está configurado neste servidor.",
 }
 
 const projects: Record<string, string> = {

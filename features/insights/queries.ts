@@ -64,7 +64,7 @@ export async function getInsights() {
     channel: null,
     eligible: 0,
     needed: INSIGHTS_MIN_CLIPS,
-    claudeAvailable: claudeAvailable(workspace),
+    claudeAvailable: claudeAvailable(),
     running: false,
     lastError: null,
     suggestions: [] as SuggestionView[],

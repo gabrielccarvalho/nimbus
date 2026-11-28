@@ -415,7 +415,7 @@ export async function getProjectSettings(id: string) {
     transcript: transcript
       ? { language: transcript.language, source: transcript.languageSource }
       : null,
-    claudeAvailable: claudeAvailable(workspace),
+    claudeAvailable: claudeAvailable(),
     transcriptionOff: !transcriptionAvailable(workspace),
   }
 }

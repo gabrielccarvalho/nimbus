@@ -22,7 +22,7 @@ These hold everywhere. A change that breaks one is a product decision, not a ref
 5. **Long work runs in the worker.** A request validates, writes and enqueues a job; it never runs ffmpeg, a transcription, a download or an upload to YouTube. (`features/jobs/queue.ts`, checked by `pnpm check:guidelines`)
 6. **A workspace sees only its own data.** Every read and write of a project, clip, track, channel or publication is scoped to the viewer's workspace; a foreign id answers `NOT_FOUND`, never `FORBIDDEN`. (`features/accounts/session.ts`: `assertProjectAccess`, `forProject`; `tests/e2e/isolation.spec.ts`)
 7. **Input is parsed at the edge.** Every Server Action and route parses its input with zod and returns `Result<T, AppError>`; nothing throws to the client. (`lib/server-action.ts`)
-8. **Secrets stay on the server.** The Claude and Groq keys are stored encrypted and only their last four characters are shown again; OAuth tokens never reach the client. (`features/accounts/crypto.ts`)
+8. **Secrets stay on the server.** The Claude key lives only in the server's env; a workspace's Groq key is stored encrypted and only its last four characters are shown again; OAuth tokens never reach the client. (`features/accounts/crypto.ts`)
 9. **The preview is the render.** Captions, layout, text and effects are computed by the same pure functions for the browser preview and for the ffmpeg filtergraph. A look that exists only in one of them is a bug. (`features/captions`, `features/layout`, `features/effects`)
 10. **Only videos you have the rights to.** A streamer's own stream, or someone else's with their permission. Imports and music are the user's responsibility and the UI says so where they are added; Nimbus doesn't check rights.
 

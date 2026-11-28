@@ -137,17 +137,6 @@ export function accountRepository(db: Db) {
         .where(eq(workspaces.id, id))
     },
 
-    async setAnthropicKey(
-      id: string,
-      sealed: string | null,
-      hint: string | null
-    ) {
-      await db
-        .update(workspaces)
-        .set({ anthropicKey: sealed, anthropicKeyHint: hint, updatedAt: now() })
-        .where(eq(workspaces.id, id))
-    },
-
     async setGroqKey(id: string, sealed: string | null, hint: string | null) {
       await db
         .update(workspaces)

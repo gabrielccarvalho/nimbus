@@ -41,7 +41,7 @@ export async function getSettingsPage() {
   const db = getDb()
   return {
     settings: await getAppSettings(db, workspace.id),
-    claudeAvailable: claudeAvailable(workspace),
+    claudeAvailable: claudeAvailable(),
     ...(await getRenderingCapabilities(db, env.VIDEO_ENCODER)),
     transcriptionOff: !transcriptionAvailable(workspace),
     installedFonts: installedCaptionFonts(),
@@ -57,6 +57,6 @@ export async function getImportDefaults() {
       language: settings.language,
       selectorMode: settings.selectorMode,
     },
-    claudeAvailable: claudeAvailable(workspace),
+    claudeAvailable: claudeAvailable(),
   }
 }

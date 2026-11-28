@@ -17,7 +17,7 @@ import {
 import { eligibleInsightClips } from "../../insights/service"
 import type { JobHandler } from "../../jobs/worker-loop"
 import { CLAUDE_KEY_MISSING_MESSAGE } from "../../accounts/schema"
-import { recordUsage, resolveAnthropicKey } from "../../accounts/usage"
+import { recordUsage } from "../../accounts/usage"
 import { publishingRepository } from "../../publishing/repository"
 
 export const analyzePerformanceStep: JobHandler = async ({
@@ -39,7 +39,7 @@ export const analyzePerformanceStep: JobHandler = async ({
       `Find patterns needs ${INSIGHTS_MIN_CLIPS} published clips with a week of stats`
     )
   }
-  const apiKey = await resolveAnthropicKey(db, channel.workspaceId)
+  const apiKey = getEnv().ANTHROPIC_API_KEY
   if (!apiKey) {
     throw new AppError("VALIDATION", CLAUDE_KEY_MISSING_MESSAGE)
   }

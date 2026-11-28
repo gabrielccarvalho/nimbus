@@ -232,8 +232,7 @@ export const analytics = defineMessages({
         "Conecte o YouTube para aprender com seus cortes publicados.",
       eligible: (eligible, needed) =>
         `${eligible} de ${needed} cortes têm uma semana de dados`,
-      claudeKeyMissing:
-        "Adicione uma chave de API do Claude nas configurações do workspace para usar o Claude.",
+      claudeKeyMissing: "O Claude não está configurado neste servidor.",
       findPatterns: "Encontrar padrões",
       finding: "Procurando padrões…",
       suggestions: "Sugestões",

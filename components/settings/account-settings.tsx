@@ -28,11 +28,9 @@ import { StatusPill } from "@/components/ui/status-pill"
 import { Switch } from "@/components/ui/switch"
 import { ChannelIcon } from "@/components/channels/channel-icon"
 import {
-  removeAnthropicKeyAction,
   removeGroqKeyAction,
   renameWorkspaceAction,
   revokeSessionAction,
-  saveAnthropicKeyAction,
   saveGroqKeyAction,
 } from "@/features/accounts/actions"
 import type { ChannelRow, SecuritySettings } from "@/features/accounts/queries"
@@ -365,36 +363,16 @@ function TwoFactorDialog({
   )
 }
 
-const API_KEYS = {
-  claude: {
-    messages: "apiKey",
-    placeholder: "sk-ant-…",
-    save: saveAnthropicKeyAction,
-    remove: removeAnthropicKeyAction,
-  },
-  groq: {
-    messages: "groqKey",
-    placeholder: "gsk_…",
-    save: saveGroqKeyAction,
-    remove: removeGroqKeyAction,
-  },
-} as const
-
-type ApiKeyProvider = keyof typeof API_KEYS
-
-function ApiKeyDialog({
-  provider,
+function GroqKeyDialog({
   open,
   onOpenChange,
 }: {
-  provider: ApiKeyProvider
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const config = API_KEYS[provider]
-  const t = useMessages(settings)[config.messages]
+  const t = useMessages(settings).groqKey
   const { pending, error, run } = useAction()
-  const id = `${provider}-key`
+  const id = "groq-key"
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -404,7 +382,7 @@ function ApiKeyDialog({
             event.preventDefault()
             const key = String(new FormData(event.currentTarget).get("key"))
             run(
-              () => config.save(key),
+              () => saveGroqKeyAction(key),
               t.saved,
               () => onOpenChange(false)
             )
@@ -421,7 +399,7 @@ function ApiKeyDialog({
               name="key"
               type="password"
               autoComplete="off"
-              placeholder={config.placeholder}
+              placeholder="gsk_…"
               required
               className="font-mono"
             />
@@ -493,15 +471,8 @@ export function SecuritySettingsView({ data }: { data: SecuritySettings }) {
   )
 }
 
-export function ApiKeyRow({
-  provider,
-  keyHint,
-}: {
-  provider: ApiKeyProvider
-  keyHint: string | null
-}) {
-  const config = API_KEYS[provider]
-  const t = useMessages(settings)[config.messages]
+export function GroqKeyRow({ keyHint }: { keyHint: string | null }) {
+  const t = useMessages(settings).groqKey
   const c = useMessages(common)
   const [open, setOpen] = React.useState(false)
   const { pending, run } = useAction()
@@ -520,12 +491,12 @@ export function ApiKeyRow({
           size="sm"
           variant="ghost"
           disabled={pending}
-          onClick={() => run(() => config.remove(), t.removed)}
+          onClick={() => run(() => removeGroqKeyAction(), t.removed)}
         >
           {c.remove}
         </Button>
       )}
-      <ApiKeyDialog provider={provider} open={open} onOpenChange={setOpen} />
+      <GroqKeyDialog open={open} onOpenChange={setOpen} />
     </SettingRow>
   )
 }

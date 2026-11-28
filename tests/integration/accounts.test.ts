@@ -12,13 +12,10 @@ import {
   planForEmail,
   usagePeriod,
 } from "@/features/accounts/schema"
-import {
-  deleteOwnedWorkspaces,
-  saveAnthropicKey,
-} from "@/features/accounts/service"
+import { deleteOwnedWorkspaces, saveGroqKey } from "@/features/accounts/service"
 import {
   recordUsage,
-  resolveAnthropicKey,
+  resolveGroqKey,
   usageSummary,
 } from "@/features/accounts/usage"
 import { defaultProjectSettings } from "@/features/projects/schema"
@@ -33,7 +30,7 @@ import { createTestEnv, type TestEnv } from "../utils/test-env"
 let env: TestEnv
 
 beforeEach(async () => {
-  env = await createTestEnv({ ANTHROPIC_API_KEY: "sk-ant-env-fallback" })
+  env = await createTestEnv()
 })
 afterEach(() => env.cleanup())
 
@@ -118,27 +115,25 @@ describe("workspaces", () => {
   })
 })
 
-describe("Claude API key", () => {
-  it("is stored encrypted, shown as a hint and preferred over the env key", async () => {
+describe("Groq API key", () => {
+  it("is stored encrypted and shown as a hint", async () => {
     const workspace = await accountRepository(env.db).createPersonalWorkspace(
       await createUser("A")
     )
-    expect(await resolveAnthropicKey(env.db, workspace.id)).toBe(
-      "sk-ant-env-fallback"
-    )
-    const key = "sk-ant-api03-abcdefghijklmnopqrstuvwxyz-a41f"
-    expect(await saveAnthropicKey(env.db, workspace.id, key)).toEqual({
-      hint: "sk-ant-…a41f",
+    expect(await resolveGroqKey(env.db, workspace.id)).toBeUndefined()
+    const key = "gsk_abcdefghijklmnopqrstuvwxyz7c2e"
+    expect(await saveGroqKey(env.db, workspace.id, key)).toEqual({
+      hint: "gsk_abc…7c2e",
     })
     const [stored] = await env.db
       .select()
       .from(workspaces)
       .where(eq(workspaces.id, workspace.id))
-    expect(stored?.anthropicKey).not.toContain("abcdefghij")
-    expect(await resolveAnthropicKey(env.db, workspace.id)).toBe(key)
+    expect(stored?.groqKey).not.toContain("abcdefghij")
+    expect(await resolveGroqKey(env.db, workspace.id)).toBe(key)
     await expect(
-      saveAnthropicKey(env.db, workspace.id, "not-a-key")
-    ).rejects.toThrow("doesn't look like a Claude API key")
+      saveGroqKey(env.db, workspace.id, "not-a-key")
+    ).rejects.toThrow("doesn't look like a Groq API key")
   })
 
   it("round-trips and rejects tampering", () => {

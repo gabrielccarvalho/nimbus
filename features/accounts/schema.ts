@@ -75,18 +75,12 @@ export const passwordSchema = z
   .min(10, "Use at least 10 characters")
   .max(128)
 
-export const anthropicKeySchema = z
-  .string()
-  .trim()
-  .regex(/^sk-ant-[\w-]{20,}$/, "That doesn't look like a Claude API key")
-
 export const groqKeySchema = z
   .string()
   .trim()
   .regex(/^gsk_[\w-]{20,}$/, "That doesn't look like a Groq API key")
 
-export const CLAUDE_KEY_MISSING_MESSAGE =
-  "Add a Claude API key in Workspace settings to use Claude."
+export const CLAUDE_KEY_MISSING_MESSAGE = "Claude isn't set up on this server."
 
 export function keyHint(key: string) {
   return `${key.slice(0, 7)}…${key.slice(-4)}`
