@@ -157,6 +157,36 @@ describe("transcribe step", () => {
   })
 })
 
+describe("transcribe step resuming", () => {
+  async function savedPart(audioTrack: number | null) {
+    const { projectId } = await uploadFixture(fixtures.wide)
+    await runJobs(env.db, ["probe"])
+    await transcriptRepository(env.db).save(projectId, {
+      language: "en",
+      languageSource: "detected",
+      words: [{ text: "Saved", startMs: 100, endMs: 150, confidence: 1 }],
+      segments: [],
+      partial: { untilMs: 10_000, audioTrack },
+    })
+    await runJobs(env.db, ["transcribe"])
+    return (await transcriptRepository(env.db).get(projectId))!
+  }
+
+  it("continues after the saved part", async () => {
+    const transcript = await savedPart(null)
+    expect(transcript.partial).toBeNull()
+    expect(transcript.words[0]?.text).toBe("Saved")
+    expect(transcript.words.slice(1).every((w) => w.startMs >= 10_000)).toBe(
+      true
+    )
+  })
+
+  it("starts over when the saved part came from another audio track", async () => {
+    const transcript = await savedPart(1)
+    expect(transcript.words[0]).toMatchObject({ text: "Okay", startMs: 200 })
+  })
+})
+
 describe("transcribe step with Groq", () => {
   const KEY = "gsk_test_0123456789abcdefghijkl"
 
@@ -313,7 +343,7 @@ describe("transcribe step with Groq", () => {
     await expectSkipped(projectId, "rate_limited")
   })
 
-  it("keeps the words received before Groq's rate limit", async () => {
+  it("keeps the words received before Groq's rate limit and resumes after them", async () => {
     const file = path.join(env.dataDir, "eleven-minutes.mp4")
     execFileSync(getEnv().FFMPEG_PATH, [
       "-v",
@@ -377,6 +407,42 @@ describe("transcribe step with Groq", () => {
     ).toMatchObject({
       detail: { phase: "skipped", skipReason: "rate_limited", words: 3 },
     })
+    expect(
+      (await transcriptRepository(env.db).get(projectId))?.partial
+    ).toEqual({ untilMs: 600_000, audioTrack: null })
+
+    const resumed: { words: boolean }[] = []
+    server.use(
+      http.post(GROQ_TRANSCRIPTIONS_URL, async ({ request }) => {
+        const form = await request.formData()
+        const words = form.getAll("timestamp_granularities[]").length > 0
+        resumed.push({ words })
+        return HttpResponse.json({
+          language: "english",
+          segments: [{ text: " Back again." }],
+          words: [
+            { word: "Back", start: 10, end: 10.4 },
+            { word: "again", start: 10.4, end: 10.9 },
+          ],
+        })
+      })
+    )
+    const projects = projectRepository(env.db)
+    await projects.markFailed(projectId, "boom")
+    await projects.resumeFailed(projectId, "transcribing")
+    await jobQueue(env.db).enqueue({ type: "transcribe", projectId })
+    await runJobs(env.db, ["transcribe"])
+
+    expect(resumed).toEqual([{ words: true }])
+    const transcript = await transcriptRepository(env.db).get(projectId)
+    expect(transcript?.partial).toBeNull()
+    expect(transcript?.words.map((w) => [w.text, w.startMs])).toEqual([
+      ["Okay,", 200],
+      ["let's", 600],
+      ["go.", 800],
+      ["Back", 605_000],
+      ["again.", 605_400],
+    ])
   })
 
   it("keeps an earlier transcript when a re-run stops sooner", async () => {

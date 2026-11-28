@@ -153,6 +153,7 @@ describe("groq adapter", () => {
       {
         language: "en",
         tokens: [{ text: " Okay.", startMs: 1000, endMs: 1500 }],
+        untilMs: 600_000,
       },
     ])
   })

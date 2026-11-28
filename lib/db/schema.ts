@@ -53,6 +53,7 @@ import type {
 import type {
   LanguageSource,
   Segment,
+  TranscriptProgress,
   Word,
 } from "@/features/transcription/schema"
 
@@ -256,6 +257,7 @@ export const transcripts = pgTable("transcripts", {
   languageSource: text("language_source").$type<LanguageSource>(),
   words: jsonb("words").$type<Word[]>().notNull(),
   segments: jsonb("segments").$type<Segment[]>().notNull(),
+  partial: jsonb("partial").$type<TranscriptProgress>(),
   ...timestamps,
 })
 

@@ -106,12 +106,15 @@ export class GroqTranscriber implements Transcriber {
     audioPath,
     durationMs,
     language = "auto",
+    fromMs = 0,
     signal,
     onProgress,
     onWord,
     onChunk,
   }: TranscribeInput): Promise<RawTranscript> {
-    const chunks = planChunks(durationMs)
+    const chunks = planChunks(durationMs).filter(
+      (chunk) => chunk.keepToMs > fromMs
+    )
     const tokens: RawToken[] = []
     let spoken = language === "auto" ? undefined : language
     for (const [index, chunk] of chunks.entries()) {
@@ -164,7 +167,11 @@ export class GroqTranscriber implements Transcriber {
           tokens.push(token)
           onWord?.({ text: token.text.trim(), startMs: token.startMs })
         }
-        await onChunk?.({ tokens: kept, language: spoken ?? "unknown" })
+        await onChunk?.({
+          tokens: kept,
+          language: spoken ?? "unknown",
+          untilMs: Number.isFinite(chunk.keepToMs) ? chunk.keepToMs : null,
+        })
       } finally {
         await rm(piece, { force: true })
       }

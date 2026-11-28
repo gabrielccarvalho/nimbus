@@ -552,7 +552,7 @@ Spec: `docs/UX_PATTERNS.md` and the "Nimbus pages redesign" canvas. The clip edi
 
 - [x] Groq 401/403, 429 and last-attempt API errors finish the transcribe step as skipped with a reason; the overview shows it in amber with the reason and the right next action, and the transcript page explains it
 - [x] The transcript is saved after every chunk; a skipped run keeps the words received, and never replaces a transcript that reaches further
-- [ ] Resume from the last saved chunk instead of starting over on a re-run
+- [x] Resume from the last saved chunk on a retry or re-run, unless the audio track or language setting changed (migration 0028)
 
 ### Not verified
 

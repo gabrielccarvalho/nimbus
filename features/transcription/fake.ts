@@ -14,6 +14,7 @@ export class FakeTranscriber implements Transcriber {
   async transcribe({
     durationMs,
     language,
+    fromMs = 0,
     signal,
     onProgress,
     onWord,
@@ -27,6 +28,7 @@ export class FakeTranscriber implements Transcriber {
       const offset = loop * data.durationMs
       for (const sentence of data.sentences) {
         if (sentence.startMs + offset >= durationMs) continue
+        if (sentence.startMs + offset < fromMs) continue
         const words = sentence.text.split(/\s+/)
         const step = (sentence.endMs - sentence.startMs) / words.length
         words.forEach((word, index) => {
@@ -43,7 +45,7 @@ export class FakeTranscriber implements Transcriber {
       onProgress?.(((loop + 1) / loops) * 100)
     }
     const spoken = language && language !== "auto" ? language : data.language
-    await onChunk?.({ tokens, language: spoken })
+    await onChunk?.({ tokens, language: spoken, untilMs: null })
     return { language: spoken, tokens }
   }
 }

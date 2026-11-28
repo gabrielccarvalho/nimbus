@@ -8,11 +8,14 @@ export type TranscribeInput = {
   audioPath: string
   durationMs: number
   language?: string
+  fromMs?: number
   signal?: AbortSignal
   onProgress?: (percent: number) => void
   onWord?: (word: LiveWord) => void
-  onChunk?: (chunk: RawTranscript) => Promise<void> | void
+  onChunk?: (chunk: TranscribedChunk) => Promise<void> | void
 }
+
+export type TranscribedChunk = RawTranscript & { untilMs: number | null }
 
 export type LiveWord = { text: string; startMs: number }
 

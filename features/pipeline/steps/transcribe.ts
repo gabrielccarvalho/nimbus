@@ -172,44 +172,82 @@ export const transcribeStep: JobHandler = async ({
   }
 
   const transcripts = transcriptRepository(db)
-  const previousEndMs = (await transcripts.get(project.id))?.words.at(-1)?.endMs
+  const previous = await transcripts.get(project.id)
+  const audioTrack = trackExists ? track : null
+  const setting = resolveLanguage({
+    setting: project.settings.language,
+    sourceLanguage: project.sourceLanguage,
+  })
+  const resume =
+    previous?.partial &&
+    previous.partial.audioTrack === audioTrack &&
+    (!setting || setting.language === previous.language)
+      ? { ...previous, partial: previous.partial }
+      : undefined
+  const previousEndMs = previous?.words.at(-1)?.endMs
+  const base = resume?.words ?? []
   const received: RawToken[] = []
   let chosen: Awaited<ReturnType<typeof chooseLanguage>> | undefined
-  const store = async (tokens: RawToken[], language: string) => {
-    const words = normalizeWords(tokens).filter(
-      (w) => w.startMs < durationMs || !durationMs
-    )
+  const store = async (
+    tokens: RawToken[],
+    language: string,
+    untilMs: number | null
+  ) => {
+    const words = [
+      ...base,
+      ...normalizeWords(tokens).filter(
+        (w) => w.startMs < durationMs || !durationMs
+      ),
+    ]
     await transcripts.save(project.id, {
       language,
       languageSource: chosen!.source,
       words,
       segments: buildSegments(words),
+      partial: untilMs === null ? null : { untilMs, audioTrack },
     })
     return words
   }
   // A transcript that reaches further, from an earlier run, stays until this one passes it.
   const passesPrevious = () =>
+    resume !== undefined ||
     previousEndMs === undefined ||
     (received.at(-1)?.endMs ?? -1) > previousEndMs
 
   let raw: RawTranscript
   try {
-    reportDetail({ ...live, phase: "detecting" })
-    chosen = await chooseLanguage(project, transcriber, audioPath, durationMs, {
-      signal,
-      scratch,
-      logger,
-    })
+    if (resume) {
+      chosen = {
+        language: resume.language,
+        source: resume.languageSource ?? "detected",
+      }
+      logger.info(
+        { fromMs: resume.partial.untilMs, words: base.length },
+        "resuming transcription"
+      )
+    } else {
+      reportDetail({ ...live, phase: "detecting" })
+      chosen = await chooseLanguage(
+        project,
+        transcriber,
+        audioPath,
+        durationMs,
+        { signal, scratch, logger }
+      )
+    }
     reportProgress(15)
     live.phase = "transcribing"
     live.language = chosen.language === "auto" ? null : chosen.language
     live.languageSource = chosen.source
+    live.words = base.length
+    live.audioMs = resume?.partial.untilMs ?? 0
     reportDetail({ ...live })
 
     raw = await transcriber.transcribe({
       audioPath,
       durationMs,
       language: chosen.language,
+      fromMs: resume?.partial.untilMs,
       signal,
       onProgress: (p) => reportProgress(15 + p * 0.85),
       onWord: (word) => {
@@ -218,9 +256,9 @@ export const transcribeStep: JobHandler = async ({
         live.audioMs = Math.max(live.audioMs, word.startMs)
         reportDetail({ ...live })
       },
-      onChunk: async ({ tokens, language }) => {
+      onChunk: async ({ tokens, language, untilMs }) => {
         received.push(...tokens)
-        if (passesPrevious()) await store(received, language)
+        if (passesPrevious()) await store(received, language, untilMs)
       },
     })
   } catch (error) {
@@ -228,9 +266,9 @@ export const transcribeStep: JobHandler = async ({
       lastAttempt: job.attempts >= job.maxAttempts,
     })
     if (!reason) throw error
-    const kept = received.length && passesPrevious()
+    const kept = (received.length || resume) && passesPrevious()
     logger.warn(
-      { err: error, reason, keptTokens: kept ? received.length : 0 },
+      { err: error, reason, keptTokens: received.length },
       "transcriber refused, continuing without the rest of the transcript"
     )
     return skip(
@@ -240,7 +278,7 @@ export const transcribeStep: JobHandler = async ({
   }
   throwIfAborted(signal)
 
-  const words = await store(raw.tokens, raw.language)
+  const words = await store(raw.tokens, raw.language, null)
   logger.info(
     {
       transcriber: transcriber.id,

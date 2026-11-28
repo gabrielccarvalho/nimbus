@@ -33,10 +33,17 @@ export const skipReasonSchema = z.enum([
 ])
 export type SkipReason = z.infer<typeof skipReasonSchema>
 
+export const transcriptProgressSchema = z.object({
+  untilMs: z.number().int().nonnegative(),
+  audioTrack: z.number().int().nonnegative().nullable(),
+})
+export type TranscriptProgress = z.infer<typeof transcriptProgressSchema>
+
 export const transcriptSchema = z.object({
   language: z.string(),
   languageSource: languageSourceSchema.nullable().optional(),
   words: z.array(wordSchema),
   segments: z.array(segmentSchema),
+  partial: transcriptProgressSchema.nullable().optional(),
 })
 export type TranscriptData = z.infer<typeof transcriptSchema>
