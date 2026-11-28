@@ -554,6 +554,11 @@ Spec: `docs/UX_PATTERNS.md` and the "Nimbus pages redesign" canvas. The clip edi
 - [x] The transcript is saved after every chunk; a skipped run keeps the words received, and never replaces a transcript that reaches further
 - [x] Resume from the last saved chunk on a retry or re-run, unless the audio track or language setting changed (migration 0028)
 
+### Phase 50: Link previews (ADR-0091)
+
+- [x] One 1200×630 preview image from `next/og`, Open Graph and Twitter tags in the request's language, crawlers let through the proxy
+- [ ] Checked in the real apps: WhatsApp, Discord, X, LinkedIn (needs the production URL; LinkedIn's Post Inspector and X's card validator refresh their caches)
+
 ### Not verified
 
 - Joined clips on a real recording: rendering was checked with real ffmpeg on the 20 s fixture, and the editor through component tests, not by hand in a browser. How long the preview stalls at a cut on a multi-hour proxy is unknown.

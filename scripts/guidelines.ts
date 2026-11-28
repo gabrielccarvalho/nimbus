@@ -114,6 +114,8 @@ export const RULES: Rule[] = [
       "components/channels/channel-icon.tsx": "third-party brand colours",
       "components/projects/caption-style-preview.tsx":
         "caption palette, not UI tokens (ADR-0057)",
+      "components/marketing/social-image.tsx":
+        "Satori can't read CSS variables (ADR-0091)",
     },
     check: (source) =>
       matchLines(source, /#[0-9a-fA-F]{6}\b|-\[#[0-9a-fA-F]{3,8}\]/),

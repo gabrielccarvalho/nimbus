@@ -8,6 +8,8 @@ Heycamps on top of the shadcn preset (`base-nova`), ADR-0057. One dark theme: th
 
 Raw tokens live in `:root`; the shadcn variables point at them, so `bg-card`, `text-muted-foreground` and friends keep working.
 
+The link preview image (`components/marketing/social-image.tsx`) is the one place that copies these values as hex, because Satori can't read CSS variables. Change it with the tokens (ADR-0091).
+
 | Token                      | Value                      | Role                                           |
 | -------------------------- | -------------------------- | ---------------------------------------------- |
 | `night` (`background`)     | `#06070b`                  | Page background, always                        |

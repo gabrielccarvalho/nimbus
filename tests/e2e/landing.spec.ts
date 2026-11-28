@@ -43,3 +43,21 @@ test("a signed-in visitor still lands on their projects", async ({ page }) => {
     page.getByRole("heading", { level: 1, name: "Projects" })
   ).toBeVisible()
 })
+
+test.describe("link previews", () => {
+  test.use({ storageState: { cookies: [], origins: [] } })
+
+  test("get a large image, signed out", async ({ page, request }) => {
+    await page.goto("/")
+    const image = page.locator('meta[property="og:image"]')
+    await expect(image).toHaveCount(1)
+    await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute(
+      "content",
+      "summary_large_image"
+    )
+    const url = new URL((await image.getAttribute("content"))!)
+    const response = await request.get(`${url.pathname}${url.search}`)
+    expect(response.status()).toBe(200)
+    expect(response.headers()["content-type"]).toBe("image/png")
+  })
+})

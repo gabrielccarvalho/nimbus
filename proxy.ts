@@ -45,8 +45,9 @@ export function proxy(request: NextRequest) {
 // Uploads skip the proxy: it buffers request bodies and truncates them past
 // proxyClientMaxBodySize. The route handler checks the signed upload token.
 // The billing webhook has no session; its route checks the shared secret.
+// Link previews are fetched by crawlers that are never signed in.
 export const config = {
   matcher: [
-    "/((?!api/auth|api/billing/webhook|api/fonts|api/uploads|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|webp|ico|woff2?)$).*)",
+    "/((?!opengraph-image|api/auth|api/billing/webhook|api/fonts|api/uploads|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|webp|ico|woff2?)$).*)",
   ],
 }
