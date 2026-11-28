@@ -2,11 +2,10 @@ import { describe, expect, it } from "vitest"
 
 import {
   detectionWindows,
-  isEnglishOnlyModel,
   normalizeLanguage,
-  parseDetectedLanguage,
   pickLanguage,
   resolveLanguage,
+  whisperLanguageCode,
 } from "./language"
 
 describe("normalizeLanguage", () => {
@@ -24,17 +23,17 @@ describe("normalizeLanguage", () => {
   })
 })
 
-describe("parseDetectedLanguage", () => {
-  it("reads whisper's detection line", () => {
-    expect(
-      parseDetectedLanguage(
-        "whisper_full_with_state: auto-detected language: pt (p = 0.998648)"
-      )
-    ).toEqual({ language: "pt", probability: 0.998648 })
+describe("whisperLanguageCode", () => {
+  it("maps whisper's language names to codes", () => {
+    expect(whisperLanguageCode("Portuguese")).toBe("pt")
+    expect(whisperLanguageCode("english")).toBe("en")
+    expect(whisperLanguageCode("haitian creole")).toBe("ht")
   })
 
-  it("returns null without a detection", () => {
-    expect(parseDetectedLanguage("whisper_init: loading model")).toBeNull()
+  it("passes codes through and rejects the unknown", () => {
+    expect(whisperLanguageCode("pt")).toBe("pt")
+    expect(whisperLanguageCode("klingon")).toBeNull()
+    expect(whisperLanguageCode(undefined)).toBeNull()
   })
 })
 
@@ -100,15 +99,5 @@ describe("resolveLanguage", () => {
     expect(
       resolveLanguage({ setting: "auto", sourceLanguage: null })
     ).toBeNull()
-  })
-})
-
-describe("isEnglishOnlyModel", () => {
-  it("spots English-only whisper models", () => {
-    expect(isEnglishOnlyModel("./models/ggml-base.en.bin")).toBe(true)
-    expect(isEnglishOnlyModel("models/ggml-small.en-q5_1.bin")).toBe(true)
-    expect(isEnglishOnlyModel("models/ggml-large-v3-turbo-q5_0.bin")).toBe(
-      false
-    )
   })
 })

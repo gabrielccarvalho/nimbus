@@ -45,7 +45,7 @@ export function SettingsForm({
   claudeAvailable,
   workerOnline,
   hardwareEncoder,
-  englishOnlyModel,
+  transcriptionOff,
   installedFonts,
 }: {
   section: "defaults" | "layout" | "captions" | "rendering"
@@ -53,7 +53,7 @@ export function SettingsForm({
   claudeAvailable: boolean
   workerOnline: boolean
   hardwareEncoder: string | null
-  englishOnlyModel: boolean
+  transcriptionOff: boolean
   installedFonts: readonly CaptionFontId[]
 }) {
   const router = useRouter()
@@ -94,7 +94,7 @@ export function SettingsForm({
               <LanguageField
                 value={settings}
                 set={set}
-                englishOnlyModel={englishOnlyModel}
+                transcriptionOff={transcriptionOff}
               />
               <NicheField value={settings} set={set} />
             </div>

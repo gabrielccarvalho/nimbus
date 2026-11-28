@@ -150,6 +150,8 @@ export const workspaces = pgTable("workspaces", {
   image: text("image"),
   anthropicKey: text("anthropic_key"),
   anthropicKeyHint: text("anthropic_key_hint"),
+  groqKey: text("groq_key"),
+  groqKeyHint: text("groq_key_hint"),
   billingCustomerId: text("billing_customer_id"),
   billingCheckoutId: text("billing_checkout_id"),
   billingSubscriptionId: text("billing_subscription_id"),

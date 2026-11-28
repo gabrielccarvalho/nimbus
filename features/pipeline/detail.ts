@@ -13,7 +13,7 @@ export const stepDetailSchema = z.discriminatedUnion("kind", [
   }),
   z.object({
     kind: z.literal("transcribe"),
-    phase: z.enum(["extracting", "detecting", "transcribing"]),
+    phase: z.enum(["extracting", "detecting", "transcribing", "skipped"]),
     language: z.string().nullable(),
     languageSource: languageSourceSchema.nullable(),
     text: z.string(),

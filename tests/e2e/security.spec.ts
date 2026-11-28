@@ -27,9 +27,10 @@ test("client bundle contains no secrets", async () => {
   const secrets = configuredSecrets()
   for (const file of files) {
     const source = await readFile(path.join(STATIC_DIR, file), "utf8")
-    expect(/sk-ant-[\w-]{10,}/.test(source), `${file} has an API key`).toBe(
-      false
-    )
+    expect(
+      /sk-ant-[\w-]{10,}|gsk_[\w-]{20,}/.test(source),
+      `${file} has an API key`
+    ).toBe(false)
     for (const secret of secrets) {
       expect(source.includes(secret), `${file} has a configured secret`).toBe(
         false

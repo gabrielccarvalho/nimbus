@@ -34,6 +34,13 @@ export const review = defineMessages({
         "Transcription didn't finish. Retry the project from the overview.",
       emptyPending: (step: string) =>
         `The transcript appears here once transcription finishes. Current step: ${step}.`,
+      skippedTitle: "Transcription was skipped",
+      skippedNoKey:
+        "This workspace has no Groq key, so the recording wasn't transcribed. Highlights came from the audio and clips have no captions.",
+      skippedWithKey:
+        "This recording was imported before the workspace had a Groq key. Transcribe it from the overview.",
+      addKey: "Add a key in Settings →",
+      openOverview: "Open the overview →",
     },
     grid: {
       list: "Clips",
@@ -241,6 +248,13 @@ export const review = defineMessages({
         "A transcrição não terminou. Tente o projeto de novo pela visão geral.",
       emptyPending: (step: string) =>
         `A transcrição aparece aqui assim que ficar pronta. Etapa atual: ${step}.`,
+      skippedTitle: "A transcrição foi pulada",
+      skippedNoKey:
+        "Este espaço de trabalho não tem chave do Groq, então a gravação não foi transcrita. Os destaques vieram do áudio e os cortes saem sem legenda.",
+      skippedWithKey:
+        "Esta gravação foi importada antes de o espaço de trabalho ter uma chave do Groq. Transcreva pela visão geral.",
+      addKey: "Adicionar uma chave nas configurações →",
+      openOverview: "Abrir a visão geral →",
     },
     grid: {
       list: "Cortes",

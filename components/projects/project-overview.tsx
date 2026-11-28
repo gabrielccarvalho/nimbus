@@ -26,6 +26,7 @@ import {
 } from "@/features/pipeline/state-machine"
 import {
   cancelProjectAction,
+  rerunProjectAction,
   retryProjectAction,
 } from "@/features/projects/actions"
 import { formatDuration } from "@/lib/format"
@@ -288,7 +289,47 @@ export function ProjectOverview({
                 <PipelineStepContent>
                   <PipelineStepLabel>{label}</PipelineStepLabel>
                   {detail && (
-                    <PipelineStepDescription>{detail}</PipelineStepDescription>
+                    <PipelineStepDescription>
+                      {detail}
+                      {step.id === "transcribe" &&
+                        state === "complete" &&
+                        facts.transcription.skipped && (
+                          <>
+                            {" · "}
+                            {facts.transcription.available ? (
+                              <button
+                                type="button"
+                                className="text-foreground underline-offset-4 hover:underline disabled:opacity-50"
+                                disabled={pending || running}
+                                onClick={() =>
+                                  run(async () => {
+                                    const result = await rerunProjectAction(
+                                      snapshot.id,
+                                      "transcribe"
+                                    )
+                                    if (!result.ok)
+                                      toast.error(
+                                        translateError(
+                                          result.error.message,
+                                          locale
+                                        )
+                                      )
+                                  })
+                                }
+                              >
+                                {t.transcribeNow}
+                              </button>
+                            ) : (
+                              <Link
+                                href="/settings/workspace"
+                                className="text-foreground underline-offset-4 hover:underline"
+                              >
+                                {t.addTranscriptionKey}
+                              </Link>
+                            )}
+                          </>
+                        )}
+                    </PipelineStepDescription>
                   )}
                 </PipelineStepContent>
                 <PipelineStepTime>

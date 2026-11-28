@@ -110,6 +110,7 @@ const patternsPtBR: [RegExp, Build][] = [
     (status) => `Falha ao renovar o acesso do Google (${status})`,
   ],
   [/^YouTube returned (\d+)$/, (status) => `O YouTube retornou ${status}`],
+  [/^Groq returned (\d+)$/, (status) => `O Groq retornou ${status}`],
   [/^AbacatePay returned (.+)$/, (reason) => `A AbacatePay retornou ${reason}`],
   [
     /^Your plan allows (\d+) publishes a day$/,
@@ -165,10 +166,6 @@ const patternsPtBR: [RegExp, Build][] = [
   [
     /^Use at most (\d+) characters$/,
     (max) => `Use no máximo ${max} caracteres`,
-  ],
-  [
-    /^Whisper model not found at (.+)$/,
-    (path) => `Modelo do Whisper não encontrado em ${path}`,
   ],
   [
     /^The JSON doesn't match the expected shape(.*)$/s,

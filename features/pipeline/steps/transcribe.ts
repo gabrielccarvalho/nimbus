@@ -6,10 +6,12 @@ import path from "node:path"
 
 import { getStorage, storageKeys } from "@/lib/storage"
 
+import { resolveGroqKey } from "../../accounts/usage"
 import type { JobContext, JobHandler } from "../../jobs/worker-loop"
 import { assetRepository, type Project } from "../../projects/repository"
 import { runFfmpeg } from "../../render/ffmpeg-runner"
 import { getTranscriber } from "../../transcription"
+import type { Transcriber } from "../../transcription/transcriber"
 import {
   detectionWindows,
   pickLanguage,
@@ -24,6 +26,7 @@ const DETECTION_WINDOW_MS = 30_000
 
 async function chooseLanguage(
   project: Project,
+  transcriber: Transcriber,
   audioPath: string,
   durationMs: number,
   { signal, scratch, logger }: Pick<JobContext, "signal" | "scratch" | "logger">
@@ -33,9 +36,6 @@ async function chooseLanguage(
     sourceLanguage: project.sourceLanguage,
   })
   if (resolved) return resolved
-  const transcriber = getTranscriber()
-  if (!transcriber.multilingual)
-    return { language: "en", source: "whisper" } as const
   const samplePath = path.join(scratch, `language-sample-${randomUUID()}.wav`)
   const votes = []
   try {
@@ -143,19 +143,30 @@ export const transcribeStep: JobHandler = async ({
     })
   }
 
+  const transcriber = getTranscriber(
+    await resolveGroqKey(db, project.workspaceId)
+  )
+  if (!transcriber) {
+    reportDetail({ ...live, phase: "skipped" })
+    logger.info("no transcription key, skipped transcription")
+    await completeStep(db, project.id, "analyzing", "analyze")
+    return
+  }
+
   reportDetail({ ...live, phase: "detecting" })
-  const chosen = await chooseLanguage(project, audioPath, durationMs, {
-    signal,
-    scratch,
-    logger,
-  })
+  const chosen = await chooseLanguage(
+    project,
+    transcriber,
+    audioPath,
+    durationMs,
+    { signal, scratch, logger }
+  )
   reportProgress(15)
   live.phase = "transcribing"
   live.language = chosen.language === "auto" ? null : chosen.language
   live.languageSource = chosen.source
   reportDetail({ ...live })
 
-  const transcriber = getTranscriber()
   const raw = await transcriber.transcribe({
     audioPath,
     durationMs,

@@ -151,6 +151,8 @@ export const overview = defineMessages({
         render_edit: "Rendering edit",
       } as Record<string, string>,
       waitingForYou: "Waiting for you",
+      addTranscriptionKey: "To transcribe, add a key in Settings →",
+      transcribeNow: "Transcribe now",
       waitingForWorker: "Waiting for the worker…",
       starting: "Starting…",
       elapsed: (duration: string) => `${duration} elapsed`,
@@ -166,6 +168,7 @@ export const overview = defineMessages({
       fps: (fps: number) => `${fps} fps`,
       transcribed: (words: string, language: string, source?: string) =>
         `${words} words · ${language}${source ? `, ${source}` : ""}`,
+      skipped: "Skipped",
       languageSources: {
         setting: "chosen in settings",
         source: "from the video page",
@@ -195,6 +198,7 @@ export const overview = defineMessages({
       perSecond: (size: string) => `${size}/s`,
       left: (duration: string) => `${duration} left`,
       extracting: "Extracting the audio",
+      skipping: "No transcription key, skipping",
       detecting: "Listening for the spoken language",
       transcribingIn: (language: string) => `Transcribing in ${language}`,
       transcribing: "Transcribing",
@@ -509,6 +513,9 @@ export const overview = defineMessages({
         render_edit: "Renderizando edição",
       },
       waitingForYou: "Esperando você",
+      addTranscriptionKey:
+        "Para transcrever, adicione uma chave nas configurações →",
+      transcribeNow: "Transcrever agora",
       waitingForWorker: "Aguardando na fila…",
       starting: "Iniciando…",
       elapsed: (duration: string) => `${duration} decorridos`,
@@ -524,6 +531,7 @@ export const overview = defineMessages({
       fps: (fps: number) => `${fps} fps`,
       transcribed: (words: string, language: string, source?: string) =>
         `${words} palavras · ${language}${source ? `, ${source}` : ""}`,
+      skipped: "Pulada",
       languageSources: {
         setting: "escolhido nas configurações",
         source: "da página do vídeo",
@@ -559,6 +567,7 @@ export const overview = defineMessages({
       perSecond: (size: string) => `${size}/s`,
       left: (duration: string) => `faltam ${duration}`,
       extracting: "Extraindo o áudio",
+      skipping: "Sem chave de transcrição, pulando",
       detecting: "Ouvindo para descobrir o idioma falado",
       transcribingIn: (language: string) => `Transcrevendo em ${language}`,
       transcribing: "Transcrevendo",

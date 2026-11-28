@@ -25,7 +25,7 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started. Resume from the fi
 ## Blockers
 
 - ~~B1, libass missing from ffmpeg~~ Resolved 2026-11-22: `ffmpeg-full` 9.0.2 installed (keg-only) and set via `FFMPEG_PATH`/`FFPROBE_PATH` in `.env.local` (ADR-0028).
-- ~~B2, whisper.cpp missing~~ Resolved 2026-11-22: `whisper-cpp` 1.9.5 and `models/ggml-base.en.bin` installed; the heavy test passes.
+- ~~B2, whisper.cpp missing~~ Resolved 2026-11-22: `whisper-cpp` 1.9.5 and `models/ggml-base.en.bin` installed; the heavy test passes. Moot since Phase 50: transcription is on Groq.
 - ~~B3, no Anthropic credentials~~ Resolved 2026-11-22: `ANTHROPIC_API_KEY` set in `.env.local`.
 - B4, Google OAuth verification and YouTube API audit not started (needed before public launch).
 
@@ -534,6 +534,14 @@ Spec: `docs/UX_PATTERNS.md` and the "Nimbus pages redesign" canvas. The clip edi
 - [x] Limit errors in pt-BR; Plan & usage no longer says usage isn't limited
 - [x] Creator checkout through AbacatePay, the webhook that moves the workspace, the customer portal, and the worker downgrading lapsed plans (ADR-0090, migration 0026)
 - [ ] A real AbacatePay test-mode run: key, `pnpm billing:product`, webhook through a tunnel, payment with the test card (only the fake was exercised)
+
+### Phase 50: Transcription on Groq with the workspace's key (ADR-0091)
+
+- [x] whisper.cpp, its model and the `WHISPER_BIN`/`WHISPER_MODEL`/`WHISPER_THREADS` settings removed; the worker image no longer builds whisper or downloads a model
+- [x] `GroqTranscriber`: `whisper-large-v3-turbo`, 10-minute FLAC chunks with 5 s overlap, word timestamps, punctuation from segments, error codes per status (contract and integration tests on MSW)
+- [x] Groq key per workspace in Settings › Workspace, encrypted with a hint (migration 0027)
+- [x] Without a key the step finishes as skipped: the overview links to Settings or offers "Transcribe now", and the transcript page says why it is empty
+- [ ] A real Groq run on a long recording (`pnpm test:heavy` with `GROQ_API_KEY`; nothing has been sent to Groq yet)
 
 ### Not verified
 

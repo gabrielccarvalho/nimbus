@@ -19,10 +19,10 @@ These hold everywhere. A change that breaks one is a product decision, not a ref
 2. **A stale render can't be published.** Any edit to a rendered clip returns it to `approved`; publishing refuses with "Render the latest edit first". (`features/clips/service.ts`, `features/publishing/service.ts`)
 3. **Every clip is its own.** Each clip has its own title, hook, layout, captions and effects, and the UI shows them before export. No template is stamped across clips.
 4. **The project moves only through the state machine.** Every status change goes through `assertTransition`; an illegal one throws `INVALID_TRANSITION`. (`features/pipeline/state-machine.ts`)
-5. **Long work runs in the worker.** A request validates, writes and enqueues a job; it never runs ffmpeg, whisper, a download or an upload to YouTube. (`features/jobs/queue.ts`, checked by `pnpm check:guidelines`)
+5. **Long work runs in the worker.** A request validates, writes and enqueues a job; it never runs ffmpeg, a transcription, a download or an upload to YouTube. (`features/jobs/queue.ts`, checked by `pnpm check:guidelines`)
 6. **A workspace sees only its own data.** Every read and write of a project, clip, track, channel or publication is scoped to the viewer's workspace; a foreign id answers `NOT_FOUND`, never `FORBIDDEN`. (`features/accounts/session.ts`: `assertProjectAccess`, `forProject`; `tests/e2e/isolation.spec.ts`)
 7. **Input is parsed at the edge.** Every Server Action and route parses its input with zod and returns `Result<T, AppError>`; nothing throws to the client. (`lib/server-action.ts`)
-8. **Secrets stay on the server.** The Claude key is stored encrypted and only its last four characters are shown again; OAuth tokens never reach the client. (`features/accounts/crypto.ts`)
+8. **Secrets stay on the server.** The Claude and Groq keys are stored encrypted and only their last four characters are shown again; OAuth tokens never reach the client. (`features/accounts/crypto.ts`)
 9. **The preview is the render.** Captions, layout, text and effects are computed by the same pure functions for the browser preview and for the ffmpeg filtergraph. A look that exists only in one of them is a bug. (`features/captions`, `features/layout`, `features/effects`)
 10. **Only videos you have the rights to.** A streamer's own stream, or someone else's with their permission. Imports and music are the user's responsibility and the UI says so where they are added; Nimbus doesn't check rights.
 
@@ -119,11 +119,12 @@ The source of truth is `features/pipeline/state-machine.ts` (`forward`, `RUNNING
 
 ### Transcription
 
-- Audio: 16 kHz mono PCM WAV.
+- Only with the workspace's own Groq key (ADR-0091). Without one, the step keeps the audio, saves no transcript and finishes as skipped; highlights come from the audio, clips have no captions, and a re-run without a key leaves an earlier transcript alone. `TRANSCRIBER=fake` always transcribes.
+- Audio: 16 kHz mono PCM WAV, sent to Groq as 10-minute FLAC chunks that overlap 5 s on each side. A chunk keeps only the words that start in its own 10 minutes, so each word appears once. Timed words take their spelling and punctuation from the segment text when the two match.
 - Word normalization (pure, `features/transcription/normalize.ts`):
   1. Trim whitespace; drop empty tokens.
   2. Merge tokens that are only punctuation into the previous word (`"hello" "," → "hello,"`).
-  3. Merge whisper sub-word tokens that don't start with a space into the previous word.
+  3. Merge sub-word tokens that don't start with a space into the previous word.
   4. Sort by `startMs`, clamp `endMs ≥ startMs`.
   5. Fix overlaps: if `word[i].startMs < word[i-1].endMs`, set `word[i-1].endMs = word[i].startMs`.
   6. Confidence clamped to `[0, 1]` (missing → 1, non-numeric → 0). A merged word's confidence is the mean of its parts.

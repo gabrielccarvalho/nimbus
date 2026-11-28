@@ -78,7 +78,7 @@ export function ProjectSettingsForm({
     audioTracks,
     transcript,
     claudeAvailable,
-    englishOnlyModel,
+    transcriptionOff,
   } = data
   const router = useRouter()
   const locale = useLocale()
@@ -164,7 +164,7 @@ export function ProjectSettingsForm({
             <LanguageField
               value={settings}
               set={set}
-              englishOnlyModel={englishOnlyModel}
+              transcriptionOff={transcriptionOff}
               description={detected}
             />
             {audioTracks.length > 1 && (

@@ -24,6 +24,7 @@ export type OverviewFacts = {
     language: string
     languageSource: string | null
   } | null
+  transcription: { skipped: boolean; available: boolean }
   silences: number | null
   clipCount: number
 }
@@ -70,7 +71,9 @@ export function stepDetails(
             ? t.languageSources[transcript.languageSource]
             : undefined
         )
-      : null,
+      : facts.transcription.skipped
+        ? t.skipped
+        : null,
     analyze: facts.silences === null ? null : t.silences(facts.silences),
     select:
       facts.clipCount > 0

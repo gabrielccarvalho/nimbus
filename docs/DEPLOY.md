@@ -49,33 +49,33 @@ The worker's sweep aborts multipart uploads older than 24 h, the deadline for co
 
 Daemons have no environment of their own: the worker reads the project's variables, so everything goes in the project settings. Scope `DATABASE_URL` per environment (production and preview should not share a database unless you mean them to).
 
-| Variable                                                             | Used by | Purpose                                                                                                                            |
-| -------------------------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                                                       | both    | Postgres connection string; the Neon integration should set it (not verified)                                                      |
-| `DATABASE_POOL_MAX`                                                  | both    | Connections per process (default 10); keep it low for functions                                                                    |
-| `STORAGE_DRIVER`                                                     | both    | `s3`                                                                                                                               |
-| `S3_ENDPOINT`                                                        | both    | `https://<account>.r2.cloudflarestorage.com` for R2; leave unset on AWS                                                            |
-| `S3_REGION`                                                          | both    | `auto` for R2; required on AWS (the bucket's region)                                                                               |
-| `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`              | both    | Bucket and credentials                                                                                                             |
-| `S3_FORCE_PATH_STYLE`                                                | both    | `true` only for stores that need path-style URLs (MinIO)                                                                           |
-| `S3_PUBLIC_ENDPOINT`                                                 | web     | Only when the browser reaches storage on a different host than `S3_ENDPOINT`; used to sign URLs                                    |
-| `BETTER_AUTH_SECRET`                                                 | web     | 32+ random characters                                                                                                              |
-| `BETTER_AUTH_URL`                                                    | web     | The production URL. Preview URLs are trusted through `VERCEL_URL` and `VERCEL_BRANCH_URL`, which Vercel sets                       |
-| `NIMBUS_SECRET_KEY`                                                  | both    | 32+ random characters; signs upload tokens and encrypts workspace secrets                                                          |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                           | both    | Google sign-in and YouTube; the worker refreshes tokens when publishing                                                            |
-| `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`                           | web     | Twitch sign-in                                                                                                                     |
-| `ABACATEPAY_API_KEY`, `ABACATEPAY_CREATOR_PRODUCT_ID`                | web     | Creator checkout (see Billing below); without both, Plan & usage offers no checkout                                                |
-| `ABACATEPAY_WEBHOOK_SECRET`                                          | web     | 32+ characters, the same secret given to the AbacatePay webhook; without it the webhook route answers 404                          |
-| `ANTHROPIC_API_KEY`                                                  | both    | The `anthropic` highlight selector                                                                                                 |
-| `HIGHLIGHT_SELECTOR`                                                 | both    | Default selector for new projects                                                                                                  |
-| `MAX_UPLOAD_BYTES`                                                   | both    | Upload cap (default 20 GiB)                                                                                                        |
-| `YTDLP_COOKIES_TEXT`                                                 | worker  | Contents of a cookies.txt for link imports; the daemon has no browser to read                                                      |
-| `WORKER_SHUTDOWN_GRACE_MS`                                           | worker  | Leave unset: the worker image sets `570000`, which keeps running jobs inside the daemon's 600 s grace period. Change both together |
-| `SCRATCH_CACHE_BYTES`                                                | worker  | Bound on the shared input cache under `SCRATCH_DIR/cache` (default 64 GiB); size it to the daemon's disk                           |
-| `WORKER_CONCURRENCY`, `WORKER_RENDER_CONCURRENCY`, `WHISPER_THREADS` | worker  | Throughput knobs                                                                                                                   |
-| `NIMBUS_ROLE`                                                        | doctor  | `web` when running `pnpm run doctor` against the web side; the worker image sets `worker`                                          |
+| Variable                                                | Used by | Purpose                                                                                                                            |
+| ------------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                          | both    | Postgres connection string; the Neon integration should set it (not verified)                                                      |
+| `DATABASE_POOL_MAX`                                     | both    | Connections per process (default 10); keep it low for functions                                                                    |
+| `STORAGE_DRIVER`                                        | both    | `s3`                                                                                                                               |
+| `S3_ENDPOINT`                                           | both    | `https://<account>.r2.cloudflarestorage.com` for R2; leave unset on AWS                                                            |
+| `S3_REGION`                                             | both    | `auto` for R2; required on AWS (the bucket's region)                                                                               |
+| `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | both    | Bucket and credentials                                                                                                             |
+| `S3_FORCE_PATH_STYLE`                                   | both    | `true` only for stores that need path-style URLs (MinIO)                                                                           |
+| `S3_PUBLIC_ENDPOINT`                                    | web     | Only when the browser reaches storage on a different host than `S3_ENDPOINT`; used to sign URLs                                    |
+| `BETTER_AUTH_SECRET`                                    | web     | 32+ random characters                                                                                                              |
+| `BETTER_AUTH_URL`                                       | web     | The production URL. Preview URLs are trusted through `VERCEL_URL` and `VERCEL_BRANCH_URL`, which Vercel sets                       |
+| `NIMBUS_SECRET_KEY`                                     | both    | 32+ random characters; signs upload tokens and encrypts workspace secrets                                                          |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`              | both    | Google sign-in and YouTube; the worker refreshes tokens when publishing                                                            |
+| `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`              | web     | Twitch sign-in                                                                                                                     |
+| `ABACATEPAY_API_KEY`, `ABACATEPAY_CREATOR_PRODUCT_ID`   | web     | Creator checkout (see Billing below); without both, Plan & usage offers no checkout                                                |
+| `ABACATEPAY_WEBHOOK_SECRET`                             | web     | 32+ characters, the same secret given to the AbacatePay webhook; without it the webhook route answers 404                          |
+| `ANTHROPIC_API_KEY`                                     | both    | The `anthropic` highlight selector                                                                                                 |
+| `HIGHLIGHT_SELECTOR`                                    | both    | Default selector for new projects                                                                                                  |
+| `MAX_UPLOAD_BYTES`                                      | both    | Upload cap (default 20 GiB)                                                                                                        |
+| `YTDLP_COOKIES_TEXT`                                    | worker  | Contents of a cookies.txt for link imports; the daemon has no browser to read                                                      |
+| `WORKER_SHUTDOWN_GRACE_MS`                              | worker  | Leave unset: the worker image sets `570000`, which keeps running jobs inside the daemon's 600 s grace period. Change both together |
+| `SCRATCH_CACHE_BYTES`                                   | worker  | Bound on the shared input cache under `SCRATCH_DIR/cache` (default 64 GiB); size it to the daemon's disk                           |
+| `WORKER_CONCURRENCY`, `WORKER_RENDER_CONCURRENCY`       | worker  | Throughput knobs                                                                                                                   |
+| `NIMBUS_ROLE`                                           | doctor  | `web` when running `pnpm run doctor` against the web side; the worker image sets `worker`                                          |
 
-Don't set `WHISPER_MODEL`, `SCRATCH_DIR` or the binary paths on Vercel. The worker image sets the first two (and `WORKER_SHUTDOWN_GRACE_MS`) and puts ffmpeg, whisper-cli and yt-dlp on the PATH; a project value would most likely replace them, though whether a project variable overrides the image's `ENV` in a Daemon is not verified.
+Don't set `SCRATCH_DIR` or the binary paths on Vercel. The worker image sets the first (and `WORKER_SHUTDOWN_GRACE_MS`) and puts ffmpeg and yt-dlp on the PATH; a project value would most likely replace them, though whether a project variable overrides the image's `ENV` in a Daemon is not verified.
 
 ### Billing
 
@@ -120,7 +120,7 @@ This runs Postgres, MinIO, a one-off `migrate`, `web` and `worker`. The app list
 
 The MinIO image is Bitnami's frozen `bitnamilegacy/minio` build, because official MinIO images are no longer published. It gets no security updates, so keep port 9010 off the public internet or swap it for a maintained S3-compatible store such as Garage or SeaweedFS (neither tested with Nimbus).
 
-The worker image downloads a pinned whisper model and checks its sha256. To use another model, pass `WHISPER_MODEL_URL` and `WHISPER_MODEL_FILE` as build args and change `WHISPER_MODEL_SHA256` to the new file's hash, or set it empty to skip the check.
+Transcription needs no server setup: each workspace adds its own Groq key in Settings › Workspace, and projects in a workspace without one skip it (ADR-0091). The worker needs outbound HTTPS to `api.groq.com`.
 
 ### Moving existing media
 

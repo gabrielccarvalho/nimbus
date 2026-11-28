@@ -37,6 +37,7 @@ export async function getWorkspaceSettings() {
     name: workspace.name,
     image: workspace.image,
     keyHint: workspace.anthropicKeyHint,
+    groqKeyHint: workspace.groqKeyHint,
   }
 }
 

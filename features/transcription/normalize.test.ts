@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest"
 
 import { buildSegments, normalizeWords, type RawToken } from "./normalize"
-import {
-  parseWhisperJson,
-  parseWhisperProgress,
-  parseWhisperSegmentLine,
-} from "./whisper-parse"
 
 const t = (
   text: string,
@@ -115,64 +110,5 @@ describe("buildSegments", () => {
 
   it("handles empty input", () => {
     expect(buildSegments([])).toEqual([])
-  })
-})
-
-describe("parseWhisperJson", () => {
-  const sample = JSON.stringify({
-    result: { language: "en" },
-    transcription: [
-      {
-        offsets: { from: 0, to: 600 },
-        text: " Hello world",
-        tokens: [
-          { text: "[_BEG_]", offsets: { from: 0, to: 0 }, p: 1 },
-          { text: " Hello", offsets: { from: 0, to: 300 }, p: 0.95 },
-          { text: " world", offsets: { from: 300, to: 600 }, p: 0.9 },
-          { text: "[_TT_30]", offsets: { from: 600, to: 600 }, p: 1 },
-        ],
-      },
-      { offsets: { from: 700, to: 900 }, text: " bye" },
-      { offsets: { from: 900, to: 950 }, text: " [BLANK_AUDIO]" },
-    ],
-  })
-
-  it("extracts real tokens and language", () => {
-    expect(parseWhisperJson(sample)).toEqual({
-      language: "en",
-      tokens: [
-        { text: " Hello", startMs: 0, endMs: 300, confidence: 0.95 },
-        { text: " world", startMs: 300, endMs: 600, confidence: 0.9 },
-        { text: " bye", startMs: 700, endMs: 900, confidence: undefined },
-      ],
-    })
-  })
-
-  it("rejects invalid output", () => {
-    expect(() => parseWhisperJson("{")).toThrow(/invalid JSON/)
-    expect(() => parseWhisperJson("{}")).toThrow(/Unexpected/)
-  })
-
-  it("defaults the language", () => {
-    expect(
-      parseWhisperJson(JSON.stringify({ transcription: [] })).language
-    ).toBe("unknown")
-  })
-
-  it("parses progress lines", () => {
-    expect(
-      parseWhisperProgress("whisper_print_progress_callback: progress =  45%")
-    ).toBe(45)
-    expect(parseWhisperProgress("nothing here")).toBeNull()
-  })
-
-  it("parses the words whisper prints while it works", () => {
-    expect(
-      parseWhisperSegmentLine("[01:02:03.450 --> 01:02:03.900]   Corre,")
-    ).toEqual({ startMs: 3_723_450, text: "Corre," })
-    expect(
-      parseWhisperSegmentLine("[00:00:00.000 --> 00:00:00.010]  ")
-    ).toBeNull()
-    expect(parseWhisperSegmentLine("whisper_init_from_file")).toBeNull()
   })
 })

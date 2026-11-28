@@ -19,7 +19,7 @@ const renderRendering = (workerOnline: boolean) =>
       claudeAvailable={false}
       workerOnline={workerOnline}
       hardwareEncoder={null}
-      englishOnlyModel={false}
+      transcriptionOff={false}
       installedFonts={[]}
     />
   )
@@ -52,7 +52,7 @@ describe("SettingsForm layout", () => {
         claudeAvailable={false}
         workerOnline
         hardwareEncoder={null}
-        englishOnlyModel={false}
+        transcriptionOff={false}
         installedFonts={[]}
       />
     )

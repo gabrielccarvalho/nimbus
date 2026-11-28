@@ -47,6 +47,23 @@ export async function resolveAnthropicKey(db: Db, workspaceId: string | null) {
   )
 }
 
+export async function resolveGroqKey(db: Db, workspaceId: string | null) {
+  const workspace = workspaceId
+    ? await accountRepository(db).getWorkspace(workspaceId)
+    : undefined
+  if (!workspace?.groqKey) return undefined
+  try {
+    return decryptSecret(workspace.groqKey)
+  } catch (error) {
+    logger.error({ err: error }, "couldn't decrypt the workspace's Groq key")
+    return undefined
+  }
+}
+
+export function transcriptionAvailable(workspace: Pick<Workspace, "groqKey">) {
+  return getEnv().TRANSCRIBER === "fake" || Boolean(workspace.groqKey)
+}
+
 export function claudeAvailable(workspace: Pick<Workspace, "anthropicKey">) {
   return Boolean(workspace.anthropicKey || getEnv().ANTHROPIC_API_KEY)
 }

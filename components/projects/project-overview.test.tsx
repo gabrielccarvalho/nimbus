@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
 import type { ProjectSnapshot } from "@/features/pipeline/snapshot"
@@ -16,6 +17,7 @@ vi.mock("./use-project-events", () => ({
 
 vi.mock("@/features/projects/actions", () => ({
   cancelProjectAction: vi.fn(),
+  rerunProjectAction: vi.fn(async () => ({ ok: true })),
   retryProjectAction: vi.fn(),
   resumeProjectAction: vi.fn(),
   startProjectAction: vi.fn(),
@@ -27,6 +29,7 @@ const facts: OverviewFacts = {
   renderQuality: "balanced",
   source: null,
   transcript: null,
+  transcription: { skipped: false, available: false },
   silences: null,
   clipCount: 0,
 }
@@ -50,10 +53,14 @@ function job(
   }
 }
 
-function overview(jobs: ProjectSnapshot["jobs"]) {
+function overview(
+  jobs: ProjectSnapshot["jobs"],
+  status: ProjectSnapshot["status"] = "transcribing",
+  overrides: Partial<OverviewFacts> = {}
+) {
   const snapshot: ProjectSnapshot = {
     id: "p1",
-    status: "transcribing",
+    status,
     failedStep: null,
     error: null,
     awaitingManualSelection: false,
@@ -61,7 +68,9 @@ function overview(jobs: ProjectSnapshot["jobs"]) {
     jobs,
     clips: [],
   }
-  return render(<ProjectOverview initial={snapshot} facts={facts} />)
+  return render(
+    <ProjectOverview initial={snapshot} facts={{ ...facts, ...overrides }} />
+  )
 }
 
 describe("ProjectOverview", () => {
@@ -79,5 +88,26 @@ describe("ProjectOverview", () => {
     overview([job("publish_clip", "queued")])
     expect(screen.queryByText("Waiting for the worker…")).toBeNull()
     expect(screen.getByText("Starting…")).toBeVisible()
+  })
+  it("links a skipped transcription to the key setting", () => {
+    overview([], "ready_for_review", {
+      transcription: { skipped: true, available: false },
+    })
+    expect(
+      screen.getByRole("link", {
+        name: "To transcribe, add a key in Settings →",
+      })
+    ).toHaveAttribute("href", "/settings/workspace")
+  })
+
+  it("offers to transcribe once the workspace has a key", async () => {
+    const { rerunProjectAction } = await import("@/features/projects/actions")
+    overview([], "ready_for_review", {
+      transcription: { skipped: true, available: true },
+    })
+    await userEvent.click(
+      screen.getByRole("button", { name: "Transcribe now" })
+    )
+    expect(rerunProjectAction).toHaveBeenCalledWith("p1", "transcribe")
   })
 })

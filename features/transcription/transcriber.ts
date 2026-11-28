@@ -23,8 +23,7 @@ export type DetectLanguageInput = {
 }
 
 export interface Transcriber {
-  readonly id: "whisper" | "fake"
-  readonly multilingual: boolean
+  readonly id: "groq" | "fake"
   transcribe(input: TranscribeInput): Promise<RawTranscript>
   detectLanguage(input: DetectLanguageInput): Promise<LanguageVote | null>
 }

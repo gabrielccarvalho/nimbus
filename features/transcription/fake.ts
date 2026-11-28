@@ -6,7 +6,6 @@ import type { RawTranscript, TranscribeInput, Transcriber } from "./transcriber"
 
 export class FakeTranscriber implements Transcriber {
   readonly id = "fake"
-  readonly multilingual = true
 
   async detectLanguage() {
     return { language: data.language, probability: 0.9 }

@@ -97,11 +97,13 @@ function TranscribeDetail({ detail }: { detail: Detail<"transcribe"> }) {
   const phase =
     detail.phase === "extracting"
       ? t.extracting
-      : detail.phase === "detecting"
-        ? t.detecting
-        : detail.language
-          ? t.transcribingIn(languageLabel(detail.language, locale))
-          : t.transcribing
+      : detail.phase === "skipped"
+        ? t.skipping
+        : detail.phase === "detecting"
+          ? t.detecting
+          : detail.language
+            ? t.transcribingIn(languageLabel(detail.language, locale))
+            : t.transcribing
   return (
     <div className="flex flex-col gap-2">
       <Facts>

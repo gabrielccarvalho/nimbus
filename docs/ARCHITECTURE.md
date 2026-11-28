@@ -2,7 +2,7 @@
 
 Nimbus is one Next.js app plus one long-running Node worker process. They share a Postgres database and media storage: a data directory on local disk (`STORAGE_DRIVER=local`, the default) or an S3-compatible bucket (`STORAGE_DRIVER=s3`). Run locally, nothing leaves the machine except optional calls to the Anthropic API and the Google (YouTube) APIs used for publishing and insights.
 
-The web side never spawns a binary, so it can run on Vercel functions. The worker is one image (`Dockerfile.worker`, with ffmpeg, whisper.cpp, yt-dlp and the model) that runs as a Vercel Daemon in production or under Docker Compose when self-hosted, and on the host with `pnpm dev`. See ADR-0070 and [DEPLOY.md](DEPLOY.md).
+The web side never spawns a binary, so it can run on Vercel functions. The worker is one image (`Dockerfile.worker`, with ffmpeg and yt-dlp) that runs as a Vercel Daemon in production or under Docker Compose when self-hosted, and on the host with `pnpm dev`. See ADR-0070 and [DEPLOY.md](DEPLOY.md).
 
 ## System diagram
 
@@ -31,7 +31,7 @@ flowchart LR
   DB[(Postgres)]
   ST[(StorageAdapter<br/>DATA_DIR or S3 bucket)]
   FF[ffmpeg / ffprobe]
-  WH[whisper.cpp]
+  WH[Groq Whisper API]
   AN[Anthropic API]
 
   UI --> RSC & SA & MD & SSE
@@ -51,16 +51,16 @@ flowchart LR
 | Runs in a request (Next)             | Runs in the worker                             |
 | ------------------------------------ | ---------------------------------------------- |
 | Reading projects, clips, transcripts | ffprobe, audio extraction, thumbnails, proxies |
-| Validating and persisting user edits | whisper.cpp transcription                      |
+| Validating and persisting user edits | Transcription (Groq, workspace key)            |
 | Enqueuing jobs                       | silencedetect / ebur128 analysis               |
 | Signing upload targets, completing   | Highlight selection (LLM or heuristic)         |
 | Serving media (signed URL or Range)  | Rendering clips and the horizontal edit        |
 | Streaming job progress over SSE      | Probing music and its waveform peaks           |
 | Reading worker heartbeat in settings | Orphan sweeping, temp cleanup, disk checks     |
 
-A request never waits on ffmpeg, whisper or an LLM call. Mutations that kick off work insert a row into `jobs` and return. The one exception is the Manual LLM selector, where the user pastes JSON that is validated and post-processed synchronously (pure code, milliseconds).
+A request never waits on ffmpeg, a transcription or an LLM call. Mutations that kick off work insert a row into `jobs` and return. The one exception is the Manual LLM selector, where the user pastes JSON that is validated and post-processed synchronously (pure code, milliseconds).
 
-The web process never spawns ffmpeg, ffprobe, whisper or yt-dlp and never checks disk space. Modules that do (anything importing `lib/process/run`, such as `features/render/ffmpeg-runner.ts`, `features/transcription/whisper-cpp.ts`, `features/downloads/yt-dlp.ts` and their callers like `features/highlights/frames.ts`) are reached only from job handlers in the worker, plus `scripts/doctor.ts`. The settings page reads ffmpeg capabilities from the worker's row in `worker_heartbeats` and shows "No worker online" when it is more than 3 minutes old.
+The web process never spawns ffmpeg, ffprobe or yt-dlp and never checks disk space. Modules that do (anything importing `lib/process/run`, such as `features/render/ffmpeg-runner.ts`, `features/transcription/whisper-cpp.ts`, `features/downloads/yt-dlp.ts` and their callers like `features/highlights/frames.ts`) are reached only from job handlers in the worker, plus `scripts/doctor.ts`. The settings page reads ffmpeg capabilities from the worker's row in `worker_heartbeats` and shows "No worker online" when it is more than 3 minutes old.
 
 ## Uploads and media
 
@@ -182,7 +182,7 @@ interface HighlightSelector {
 }
 ```
 
-`ProcessRunner` wraps `child_process.spawn` for ffmpeg/ffprobe/whisper with timeout, abort and stderr-tail capture. Pure builders (`features/render/filtergraph.ts`, `features/captions/ass.ts`) produce argument arrays and file contents; only the runner touches processes.
+`ProcessRunner` wraps `child_process.spawn` for ffmpeg/ffprobe/yt-dlp with timeout, abort and stderr-tail capture. Pure builders (`features/render/filtergraph.ts`, `features/captions/ass.ts`) produce argument arrays and file contents; only the runner touches processes.
 
 ## Persistence
 

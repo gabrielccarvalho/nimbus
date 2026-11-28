@@ -2,18 +2,25 @@ import { execFileSync } from "node:child_process"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 
+import { eq } from "drizzle-orm"
+import { http, HttpResponse } from "msw"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import { accountRepository } from "@/features/accounts/repository"
+import { saveGroqKey } from "@/features/accounts/service"
 import { jobQueue } from "@/features/jobs/queue"
 import {
   assetRepository,
   projectRepository,
 } from "@/features/projects/repository"
+import { GROQ_TRANSCRIPTIONS_URL } from "@/features/transcription/groq"
 import { transcriptRepository } from "@/features/transcription/repository"
-import { getEnv } from "@/lib/env"
+import { projects as projectsTable, user } from "@/lib/db/schema"
+import { getEnv, resetEnvCache } from "@/lib/env"
 import { getStorage } from "@/lib/storage"
 
 import { fixtures } from "../../scripts/make-fixtures"
+import { server } from "../utils/msw"
 import { runJobs, uploadFixture } from "../utils/pipeline"
 import { createTestEnv, type TestEnv } from "../utils/test-env"
 
@@ -147,5 +154,132 @@ describe("transcribe step", () => {
       peak = Math.max(peak, Math.abs(wav.readInt16LE(i)))
     }
     expect(peak).toBe(0)
+  })
+})
+
+describe("transcribe step with Groq", () => {
+  const KEY = "gsk_test_0123456789abcdefghijkl"
+
+  beforeEach(() => {
+    process.env.TRANSCRIBER = "groq"
+    resetEnvCache()
+  })
+  afterEach(() => {
+    process.env.TRANSCRIBER = "fake"
+    resetEnvCache()
+  })
+
+  async function workspaceProject() {
+    const id = crypto.randomUUID()
+    await env.db
+      .insert(user)
+      .values({ id, name: "Ada", email: `${id}@example.com` })
+    const workspace = await accountRepository(env.db).createPersonalWorkspace({
+      id,
+      name: "Ada",
+      email: `${id}@example.com`,
+    })
+    const { projectId } = await uploadFixture(fixtures.wide)
+    await env.db
+      .update(projectsTable)
+      .set({ workspaceId: workspace.id })
+      .where(eq(projectsTable.id, projectId))
+    return { projectId, workspaceId: workspace.id }
+  }
+
+  it("skips transcription when the workspace has no key", async () => {
+    const { projectId } = await workspaceProject()
+    await runJobs(env.db, ["probe", "transcribe"])
+
+    expect((await projectRepository(env.db).getOrThrow(projectId)).status).toBe(
+      "analyzing"
+    )
+    expect(
+      await assetRepository(env.db).findByKind(projectId, "audio")
+    ).toBeDefined()
+    expect(await transcriptRepository(env.db).get(projectId)).toBeUndefined()
+    const job = (await jobQueue(env.db).listForProject(projectId)).find(
+      (j) => j.type === "transcribe"
+    )
+    expect(job).toMatchObject({
+      status: "succeeded",
+      detail: { phase: "skipped" },
+    })
+  })
+
+  it("sends the audio to Groq with the workspace key", async () => {
+    const { projectId, workspaceId } = await workspaceProject()
+    await saveGroqKey(env.db, workspaceId, KEY)
+    const requests: {
+      auth: string | null
+      model: FormDataEntryValue | null
+      language: FormDataEntryValue | null
+      granularities: FormDataEntryValue[]
+    }[] = []
+    server.use(
+      http.post(GROQ_TRANSCRIPTIONS_URL, async ({ request }) => {
+        const form = await request.formData()
+        const granularities = form.getAll("timestamp_granularities[]")
+        requests.push({
+          auth: request.headers.get("authorization"),
+          model: form.get("model"),
+          language: form.get("language"),
+          granularities,
+        })
+        if (granularities.length === 0) {
+          return HttpResponse.json({ language: "Portuguese" })
+        }
+        return HttpResponse.json({
+          language: "portuguese",
+          segments: [{ text: " Olha isso, que loucura!" }],
+          words: [
+            { word: "Olha", start: 0.4, end: 0.7 },
+            { word: "isso", start: 0.7, end: 1.0 },
+            { word: "que", start: 1.2, end: 1.4 },
+            { word: "loucura", start: 1.4, end: 2.0 },
+          ],
+        })
+      })
+    )
+    await runJobs(env.db, ["probe", "transcribe"])
+
+    expect(requests[0]).toMatchObject({
+      auth: `Bearer ${KEY}`,
+      model: "whisper-large-v3-turbo",
+      language: null,
+      granularities: [],
+    })
+    expect(requests.at(-1)).toMatchObject({
+      language: "pt",
+      granularities: ["word", "segment"],
+    })
+    expect(await transcriptRepository(env.db).get(projectId)).toMatchObject({
+      language: "pt",
+      languageSource: "detected",
+      words: [
+        { text: "Olha", startMs: 400, endMs: 700 },
+        { text: "isso,", startMs: 700, endMs: 1000 },
+        { text: "que", startMs: 1200, endMs: 1400 },
+        { text: "loucura!", startMs: 1400, endMs: 2000 },
+      ],
+    })
+  })
+
+  it("fails without retrying when Groq rejects the key", async () => {
+    const { projectId, workspaceId } = await workspaceProject()
+    await saveGroqKey(env.db, workspaceId, KEY)
+    server.use(
+      http.post(GROQ_TRANSCRIPTIONS_URL, () =>
+        HttpResponse.json(
+          { error: { message: "Invalid API Key" } },
+          { status: 401 }
+        )
+      )
+    )
+    await runJobs(env.db, ["probe", "transcribe"])
+
+    const project = await projectRepository(env.db).getOrThrow(projectId)
+    expect(project.status).toBe("failed")
+    expect(project.error).toMatch(/Groq rejected the transcription key/)
   })
 })

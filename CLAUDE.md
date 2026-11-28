@@ -73,7 +73,7 @@ Don't silence it. Fix the code, or add the path to that rule's `allow` map with 
 | `pnpm test`                                | Unit + integration                                |
 | `pnpm test:unit` / `pnpm test:integration` | Single layer                                      |
 | `pnpm test:e2e`                            | Playwright (fake transcriber, heuristic selector) |
-| `pnpm test:heavy`                          | Real whisper.cpp (skips if missing)               |
+| `pnpm test:heavy`                          | Real Groq (skips without `GROQ_API_KEY`)          |
 | `pnpm test:s3`                             | Storage contract on MinIO (skips if down)         |
 | `pnpm test:coverage`                       | Coverage with thresholds                          |
 | `pnpm run doctor`                          | System dependency check                           |

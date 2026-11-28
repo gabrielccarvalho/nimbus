@@ -40,6 +40,7 @@ export default async function ProjectOverviewPage({
     snapshot,
     audio,
     transcript,
+    transcription,
   } = overview
   const kept = clips.filter((c) => c.status !== "rejected")
   const top = kept.toSorted((a, b) => b.score - a.score).slice(0, 3)
@@ -63,6 +64,7 @@ export default async function ProjectOverviewPage({
                 }
               : null,
             transcript,
+            transcription,
             silences: audio ? audio.silences.length : null,
             clipCount: kept.length,
           }}

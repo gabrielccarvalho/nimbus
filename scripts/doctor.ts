@@ -27,7 +27,6 @@ import {
 import { CAPTION_FONT_IDS, CAPTION_FONTS } from "@/features/captions/styles"
 import { chooseEncoder } from "@/features/render/filtergraph"
 import { installedCaptionFonts } from "@/features/render/fonts"
-import { isEnglishOnlyModel } from "@/features/transcription/language"
 import { getEnv } from "@/lib/env"
 import { getFfmpegCapabilities } from "@/lib/media/capabilities"
 import { runProcess } from "@/lib/process/run"
@@ -203,24 +202,13 @@ async function checkWorkerTools(env: ReturnType<typeof getEnv>) {
     add("ffprobe", "fail", `${env.FFPROBE_PATH} not found`)
   }
 
-  const transcriberLevel: Level =
-    env.TRANSCRIBER === "whisper" ? "fail" : "warn"
-  try {
-    const whisper = await runProcess(env.WHISPER_BIN, ["--help"], {
-      timeoutMs: 10_000,
-    })
-    add(
-      "whisper.cpp",
-      whisper.code === 0 ? "ok" : transcriberLevel,
-      env.WHISPER_BIN
-    )
-  } catch {
-    add(
-      "whisper.cpp",
-      transcriberLevel,
-      `${env.WHISPER_BIN} not found (TRANSCRIBER=${env.TRANSCRIBER})`
-    )
-  }
+  add(
+    "transcription",
+    "ok",
+    env.TRANSCRIBER === "fake"
+      ? "fake transcriber"
+      : "Groq whisper with each workspace's key; skipped when a workspace has none"
+  )
   try {
     const ytdlp = await runProcess(env.YTDLP_PATH, ["--version"], {
       timeoutMs: 10_000,
@@ -276,19 +264,6 @@ async function checkWorkerTools(env: ReturnType<typeof getEnv>) {
       ? cookies.join(", ")
       : 'not set; YouTube may block imports with a "confirm you\'re not a bot" check (set YTDLP_COOKIES_FROM_BROWSER)'
   )
-  try {
-    await access(path.resolve(env.WHISPER_MODEL), constants.R_OK)
-    add(
-      "whisper model",
-      isEnglishOnlyModel(env.WHISPER_MODEL) ? "warn" : "ok",
-      isEnglishOnlyModel(env.WHISPER_MODEL)
-        ? `${env.WHISPER_MODEL} is English-only: other languages can't be detected or transcribed`
-        : env.WHISPER_MODEL
-    )
-  } catch {
-    add("whisper model", transcriberLevel, `${env.WHISPER_MODEL} not readable`)
-  }
-
   try {
     await access(modelFile, constants.R_OK)
     add("face detection", "ok", path.relative(process.cwd(), modelFile))

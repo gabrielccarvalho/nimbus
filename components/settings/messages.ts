@@ -71,6 +71,18 @@ export const settings = defineMessages({
       saved: "Claude API key saved",
       removed: "Claude API key removed",
     },
+    groqKey: {
+      title: "Groq API key",
+      hint: "Transcribes recordings with Whisper on Groq, about $0.04 per audio hour. Without it, transcription is skipped. Stored encrypted.",
+      description:
+        "Create one at console.groq.com. Stored encrypted. Only the last four characters are shown again.",
+      key: "Key",
+      add: "Add key",
+      replace: "Replace",
+      save: "Save key",
+      saved: "Groq API key saved",
+      removed: "Groq API key removed",
+    },
     security: {
       password: "Password",
       lastChanged: (day: string) => `Last changed ${day}`,
@@ -213,8 +225,8 @@ export const settings = defineMessages({
       languageAuto: "Detect automatically",
       languageHint:
         "The language the streamer speaks, not the game's. Detection samples several points of the recording.",
-      englishOnlyModel:
-        "The configured Whisper model is English-only. Use a multilingual model for other languages.",
+      transcriptionOff:
+        "Transcription is off until you add a Groq key in Workspace settings. Without it, highlights come from the audio and clips have no captions.",
       niche: "Niche",
       niches: {
         auto: {
@@ -387,6 +399,18 @@ export const settings = defineMessages({
       saved: "Chave de API do Claude salva",
       removed: "Chave de API do Claude removida",
     },
+    groqKey: {
+      title: "Chave de API do Groq",
+      hint: "Transcreve as gravações com o Whisper no Groq, cerca de US$ 0,04 por hora de áudio. Sem ela, a transcrição é pulada. Fica criptografada.",
+      description:
+        "Crie uma em console.groq.com. Fica criptografada. Só os quatro últimos caracteres aparecem de novo.",
+      key: "Chave",
+      add: "Adicionar chave",
+      replace: "Substituir",
+      save: "Salvar chave",
+      saved: "Chave de API do Groq salva",
+      removed: "Chave de API do Groq removida",
+    },
     security: {
       password: "Senha",
       lastChanged: (day: string) => `Última alteração: ${day}`,
@@ -530,8 +554,8 @@ export const settings = defineMessages({
       languageAuto: "Detectar automaticamente",
       languageHint:
         "O idioma que o streamer fala, não o do jogo. A detecção analisa vários trechos da gravação.",
-      englishOnlyModel:
-        "O modelo do Whisper configurado só entende inglês. Use um modelo multilíngue para outros idiomas.",
+      transcriptionOff:
+        "A transcrição fica desligada até você adicionar uma chave do Groq nas configurações do espaço de trabalho. Sem ela, os destaques vêm do áudio e os cortes saem sem legenda.",
       niche: "Nicho",
       niches: {
         auto: {

@@ -148,6 +148,13 @@ export function accountRepository(db: Db) {
         .where(eq(workspaces.id, id))
     },
 
+    async setGroqKey(id: string, sealed: string | null, hint: string | null) {
+      await db
+        .update(workspaces)
+        .set({ groqKey: sealed, groqKeyHint: hint, updatedAt: now() })
+        .where(eq(workspaces.id, id))
+    },
+
     async recordUsage(input: {
       workspaceId: string
       projectId?: string | null

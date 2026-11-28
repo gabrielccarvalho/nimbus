@@ -8,14 +8,13 @@ import { getDb, type Db } from "@/lib/db"
 import { getEnv } from "@/lib/env"
 
 import { requireViewer } from "../accounts/session"
-import { claudeAvailable } from "../accounts/usage"
+import { claudeAvailable, transcriptionAvailable } from "../accounts/usage"
 import { latestWorker } from "../jobs/heartbeat"
 import {
   chooseEncoder,
   encoderPreference,
   type Encoder,
 } from "../render/filtergraph"
-import { isEnglishOnlyModel } from "../transcription/language"
 import { getAppSettings } from "./service"
 
 export async function getRenderingCapabilities(
@@ -44,8 +43,7 @@ export async function getSettingsPage() {
     settings: await getAppSettings(db, workspace.id),
     claudeAvailable: claudeAvailable(workspace),
     ...(await getRenderingCapabilities(db, env.VIDEO_ENCODER)),
-    englishOnlyModel:
-      env.TRANSCRIBER === "whisper" && isEnglishOnlyModel(env.WHISPER_MODEL),
+    transcriptionOff: !transcriptionAvailable(workspace),
     installedFonts: installedCaptionFonts(),
   }
 }

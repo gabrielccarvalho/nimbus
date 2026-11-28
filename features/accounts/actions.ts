@@ -20,8 +20,10 @@ import { accountRepository } from "./repository"
 import { getSession, requireActor, workspaceId } from "./session"
 import {
   removeAnthropicKey,
+  removeGroqKey,
   renameWorkspace,
   saveAnthropicKey,
+  saveGroqKey,
 } from "./service"
 
 export async function renameWorkspaceAction(name: unknown) {
@@ -44,6 +46,22 @@ export async function removeAnthropicKeyAction() {
   return runAction(
     "removeAnthropicKey",
     async () => removeAnthropicKey(getDb(), await workspaceId()),
+    ["/"]
+  )
+}
+
+export async function saveGroqKeyAction(key: unknown) {
+  return runAction(
+    "saveGroqKey",
+    async () => saveGroqKey(getDb(), await workspaceId(), key),
+    ["/"]
+  )
+}
+
+export async function removeGroqKeyAction() {
+  return runAction(
+    "removeGroqKey",
+    async () => removeGroqKey(getDb(), await workspaceId()),
     ["/"]
   )
 }

@@ -35,6 +35,7 @@ describe("stepDetails", () => {
         fps: 59.94,
       },
       transcript: { words: 6587, language: "pt", languageSource: "source" },
+      transcription: { skipped: false, available: true },
       silences: 12,
       clipCount: 12,
     })
@@ -55,11 +56,26 @@ describe("stepDetails", () => {
       renderQuality: "draft",
       source: null,
       transcript: null,
+      transcription: { skipped: false, available: false },
       silences: null,
       clipCount: 0,
     })
     expect(details.probe).toBeNull()
     expect(details.select).toBeNull()
+  })
+
+  it("says when transcription was skipped", () => {
+    const details = stepDetails({
+      sourceUrl: null,
+      selectorMode: "heuristic",
+      renderQuality: "draft",
+      source: null,
+      transcript: null,
+      transcription: { skipped: true, available: false },
+      silences: 3,
+      clipCount: 2,
+    })
+    expect(details.transcribe).toBe("Skipped")
   })
 })
 

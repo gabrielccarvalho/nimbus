@@ -80,6 +80,11 @@ export const anthropicKeySchema = z
   .trim()
   .regex(/^sk-ant-[\w-]{20,}$/, "That doesn't look like a Claude API key")
 
+export const groqKeySchema = z
+  .string()
+  .trim()
+  .regex(/^gsk_[\w-]{20,}$/, "That doesn't look like a Groq API key")
+
 export const CLAUDE_KEY_MISSING_MESSAGE =
   "Add a Claude API key in Workspace settings to use Claude."
 

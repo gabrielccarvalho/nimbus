@@ -3,11 +3,10 @@ import "server-only"
 import { connection } from "next/server"
 
 import { getDb, type Db } from "@/lib/db"
-import { getEnv } from "@/lib/env"
 import { mediaUrl, slugify } from "@/lib/format"
 
 import { getSession, requireViewer } from "../accounts/session"
-import { claudeAvailable } from "../accounts/usage"
+import { claudeAvailable, transcriptionAvailable } from "../accounts/usage"
 import { normalizeLoudness } from "../analysis/loudness"
 import { signalsRepository } from "../analysis/repository"
 import { clipCaptionLanes, clipCaptionsEnabled } from "../captions/pages"
@@ -22,7 +21,6 @@ import { jobQueue } from "../jobs/queue"
 import { classifyAspect } from "../pipeline/steps/probe-parse"
 import { musicTracksFor } from "../music/queries"
 import { getProjectSnapshot } from "../pipeline/snapshot"
-import { isEnglishOnlyModel } from "../transcription/language"
 import { transcriptRepository } from "../transcription/repository"
 import { assetRepository, projectRepository, type Project } from "./repository"
 
@@ -141,6 +139,7 @@ export async function getProjectOverview(id: string) {
     getProjectSnapshot(db, id),
     transcriptRepository(db).get(id),
   ])
+  const { workspace } = await requireViewer()
   return {
     project,
     transcript: transcript
@@ -150,6 +149,12 @@ export async function getProjectOverview(id: string) {
           languageSource: transcript.languageSource,
         }
       : null,
+    transcription: {
+      skipped:
+        !transcript &&
+        jobs.some((j) => j.type === "transcribe" && j.status === "succeeded"),
+      available: transcriptionAvailable(workspace),
+    },
     source: assets.find((a) => a.kind === "source"),
     thumbnail: assets.find((a) => a.kind === "thumbnail"),
     proxy: assets.find((a) => a.kind === "proxy"),
@@ -183,6 +188,9 @@ export async function getProjectTranscript(id: string) {
     proxy: assets.find((a) => a.kind === "proxy"),
     source: assets.find((a) => a.kind === "source"),
     transcript,
+    transcriptionAvailable: transcriptionAvailable(
+      (await requireViewer()).workspace
+    ),
     audio,
   }
 }
@@ -400,16 +408,15 @@ export async function getProjectSettings(id: string) {
     assetRepository(db).findByKind(id, "source"),
     transcriptRepository(db).get(id),
   ])
-  const env = getEnv()
+  const { workspace } = await requireViewer()
   return {
     project,
     audioTracks: source?.audioTracks ?? [],
     transcript: transcript
       ? { language: transcript.language, source: transcript.languageSource }
       : null,
-    claudeAvailable: claudeAvailable((await requireViewer()).workspace),
-    englishOnlyModel:
-      env.TRANSCRIBER === "whisper" && isEnglishOnlyModel(env.WHISPER_MODEL),
+    claudeAvailable: claudeAvailable(workspace),
+    transcriptionOff: !transcriptionAvailable(workspace),
   }
 }
 

@@ -171,6 +171,8 @@ const indirect: Record<string, string> = {
   "features/downloads/yt-dlp-parse.ts message": "KNOWN_ERRORS, in builders",
   "features/publishing/youtube-http.ts message":
     "Google's own text, or YouTube returned N",
+  "features/transcription/groq.ts message":
+    "Groq's own text, or Groq returned N",
 }
 
 const builders: { file: string; from: string; to: string; before: RegExp }[] = [

@@ -29,9 +29,11 @@ import { Switch } from "@/components/ui/switch"
 import { ChannelIcon } from "@/components/channels/channel-icon"
 import {
   removeAnthropicKeyAction,
+  removeGroqKeyAction,
   renameWorkspaceAction,
   revokeSessionAction,
   saveAnthropicKeyAction,
+  saveGroqKeyAction,
 } from "@/features/accounts/actions"
 import type { ChannelRow, SecuritySettings } from "@/features/accounts/queries"
 import { YOUTUBE_SCOPES } from "@/features/accounts/schema"
@@ -363,15 +365,36 @@ function TwoFactorDialog({
   )
 }
 
+const API_KEYS = {
+  claude: {
+    messages: "apiKey",
+    placeholder: "sk-ant-…",
+    save: saveAnthropicKeyAction,
+    remove: removeAnthropicKeyAction,
+  },
+  groq: {
+    messages: "groqKey",
+    placeholder: "gsk_…",
+    save: saveGroqKeyAction,
+    remove: removeGroqKeyAction,
+  },
+} as const
+
+type ApiKeyProvider = keyof typeof API_KEYS
+
 function ApiKeyDialog({
+  provider,
   open,
   onOpenChange,
 }: {
+  provider: ApiKeyProvider
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const t = useMessages(settings).apiKey
+  const config = API_KEYS[provider]
+  const t = useMessages(settings)[config.messages]
   const { pending, error, run } = useAction()
+  const id = `${provider}-key`
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -381,7 +404,7 @@ function ApiKeyDialog({
             event.preventDefault()
             const key = String(new FormData(event.currentTarget).get("key"))
             run(
-              () => saveAnthropicKeyAction(key),
+              () => config.save(key),
               t.saved,
               () => onOpenChange(false)
             )
@@ -392,13 +415,13 @@ function ApiKeyDialog({
             <DialogDescription>{t.description}</DialogDescription>
           </DialogHeader>
           <Field data-invalid={error ? true : undefined}>
-            <FieldLabel htmlFor="anthropic-key">{t.key}</FieldLabel>
+            <FieldLabel htmlFor={id}>{t.key}</FieldLabel>
             <Input
-              id="anthropic-key"
+              id={id}
               name="key"
               type="password"
               autoComplete="off"
-              placeholder="sk-ant-…"
+              placeholder={config.placeholder}
               required
               className="font-mono"
             />
@@ -470,8 +493,15 @@ export function SecuritySettingsView({ data }: { data: SecuritySettings }) {
   )
 }
 
-export function ClaudeKeyRow({ keyHint }: { keyHint: string | null }) {
-  const t = useMessages(settings).apiKey
+export function ApiKeyRow({
+  provider,
+  keyHint,
+}: {
+  provider: ApiKeyProvider
+  keyHint: string | null
+}) {
+  const config = API_KEYS[provider]
+  const t = useMessages(settings)[config.messages]
   const c = useMessages(common)
   const [open, setOpen] = React.useState(false)
   const { pending, run } = useAction()
@@ -490,12 +520,12 @@ export function ClaudeKeyRow({ keyHint }: { keyHint: string | null }) {
           size="sm"
           variant="ghost"
           disabled={pending}
-          onClick={() => run(() => removeAnthropicKeyAction(), t.removed)}
+          onClick={() => run(() => config.remove(), t.removed)}
         >
           {c.remove}
         </Button>
       )}
-      <ApiKeyDialog open={open} onOpenChange={setOpen} />
+      <ApiKeyDialog provider={provider} open={open} onOpenChange={setOpen} />
     </SettingRow>
   )
 }

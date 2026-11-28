@@ -54,24 +54,22 @@ ffmpeg -i <source> [-map 0:a:<voice track>] -vn -ac 1 -ar 16000 -c:a pcm_s16le <
 
 The voice track comes from project settings (`audioTrack`, null for the default). Analysis keeps using the full mix when a voice track is chosen.
 
+The Transcriber needs the workspace's Groq key (Settings › Workspace, `workspaces.groq_key`, encrypted like the Claude key). Without one the step stops after the audio, saves no transcript and finishes as skipped (`detail.phase: "skipped"`); analysis and selection run on the audio alone, clips have no captions, and the overview's Transcribe step links to Settings, or offers "Transcribe now" (a `transcribe` re-run) once a key exists. A re-run without a key leaves an earlier transcript as it was (ADR-0091).
+
 Spoken language, first match wins (`features/transcription/language.ts`):
 
 1. the project's `language` setting when it isn't `auto`;
 2. the language the video's page reports (yt-dlp `language`, stored as `projects.source_language`);
-3. detection: 7 windows of 30 s spread across the recording, each cut with `ffmpeg -ss <t> -t 30 -c copy` and run through `whisper-cli -l auto -dl` (which ignores `-ot`, hence the cut), then the probability-weighted majority. Recordings under a minute use one window at the start. English-only models skip detection.
+3. detection: 7 windows of 30 s spread across the recording, each cut with `ffmpeg -ss <t> -t 30 -c copy` and sent to the Transcriber without a language; the majority wins. Recordings under a minute use one window at the start.
 
 The transcript stores the language and how it was chosen (`language_source`: setting, source, detected, whisper).
 
 Then the configured Transcriber:
 
-- **whisper.cpp** (`features/transcription/whisper-cpp.ts`):
-  ```sh
-  whisper-cli -m <model> -f <audio.wav> -l <lang|auto> -ojf -of <out-prefix> -ml 1 -sow -mc 0 -et 2.8 -pp
-  ```
-  `-ojf` writes full JSON with per-token timestamps (`offsets.from/to` in ms) and probabilities (`p`). `-ml 1 -sow` gives roughly one word per segment. `-mc 0` decodes each 30 s window without the text of the one before, and `-et 2.8` makes whisper retry a window whose text repeats itself (ADR-0082). Progress is parsed from `-pp` stderr lines (`progress = NN%`). Output is normalized (see BUSINESS_LOGIC → Transcription).
-- **fake** (`features/transcription/fake.ts`): deterministic sentences from `features/transcription/fake-transcript.json` (timed to the 20 s fixture), repeated every 20 s for longer media and cut at the media duration. Words are spread evenly across each sentence.
+- **groq** (`features/transcription/groq.ts`): Whisper `whisper-large-v3-turbo` on Groq's OpenAI-compatible `POST /openai/v1/audio/transcriptions`, `response_format=verbose_json`, `timestamp_granularities[]=word` and `segment`, `temperature=0`. The audio goes in 10-minute FLAC chunks (16 kHz mono, about 1 MB a minute, under the free tier's 25 MB) that reach 5 s into their neighbours; each keeps only the words starting in its own span (`planChunks`, `chunkTokens`). The word list has no punctuation, so each word takes its spelling from the segment text when the two match (`punctuate`). The first chunk's language is sent with the rest, so a recording isn't split across languages. Progress is per chunk. Output is normalized (see BUSINESS_LOGIC → Transcription). About $0.04 per audio hour on the workspace's own Groq account.
+- **fake** (`features/transcription/fake.ts`): deterministic sentences from `features/transcription/fake-transcript.json` (timed to the 20 s fixture), repeated every 20 s for longer media and cut at the media duration. Words are spread evenly across each sentence. Used whenever `TRANSCRIBER=fake`, key or not.
 
-Failure modes: binary or model missing (`DEPENDENCY_MISSING`, non-retryable; the model path is checked before spawning), whisper crash (retryable), empty transcript (succeeds with zero words; selection falls back to loudness only).
+Failure modes: Groq rejects the key (`UNAUTHORIZED`, non-retryable, "check it in Workspace settings"), a chunk too large (`TOO_LARGE`), a 4xx (`VALIDATION`), rate limit, 5xx or no connection (`EXTERNAL`, retried), empty transcript (succeeds with zero words; selection falls back to loudness only).
 
 ## 3. analyze (`analyzing → selecting`)
 

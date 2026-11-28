@@ -76,9 +76,9 @@ const seconds = (ms: number) => Math.round(ms / 1000)
 export function LanguageField<T extends Shared>({
   value,
   set,
-  englishOnlyModel,
+  transcriptionOff,
   description,
-}: FieldsProps<T> & { englishOnlyModel: boolean; description?: string }) {
+}: FieldsProps<T> & { transcriptionOff: boolean; description?: string }) {
   const t = useMessages(settings).fields
   const languages = languageOptions(useLocale())
   return (
@@ -101,8 +101,8 @@ export function LanguageField<T extends Shared>({
         </SelectContent>
       </Select>
       <FieldDescription>
-        {englishOnlyModel
-          ? t.englishOnlyModel
+        {transcriptionOff
+          ? t.transcriptionOff
           : (description ?? t.languageHint)}
       </FieldDescription>
     </Field>

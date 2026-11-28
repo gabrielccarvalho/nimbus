@@ -36,6 +36,8 @@ const accounts: Record<string, string> = {
   "Use at least 10 characters": "Use pelo menos 10 caracteres",
   "That doesn't look like a Claude API key":
     "Isso não parece uma chave de API do Claude",
+  "That doesn't look like a Groq API key":
+    "Isso não parece uma chave de API do Groq",
   "Add a Claude API key in Workspace settings to use Claude.":
     "Adicione uma chave de API do Claude nas configurações do workspace para usar o Claude.",
 }
@@ -144,10 +146,9 @@ const pipeline: Record<string, string> = {
     "Este ffmpeg não consegue embutir legendas (sem libass). Instale um com libass ou desative as legendas deste corte.",
   "This ffmpeg can't burn in on-screen text (no libass). Install one with libass or remove the text.":
     "Este ffmpeg não consegue embutir texto na tela (sem libass). Instale um com libass ou remova o texto.",
-  "whisper.cpp wrote invalid JSON": "O whisper.cpp gerou um JSON inválido",
-  "Unexpected whisper.cpp output format":
-    "Formato de saída inesperado do whisper.cpp",
-  "whisper.cpp produced no output": "O whisper.cpp não gerou nenhuma saída",
+  "Groq rejected the transcription key. Check it in Workspace settings.":
+    "O Groq recusou a chave de transcrição. Confira nas configurações do espaço de trabalho.",
+  "Could not reach Groq": "Não foi possível conectar ao Groq",
   "Transcription was cancelled": "A transcrição foi cancelada",
   'Paste the JSON object that starts with {"clips":':
     'Cole o objeto JSON que começa com {"clips":',
