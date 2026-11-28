@@ -1,5 +1,8 @@
+import { isAppError, isRetryable } from "@/lib/errors"
+
 import type { LanguageVote } from "./language"
 import type { RawToken } from "./normalize"
+import type { SkipReason } from "./schema"
 
 export type TranscribeInput = {
   audioPath: string
@@ -8,6 +11,7 @@ export type TranscribeInput = {
   signal?: AbortSignal
   onProgress?: (percent: number) => void
   onWord?: (word: LiveWord) => void
+  onChunk?: (chunk: RawTranscript) => Promise<void> | void
 }
 
 export type LiveWord = { text: string; startMs: number }
@@ -26,4 +30,14 @@ export interface Transcriber {
   readonly id: "groq" | "fake"
   transcribe(input: TranscribeInput): Promise<RawTranscript>
   detectLanguage(input: DetectLanguageInput): Promise<LanguageVote | null>
+}
+
+export function skipReason(
+  error: unknown,
+  { lastAttempt }: { lastAttempt: boolean }
+): SkipReason | null {
+  if (!isAppError(error) || !error.details?.transcriber) return null
+  if (error.code === "UNAUTHORIZED") return "rejected"
+  if (error.details.status === 429) return "rate_limited"
+  return lastAttempt || !isRetryable(error) ? "api_error" : null
 }

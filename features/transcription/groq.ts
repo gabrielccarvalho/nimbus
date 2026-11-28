@@ -32,7 +32,7 @@ async function failure(response: Response) {
     error?: { message?: string }
   }
   const message = body.error?.message ?? `Groq returned ${response.status}`
-  const details = { status: response.status }
+  const details = { status: response.status, transcriber: "groq" }
   if (response.status === 401 || response.status === 403) {
     return new AppError(
       "UNAUTHORIZED",
@@ -87,7 +87,10 @@ export class GroqTranscriber implements Transcriber {
       if (signal?.aborted) {
         throw new AppError("CANCELLED", "Transcription was cancelled")
       }
-      throw new AppError("EXTERNAL", "Could not reach Groq", { cause })
+      throw new AppError("EXTERNAL", "Could not reach Groq", {
+        cause,
+        details: { transcriber: "groq" },
+      })
     }
     if (!response.ok) throw await failure(response)
     return (await response.json()) as Verbose
@@ -106,6 +109,7 @@ export class GroqTranscriber implements Transcriber {
     signal,
     onProgress,
     onWord,
+    onChunk,
   }: TranscribeInput): Promise<RawTranscript> {
     const chunks = planChunks(durationMs)
     const tokens: RawToken[] = []
@@ -160,6 +164,7 @@ export class GroqTranscriber implements Transcriber {
           tokens.push(token)
           onWord?.({ text: token.text.trim(), startMs: token.startMs })
         }
+        await onChunk?.({ tokens: kept, language: spoken ?? "unknown" })
       } finally {
         await rm(piece, { force: true })
       }

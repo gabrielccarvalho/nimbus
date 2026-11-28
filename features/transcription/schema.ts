@@ -25,6 +25,14 @@ export const languageSourceSchema = z.enum([
 ])
 export type LanguageSource = z.infer<typeof languageSourceSchema>
 
+export const skipReasonSchema = z.enum([
+  "no_key",
+  "rate_limited",
+  "rejected",
+  "api_error",
+])
+export type SkipReason = z.infer<typeof skipReasonSchema>
+
 export const transcriptSchema = z.object({
   language: z.string(),
   languageSource: languageSourceSchema.nullable().optional(),

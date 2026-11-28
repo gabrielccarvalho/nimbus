@@ -264,7 +264,11 @@ export function ProjectOverview({
         </div>
         <PipelineStepper aria-label={t.progress}>
           {PIPELINE_STEPS.map((step, index) => {
-            const state = states[index]!
+            const skipped =
+              step.id === "transcribe" &&
+              states[index] === "complete" &&
+              facts.transcription.skipped
+            const state = skipped ? "skipped" : states[index]!
             const current = state === "current"
             const label =
               step.id === "upload" && facts.sourceUrl
@@ -291,44 +295,45 @@ export function ProjectOverview({
                   {detail && (
                     <PipelineStepDescription>
                       {detail}
-                      {step.id === "transcribe" &&
-                        state === "complete" &&
-                        facts.transcription.skipped && (
-                          <>
-                            {" · "}
-                            {facts.transcription.available ? (
-                              <button
-                                type="button"
-                                className="text-foreground underline-offset-4 hover:underline disabled:opacity-50"
-                                disabled={pending || running}
-                                onClick={() =>
-                                  run(async () => {
-                                    const result = await rerunProjectAction(
-                                      snapshot.id,
-                                      "transcribe"
-                                    )
-                                    if (!result.ok)
-                                      toast.error(
-                                        translateError(
-                                          result.error.message,
-                                          locale
-                                        )
+                      {skipped && (
+                        <>
+                          {" · "}
+                          {skipped !== "rejected" &&
+                          facts.transcription.available ? (
+                            <button
+                              type="button"
+                              className="text-foreground underline-offset-4 hover:underline disabled:opacity-50"
+                              disabled={pending || running}
+                              onClick={() =>
+                                run(async () => {
+                                  const result = await rerunProjectAction(
+                                    snapshot.id,
+                                    "transcribe"
+                                  )
+                                  if (!result.ok)
+                                    toast.error(
+                                      translateError(
+                                        result.error.message,
+                                        locale
                                       )
-                                  })
-                                }
-                              >
-                                {t.transcribeNow}
-                              </button>
-                            ) : (
-                              <Link
-                                href="/settings/workspace"
-                                className="text-foreground underline-offset-4 hover:underline"
-                              >
-                                {t.addTranscriptionKey}
-                              </Link>
-                            )}
-                          </>
-                        )}
+                                    )
+                                })
+                              }
+                            >
+                              {t.transcribeNow}
+                            </button>
+                          ) : (
+                            <Link
+                              href="/settings/workspace"
+                              className="text-foreground underline-offset-4 hover:underline"
+                            >
+                              {skipped === "rejected"
+                                ? t.checkTranscriptionKey
+                                : t.addTranscriptionKey}
+                            </Link>
+                          )}
+                        </>
+                      )}
                     </PipelineStepDescription>
                   )}
                 </PipelineStepContent>

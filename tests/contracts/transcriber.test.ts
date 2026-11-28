@@ -111,6 +111,52 @@ describe("groq adapter", () => {
     ).rejects.toMatchObject({ code })
   })
 
+  it("hands over each finished chunk before a later one fails", async () => {
+    const longAudio = path.join(dir, "long.wav")
+    execFileSync(getEnv().FFMPEG_PATH, [
+      "-v",
+      "error",
+      "-f",
+      "lavfi",
+      "-i",
+      "anullsrc=r=16000:cl=mono",
+      "-t",
+      "660",
+      longAudio,
+    ])
+    let calls = 0
+    server.use(
+      http.post(GROQ_TRANSCRIPTIONS_URL, () =>
+        ++calls === 1
+          ? HttpResponse.json({
+              language: "english",
+              segments: [{ text: " Okay." }],
+              words: [{ word: "Okay", start: 1, end: 1.5 }],
+            })
+          : HttpResponse.json({ error: { message: "slow" } }, { status: 429 })
+      )
+    )
+    const chunks: unknown[] = []
+    await expect(
+      new GroqTranscriber("gsk_contract_0123456789abcdef").transcribe({
+        audioPath: longAudio,
+        durationMs: 660_000,
+        onChunk: (chunk) => {
+          chunks.push(chunk)
+        },
+      })
+    ).rejects.toMatchObject({
+      code: "EXTERNAL",
+      details: { status: 429, transcriber: "groq" },
+    })
+    expect(chunks).toEqual([
+      {
+        language: "en",
+        tokens: [{ text: " Okay.", startMs: 1000, endMs: 1500 }],
+      },
+    ])
+  })
+
   it("detects the language from a sample", async () => {
     groqReplies()
     expect(

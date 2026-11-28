@@ -11,14 +11,23 @@ import type { JobContext, JobHandler } from "../../jobs/worker-loop"
 import { assetRepository, type Project } from "../../projects/repository"
 import { runFfmpeg } from "../../render/ffmpeg-runner"
 import { getTranscriber } from "../../transcription"
-import type { Transcriber } from "../../transcription/transcriber"
+import {
+  skipReason,
+  type RawTranscript,
+  type Transcriber,
+} from "../../transcription/transcriber"
 import {
   detectionWindows,
   pickLanguage,
   resolveLanguage,
 } from "../../transcription/language"
-import { buildSegments, normalizeWords } from "../../transcription/normalize"
+import {
+  buildSegments,
+  normalizeWords,
+  type RawToken,
+} from "../../transcription/normalize"
 import { transcriptRepository } from "../../transcription/repository"
+import type { SkipReason, Word } from "../../transcription/schema"
 import { textTail, type StepDetail } from "../detail"
 import { beginStep, completeStep, sourceAsset, throwIfAborted } from "./common"
 
@@ -146,51 +155,92 @@ export const transcribeStep: JobHandler = async ({
   const transcriber = getTranscriber(
     await resolveGroqKey(db, project.workspaceId)
   )
-  if (!transcriber) {
-    reportDetail({ ...live, phase: "skipped" })
-    logger.info("no transcription key, skipped transcription")
+  const skip = async (reason: SkipReason, kept: Word[] = []) => {
+    reportDetail({
+      ...live,
+      phase: "skipped",
+      skipReason: reason,
+      text: "",
+      words: kept.length,
+      audioMs: kept.at(-1)?.endMs ?? 0,
+    })
     await completeStep(db, project.id, "analyzing", "analyze")
-    return
+  }
+  if (!transcriber) {
+    logger.info("no transcription key, skipped transcription")
+    return skip("no_key")
   }
 
-  reportDetail({ ...live, phase: "detecting" })
-  const chosen = await chooseLanguage(
-    project,
-    transcriber,
-    audioPath,
-    durationMs,
-    { signal, scratch, logger }
-  )
-  reportProgress(15)
-  live.phase = "transcribing"
-  live.language = chosen.language === "auto" ? null : chosen.language
-  live.languageSource = chosen.source
-  reportDetail({ ...live })
+  const transcripts = transcriptRepository(db)
+  const previousEndMs = (await transcripts.get(project.id))?.words.at(-1)?.endMs
+  const received: RawToken[] = []
+  let chosen: Awaited<ReturnType<typeof chooseLanguage>> | undefined
+  const store = async (tokens: RawToken[], language: string) => {
+    const words = normalizeWords(tokens).filter(
+      (w) => w.startMs < durationMs || !durationMs
+    )
+    await transcripts.save(project.id, {
+      language,
+      languageSource: chosen!.source,
+      words,
+      segments: buildSegments(words),
+    })
+    return words
+  }
+  // A transcript that reaches further, from an earlier run, stays until this one passes it.
+  const passesPrevious = () =>
+    previousEndMs === undefined ||
+    (received.at(-1)?.endMs ?? -1) > previousEndMs
 
-  const raw = await transcriber.transcribe({
-    audioPath,
-    durationMs,
-    language: chosen.language,
-    signal,
-    onProgress: (p) => reportProgress(15 + p * 0.85),
-    onWord: (word) => {
-      live.text = textTail(`${live.text} ${word.text}`.trim())
-      live.words++
-      live.audioMs = Math.max(live.audioMs, word.startMs)
-      reportDetail({ ...live })
-    },
-  })
+  let raw: RawTranscript
+  try {
+    reportDetail({ ...live, phase: "detecting" })
+    chosen = await chooseLanguage(project, transcriber, audioPath, durationMs, {
+      signal,
+      scratch,
+      logger,
+    })
+    reportProgress(15)
+    live.phase = "transcribing"
+    live.language = chosen.language === "auto" ? null : chosen.language
+    live.languageSource = chosen.source
+    reportDetail({ ...live })
+
+    raw = await transcriber.transcribe({
+      audioPath,
+      durationMs,
+      language: chosen.language,
+      signal,
+      onProgress: (p) => reportProgress(15 + p * 0.85),
+      onWord: (word) => {
+        live.text = textTail(`${live.text} ${word.text}`.trim())
+        live.words++
+        live.audioMs = Math.max(live.audioMs, word.startMs)
+        reportDetail({ ...live })
+      },
+      onChunk: async ({ tokens, language }) => {
+        received.push(...tokens)
+        if (passesPrevious()) await store(received, language)
+      },
+    })
+  } catch (error) {
+    const reason = skipReason(error, {
+      lastAttempt: job.attempts >= job.maxAttempts,
+    })
+    if (!reason) throw error
+    const kept = received.length && passesPrevious()
+    logger.warn(
+      { err: error, reason, keptTokens: kept ? received.length : 0 },
+      "transcriber refused, continuing without the rest of the transcript"
+    )
+    return skip(
+      reason,
+      kept ? ((await transcripts.get(project.id))?.words ?? []) : []
+    )
+  }
   throwIfAborted(signal)
 
-  const words = normalizeWords(raw.tokens).filter(
-    (w) => w.startMs < durationMs || !durationMs
-  )
-  await transcriptRepository(db).save(project.id, {
-    language: raw.language,
-    languageSource: chosen.source,
-    words,
-    segments: buildSegments(words),
-  })
+  const words = await store(raw.tokens, raw.language)
   logger.info(
     {
       transcriber: transcriber.id,

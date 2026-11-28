@@ -153,6 +153,7 @@ export const overview = defineMessages({
       waitingForYou: "Waiting for you",
       addTranscriptionKey: "To transcribe, add a key in Settings →",
       transcribeNow: "Transcribe now",
+      checkTranscriptionKey: "Check the key in Settings →",
       waitingForWorker: "Waiting for the worker…",
       starting: "Starting…",
       elapsed: (duration: string) => `${duration} elapsed`,
@@ -162,13 +163,23 @@ export const overview = defineMessages({
         current: "in progress",
         upcoming: "not started",
         failed: "failed",
+        skipped: "skipped",
       },
     },
     stepDetails: {
       fps: (fps: number) => `${fps} fps`,
       transcribed: (words: string, language: string, source?: string) =>
         `${words} words · ${language}${source ? `, ${source}` : ""}`,
-      skipped: "Skipped",
+      skipped: (reason?: string) =>
+        reason ? `Skipped · ${reason}` : "Skipped",
+      partial: (words: string, until: string, reason: string) =>
+        `${words} words up to ${until} · ${reason}`,
+      skipReasons: {
+        no_key: "no transcription key",
+        rate_limited: "Groq's rate limit was reached",
+        rejected: "Groq rejected the key",
+        api_error: "Groq stopped answering",
+      },
       languageSources: {
         setting: "chosen in settings",
         source: "from the video page",
@@ -198,7 +209,12 @@ export const overview = defineMessages({
       perSecond: (size: string) => `${size}/s`,
       left: (duration: string) => `${duration} left`,
       extracting: "Extracting the audio",
-      skipping: "No transcription key, skipping",
+      skipping: {
+        no_key: "No transcription key, skipping",
+        rate_limited: "Groq's rate limit was reached, skipping",
+        rejected: "Groq rejected the key, skipping",
+        api_error: "Groq stopped answering, skipping",
+      },
       detecting: "Listening for the spoken language",
       transcribingIn: (language: string) => `Transcribing in ${language}`,
       transcribing: "Transcribing",
@@ -516,6 +532,7 @@ export const overview = defineMessages({
       addTranscriptionKey:
         "Para transcrever, adicione uma chave nas configurações →",
       transcribeNow: "Transcrever agora",
+      checkTranscriptionKey: "Confira a chave nas configurações →",
       waitingForWorker: "Aguardando na fila…",
       starting: "Iniciando…",
       elapsed: (duration: string) => `${duration} decorridos`,
@@ -525,13 +542,22 @@ export const overview = defineMessages({
         current: "em andamento",
         upcoming: "não iniciada",
         failed: "falhou",
+        skipped: "pulada",
       },
     },
     stepDetails: {
       fps: (fps: number) => `${fps} fps`,
       transcribed: (words: string, language: string, source?: string) =>
         `${words} palavras · ${language}${source ? `, ${source}` : ""}`,
-      skipped: "Pulada",
+      skipped: (reason?: string) => (reason ? `Pulada · ${reason}` : "Pulada"),
+      partial: (words: string, until: string, reason: string) =>
+        `${words} palavras até ${until} · ${reason}`,
+      skipReasons: {
+        no_key: "sem chave de transcrição",
+        rate_limited: "o limite de uso do Groq foi atingido",
+        rejected: "o Groq recusou a chave",
+        api_error: "o Groq parou de responder",
+      },
       languageSources: {
         setting: "escolhido nas configurações",
         source: "da página do vídeo",
@@ -567,7 +593,12 @@ export const overview = defineMessages({
       perSecond: (size: string) => `${size}/s`,
       left: (duration: string) => `faltam ${duration}`,
       extracting: "Extraindo o áudio",
-      skipping: "Sem chave de transcrição, pulando",
+      skipping: {
+        no_key: "Sem chave de transcrição, pulando",
+        rate_limited: "O limite de uso do Groq foi atingido, pulando",
+        rejected: "O Groq recusou a chave, pulando",
+        api_error: "O Groq parou de responder, pulando",
+      },
       detecting: "Ouvindo para descobrir o idioma falado",
       transcribingIn: (language: string) => `Transcrevendo em ${language}`,
       transcribing: "Transcrevendo",

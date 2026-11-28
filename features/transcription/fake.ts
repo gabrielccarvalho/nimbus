@@ -17,6 +17,7 @@ export class FakeTranscriber implements Transcriber {
     signal,
     onProgress,
     onWord,
+    onChunk,
   }: TranscribeInput): Promise<RawTranscript> {
     const tokens: RawToken[] = []
     const loops = Math.max(1, Math.ceil(durationMs / data.durationMs))
@@ -41,9 +42,8 @@ export class FakeTranscriber implements Transcriber {
       }
       onProgress?.(((loop + 1) / loops) * 100)
     }
-    return {
-      language: language && language !== "auto" ? language : data.language,
-      tokens,
-    }
+    const spoken = language && language !== "auto" ? language : data.language
+    await onChunk?.({ tokens, language: spoken })
+    return { language: spoken, tokens }
   }
 }

@@ -98,7 +98,7 @@ function TranscribeDetail({ detail }: { detail: Detail<"transcribe"> }) {
     detail.phase === "extracting"
       ? t.extracting
       : detail.phase === "skipped"
-        ? t.skipping
+        ? t.skipping[detail.skipReason ?? "no_key"]
         : detail.phase === "detecting"
           ? t.detecting
           : detail.language

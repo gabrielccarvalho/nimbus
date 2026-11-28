@@ -1,6 +1,7 @@
 import { languageLabel } from "@/components/settings/settings-fields"
 import type { ProjectSnapshot } from "@/features/pipeline/snapshot"
 import type { PipelineStep } from "@/features/pipeline/state-machine"
+import type { SkipReason } from "@/features/transcription/schema"
 import { formatBytes, formatDuration } from "@/lib/format"
 import { defaultLocale, type Locale } from "@/lib/i18n/config"
 
@@ -23,8 +24,9 @@ export type OverviewFacts = {
     words: number
     language: string
     languageSource: string | null
+    endMs: number
   } | null
-  transcription: { skipped: boolean; available: boolean }
+  transcription: { skipped: SkipReason | null; available: boolean }
   silences: number | null
   clipCount: number
 }
@@ -39,12 +41,38 @@ const STEP_JOBS: Partial<
   select: "select",
 }
 
+function transcribeDetail(facts: OverviewFacts, locale: Locale) {
+  const t = overview[locale].stepDetails
+  const { transcript } = facts
+  const { skipped } = facts.transcription
+  const words = transcript
+    ? new Intl.NumberFormat(locale).format(transcript.words)
+    : ""
+  if (transcript && skipped)
+    return t.partial(
+      words,
+      formatDuration(transcript.endMs),
+      t.skipReasons[skipped]
+    )
+  if (transcript)
+    return t.transcribed(
+      words,
+      languageLabel(transcript.language, locale),
+      transcript.languageSource
+        ? t.languageSources[transcript.languageSource]
+        : undefined
+    )
+  if (skipped)
+    return t.skipped(skipped === "no_key" ? undefined : t.skipReasons[skipped])
+  return null
+}
+
 export function stepDetails(
   facts: OverviewFacts,
   locale: Locale = defaultLocale
 ): Record<StepId, string | null> {
   const t = overview[locale].stepDetails
-  const { source, transcript } = facts
+  const { source } = facts
   const resolution =
     source?.width && source.height ? `${source.width}×${source.height}` : null
   return {
@@ -63,17 +91,7 @@ export function stepDetails(
           .filter(Boolean)
           .join(" · ")
       : null,
-    transcribe: transcript
-      ? t.transcribed(
-          new Intl.NumberFormat(locale).format(transcript.words),
-          languageLabel(transcript.language, locale),
-          transcript.languageSource
-            ? t.languageSources[transcript.languageSource]
-            : undefined
-        )
-      : facts.transcription.skipped
-        ? t.skipped
-        : null,
+    transcribe: transcribeDetail(facts, locale),
     analyze: facts.silences === null ? null : t.silences(facts.silences),
     select:
       facts.clipCount > 0

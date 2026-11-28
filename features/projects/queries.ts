@@ -17,11 +17,13 @@ import { clipRepository } from "../clips/repository"
 import { NICHE_PROFILES, resolveNiche } from "../highlights/niches"
 import { loadPlaybook } from "../insights/repository"
 import { buildManualPrompt } from "../highlights/prompt"
-import { jobQueue } from "../jobs/queue"
+import { jobQueue, type Job } from "../jobs/queue"
+import { stepDetailSchema } from "../pipeline/detail"
 import { classifyAspect } from "../pipeline/steps/probe-parse"
 import { musicTracksFor } from "../music/queries"
 import { getProjectSnapshot } from "../pipeline/snapshot"
 import { transcriptRepository } from "../transcription/repository"
+import type { SkipReason } from "../transcription/schema"
 import { assetRepository, projectRepository, type Project } from "./repository"
 
 async function visibleProject(db: Db, id: string) {
@@ -126,6 +128,21 @@ export async function getSearchIndex() {
   return projectRepository(getDb()).searchIndex(await viewerWorkspaceId())
 }
 
+function transcriptionSkip(
+  jobs: readonly Job[],
+  transcript: unknown
+): SkipReason | null {
+  const job = jobs.find(
+    (j) => j.type === "transcribe" && j.status === "succeeded"
+  )
+  if (!job) return null
+  const detail = stepDetailSchema.safeParse(job.detail).data
+  if (detail?.kind !== "transcribe" || detail.phase !== "skipped")
+    return transcript ? null : "no_key"
+  if (transcript && detail.words === 0) return null
+  return detail.skipReason ?? "no_key"
+}
+
 export async function getProjectOverview(id: string) {
   await connection()
   const db = getDb()
@@ -147,12 +164,11 @@ export async function getProjectOverview(id: string) {
           words: transcript.words.length,
           language: transcript.language,
           languageSource: transcript.languageSource,
+          endMs: transcript.words.at(-1)?.endMs ?? 0,
         }
       : null,
     transcription: {
-      skipped:
-        !transcript &&
-        jobs.some((j) => j.type === "transcribe" && j.status === "succeeded"),
+      skipped: transcriptionSkip(jobs, transcript),
       available: transcriptionAvailable(workspace),
     },
     source: assets.find((a) => a.kind === "source"),
@@ -174,11 +190,12 @@ export async function getProjectTranscript(id: string) {
   const db = getDb()
   const project = await visibleProject(db, id)
   if (!project) return undefined
-  const [assets, transcript, audio, clips] = await Promise.all([
+  const [assets, transcript, audio, clips, jobs] = await Promise.all([
     assetRepository(db).listForProject(id),
     transcriptRepository(db).get(id),
     audioSummary(db, project),
     clipRepository(db).listForProject(id),
+    jobQueue(db).listForProject(id),
   ])
   return {
     project,
@@ -188,6 +205,7 @@ export async function getProjectTranscript(id: string) {
     proxy: assets.find((a) => a.kind === "proxy"),
     source: assets.find((a) => a.kind === "source"),
     transcript,
+    transcriptionSkip: transcriptionSkip(jobs, transcript),
     transcriptionAvailable: transcriptionAvailable(
       (await requireViewer()).workspace
     ),

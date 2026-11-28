@@ -169,7 +169,7 @@ describe("transcribe step with Groq", () => {
     resetEnvCache()
   })
 
-  async function workspaceProject() {
+  async function workspaceProject(file = fixtures.wide) {
     const id = crypto.randomUUID()
     await env.db
       .insert(user)
@@ -179,7 +179,7 @@ describe("transcribe step with Groq", () => {
       name: "Ada",
       email: `${id}@example.com`,
     })
-    const { projectId } = await uploadFixture(fixtures.wide)
+    const { projectId } = await uploadFixture(file, path.basename(file))
     await env.db
       .update(projectsTable)
       .set({ workspaceId: workspace.id })
@@ -265,7 +265,21 @@ describe("transcribe step with Groq", () => {
     })
   })
 
-  it("fails without retrying when Groq rejects the key", async () => {
+  async function expectSkipped(projectId: string, skipReason: string) {
+    expect((await projectRepository(env.db).getOrThrow(projectId)).status).toBe(
+      "analyzing"
+    )
+    expect(await transcriptRepository(env.db).get(projectId)).toBeUndefined()
+    const jobs = await jobQueue(env.db).listForProject(projectId)
+    expect(jobs.find((j) => j.type === "transcribe")).toMatchObject({
+      status: "succeeded",
+      attempts: 1,
+      detail: { phase: "skipped", skipReason, words: 0 },
+    })
+    expect(jobs.find((j) => j.type === "analyze")?.status).toBe("queued")
+  }
+
+  it("skips transcription when Groq rejects the key", async () => {
     const { projectId, workspaceId } = await workspaceProject()
     await saveGroqKey(env.db, workspaceId, KEY)
     server.use(
@@ -277,9 +291,117 @@ describe("transcribe step with Groq", () => {
       )
     )
     await runJobs(env.db, ["probe", "transcribe"])
+    await expectSkipped(projectId, "rejected")
+  })
 
-    const project = await projectRepository(env.db).getOrThrow(projectId)
-    expect(project.status).toBe("failed")
-    expect(project.error).toMatch(/Groq rejected the transcription key/)
+  it("skips transcription when Groq's rate limit is reached mid-way", async () => {
+    const { projectId, workspaceId } = await workspaceProject()
+    await saveGroqKey(env.db, workspaceId, KEY)
+    server.use(
+      http.post(GROQ_TRANSCRIPTIONS_URL, async ({ request }) => {
+        const form = await request.formData()
+        if (form.getAll("timestamp_granularities[]").length === 0) {
+          return HttpResponse.json({ language: "english" })
+        }
+        return HttpResponse.json(
+          { error: { message: "Rate limit reached for model" } },
+          { status: 429 }
+        )
+      })
+    )
+    await runJobs(env.db, ["probe", "transcribe"])
+    await expectSkipped(projectId, "rate_limited")
+  })
+
+  it("keeps the words received before Groq's rate limit", async () => {
+    const file = path.join(env.dataDir, "eleven-minutes.mp4")
+    execFileSync(getEnv().FFMPEG_PATH, [
+      "-v",
+      "error",
+      "-f",
+      "lavfi",
+      "-i",
+      "color=c=black:s=320x180:r=1",
+      "-f",
+      "lavfi",
+      "-i",
+      "anullsrc=r=16000:cl=mono",
+      "-t",
+      "660",
+      "-c:v",
+      "libx264",
+      "-c:a",
+      "aac",
+      file,
+    ])
+    const { projectId, workspaceId } = await workspaceProject(file)
+    await saveGroqKey(env.db, workspaceId, KEY)
+    let chunks = 0
+    server.use(
+      http.post(GROQ_TRANSCRIPTIONS_URL, async ({ request }) => {
+        const form = await request.formData()
+        if (form.getAll("timestamp_granularities[]").length === 0) {
+          return HttpResponse.json({ language: "english" })
+        }
+        if (++chunks > 1) {
+          return HttpResponse.json(
+            { error: { message: "Rate limit reached for model" } },
+            { status: 429 }
+          )
+        }
+        return HttpResponse.json({
+          language: "english",
+          segments: [{ text: " Okay, let's go." }],
+          words: [
+            { word: "Okay", start: 0.2, end: 0.5 },
+            { word: "let's", start: 0.6, end: 0.8 },
+            { word: "go", start: 0.8, end: 1.1 },
+          ],
+        })
+      })
+    )
+    await runJobs(env.db, ["probe", "transcribe"])
+
+    expect((await projectRepository(env.db).getOrThrow(projectId)).status).toBe(
+      "analyzing"
+    )
+    expect(
+      (await transcriptRepository(env.db).get(projectId))?.words.map(
+        (w) => w.text
+      )
+    ).toEqual(["Okay,", "let's", "go."])
+    expect(
+      (await jobQueue(env.db).listForProject(projectId)).find(
+        (j) => j.type === "transcribe"
+      )
+    ).toMatchObject({
+      detail: { phase: "skipped", skipReason: "rate_limited", words: 3 },
+    })
+  })
+
+  it("keeps an earlier transcript when a re-run stops sooner", async () => {
+    const { projectId, workspaceId } = await workspaceProject()
+    await runJobs(env.db, ["probe"])
+    const transcripts = transcriptRepository(env.db)
+    await transcripts.save(projectId, {
+      language: "en",
+      languageSource: "detected",
+      words: [{ text: "Earlier", startMs: 0, endMs: 900, confidence: 1 }],
+      segments: [],
+    })
+    await saveGroqKey(env.db, workspaceId, KEY)
+    server.use(
+      http.post(GROQ_TRANSCRIPTIONS_URL, () =>
+        HttpResponse.json(
+          { error: { message: "Rate limit reached for model" } },
+          { status: 429 }
+        )
+      )
+    )
+    await runJobs(env.db, ["transcribe"])
+
+    expect((await transcripts.get(projectId))?.words).toMatchObject([
+      { text: "Earlier" },
+    ])
   })
 })

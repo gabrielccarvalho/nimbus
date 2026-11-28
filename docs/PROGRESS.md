@@ -548,6 +548,12 @@ Spec: `docs/UX_PATTERNS.md` and the "Nimbus pages redesign" canvas. The clip edi
 - [x] Workspace Claude key, its settings row and actions removed; selection and Find patterns use `ANTHROPIC_API_KEY`; landing copy updated
 - [ ] Drop `workspaces.anthropic_key` / `anthropic_key_hint` (kept for now so no saved key is deleted without a decision)
 
+### Phase 52: A refused transcription is skipped and keeps what it got (ADR-0093)
+
+- [x] Groq 401/403, 429 and last-attempt API errors finish the transcribe step as skipped with a reason; the overview shows it in amber with the reason and the right next action, and the transcript page explains it
+- [x] The transcript is saved after every chunk; a skipped run keeps the words received, and never replaces a transcript that reaches further
+- [ ] Resume from the last saved chunk instead of starting over on a re-run
+
 ### Not verified
 
 - Joined clips on a real recording: rendering was checked with real ffmpeg on the 20 s fixture, and the editor through component tests, not by hand in a browser. How long the preview stalls at a cut on a multi-hour proxy is unknown.

@@ -1,7 +1,7 @@
 import { z } from "zod"
 
 import { timeRangeSchema } from "../analysis/schema"
-import { languageSourceSchema } from "../transcription/schema"
+import { languageSourceSchema, skipReasonSchema } from "../transcription/schema"
 
 export const stepDetailSchema = z.discriminatedUnion("kind", [
   z.object({
@@ -14,6 +14,7 @@ export const stepDetailSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("transcribe"),
     phase: z.enum(["extracting", "detecting", "transcribing", "skipped"]),
+    skipReason: skipReasonSchema.optional(),
     language: z.string().nullable(),
     languageSource: languageSourceSchema.nullable(),
     text: z.string(),

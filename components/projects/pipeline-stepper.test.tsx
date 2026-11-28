@@ -31,6 +31,11 @@ describe("PipelineStepper", () => {
             <PipelineStepLabel>Analyze</PipelineStepLabel>
           </PipelineStepContent>
         </PipelineStep>
+        <PipelineStep state="skipped">
+          <PipelineStepContent>
+            <PipelineStepLabel>Transcribe</PipelineStepLabel>
+          </PipelineStepContent>
+        </PipelineStep>
         <PipelineStep>
           <PipelineStepContent>
             <PipelineStepLabel>Render</PipelineStepLabel>
@@ -44,7 +49,9 @@ describe("PipelineStepper", () => {
     expect(items[1]).toHaveAttribute("aria-current", "step")
     expect(items[1]).toHaveAttribute("data-attention", "true")
     expect(items[2]).toHaveTextContent("Analyze, failed")
-    expect(items[3]).toHaveAttribute("data-state", "upcoming")
-    expect(items[3]).not.toHaveAttribute("aria-current")
+    expect(items[3]).toHaveTextContent("Transcribe, skipped")
+    expect(items[3]!.querySelector("svg")).not.toBeNull()
+    expect(items[4]).toHaveAttribute("data-state", "upcoming")
+    expect(items[4]).not.toHaveAttribute("aria-current")
   })
 })

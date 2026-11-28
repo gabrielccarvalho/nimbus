@@ -39,7 +39,12 @@ export const review = defineMessages({
         "This workspace has no Groq key, so the recording wasn't transcribed. Highlights came from the audio and clips have no captions.",
       skippedWithKey:
         "This recording was imported before the workspace had a Groq key. Transcribe it from the overview.",
+      skippedRateLimited:
+        "Groq's rate limit was reached, so the recording wasn't transcribed. Highlights came from the audio and clips have no captions. Transcribe it from the overview once the limit resets.",
+      skippedRejected:
+        "Groq rejected the workspace's key, so the recording wasn't transcribed. Highlights came from the audio and clips have no captions.",
       addKey: "Add a key in Settings →",
+      checkKey: "Check the key in Settings →",
       openOverview: "Open the overview →",
     },
     grid: {
@@ -253,7 +258,12 @@ export const review = defineMessages({
         "Este espaço de trabalho não tem chave do Groq, então a gravação não foi transcrita. Os destaques vieram do áudio e os cortes saem sem legenda.",
       skippedWithKey:
         "Esta gravação foi importada antes de o espaço de trabalho ter uma chave do Groq. Transcreva pela visão geral.",
+      skippedRateLimited:
+        "O limite de uso do Groq foi atingido, então a gravação não foi transcrita. Os destaques vieram do áudio e os cortes saem sem legenda. Transcreva pela visão geral quando o limite renovar.",
+      skippedRejected:
+        "O Groq recusou a chave do espaço de trabalho, então a gravação não foi transcrita. Os destaques vieram do áudio e os cortes saem sem legenda.",
       addKey: "Adicionar uma chave nas configurações →",
+      checkKey: "Conferir a chave nas configurações →",
       openOverview: "Abrir a visão geral →",
     },
     grid: {

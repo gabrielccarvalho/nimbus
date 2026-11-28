@@ -1,5 +1,5 @@
 import * as React from "react"
-import { CheckIcon, XIcon } from "@phosphor-icons/react/ssr"
+import { ArrowArcRightIcon, CheckIcon, XIcon } from "@phosphor-icons/react/ssr"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
 
@@ -16,6 +16,7 @@ const pipelineStepVariants = cva(
         current: "",
         upcoming: "",
         failed: "",
+        skipped: "",
       },
     },
     defaultVariants: { state: "upcoming" },
@@ -57,12 +58,14 @@ function PipelineStep({
       >
         <span
           aria-hidden
-          className="grid size-6 place-items-center rounded-full bg-glass text-tertiary inset-ring-1 inset-ring-white/6 group-data-attention/pipeline-step:bg-amber/14 group-data-attention/pipeline-step:text-amber group-data-attention/pipeline-step:shadow-[0_0_14px_rgb(255_179_107/0.35)] group-data-attention/pipeline-step:inset-ring-amber/60 group-data-[state=complete]/pipeline-step:bg-mint/14 group-data-[state=complete]/pipeline-step:text-mint group-data-[state=complete]/pipeline-step:inset-ring-mint/45 group-data-[state=current]/pipeline-step:bg-lav/14 group-data-[state=current]/pipeline-step:text-lav group-data-[state=current]/pipeline-step:shadow-[0_0_14px_rgb(179_188_255/0.35)] group-data-[state=current]/pipeline-step:inset-ring-lav/60 group-data-[state=failed]/pipeline-step:bg-pink/14 group-data-[state=failed]/pipeline-step:text-pink group-data-[state=failed]/pipeline-step:inset-ring-pink/60 [&_svg]:size-3"
+          className="grid size-6 place-items-center rounded-full bg-glass text-tertiary inset-ring-1 inset-ring-white/6 group-data-attention/pipeline-step:bg-amber/14 group-data-attention/pipeline-step:text-amber group-data-attention/pipeline-step:shadow-[0_0_14px_rgb(255_179_107/0.35)] group-data-attention/pipeline-step:inset-ring-amber/60 group-data-[state=complete]/pipeline-step:bg-mint/14 group-data-[state=complete]/pipeline-step:text-mint group-data-[state=complete]/pipeline-step:inset-ring-mint/45 group-data-[state=current]/pipeline-step:bg-lav/14 group-data-[state=current]/pipeline-step:text-lav group-data-[state=current]/pipeline-step:shadow-[0_0_14px_rgb(179_188_255/0.35)] group-data-[state=current]/pipeline-step:inset-ring-lav/60 group-data-[state=failed]/pipeline-step:bg-pink/14 group-data-[state=failed]/pipeline-step:text-pink group-data-[state=failed]/pipeline-step:inset-ring-pink/60 group-data-[state=skipped]/pipeline-step:bg-amber/14 group-data-[state=skipped]/pipeline-step:text-amber group-data-[state=skipped]/pipeline-step:inset-ring-amber/45 [&_svg]:size-3"
         >
           {resolved === "complete" ? (
             <CheckIcon weight="bold" />
           ) : resolved === "failed" ? (
             <XIcon weight="bold" />
+          ) : resolved === "skipped" ? (
+            <ArrowArcRightIcon weight="bold" />
           ) : resolved === "current" ? (
             <i className="size-1.5 rounded-[2px] bg-current" />
           ) : null}

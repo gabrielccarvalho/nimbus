@@ -34,8 +34,13 @@ describe("stepDetails", () => {
         height: 1080,
         fps: 59.94,
       },
-      transcript: { words: 6587, language: "pt", languageSource: "source" },
-      transcription: { skipped: false, available: true },
+      transcript: {
+        words: 6587,
+        language: "pt",
+        languageSource: "source",
+        endMs: 3_060_000,
+      },
+      transcription: { skipped: null, available: true },
       silences: 12,
       clipCount: 12,
     })
@@ -56,7 +61,7 @@ describe("stepDetails", () => {
       renderQuality: "draft",
       source: null,
       transcript: null,
-      transcription: { skipped: false, available: false },
+      transcription: { skipped: null, available: false },
       silences: null,
       clipCount: 0,
     })
@@ -71,11 +76,32 @@ describe("stepDetails", () => {
       renderQuality: "draft",
       source: null,
       transcript: null,
-      transcription: { skipped: true, available: false },
+      transcription: { skipped: "no_key", available: false },
       silences: 3,
       clipCount: 2,
     })
     expect(details.transcribe).toBe("Skipped")
+  })
+
+  it("says how far a transcription got before Groq stopped it", () => {
+    const details = stepDetails({
+      sourceUrl: null,
+      selectorMode: "heuristic",
+      renderQuality: "draft",
+      source: null,
+      transcript: {
+        words: 1240,
+        language: "pt",
+        languageSource: "detected",
+        endMs: 1_200_000,
+      },
+      transcription: { skipped: "rate_limited", available: true },
+      silences: 3,
+      clipCount: 2,
+    })
+    expect(details.transcribe).toBe(
+      "1,240 words up to 20:00 · Groq's rate limit was reached"
+    )
   })
 })
 

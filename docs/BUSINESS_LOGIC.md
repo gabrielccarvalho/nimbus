@@ -119,7 +119,7 @@ The source of truth is `features/pipeline/state-machine.ts` (`forward`, `RUNNING
 
 ### Transcription
 
-- Only with the workspace's own Groq key (ADR-0091). Without one, the step keeps the audio, saves no transcript and finishes as skipped; highlights come from the audio, clips have no captions, and a re-run without a key leaves an earlier transcript alone. `TRANSCRIBER=fake` always transcribes.
+- Only with the workspace's own Groq key (ADR-0091). The transcript is saved after every chunk. Without a key, or when Groq rejects the key, answers with its rate limit, or keeps failing on the job's last attempt (ADR-0093), the step finishes as skipped with the reason (`no_key`, `rejected`, `rate_limited`, `api_error`) and the pipeline goes on with the words received so far: highlights and captions cover that part, the rest comes from the audio alone. A re-run never replaces a transcript that reaches further into the recording until it has passed it. `TRANSCRIBER=fake` always transcribes.
 - Audio: 16 kHz mono PCM WAV, sent to Groq as 10-minute FLAC chunks that overlap 5 s on each side. A chunk keeps only the words that start in its own 10 minutes, so each word appears once. Timed words take their spelling and punctuation from the segment text when the two match.
 - Word normalization (pure, `features/transcription/normalize.ts`):
   1. Trim whitespace; drop empty tokens.

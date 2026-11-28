@@ -46,6 +46,8 @@ export default async function TranscriptPage({
   const t = review[locale].transcriptPage
 
   if (!transcript && PAST_TRANSCRIPTION.includes(project.status)) {
+    const skip = data.transcriptionSkip
+    const toSettings = skip === "rejected" || !data.transcriptionAvailable
     return (
       <Empty className="rounded-[18px] bg-graphite">
         <EmptyHeader>
@@ -54,7 +56,13 @@ export default async function TranscriptPage({
           </EmptyMedia>
           <EmptyTitle>{t.skippedTitle}</EmptyTitle>
           <EmptyDescription>
-            {data.transcriptionAvailable ? t.skippedWithKey : t.skippedNoKey}
+            {skip === "rate_limited"
+              ? t.skippedRateLimited
+              : skip === "rejected"
+                ? t.skippedRejected
+                : data.transcriptionAvailable
+                  ? t.skippedWithKey
+                  : t.skippedNoKey}
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
@@ -64,14 +72,16 @@ export default async function TranscriptPage({
             render={
               <Link
                 href={
-                  data.transcriptionAvailable
-                    ? `/projects/${project.id}`
-                    : "/settings/workspace"
+                  toSettings ? "/settings/workspace" : `/projects/${project.id}`
                 }
               />
             }
           >
-            {data.transcriptionAvailable ? t.openOverview : t.addKey}
+            {skip === "rejected"
+              ? t.checkKey
+              : toSettings
+                ? t.addKey
+                : t.openOverview}
           </Button>
         </EmptyContent>
       </Empty>

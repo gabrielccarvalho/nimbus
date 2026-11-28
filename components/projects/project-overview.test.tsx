@@ -29,7 +29,7 @@ const facts: OverviewFacts = {
   renderQuality: "balanced",
   source: null,
   transcript: null,
-  transcription: { skipped: false, available: false },
+  transcription: { skipped: null, available: false },
   silences: null,
   clipCount: 0,
 }
@@ -91,7 +91,7 @@ describe("ProjectOverview", () => {
   })
   it("links a skipped transcription to the key setting", () => {
     overview([], "ready_for_review", {
-      transcription: { skipped: true, available: false },
+      transcription: { skipped: "no_key", available: false },
     })
     expect(
       screen.getByRole("link", {
@@ -103,11 +103,33 @@ describe("ProjectOverview", () => {
   it("offers to transcribe once the workspace has a key", async () => {
     const { rerunProjectAction } = await import("@/features/projects/actions")
     overview([], "ready_for_review", {
-      transcription: { skipped: true, available: true },
+      transcription: { skipped: "no_key", available: true },
     })
     await userEvent.click(
       screen.getByRole("button", { name: "Transcribe now" })
     )
     expect(rerunProjectAction).toHaveBeenCalledWith("p1", "transcribe")
+  })
+
+  it("marks a rate-limited transcription as skipped and offers to retry", () => {
+    overview([], "ready_for_review", {
+      transcription: { skipped: "rate_limited", available: true },
+    })
+    const step = screen
+      .getByText(/Groq's rate limit was reached/)
+      .closest("li")!
+    expect(step).toHaveAttribute("data-state", "skipped")
+    expect(step).toHaveTextContent("Groq's rate limit was reached")
+    expect(screen.getByRole("button", { name: "Transcribe now" })).toBeVisible()
+  })
+
+  it("sends a rejected key to Settings", () => {
+    overview([], "ready_for_review", {
+      transcription: { skipped: "rejected", available: true },
+    })
+    expect(screen.queryByRole("button", { name: "Transcribe now" })).toBeNull()
+    expect(
+      screen.getByRole("link", { name: "Check the key in Settings →" })
+    ).toHaveAttribute("href", "/settings/workspace")
   })
 })
